@@ -4,6 +4,7 @@ import PromoCards from "@/components/PromoCards";
 import SellerStories from "@/components/SellerStories";
 import BenefitsBanner from "@/components/BenefitsBanner";
 import PromoSection from "@/components/PromoSection";
+import AdBanner from "@/components/AdBanner";
 import FreeShippingSection from "@/components/FreeShippingSection";
 import LowPriceSection from "@/components/LowPriceSection";
 import RankingSection from "@/components/RankingSection";
@@ -21,11 +22,15 @@ const Index = () => {
       <SellerStories />
       <BenefitsBanner />
       <PromoSection />
+      <AdBanner variant="wide-1" />
       <FreeShippingSection />
+      <AdBanner variant="double" />
       <LowPriceSection />
       <RankingSection />
+      <AdBanner variant="wide-2" />
       <VerifiedStores />
       <RecentProducts />
+      <AdBanner variant="double" />
       <ForYouSection />
       <Footer />
     </div>

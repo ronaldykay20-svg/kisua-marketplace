@@ -1,6 +1,7 @@
-import { Flame, Star } from "lucide-react";
+import { Star } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
-interface Product {
+export interface Product {
   id: number;
   title: string;
   price: string;
@@ -18,8 +19,13 @@ interface ProductCardProps {
 }
 
 const ProductCard = ({ product }: ProductCardProps) => {
+  const navigate = useNavigate();
+
   return (
-    <div className="bg-card rounded-card border border-border overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group flex flex-col">
+    <div
+      onClick={() => navigate(`/produto/${product.id}`)}
+      className="bg-card rounded-card border border-border overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group flex flex-col h-full"
+    >
       <div className="relative aspect-square overflow-hidden bg-muted">
         <img
           src={product.image}
@@ -66,4 +72,4 @@ const ProductCard = ({ product }: ProductCardProps) => {
 };
 
 export default ProductCard;
-export type { Product };
+export type { Product as ProductType };

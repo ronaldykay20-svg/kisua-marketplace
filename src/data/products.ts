@@ -1,0 +1,53 @@
+import { type Product } from "@/components/ProductCard";
+
+export const allProducts: Product[] = [
+  // Promos
+  { id: 1, title: "iPhone 15 Pro Max 256GB", price: "520.000 Kz", oldPrice: "650.000 Kz", discount: "-20%", image: "https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=600&h=600&fit=crop", rating: 5, reviews: 234, freeShipping: true, badge: "HOT" },
+  { id: 2, title: "Samsung Galaxy S24 Ultra", price: "380.000 Kz", oldPrice: "480.000 Kz", discount: "-21%", image: "https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=600&h=600&fit=crop", rating: 4, reviews: 189, freeShipping: true },
+  { id: 3, title: "AirPods Pro 2ª Geração", price: "120.000 Kz", oldPrice: "180.000 Kz", discount: "-33%", image: "https://images.unsplash.com/photo-1606220945770-b5b6c2c55bf1?w=600&h=600&fit=crop", rating: 5, reviews: 456, freeShipping: false },
+  { id: 4, title: "PlayStation 5 Slim", price: "450.000 Kz", oldPrice: "550.000 Kz", discount: "-18%", image: "https://images.unsplash.com/photo-1606813907291-d86efa9b94db?w=600&h=600&fit=crop", rating: 5, reviews: 312, freeShipping: true, badge: "HOT" },
+  { id: 5, title: "Smart TV Samsung 55\" 4K", price: "280.000 Kz", oldPrice: "380.000 Kz", discount: "-26%", image: "https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?w=600&h=600&fit=crop", rating: 4, reviews: 98, freeShipping: true },
+  { id: 6, title: "Câmera Canon EOS R50", price: "350.000 Kz", oldPrice: "420.000 Kz", discount: "-17%", image: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=600&h=600&fit=crop", rating: 5, reviews: 67, freeShipping: false },
+  { id: 7, title: "iPad Air M2 11\"", price: "480.000 Kz", oldPrice: "580.000 Kz", discount: "-17%", image: "https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=600&h=600&fit=crop", rating: 5, reviews: 145, freeShipping: true },
+  { id: 8, title: "JBL Charge 5 Bluetooth", price: "55.000 Kz", oldPrice: "75.000 Kz", discount: "-27%", image: "https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=600&h=600&fit=crop", rating: 4, reviews: 278, freeShipping: true },
+  // Free shipping
+  { id: 10, title: "Máquina de Lavar Roupa 8kg Samsung", price: "180.000 Kz", image: "https://images.unsplash.com/photo-1626806787461-102c1bfaaea1?w=600&h=600&fit=crop", rating: 4, reviews: 87, freeShipping: true },
+  { id: 11, title: "Ar Condicionado Split 12000BTU", price: "250.000 Kz", image: "https://images.unsplash.com/photo-1585338107529-13afc5f02586?w=600&h=600&fit=crop", rating: 5, reviews: 143, freeShipping: true },
+  { id: 12, title: "Frigorífico Americano LG 500L", price: "420.000 Kz", image: "https://images.unsplash.com/photo-1571175443880-49e1d25b2bc5?w=600&h=600&fit=crop", rating: 4, reviews: 56, freeShipping: true },
+  { id: 13, title: "Fogão de 5 Bocas Inox", price: "95.000 Kz", image: "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=600&h=600&fit=crop", rating: 5, reviews: 201, freeShipping: true },
+  { id: 14, title: "Micro-ondas Digital 30L", price: "45.000 Kz", image: "https://images.unsplash.com/photo-1585659722983-3a675dabf23d?w=600&h=600&fit=crop", rating: 4, reviews: 78, freeShipping: true },
+  { id: 15, title: "Aspirador Robot Automático", price: "120.000 Kz", image: "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=600&h=600&fit=crop", rating: 5, reviews: 165, freeShipping: true },
+  { id: 16, title: "Máquina de Café Expresso", price: "65.000 Kz", image: "https://images.unsplash.com/photo-1517701550927-30cf4ba1dba5?w=600&h=600&fit=crop", rating: 4, reviews: 92, freeShipping: true },
+  { id: 17, title: "Purificador de Água 4 Etapas", price: "35.000 Kz", image: "https://images.unsplash.com/photo-1564419320461-6eb9c0ffa44c?w=600&h=600&fit=crop", rating: 5, reviews: 134, freeShipping: true },
+  // Low price
+  { id: 20, title: "Capa iPhone 15 Silicone", price: "2.500 Kz", image: "https://images.unsplash.com/photo-1601784551446-20c9e07cdbdb?w=600&h=600&fit=crop", rating: 4, reviews: 890 },
+  { id: 21, title: "Fones Bluetooth TWS", price: "5.000 Kz", image: "https://images.unsplash.com/photo-1590658268037-6bf12f032f55?w=600&h=600&fit=crop", rating: 3, reviews: 1230 },
+  { id: 22, title: "Relógio Digital LED", price: "3.500 Kz", image: "https://images.unsplash.com/photo-1524592094714-0f0654e20314?w=600&h=600&fit=crop", rating: 4, reviews: 567 },
+  { id: 23, title: "Carregador USB-C Rápido", price: "4.000 Kz", image: "https://images.unsplash.com/photo-1583863788434-e58a36330cf0?w=600&h=600&fit=crop", rating: 4, reviews: 345 },
+  { id: 24, title: "Mouse Sem Fio Ergonómico", price: "6.000 Kz", image: "https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=600&h=600&fit=crop", rating: 4, reviews: 678 },
+  { id: 25, title: "Hub USB 4 Portas", price: "3.000 Kz", image: "https://images.unsplash.com/photo-1625723044792-44de16ccb4e9?w=600&h=600&fit=crop", rating: 3, reviews: 234 },
+  { id: 26, title: "Película Vidro Temperado", price: "1.500 Kz", image: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600&h=600&fit=crop", rating: 4, reviews: 1560 },
+  { id: 27, title: "Cabo HDMI 2m 4K", price: "2.000 Kz", image: "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=600&h=600&fit=crop", rating: 5, reviews: 432 },
+  // Recent
+  { id: 30, title: "Toyota Hilux 2022 Dupla Cabine", price: "18.500.000 Kz", image: "https://images.unsplash.com/photo-1559416523-140ddc3d238c?w=600&h=600&fit=crop", rating: 5, reviews: 12, badge: "NOVO" },
+  { id: 31, title: "Apartamento T3 Talatona", price: "45.000.000 Kz", image: "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600&h=600&fit=crop", rating: 4, reviews: 8 },
+  { id: 32, title: "MacBook Pro M3 14\" 512GB", price: "1.200.000 Kz", image: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=600&h=600&fit=crop", rating: 5, reviews: 45, freeShipping: true },
+  { id: 33, title: "Terreno 500m² Viana", price: "8.000.000 Kz", image: "https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=600&h=600&fit=crop", rating: 4, reviews: 3 },
+  { id: 34, title: "Sofá Modular 5 Lugares Cinza", price: "320.000 Kz", image: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=600&h=600&fit=crop", rating: 4, reviews: 23, freeShipping: true },
+  { id: 35, title: "Gerador Eléctrico 5000W", price: "450.000 Kz", image: "https://images.unsplash.com/photo-1621905252507-b35492cc74b4?w=600&h=600&fit=crop", rating: 5, reviews: 67, freeShipping: true },
+  { id: 36, title: "Bicicleta Mountain Bike 29\"", price: "85.000 Kz", image: "https://images.unsplash.com/photo-1532298229144-0ec0c57515c7?w=600&h=600&fit=crop", rating: 4, reviews: 34, badge: "NOVO" },
+  { id: 37, title: "Mesa de Jantar 6 Lugares", price: "150.000 Kz", image: "https://images.unsplash.com/photo-1617806118233-18e1de247200?w=600&h=600&fit=crop", rating: 5, reviews: 19, freeShipping: true },
+  { id: 38, title: "Conjunto Treino Nike", price: "25.000 Kz", image: "https://images.unsplash.com/photo-1556906781-9a412961c28c?w=600&h=600&fit=crop", rating: 4, reviews: 156 },
+  { id: 39, title: "Drone DJI Mini 3", price: "380.000 Kz", image: "https://images.unsplash.com/photo-1473968512647-3e447244af8f?w=600&h=600&fit=crop", rating: 5, reviews: 42 },
+  // For you
+  { id: 50, title: "Tênis Nike Air Max 90", price: "45.000 Kz", oldPrice: "65.000 Kz", discount: "-31%", image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600&h=600&fit=crop", rating: 5, reviews: 890, freeShipping: true },
+  { id: 51, title: "Smartwatch Samsung Galaxy Watch", price: "95.000 Kz", image: "https://images.unsplash.com/photo-1579586337278-3befd40fd17a?w=600&h=600&fit=crop", rating: 4, reviews: 342, freeShipping: true },
+  { id: 52, title: "Mochila Laptop 15.6\" Impermeável", price: "12.000 Kz", image: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=600&h=600&fit=crop", rating: 4, reviews: 567 },
+  { id: 53, title: "Óculos de Sol Ray-Ban Aviator", price: "28.000 Kz", image: "https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=600&h=600&fit=crop", rating: 5, reviews: 234, freeShipping: true },
+  { id: 54, title: "Colunas Bluetooth JBL Charge 5", price: "65.000 Kz", image: "https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=600&h=600&fit=crop", rating: 5, reviews: 678, freeShipping: true, badge: "HOT" },
+  { id: 55, title: "Cadeira Gaming Ergonómica", price: "85.000 Kz", image: "https://images.unsplash.com/photo-1592078615290-033ee584e267?w=600&h=600&fit=crop", rating: 4, reviews: 123, freeShipping: true },
+  { id: 56, title: "Kit Churrasco Inox 12 Peças", price: "15.000 Kz", image: "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=600&h=600&fit=crop", rating: 4, reviews: 89 },
+  { id: 57, title: "Impressora HP Multifuncional WiFi", price: "45.000 Kz", image: "https://images.unsplash.com/photo-1612815154858-60aa4c59eaa6?w=600&h=600&fit=crop", rating: 4, reviews: 201, freeShipping: true },
+  { id: 58, title: "Perfume Hugo Boss 100ml", price: "35.000 Kz", image: "https://images.unsplash.com/photo-1523293182086-7651a899d37f?w=600&h=600&fit=crop", rating: 4, reviews: 210, freeShipping: true },
+  { id: 59, title: "Panela Eléctrica Multifunções", price: "18.000 Kz", image: "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=600&h=600&fit=crop", rating: 5, reviews: 89, freeShipping: true },
+];
