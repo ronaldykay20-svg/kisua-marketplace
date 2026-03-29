@@ -1,7 +1,9 @@
 import ProductCard, { type Product } from "./ProductCard";
+import ProductCarousel from "./ProductCarousel";
+import SectionCard from "./SectionCard";
 import { TrendingDown } from "lucide-react";
 
-const lowPriceProducts: Product[] = [
+const products: Product[] = [
   { id: 20, title: "Capa iPhone 15 Silicone", price: "2.500 Kz", image: "https://images.unsplash.com/photo-1601784551446-20c9e07cdbdb?w=400&h=400&fit=crop", rating: 4, reviews: 890 },
   { id: 21, title: "Fones Bluetooth TWS", price: "5.000 Kz", image: "https://images.unsplash.com/photo-1590658268037-6bf12f032f55?w=400&h=400&fit=crop", rating: 3, reviews: 1230 },
   { id: 22, title: "Relógio Digital LED", price: "3.500 Kz", image: "https://images.unsplash.com/photo-1524592094714-0f0654e20314?w=400&h=400&fit=crop", rating: 4, reviews: 567 },
@@ -14,20 +16,16 @@ const lowPriceProducts: Product[] = [
 
 const LowPriceSection = () => {
   return (
-    <section className="container mx-auto px-4 py-5">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-card flex items-center justify-center bg-walmart-orange">
-            <TrendingDown className="w-4 h-4 text-primary-foreground" />
-          </div>
-          <h2 className="text-base font-bold text-foreground">Preços Baixos</h2>
-        </div>
-        <a href="#" className="text-xs font-semibold text-primary">Ver todos →</a>
-      </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
-        {lowPriceProducts.map(p => <ProductCard key={p.id} product={p} />)}
-      </div>
-    </section>
+    <SectionCard
+      title="Preços baixos todos os dias"
+      subtitle="Os melhores preços de Angola"
+      bg="bg-yellow-50"
+      icon={<div className="w-7 h-7 rounded-card flex items-center justify-center bg-walmart-orange"><TrendingDown className="w-4 h-4 text-primary-foreground" /></div>}
+    >
+      <ProductCarousel>
+        {products.map(p => <ProductCard key={p.id} product={p} />)}
+      </ProductCarousel>
+    </SectionCard>
   );
 };
 
