@@ -69,7 +69,7 @@ const ProductGrid = () => {
             initial={{ opacity: 0, y: 15 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="group bg-card rounded-2xl overflow-hidden border border-border hover:border-primary/30 transition-all cursor-pointer flex"
+            className="group bg-card rounded-2xl overflow-hidden border border-border hover:border-primary/30 transition-all cursor-pointer flex relative"
             style={{ boxShadow: "var(--card-shadow)" }}
           >
             <div className="relative w-1/3 overflow-hidden">
