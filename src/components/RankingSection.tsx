@@ -18,7 +18,7 @@ const RankingSection = () => {
           </div>
           <h2 className="text-base font-bold text-foreground">Ranking de Vendedores</h2>
         </div>
-        <a href="#" className="text-xs font-semibold text-primary">Ver ranking →</a>
+        <a href="/ranking" className="text-xs font-semibold text-primary">Ver ranking →</a>
       </div>
 
       <div className="bg-card rounded-card border border-border overflow-hidden">
