@@ -18,7 +18,7 @@ const VerifiedStores = () => {
           <CheckCircle className="w-5 h-5 text-primary" />
           <h2 className="text-base font-bold text-foreground">Páginas Verificadas</h2>
         </div>
-        <a href="#" className="text-xs font-semibold text-primary">Ver todas →</a>
+        <a href="/empresas" className="text-xs font-semibold text-primary">Ver todas →</a>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
