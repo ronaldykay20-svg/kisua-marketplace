@@ -1,5 +1,6 @@
 import { Search, Menu, ShoppingCart, User, MapPin, X, Car, Home, Smartphone, ShoppingBag, Briefcase, Dumbbell, BookOpen, Utensils, Wrench, Baby, HeartPulse, Monitor, Gamepad2, Gem, Plane, PawPrint } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 const categories = [
   { name: "Electrónicos", icon: Smartphone },
