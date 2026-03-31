@@ -50,16 +50,18 @@ const Navbar = () => {
             </a>
 
             <div className="flex-1 min-w-0">
-              <div className="relative flex">
+              <form onSubmit={handleSearch} className="relative flex">
                 <input
                   type="text"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
                   placeholder="Pesquisar Kwanza Market"
                   className="w-full py-2 pl-3 pr-10 rounded-l-full bg-primary-foreground text-foreground text-sm placeholder:text-muted-foreground focus:outline-none"
                 />
-                <button className="px-3.5 bg-secondary rounded-r-full flex items-center justify-center hover:brightness-110 transition flex-shrink-0">
+                <button type="submit" className="px-3.5 bg-secondary rounded-r-full flex items-center justify-center hover:brightness-110 transition flex-shrink-0">
                   <Search className="w-5 h-5 text-secondary-foreground" />
                 </button>
-              </div>
+              </form>
             </div>
 
             <button className="text-primary-foreground relative flex-shrink-0">
