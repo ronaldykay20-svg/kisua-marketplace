@@ -7,6 +7,9 @@ import Index from "./pages/Index.tsx";
 import ProductDetail from "./pages/ProductDetail.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import Ranking from "./pages/Ranking.tsx";
+import Empresas from "./pages/Empresas.tsx";
+import EmpresaPerfil from "./pages/EmpresaPerfil.tsx";
+import SearchResults from "./pages/SearchResults.tsx";
 
 const queryClient = new QueryClient();
 
@@ -20,6 +23,9 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/produto/:id" element={<ProductDetail />} />
           <Route path="/ranking" element={<Ranking />} />
+          <Route path="/empresas" element={<Empresas />} />
+          <Route path="/empresa/:id" element={<EmpresaPerfil />} />
+          <Route path="/pesquisa" element={<SearchResults />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

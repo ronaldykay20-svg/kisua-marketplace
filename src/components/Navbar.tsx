@@ -1,5 +1,6 @@
 import { Search, Menu, ShoppingCart, User, MapPin, X, Car, Home, Smartphone, ShoppingBag, Briefcase, Dumbbell, BookOpen, Utensils, Wrench, Baby, HeartPulse, Monitor, Gamepad2, Gem, Plane, PawPrint } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 const categories = [
   { name: "Electrónicos", icon: Smartphone },
@@ -22,6 +23,16 @@ const categories = [
 
 const Navbar = () => {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const navigate = useNavigate();
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      navigate(`/pesquisa?q=${encodeURIComponent(searchQuery.trim())}`);
+      setSearchQuery("");
+    }
+  };
 
   return (
     <>
@@ -39,16 +50,18 @@ const Navbar = () => {
             </a>
 
             <div className="flex-1 min-w-0">
-              <div className="relative flex">
+              <form onSubmit={handleSearch} className="relative flex">
                 <input
                   type="text"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
                   placeholder="Pesquisar Kwanza Market"
                   className="w-full py-2 pl-3 pr-10 rounded-l-full bg-primary-foreground text-foreground text-sm placeholder:text-muted-foreground focus:outline-none"
                 />
-                <button className="px-3.5 bg-secondary rounded-r-full flex items-center justify-center hover:brightness-110 transition flex-shrink-0">
+                <button type="submit" className="px-3.5 bg-secondary rounded-r-full flex items-center justify-center hover:brightness-110 transition flex-shrink-0">
                   <Search className="w-5 h-5 text-secondary-foreground" />
                 </button>
-              </div>
+              </form>
             </div>
 
             <button className="text-primary-foreground relative flex-shrink-0">
