@@ -7,6 +7,9 @@ import Index from "./pages/Index.tsx";
 import ProductDetail from "./pages/ProductDetail.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import Ranking from "./pages/Ranking.tsx";
+import Empresas from "./pages/Empresas.tsx";
+import EmpresaPerfil from "./pages/EmpresaPerfil.tsx";
+import SearchResults from "./pages/SearchResults.tsx";
 
 const queryClient = new QueryClient();
 
