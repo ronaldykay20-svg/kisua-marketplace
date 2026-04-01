@@ -11,6 +11,9 @@ import Empresas from "./pages/Empresas.tsx";
 import EmpresaPerfil from "./pages/EmpresaPerfil.tsx";
 import SearchResults from "./pages/SearchResults.tsx";
 import Leilao from "./pages/Leilao.tsx";
+import Live from "./pages/Live.tsx";
+import Vendedores from "./pages/Vendedores.tsx";
+import VendedorPerfil from "./pages/VendedorPerfil.tsx";
 
 const queryClient = new QueryClient();
 
@@ -28,6 +31,9 @@ const App = () => (
           <Route path="/empresa/:id" element={<EmpresaPerfil />} />
           <Route path="/pesquisa" element={<SearchResults />} />
           <Route path="/leilao" element={<Leilao />} />
+          <Route path="/live" element={<Live />} />
+          <Route path="/vendedores" element={<Vendedores />} />
+          <Route path="/vendedor/:id" element={<VendedorPerfil />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
