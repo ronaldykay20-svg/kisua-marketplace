@@ -3,7 +3,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Star, MapPin, CheckCircle, ShoppingBag, MessageCircle, Phone, Clock, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { products } from "@/data/products";
+import { allProducts as products } from "@/data/products";
 
 const seller = {
   name: "Carlos Mendes",
