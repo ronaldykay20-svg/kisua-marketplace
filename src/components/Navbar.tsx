@@ -1,24 +1,29 @@
-import { Search, Menu, ShoppingCart, User, MapPin, X, Car, Home, Smartphone, ShoppingBag, Briefcase, Dumbbell, BookOpen, Utensils, Wrench, Baby, HeartPulse, Monitor, Gamepad2, Gem, Plane, PawPrint } from "lucide-react";
+import { Search, Menu, ShoppingCart, User, MapPin, X, ChevronRight, Gavel, Radio, Store, Users } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 const categories = [
-  { name: "Electrónicos", icon: Smartphone },
-  { name: "Veículos", icon: Car },
-  { name: "Imóveis", icon: Home },
-  { name: "Moda", icon: ShoppingBag },
-  { name: "Casa & Jardim", icon: Wrench },
-  { name: "Desporto", icon: Dumbbell },
-  { name: "Bebé & Criança", icon: Baby },
-  { name: "Saúde", icon: HeartPulse },
-  { name: "Informática", icon: Monitor },
-  { name: "Gaming", icon: Gamepad2 },
-  { name: "Jóias & Relógios", icon: Gem },
-  { name: "Viagens", icon: Plane },
-  { name: "Alimentação", icon: Utensils },
-  { name: "Empregos", icon: Briefcase },
-  { name: "Educação", icon: BookOpen },
-  { name: "Animais", icon: PawPrint },
+  { name: "Electrónicos", image: "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=100&h=100&fit=crop" },
+  { name: "Veículos", image: "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=100&h=100&fit=crop" },
+  { name: "Imóveis", image: "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=100&h=100&fit=crop" },
+  { name: "Moda", image: "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=100&h=100&fit=crop" },
+  { name: "Casa & Jardim", image: "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=100&h=100&fit=crop" },
+  { name: "Desporto", image: "https://images.unsplash.com/photo-1461896836934-bd45ba8a0a42?w=100&h=100&fit=crop" },
+  { name: "Bebé & Criança", image: "https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?w=100&h=100&fit=crop" },
+  { name: "Saúde & Beleza", image: "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=100&h=100&fit=crop" },
+  { name: "Informática", image: "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=100&h=100&fit=crop" },
+  { name: "Gaming", image: "https://images.unsplash.com/photo-1612287230202-1ff1d85d1bdf?w=100&h=100&fit=crop" },
+  { name: "Jóias & Relógios", image: "https://images.unsplash.com/photo-1515562141589-67f0d569b6fc?w=100&h=100&fit=crop" },
+  { name: "Alimentação", image: "https://images.unsplash.com/photo-1506617420156-8e4536971650?w=100&h=100&fit=crop" },
+  { name: "Educação", image: "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=100&h=100&fit=crop" },
+  { name: "Animais", image: "https://images.unsplash.com/photo-1450778869180-41d0601e046e?w=100&h=100&fit=crop" },
+];
+
+const quickLinks = [
+  { label: "Leilão", path: "/leilao", icon: Gavel, color: "text-walmart-orange" },
+  { label: "Live", path: "/live", icon: Radio, color: "text-destructive" },
+  { label: "Empresas", path: "/empresas", icon: Store, color: "text-primary" },
+  { label: "Vendedores", path: "/vendedores", icon: Users, color: "text-accent" },
 ];
 
 const Navbar = () => {
@@ -38,7 +43,6 @@ const Navbar = () => {
     <>
       <nav className="sticky top-0 z-50 bg-primary">
         <div className="container mx-auto px-3">
-          {/* Main bar */}
           <div className="flex items-center gap-2.5 h-14">
             <button className="text-primary-foreground flex-shrink-0" onClick={() => setMenuOpen(!menuOpen)}>
               <Menu className="w-6 h-6" />
@@ -70,14 +74,12 @@ const Navbar = () => {
             </button>
           </div>
 
-          {/* Delivery bar */}
           <div className="flex items-center gap-2 h-8 text-primary-foreground/90">
             <MapPin className="w-4 h-4 text-secondary flex-shrink-0" />
             <span className="text-xs">Retirada ou entrega?</span>
             <span className="text-xs font-bold text-primary-foreground ml-auto">Luanda, Angola</span>
           </div>
 
-          {/* Quick filter pills */}
           <div className="flex items-center gap-2 h-10 overflow-x-auto scrollbar-hide pb-1.5">
             <button className="flex-shrink-0 w-8 h-8 rounded-card bg-primary-foreground/10 flex items-center justify-center" onClick={() => setMenuOpen(true)}>
               <span className="text-primary-foreground text-sm">⊞</span>
@@ -91,11 +93,11 @@ const Navbar = () => {
         </div>
       </nav>
 
-      {/* Slide-in category menu */}
+      {/* Shein-style slide-in menu */}
       {menuOpen && (
         <div className="fixed inset-0 z-[60] flex">
           <div className="absolute inset-0 bg-foreground/50" onClick={() => setMenuOpen(false)} />
-          <div className="relative w-[85%] max-w-[320px] bg-card h-full overflow-y-auto animate-in slide-in-from-left duration-200">
+          <div className="relative w-[85%] max-w-[320px] bg-card h-full overflow-y-auto animate-in slide-in-from-left duration-200 flex flex-col">
             {/* Menu header */}
             <div className="bg-primary p-4 flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -107,32 +109,41 @@ const Navbar = () => {
               </button>
             </div>
 
-            {/* Categories */}
-            <div className="p-3">
-              <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 px-2">Categorias</h3>
-              <div className="space-y-0.5">
-                {categories.map(cat => (
-                  <button key={cat.name} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-card hover:bg-muted transition-colors text-left">
-                    <cat.icon className="w-5 h-5 text-muted-foreground" />
-                    <span className="text-sm font-medium text-foreground">{cat.name}</span>
+            {/* Quick links */}
+            <div className="p-3 border-b border-border">
+              <div className="grid grid-cols-4 gap-2">
+                {quickLinks.map(link => (
+                  <button
+                    key={link.label}
+                    onClick={() => { navigate(link.path); setMenuOpen(false); }}
+                    className="flex flex-col items-center gap-1.5 py-2.5 rounded-card hover:bg-muted transition-colors"
+                  >
+                    <link.icon className={`w-5 h-5 ${link.color}`} />
+                    <span className="text-[10px] font-semibold text-foreground">{link.label}</span>
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Menu footer links */}
-            <div className="border-t border-border p-3 space-y-0.5">
-              {[
-                { label: "Leilão", path: "/leilao" },
-                { label: "Live", path: "/live" },
-                { label: "Vendedores", path: "/vendedores" },
-                { label: "Empresas", path: "/empresas" },
-              ].map(link => (
-                <button key={link.label} onClick={() => { navigate(link.path); setMenuOpen(false); }} className="w-full text-left px-3 py-2.5 rounded-card text-sm font-medium text-foreground hover:bg-muted transition-colors">
-                  {link.label}
-                </button>
-              ))}
+            {/* Categories with circular images */}
+            <div className="flex-1 p-1">
+              <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 px-3 pt-2">Categorias</h3>
+              <div className="space-y-0.5">
+                {categories.map(cat => (
+                  <button
+                    key={cat.name}
+                    onClick={() => { navigate(`/pesquisa?q=${encodeURIComponent(cat.name)}`); setMenuOpen(false); }}
+                    className="w-full flex items-center gap-3 px-3 py-2 hover:bg-muted transition-colors"
+                  >
+                    <img src={cat.image} alt={cat.name} className="w-10 h-10 rounded-full object-cover border border-border" />
+                    <span className="text-sm font-medium text-foreground flex-1 text-left">{cat.name}</span>
+                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                  </button>
+                ))}
+              </div>
             </div>
+
+            {/* Footer links */}
             <div className="border-t border-border p-3 space-y-0.5">
               {["Minha conta", "Meus pedidos", "Favoritos", "Ajuda", "Vender no Kwanza Market"].map(link => (
                 <button key={link} className="w-full text-left px-3 py-2.5 rounded-card text-sm font-medium text-foreground hover:bg-muted transition-colors">

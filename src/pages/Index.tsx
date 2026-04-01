@@ -1,6 +1,6 @@
 import Navbar from "@/components/Navbar";
 import HeroBanner from "@/components/HeroBanner";
-import QuickAccessSection from "@/components/QuickAccessSection";
+import BottomNav from "@/components/BottomNav";
 import PromoCards from "@/components/PromoCards";
 import SellerStories from "@/components/SellerStories";
 import BenefitsBanner from "@/components/BenefitsBanner";
@@ -16,10 +16,9 @@ import Footer from "@/components/Footer";
 
 const Index = () => {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pb-14 md:pb-0">
       <Navbar />
       <HeroBanner />
-      <QuickAccessSection />
       <PromoCards />
       <SellerStories />
       <BenefitsBanner />
@@ -35,6 +34,7 @@ const Index = () => {
       <AdBanner variant="double" />
       <ForYouSection />
       <Footer />
+      <BottomNav />
     </div>
   );
 };
