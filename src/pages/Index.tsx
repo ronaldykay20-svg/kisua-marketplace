@@ -1,5 +1,6 @@
 import Navbar from "@/components/Navbar";
 import HeroBanner from "@/components/HeroBanner";
+import QuickAccessSection from "@/components/QuickAccessSection";
 import PromoCards from "@/components/PromoCards";
 import SellerStories from "@/components/SellerStories";
 import BenefitsBanner from "@/components/BenefitsBanner";
