@@ -2,6 +2,7 @@ import { User, Package, Heart, HelpCircle, ChevronRight, Settings, MapPin, Credi
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useFavorites, useOrders } from "@/hooks/useSupabaseData";
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
 import { toast } from "sonner";
@@ -9,18 +10,26 @@ import { toast } from "sonner";
 const MinhaConta = () => {
   const navigate = useNavigate();
   const { user, userDisplayName, signOut } = useAuth();
-  const { isAdmin, isModerator, roles } = useUserRole();
+  const { isAdmin, isModerator } = useUserRole();
+  const { data: favorites } = useFavorites();
+  const { data: orders } = useOrders();
 
   const menuItems = [
     { icon: Package, label: "Meus Pedidos", desc: "Acompanhe as suas encomendas", path: "/pedidos" },
     { icon: Heart, label: "Favoritos", desc: "Produtos que guardou", path: "/favoritos" },
-    { icon: MapPin, label: "Endereços", desc: "Gerir endereços de entrega", path: "#" },
-    { icon: CreditCard, label: "Pagamentos", desc: "Métodos de pagamento", path: "#" },
-    { icon: Bell, label: "Notificações", desc: "Preferências de alertas", path: "#" },
-    { icon: Shield, label: "Segurança", desc: "Palavra-passe e privacidade", path: "#" },
+    { icon: MapPin, label: "Endereços", desc: "Gerir endereços de entrega", path: "/enderecos" },
+    { icon: CreditCard, label: "Pagamentos", desc: "Métodos de pagamento", path: "/pagamentos" },
+    { icon: Bell, label: "Notificações", desc: "Preferências de alertas", path: "/notificacoes" },
+    { icon: Shield, label: "Segurança", desc: "Palavra-passe e privacidade", path: "/seguranca" },
     { icon: HelpCircle, label: "Ajuda", desc: "Centro de ajuda e suporte", path: "/ajuda" },
-    { icon: Settings, label: "Definições", desc: "Configurações da conta", path: "#" },
+    { icon: Settings, label: "Definições", desc: "Configurações da conta", path: "/definicoes" },
     ...(isAdmin ? [{ icon: Crown, label: "Administração", desc: "Gerir utilizadores e cargos", path: "/admin" }] : []),
+  ];
+
+  const stats = [
+    { n: String(orders?.length || 0), l: "Pedidos" },
+    { n: String(favorites?.length || 0), l: "Favoritos" },
+    { n: "0", l: "Cupões" },
   ];
 
   const handleLogout = async () => {
@@ -66,7 +75,7 @@ const MinhaConta = () => {
 
         {/* Quick stats */}
         <div className="grid grid-cols-3 gap-2 mb-4">
-          {[{ n: "0", l: "Pedidos" }, { n: "0", l: "Favoritos" }, { n: "0", l: "Cupões" }].map(s => (
+          {stats.map(s => (
             <div key={s.l} className="bg-card rounded-lg border border-border p-3 text-center">
               <p className="text-lg font-bold text-primary">{s.n}</p>
               <p className="text-[10px] text-muted-foreground">{s.l}</p>

@@ -25,6 +25,11 @@ import Ajuda from "./pages/Ajuda.tsx";
 import VenderKwanza from "./pages/VenderKwanza.tsx";
 import Auth from "./pages/Auth.tsx";
 import AdminPanel from "./pages/AdminPanel.tsx";
+import Enderecos from "./pages/Enderecos.tsx";
+import Pagamentos from "./pages/Pagamentos.tsx";
+import Notificacoes from "./pages/Notificacoes.tsx";
+import Seguranca from "./pages/Seguranca.tsx";
+import Definicoes from "./pages/Definicoes.tsx";
 import ProtectedRoute from "./components/ProtectedRoute.tsx";
 
 const queryClient = new QueryClient();
