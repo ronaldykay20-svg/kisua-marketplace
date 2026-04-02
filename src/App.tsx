@@ -32,6 +32,7 @@ import Seguranca from "./pages/Seguranca.tsx";
 import Definicoes from "./pages/Definicoes.tsx";
 import SellerDashboard from "./pages/SellerDashboard.tsx";
 import CompanyDashboard from "./pages/CompanyDashboard.tsx";
+import ModeratorPanel from "./pages/ModeratorPanel.tsx";
 import ProtectedRoute from "./components/ProtectedRoute.tsx";
 
 const queryClient = new QueryClient();
