@@ -166,7 +166,7 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], onSave, onCance
       category_id: form.category_id || null,
       free_shipping: form.free_shipping,
       badge: form.badge || null,
-      image_url: media.find(m => m.is_cover)?.url || media[0]?.url || null,
+      
     };
     onSave(payload, media);
   };
