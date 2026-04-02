@@ -3,6 +3,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import { ChevronLeft, SlidersHorizontal, ChevronDown, ShoppingCart, Star } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
+import MobileProductCard from "@/components/MobileProductCard";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { allProducts } from "@/data/products";
 
 const subcategories: Record<string, string[]> = {
@@ -37,6 +39,7 @@ const CategoriaDetalhe = () => {
 
   const subs = subcategories[categoryName] || ["Todos"];
   const products = allProducts;
+  const isMobile = useIsMobile();
 
   return (
     <div className="min-h-screen bg-background pb-14 md:pb-0">
@@ -138,38 +141,46 @@ const CategoriaDetalhe = () => {
 
           <p className="text-xs text-muted-foreground mb-3">{products.length} resultados em "{categoryName}"</p>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-            {products.map(p => (
-              <button key={p.id} onClick={() => navigate(`/produto/${p.id}`)} className="bg-card rounded-lg border border-border overflow-hidden text-left hover:shadow-md transition group">
-                <div className="relative aspect-square overflow-hidden">
-                  {p.discount && (
-                    <span className="absolute top-1.5 left-1.5 bg-destructive text-destructive-foreground text-[10px] font-bold px-1.5 py-0.5 rounded z-10">{p.discount}</span>
-                  )}
-                  {p.badge && (
-                    <span className="absolute top-1.5 right-1.5 bg-walmart-orange text-primary-foreground text-[10px] font-bold px-1.5 py-0.5 rounded z-10">{p.badge}</span>
-                  )}
-                  <img src={p.image} alt={p.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy" />
-                </div>
-                <div className="p-2">
-                  <h3 className="text-xs font-medium text-foreground line-clamp-2 leading-tight mb-1">{p.title}</h3>
-                  <div className="flex items-center gap-1 mb-1">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className={`w-2.5 h-2.5 ${i < (p.rating || 0) ? "fill-walmart-orange text-walmart-orange" : "text-muted-foreground"}`} />
-                    ))}
-                    <span className="text-[10px] text-muted-foreground">({p.reviews})</span>
+          {isMobile ? (
+            <div className="columns-2 gap-1.5 space-y-1.5">
+              {products.map((p, i) => (
+                <MobileProductCard key={p.id} product={p} index={i} />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+              {products.map(p => (
+                <button key={p.id} onClick={() => navigate(`/produto/${p.id}`)} className="bg-card rounded-lg border border-border overflow-hidden text-left hover:shadow-md transition group">
+                  <div className="relative aspect-square overflow-hidden">
+                    {p.discount && (
+                      <span className="absolute top-1.5 left-1.5 bg-destructive text-destructive-foreground text-[10px] font-bold px-1.5 py-0.5 rounded z-10">{p.discount}</span>
+                    )}
+                    {p.badge && (
+                      <span className="absolute top-1.5 right-1.5 bg-walmart-orange text-primary-foreground text-[10px] font-bold px-1.5 py-0.5 rounded z-10">{p.badge}</span>
+                    )}
+                    <img src={p.image} alt={p.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy" />
                   </div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-sm font-bold text-foreground">{p.price}</span>
-                      {p.oldPrice && <span className="text-[10px] text-muted-foreground line-through ml-1">{p.oldPrice}</span>}
+                  <div className="p-2">
+                    <h3 className="text-xs font-medium text-foreground line-clamp-2 leading-tight mb-1">{p.title}</h3>
+                    <div className="flex items-center gap-1 mb-1">
+                      {[...Array(5)].map((_, i) => (
+                        <Star key={i} className={`w-2.5 h-2.5 ${i < (p.rating || 0) ? "fill-walmart-orange text-walmart-orange" : "text-muted-foreground"}`} />
+                      ))}
+                      <span className="text-[10px] text-muted-foreground">({p.reviews})</span>
                     </div>
-                    <ShoppingCart className="w-4 h-4 text-primary" />
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-sm font-bold text-foreground">{p.price}</span>
+                        {p.oldPrice && <span className="text-[10px] text-muted-foreground line-through ml-1">{p.oldPrice}</span>}
+                      </div>
+                      <ShoppingCart className="w-4 h-4 text-primary" />
+                    </div>
+                    {p.freeShipping && <span className="text-[9px] text-walmart-green font-semibold">Frete grátis</span>}
                   </div>
-                  {p.freeShipping && <span className="text-[9px] text-walmart-green font-semibold">Frete grátis</span>}
-                </div>
-              </button>
-            ))}
-          </div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
       <BottomNav />

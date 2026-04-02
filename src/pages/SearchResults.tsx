@@ -3,6 +3,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Search, SlidersHorizontal, ChevronDown, Star, CheckCircle, ShoppingCart, MapPin, Users, ChevronLeft, ChevronRight } from "lucide-react";
 import { allProducts } from "@/data/products";
 import ProductCard from "@/components/ProductCard";
+import MobileProductCard from "@/components/MobileProductCard";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const searchTabs = ["Produtos", "Vendedores", "Empresas"];
 const sortOptions = ["Mais relevantes", "Menor preço", "Maior preço", "Mais vendidos", "Melhor avaliação"];
@@ -26,6 +28,7 @@ const SearchResults = () => {
   const [showSort, setShowSort] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const isMobile = useIsMobile();
 
   const results = allProducts.filter(p =>
     !searchQuery || p.title.toLowerCase().includes(searchQuery.toLowerCase())
@@ -158,11 +161,19 @@ const SearchResults = () => {
         {/* Content */}
         {activeTab === "Produtos" && (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
-              {paginatedResults.map(p => (
-                <ProductCard key={p.id} product={p} />
-              ))}
-            </div>
+            {isMobile ? (
+              <div className="columns-2 gap-1.5 space-y-1.5">
+                {paginatedResults.map((p, i) => (
+                  <MobileProductCard key={p.id} product={p} index={i} />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+                {paginatedResults.map(p => (
+                  <ProductCard key={p.id} product={p} />
+                ))}
+              </div>
+            )}
 
             {totalPages > 1 && (
               <div className="flex items-center justify-center gap-1.5 mt-4">
