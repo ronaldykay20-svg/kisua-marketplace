@@ -14,7 +14,7 @@ const mapDbProduct = (p: any): Product => ({
   price: formatPrice(p.price),
   oldPrice: p.old_price ? formatPrice(p.old_price) : undefined,
   discount: p.discount_percent ? `-${p.discount_percent}%` : undefined,
-  image: p.product_images?.[0]?.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&h=600&fit=crop",
+  image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&h=600&fit=crop",
   rating: p.rating || undefined,
   reviews: p.total_reviews || undefined,
   freeShipping: p.free_shipping || false,
