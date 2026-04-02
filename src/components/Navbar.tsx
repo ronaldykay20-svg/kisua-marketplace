@@ -1,4 +1,4 @@
-import { Search, Menu, ShoppingCart, User, MapPin, X, ChevronRight, Gavel, Radio, Store, Users } from "lucide-react";
+import { Search, Menu, ShoppingCart, User, MapPin, X, ChevronRight, Gavel, Radio, Store, Users, Zap } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -22,6 +22,7 @@ const categories = [
 const quickLinks = [
   { label: "Leilão", path: "/leilao", icon: Gavel, color: "text-walmart-orange" },
   { label: "Live", path: "/live", icon: Radio, color: "text-destructive" },
+  { label: "Promoções", path: "/promocoes", icon: Zap, color: "text-walmart-orange" },
   { label: "Empresas", path: "/empresas", icon: Store, color: "text-primary" },
   { label: "Vendedores", path: "/vendedores", icon: Users, color: "text-accent" },
 ];

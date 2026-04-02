@@ -14,6 +14,14 @@ import Leilao from "./pages/Leilao.tsx";
 import Live from "./pages/Live.tsx";
 import Vendedores from "./pages/Vendedores.tsx";
 import VendedorPerfil from "./pages/VendedorPerfil.tsx";
+import Categorias from "./pages/Categorias.tsx";
+import CategoriaDetalhe from "./pages/CategoriaDetalhe.tsx";
+import Promocoes from "./pages/Promocoes.tsx";
+import MinhaConta from "./pages/MinhaConta.tsx";
+import Pedidos from "./pages/Pedidos.tsx";
+import Favoritos from "./pages/Favoritos.tsx";
+import Ajuda from "./pages/Ajuda.tsx";
+import VenderKwanza from "./pages/VenderKwanza.tsx";
 
 const queryClient = new QueryClient();
 
@@ -34,6 +42,14 @@ const App = () => (
           <Route path="/live" element={<Live />} />
           <Route path="/vendedores" element={<Vendedores />} />
           <Route path="/vendedor/:id" element={<VendedorPerfil />} />
+          <Route path="/categorias" element={<Categorias />} />
+          <Route path="/categoria/:nome" element={<CategoriaDetalhe />} />
+          <Route path="/promocoes" element={<Promocoes />} />
+          <Route path="/conta" element={<MinhaConta />} />
+          <Route path="/pedidos" element={<Pedidos />} />
+          <Route path="/favoritos" element={<Favoritos />} />
+          <Route path="/ajuda" element={<Ajuda />} />
+          <Route path="/vender" element={<VenderKwanza />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
