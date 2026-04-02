@@ -32,6 +32,7 @@ import Seguranca from "./pages/Seguranca.tsx";
 import Definicoes from "./pages/Definicoes.tsx";
 import SellerDashboard from "./pages/SellerDashboard.tsx";
 import CompanyDashboard from "./pages/CompanyDashboard.tsx";
+import ModeratorPanel from "./pages/ModeratorPanel.tsx";
 import ProtectedRoute from "./components/ProtectedRoute.tsx";
 
 const queryClient = new QueryClient();
@@ -71,6 +72,7 @@ const App = () => (
           <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminPanel /></ProtectedRoute>} />
           <Route path="/painel-vendedor" element={<ProtectedRoute><SellerDashboard /></ProtectedRoute>} />
           <Route path="/painel-empresa" element={<ProtectedRoute><CompanyDashboard /></ProtectedRoute>} />
+          <Route path="/painel-moderador" element={<ProtectedRoute requiredRole="moderator"><ModeratorPanel /></ProtectedRoute>} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
