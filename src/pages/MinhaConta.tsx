@@ -16,6 +16,26 @@ const MinhaConta = () => {
   const { data: favorites } = useFavorites();
   const { data: orders } = useOrders();
 
+  // Check if user is a seller
+  const { data: isSeller } = useQuery({
+    queryKey: ["is_seller", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase.from("sellers").select("id").eq("user_id", user!.id).maybeSingle();
+      return !!data;
+    },
+    enabled: !!user,
+  });
+
+  // Check if user is a company member
+  const { data: isCompanyMember } = useQuery({
+    queryKey: ["is_company_member", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase.from("company_members").select("id").eq("user_id", user!.id).maybeSingle();
+      return !!data;
+    },
+    enabled: !!user,
+  });
+
   const menuItems = [
     { icon: Package, label: "Meus Pedidos", desc: "Acompanhe as suas encomendas", path: "/pedidos" },
     { icon: Heart, label: "Favoritos", desc: "Produtos que guardou", path: "/favoritos" },
