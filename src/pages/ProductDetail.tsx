@@ -127,7 +127,11 @@ const ProductDetail = () => {
             {/* Image gallery */}
             <div className="bg-card md:rounded-card md:border md:border-border">
               <div className="aspect-square relative overflow-hidden md:rounded-t-card md:max-h-[450px]">
-                <img src={images[selectedImage]} alt={product.title} className="w-full h-full object-cover" />
+                {images[selectedImage]?.type === "video" ? (
+                  <video src={images[selectedImage].url} controls className="w-full h-full object-cover" />
+                ) : (
+                  <img src={images[selectedImage].url} alt={product.title} className="w-full h-full object-cover" />
+                )}
                 <div className="absolute right-3 top-1/3 flex flex-col gap-2">
                   <button className="w-9 h-9 rounded-full bg-card/80 shadow flex items-center justify-center"><Share2 className="w-4 h-4 text-muted-foreground" /></button>
                   <button onClick={() => setLiked(!liked)} className="w-9 h-9 rounded-full bg-card/80 shadow flex items-center justify-center">
