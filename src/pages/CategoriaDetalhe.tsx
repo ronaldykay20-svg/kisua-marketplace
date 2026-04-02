@@ -3,6 +3,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import { ChevronLeft, SlidersHorizontal, ChevronDown, ShoppingCart, Star } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
+import MobileProductCard from "@/components/MobileProductCard";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { allProducts } from "@/data/products";
 
 const subcategories: Record<string, string[]> = {
