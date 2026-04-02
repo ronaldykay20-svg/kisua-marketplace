@@ -3,6 +3,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Search, SlidersHorizontal, ChevronDown, Star, CheckCircle, ShoppingCart, MapPin, Users, ChevronLeft, ChevronRight } from "lucide-react";
 import { allProducts } from "@/data/products";
 import ProductCard from "@/components/ProductCard";
+import MobileProductCard from "@/components/MobileProductCard";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const searchTabs = ["Produtos", "Vendedores", "Empresas"];
 const sortOptions = ["Mais relevantes", "Menor preço", "Maior preço", "Mais vendidos", "Melhor avaliação"];
