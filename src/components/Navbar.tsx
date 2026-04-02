@@ -1,4 +1,4 @@
-import { Search, Menu, ShoppingCart, User, MapPin, X, ChevronRight, Gavel, Radio, Store, Users } from "lucide-react";
+import { Search, Menu, ShoppingCart, User, MapPin, X, ChevronRight, Gavel, Radio, Store, Users, Zap } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -22,6 +22,7 @@ const categories = [
 const quickLinks = [
   { label: "Leilão", path: "/leilao", icon: Gavel, color: "text-walmart-orange" },
   { label: "Live", path: "/live", icon: Radio, color: "text-destructive" },
+  { label: "Promoções", path: "/promocoes", icon: Zap, color: "text-walmart-orange" },
   { label: "Empresas", path: "/empresas", icon: Store, color: "text-primary" },
   { label: "Vendedores", path: "/vendedores", icon: Users, color: "text-accent" },
 ];
@@ -111,7 +112,7 @@ const Navbar = () => {
 
             {/* Quick links */}
             <div className="p-3 border-b border-border">
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-5 gap-1">
                 {quickLinks.map(link => (
                   <button
                     key={link.label}
@@ -119,7 +120,7 @@ const Navbar = () => {
                     className="flex flex-col items-center gap-1.5 py-2.5 rounded-card hover:bg-muted transition-colors"
                   >
                     <link.icon className={`w-5 h-5 ${link.color}`} />
-                    <span className="text-[10px] font-semibold text-foreground">{link.label}</span>
+                    <span className="text-[9px] font-semibold text-foreground">{link.label}</span>
                   </button>
                 ))}
               </div>
@@ -132,7 +133,7 @@ const Navbar = () => {
                 {categories.map(cat => (
                   <button
                     key={cat.name}
-                    onClick={() => { navigate(`/pesquisa?q=${encodeURIComponent(cat.name)}`); setMenuOpen(false); }}
+                    onClick={() => { navigate(`/categoria/${encodeURIComponent(cat.name)}`); setMenuOpen(false); }}
                     className="w-full flex items-center gap-3 px-3 py-2 hover:bg-muted transition-colors"
                   >
                     <img src={cat.image} alt={cat.name} className="w-10 h-10 rounded-full object-cover border border-border" />
@@ -145,9 +146,16 @@ const Navbar = () => {
 
             {/* Footer links */}
             <div className="border-t border-border p-3 space-y-0.5">
-              {["Minha conta", "Meus pedidos", "Favoritos", "Ajuda", "Vender no Kwanza Market"].map(link => (
-                <button key={link} className="w-full text-left px-3 py-2.5 rounded-card text-sm font-medium text-foreground hover:bg-muted transition-colors">
-                  {link}
+              {[
+                { label: "Minha conta", path: "/conta" },
+                { label: "Meus pedidos", path: "/pedidos" },
+                { label: "Favoritos", path: "/favoritos" },
+                { label: "Ajuda", path: "/ajuda" },
+                { label: "Vender no Kwanza Market", path: "/vender" },
+              ].map(link => (
+                <button key={link.label} onClick={() => { navigate(link.path); setMenuOpen(false); }}
+                  className="w-full text-left px-3 py-2.5 rounded-card text-sm font-medium text-foreground hover:bg-muted transition-colors">
+                  {link.label}
                 </button>
               ))}
             </div>
