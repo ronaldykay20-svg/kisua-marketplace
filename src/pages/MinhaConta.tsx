@@ -1,7 +1,9 @@
 import { User, Package, Heart, HelpCircle, ChevronRight, Settings, MapPin, CreditCard, Bell, Shield, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
+import { toast } from "sonner";
 
 const menuItems = [
   { icon: Package, label: "Meus Pedidos", desc: "Acompanhe as suas encomendas", path: "/pedidos" },
@@ -16,6 +18,13 @@ const menuItems = [
 
 const MinhaConta = () => {
   const navigate = useNavigate();
+  const { user, userDisplayName, signOut } = useAuth();
+
+  const handleLogout = async () => {
+    await signOut();
+    toast.success("Sessão terminada com sucesso");
+    navigate("/");
+  };
 
   return (
     <div className="min-h-screen bg-background pb-14 md:pb-0">
@@ -24,13 +33,28 @@ const MinhaConta = () => {
         {/* Profile header */}
         <div className="bg-card rounded-lg border border-border p-4 flex items-center gap-3 mb-4">
           <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
-            <User className="w-7 h-7 text-primary" />
+            {user ? (
+              <span className="text-xl font-bold text-primary">{userDisplayName.charAt(0).toUpperCase()}</span>
+            ) : (
+              <User className="w-7 h-7 text-primary" />
+            )}
           </div>
           <div className="flex-1">
-            <h2 className="text-sm font-bold text-foreground">Olá, visitante</h2>
-            <p className="text-xs text-muted-foreground">Faça login para ver a sua conta</p>
+            {user ? (
+              <>
+                <h2 className="text-sm font-bold text-foreground">Olá, {userDisplayName}</h2>
+                <p className="text-xs text-muted-foreground">{user.email}</p>
+              </>
+            ) : (
+              <>
+                <h2 className="text-sm font-bold text-foreground">Olá, visitante</h2>
+                <p className="text-xs text-muted-foreground">Faça login para ver a sua conta</p>
+              </>
+            )}
           </div>
-          <button onClick={() => navigate("/auth")} className="px-4 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-lg">Entrar</button>
+          {!user && (
+            <button onClick={() => navigate("/auth")} className="px-4 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-lg">Entrar</button>
+          )}
         </div>
 
         {/* Quick stats */}
@@ -57,9 +81,14 @@ const MinhaConta = () => {
           ))}
         </div>
 
-        <button className="w-full mt-4 flex items-center justify-center gap-2 py-3 rounded-lg border border-destructive/30 text-destructive text-sm font-medium hover:bg-destructive/5 transition">
-          <LogOut className="w-4 h-4" /> Sair
-        </button>
+        {user && (
+          <button
+            onClick={handleLogout}
+            className="w-full mt-4 flex items-center justify-center gap-2 py-3 rounded-lg border border-destructive/30 text-destructive text-sm font-medium hover:bg-destructive/5 transition"
+          >
+            <LogOut className="w-4 h-4" /> Sair
+          </button>
+        )}
       </div>
       <BottomNav />
     </div>

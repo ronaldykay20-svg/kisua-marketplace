@@ -180,6 +180,14 @@ const Navbar = () => {
                   {link.label}
                 </button>
               ))}
+              {user && (
+                <button
+                  onClick={async () => { await signOut(); setMenuOpen(false); navigate("/"); }}
+                  className="w-full text-left px-3 py-2.5 rounded-card text-sm font-medium text-destructive hover:bg-destructive/5 transition-colors flex items-center gap-2"
+                >
+                  <LogOut className="w-4 h-4" /> Sair da conta
+                </button>
+              )}
             </div>
           </div>
         </div>

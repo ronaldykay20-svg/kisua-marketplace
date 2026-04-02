@@ -7,7 +7,12 @@ import { toast } from "sonner";
 
 const Auth = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
+
+  useEffect(() => {
+    if (user) navigate("/conta", { replace: true });
+  }, [user, navigate]);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
