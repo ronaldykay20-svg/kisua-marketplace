@@ -161,11 +161,19 @@ const SearchResults = () => {
         {/* Content */}
         {activeTab === "Produtos" && (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
-              {paginatedResults.map(p => (
-                <ProductCard key={p.id} product={p} />
-              ))}
-            </div>
+            {isMobile ? (
+              <div className="columns-2 gap-1.5 space-y-1.5">
+                {paginatedResults.map((p, i) => (
+                  <MobileProductCard key={p.id} product={p} index={i} />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+                {paginatedResults.map(p => (
+                  <ProductCard key={p.id} product={p} />
+                ))}
+              </div>
+            )}
 
             {totalPages > 1 && (
               <div className="flex items-center justify-center gap-1.5 mt-4">
