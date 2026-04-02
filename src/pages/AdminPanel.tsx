@@ -164,6 +164,7 @@ const AdminPanel = () => {
 
   const tabs: { key: Tab; label: string; icon: any }[] = [
     { key: "utilizadores", label: "Utilizadores", icon: UsersRound },
+    { key: "categorias", label: "Categorias", icon: FolderTree },
     { key: "cargos", label: "Cargos", icon: Crown },
     { key: "vendedores", label: "Vendedores", icon: Store },
     { key: "empresas", label: "Empresas", icon: Building2 },
