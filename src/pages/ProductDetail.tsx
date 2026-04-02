@@ -2,6 +2,9 @@ import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Heart, Share2, ShoppingCart, Star, Truck, Shield, MapPin, ChevronRight, Minus, Plus, ThumbsUp, ThumbsDown, ZoomIn, Store } from "lucide-react";
 import { useState } from "react";
 import { allProducts } from "@/data/products";
+import { useProduct } from "@/hooks/useSupabaseData";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import ProductCard from "@/components/ProductCard";
 import ProductCarousel from "@/components/ProductCarousel";
 
@@ -12,7 +15,38 @@ const ProductDetail = () => {
   const [liked, setLiked] = useState(false);
   const [selectedImage, setSelectedImage] = useState(0);
 
-  const product = allProducts.find(p => p.id === Number(id));
+  // Try DB first
+  const isUuid = id && id.length > 10;
+  const { data: dbProduct } = useProduct(id || "");
+
+  // Load media from DB
+  const { data: dbMedia = [] } = useQuery({
+    queryKey: ["product_media_detail", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("product_media").select("*").eq("product_id", id!).order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!isUuid,
+  });
+
+  // Fallback to static
+  const staticProduct = allProducts.find(p => p.id === Number(id));
+
+  const product = dbProduct ? {
+    id: dbProduct.id,
+    title: dbProduct.title,
+    price: Number(dbProduct.price).toLocaleString("pt-AO").replace(/,/g, ".") + " Kz",
+    oldPrice: dbProduct.old_price ? Number(dbProduct.old_price).toLocaleString("pt-AO").replace(/,/g, ".") + " Kz" : undefined,
+    discount: dbProduct.discount_percent ? `-${dbProduct.discount_percent}%` : undefined,
+    image: dbMedia.find((m: any) => m.is_cover)?.url || dbMedia[0]?.url || dbProduct.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&h=600&fit=crop",
+    rating: dbProduct.rating || undefined,
+    reviews: dbProduct.total_reviews || undefined,
+    freeShipping: dbProduct.free_shipping || false,
+    badge: dbProduct.badge || undefined,
+    description: dbProduct.description,
+    seller: (dbProduct as any).sellers,
+  } : staticProduct;
 
   if (!product) {
     return (
@@ -25,10 +59,12 @@ const ProductDetail = () => {
     );
   }
 
-  const images = [product.image, product.image, product.image, product.image, product.image];
-  const relatedProducts = allProducts.filter(p => p.id !== product.id).slice(0, 10);
-  const moreToExplore = allProducts.filter(p => p.id !== product.id).slice(10, 20);
-  const alsoLike = allProducts.filter(p => p.id !== product.id).slice(5, 15);
+  const images = dbMedia.length > 0
+    ? dbMedia.map((m: any) => ({ url: m.url, type: m.type }))
+    : [{ url: product.image, type: "image" }, { url: product.image, type: "image" }, { url: product.image, type: "image" }];
+  const relatedProducts = allProducts.filter(p => p.id !== Number(id)).slice(0, 10);
+  const moreToExplore = allProducts.filter(p => p.id !== Number(id)).slice(10, 20);
+  const alsoLike = allProducts.filter(p => p.id !== Number(id)).slice(5, 15);
 
   const reviews = [
     { name: "Maria S.", rating: 5, date: "15 Mar 2026", text: "Produto excelente! Chegou rápido e bem embalado. Recomendo a todos.", helpful: 12, notHelpful: 1 },
@@ -91,7 +127,11 @@ const ProductDetail = () => {
             {/* Image gallery */}
             <div className="bg-card md:rounded-card md:border md:border-border">
               <div className="aspect-square relative overflow-hidden md:rounded-t-card md:max-h-[450px]">
-                <img src={images[selectedImage]} alt={product.title} className="w-full h-full object-cover" />
+                {images[selectedImage]?.type === "video" ? (
+                  <video src={images[selectedImage].url} controls className="w-full h-full object-cover" />
+                ) : (
+                  <img src={images[selectedImage].url} alt={product.title} className="w-full h-full object-cover" />
+                )}
                 <div className="absolute right-3 top-1/3 flex flex-col gap-2">
                   <button className="w-9 h-9 rounded-full bg-card/80 shadow flex items-center justify-center"><Share2 className="w-4 h-4 text-muted-foreground" /></button>
                   <button onClick={() => setLiked(!liked)} className="w-9 h-9 rounded-full bg-card/80 shadow flex items-center justify-center">
@@ -104,7 +144,11 @@ const ProductDetail = () => {
                 {images.map((img, i) => (
                   <button key={i} onClick={() => setSelectedImage(i)}
                     className={`flex-shrink-0 w-14 h-14 rounded-card overflow-hidden border-2 ${i === selectedImage ? "border-primary" : "border-border"}`}>
-                    <img src={img} alt="" className="w-full h-full object-cover" />
+                    {img.type === "video" ? (
+                      <video src={img.url} className="w-full h-full object-cover" />
+                    ) : (
+                      <img src={img.url} alt="" className="w-full h-full object-cover" />
+                    )}
                   </button>
                 ))}
               </div>
@@ -208,9 +252,8 @@ const ProductDetail = () => {
             {/* Description */}
             <div className="bg-card mt-2 p-4 md:rounded-card md:border md:border-border">
               <h3 className="text-sm font-bold text-foreground mb-2">Descrição</h3>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Produto de alta qualidade disponível no Kwanza Market. Garantia do vendedor incluída. 
-                Compre com segurança e receba na sua morada em Angola.
+              <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-line">
+                {(product as any).description || "Produto de alta qualidade disponível no Kwanza Market. Garantia do vendedor incluída. Compre com segurança e receba na sua morada em Angola."}
               </p>
               <ul className="text-xs text-muted-foreground mt-3 space-y-1.5">
                 <li>• Produto original com garantia</li>

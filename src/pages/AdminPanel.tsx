@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Shield, Users, Search, Plus, Trash2, Crown, Building2, Store, CheckCircle, XCircle, ShieldCheck, UserCheck, UsersRound } from "lucide-react";
+import { Shield, Users, Search, Plus, Trash2, Crown, Building2, Store, CheckCircle, XCircle, ShieldCheck, UserCheck, UsersRound, FolderTree } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,6 +8,7 @@ import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
 import AdminUsersTab from "@/components/admin/AdminUsersTab";
 import AdminCompanyMembersModal from "@/components/admin/AdminCompanyMembersModal";
+import AdminCategoriesTab from "@/components/admin/AdminCategoriesTab";
 import { toast } from "sonner";
 
 const roleBadge: Record<string, { label: string; color: string; icon: any }> = {
@@ -16,7 +17,7 @@ const roleBadge: Record<string, { label: string; color: string; icon: any }> = {
   user: { label: "Utilizador", color: "bg-primary/10 text-primary border-primary/20", icon: Users },
 };
 
-type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos";
+type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos" | "categorias";
 
 const AdminPanel = () => {
   const { user } = useAuth();
@@ -163,6 +164,7 @@ const AdminPanel = () => {
 
   const tabs: { key: Tab; label: string; icon: any }[] = [
     { key: "utilizadores", label: "Utilizadores", icon: UsersRound },
+    { key: "categorias", label: "Categorias", icon: FolderTree },
     { key: "cargos", label: "Cargos", icon: Crown },
     { key: "vendedores", label: "Vendedores", icon: Store },
     { key: "empresas", label: "Empresas", icon: Building2 },
@@ -189,6 +191,9 @@ const AdminPanel = () => {
 
         {/* ═══ UTILIZADORES TAB ═══ */}
         {tab === "utilizadores" && <AdminUsersTab />}
+
+        {/* ═══ CATEGORIAS TAB ═══ */}
+        {tab === "categorias" && <AdminCategoriesTab />}
 
         {/* ═══ CARGOS TAB ═══ */}
         {tab === "cargos" && (

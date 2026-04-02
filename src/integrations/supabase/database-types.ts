@@ -93,6 +93,11 @@ export type Database = {
         Insert: { conversation_id: string; sender_id: string; content: string };
         Update: { is_read?: boolean };
       };
+      product_media: {
+        Row: { id: string; product_id: string; url: string; type: string; is_cover: boolean; sort_order: number; created_at: string };
+        Insert: { product_id: string; url: string; type?: string; is_cover?: boolean; sort_order?: number };
+        Update: { url?: string; type?: string; is_cover?: boolean; sort_order?: number };
+      };
     };
     Enums: {
       app_role: "admin" | "moderator" | "user";

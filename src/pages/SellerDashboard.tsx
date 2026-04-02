@@ -38,22 +38,68 @@ const SellerDashboard = () => {
     enabled: !!seller,
   });
 
+  // Load media for editing product
+  const { data: editingMedia = [] } = useQuery({
+    queryKey: ["product_media", editingProduct?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("product_media").select("*").eq("product_id", editingProduct!.id).order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!editingProduct?.id,
+  });
+
+  // Load cover images for product list
+  const { data: productCovers = {} } = useQuery({
+    queryKey: ["product_covers", seller?.id],
+    queryFn: async () => {
+      const productIds = products.map((p: any) => p.id);
+      if (productIds.length === 0) return {};
+      const { data, error } = await supabase.from("product_media").select("product_id, url").in("product_id", productIds).eq("is_cover", true);
+      if (error) throw error;
+      const map: Record<string, string> = {};
+      (data || []).forEach((m: any) => { map[m.product_id] = m.url; });
+      return map;
+    },
+    enabled: products.length > 0,
+  });
+
   const totalProducts = products.length;
   const activeProducts = products.filter((p: any) => p.is_active).length;
 
   const saveProduct = useMutation({
-    mutationFn: async (payload: any) => {
+    mutationFn: async ({ payload, media }: { payload: any; media: any[] }) => {
       const fullPayload = { ...payload, seller_id: seller!.id, is_active: true };
+      let productId = editingProduct?.id;
+
       if (editingProduct) {
         const { error } = await supabase.from("products").update(fullPayload).eq("id", editingProduct.id);
         if (error) throw error;
+        // Delete old media and re-insert
+        await supabase.from("product_media").delete().eq("product_id", editingProduct.id);
       } else {
-        const { error } = await supabase.from("products").insert(fullPayload);
+        const { data, error } = await supabase.from("products").insert(fullPayload).select("id").single();
+        if (error) throw error;
+        productId = data.id;
+      }
+
+      // Insert media
+      if (media.length > 0 && productId) {
+        const mediaRows = media.map((m: any, i: number) => ({
+          product_id: productId,
+          url: m.url,
+          type: m.type,
+          is_cover: m.is_cover,
+          sort_order: i,
+        }));
+        const { error } = await supabase.from("product_media").insert(mediaRows);
         if (error) throw error;
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["seller_products"] });
+      queryClient.invalidateQueries({ queryKey: ["product_covers"] });
+      queryClient.invalidateQueries({ queryKey: ["product_media"] });
       toast.success(editingProduct ? "Produto atualizado!" : "Produto adicionado!");
       setShowForm(false);
       setEditingProduct(null);
@@ -155,7 +201,8 @@ const SellerDashboard = () => {
             {showForm && (
               <SellerProductForm
                 editingProduct={editingProduct}
-                onSave={(data) => saveProduct.mutate(data)}
+                existingMedia={editingProduct ? editingMedia : []}
+                onSave={(data, media) => saveProduct.mutate({ payload: data, media })}
                 onCancel={() => { setShowForm(false); setEditingProduct(null); }}
                 saving={saveProduct.isPending}
               />
@@ -166,33 +213,36 @@ const SellerDashboard = () => {
               <Package className="w-4 h-4" /> Meus Produtos ({totalProducts})
             </h2>
             <div className="space-y-2">
-              {products.map((p: any) => (
-                <div key={p.id} className={`bg-card rounded-xl border border-border p-3 flex gap-3 ${!p.is_active ? "opacity-60" : ""}`}>
-                  <div className="w-16 h-16 rounded-lg bg-muted flex-shrink-0 overflow-hidden">
-                    {p.image_url ? (
-                      <img src={p.image_url} alt={p.title} className="w-full h-full object-cover" />
-                    ) : (
-                      <ImageIcon className="w-6 h-6 m-5 text-muted-foreground" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-bold text-foreground truncate">{p.title}</h3>
-                    <p className="text-xs text-primary font-bold">{Number(p.price).toLocaleString("pt-AO")} Kz</p>
-                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                      <span>{p.is_active ? "Ativo" : "Inativo"}</span>
-                      {p.stock != null && <span>• Stock: {p.stock}</span>}
-                      {p.badge && <span className="text-primary font-bold">• {p.badge}</span>}
+              {products.map((p: any) => {
+                const coverUrl = (productCovers as any)[p.id] || p.image_url;
+                return (
+                  <div key={p.id} className={`bg-card rounded-xl border border-border p-3 flex gap-3 ${!p.is_active ? "opacity-60" : ""}`}>
+                    <div className="w-16 h-16 rounded-lg bg-muted flex-shrink-0 overflow-hidden">
+                      {coverUrl ? (
+                        <img src={coverUrl} alt={p.title} className="w-full h-full object-cover" />
+                      ) : (
+                        <ImageIcon className="w-6 h-6 m-5 text-muted-foreground" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-bold text-foreground truncate">{p.title}</h3>
+                      <p className="text-xs text-primary font-bold">{Number(p.price).toLocaleString("pt-AO")} Kz</p>
+                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                        <span>{p.is_active ? "Ativo" : "Inativo"}</span>
+                        {p.stock != null && <span>• Stock: {p.stock}</span>}
+                        {p.badge && <span className="text-primary font-bold">• {p.badge}</span>}
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <button onClick={() => { setEditingProduct(p); setShowForm(true); }} className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground"><Edit className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => toggleActive.mutate({ id: p.id, active: !p.is_active })} className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground">
+                        {p.is_active ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                      <button onClick={() => deleteProduct.mutate(p.id)} className="p-1.5 rounded-lg hover:bg-destructive/10 text-destructive"><Trash2 className="w-3.5 h-3.5" /></button>
                     </div>
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <button onClick={() => { setEditingProduct(p); setShowForm(true); }} className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground"><Edit className="w-3.5 h-3.5" /></button>
-                    <button onClick={() => toggleActive.mutate({ id: p.id, active: !p.is_active })} className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground">
-                      {p.is_active ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                    </button>
-                    <button onClick={() => deleteProduct.mutate(p.id)} className="p-1.5 rounded-lg hover:bg-destructive/10 text-destructive"><Trash2 className="w-3.5 h-3.5" /></button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
               {!isLoading && products.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground text-sm">Nenhum produto. Adicione o primeiro!</div>
               )}
