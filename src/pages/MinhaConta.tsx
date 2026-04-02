@@ -46,7 +46,11 @@ const MinhaConta = () => {
             {user ? (
               <>
                 <h2 className="text-sm font-bold text-foreground">Olá, {userDisplayName}</h2>
-                <p className="text-xs text-muted-foreground">{user.email}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-xs text-muted-foreground">{user.email}</p>
+                  {isAdmin && <span className="px-1.5 py-0.5 text-[9px] font-bold bg-red-500/10 text-red-500 rounded">Admin</span>}
+                  {isModerator && !isAdmin && <span className="px-1.5 py-0.5 text-[9px] font-bold bg-amber-500/10 text-amber-500 rounded">Mod</span>}
+                </div>
               </>
             ) : (
               <>
