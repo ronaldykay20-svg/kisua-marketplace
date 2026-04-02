@@ -1,8 +1,10 @@
-import { User, Package, Heart, HelpCircle, ChevronRight, Settings, MapPin, CreditCard, Bell, Shield, LogOut, Crown } from "lucide-react";
+import { User, Package, Heart, HelpCircle, ChevronRight, Settings, MapPin, CreditCard, Bell, Shield, LogOut, Crown, Store, Building2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useFavorites, useOrders } from "@/hooks/useSupabaseData";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
 import { toast } from "sonner";
@@ -14,6 +16,26 @@ const MinhaConta = () => {
   const { data: favorites } = useFavorites();
   const { data: orders } = useOrders();
 
+  // Check if user is a seller
+  const { data: isSeller } = useQuery({
+    queryKey: ["is_seller", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase.from("sellers").select("id").eq("user_id", user!.id).maybeSingle();
+      return !!data;
+    },
+    enabled: !!user,
+  });
+
+  // Check if user is a company member
+  const { data: isCompanyMember } = useQuery({
+    queryKey: ["is_company_member", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase.from("company_members").select("id").eq("user_id", user!.id).maybeSingle();
+      return !!data;
+    },
+    enabled: !!user,
+  });
+
   const menuItems = [
     { icon: Package, label: "Meus Pedidos", desc: "Acompanhe as suas encomendas", path: "/pedidos" },
     { icon: Heart, label: "Favoritos", desc: "Produtos que guardou", path: "/favoritos" },
@@ -23,7 +45,13 @@ const MinhaConta = () => {
     { icon: Shield, label: "Segurança", desc: "Palavra-passe e privacidade", path: "/seguranca" },
     { icon: HelpCircle, label: "Ajuda", desc: "Centro de ajuda e suporte", path: "/ajuda" },
     { icon: Settings, label: "Definições", desc: "Configurações da conta", path: "/definicoes" },
-    ...(isAdmin ? [{ icon: Crown, label: "Administração", desc: "Gerir utilizadores e cargos", path: "/admin" }] : []),
+    ...(isSeller ? [{ icon: Store, label: "Painel do Vendedor", desc: "Gerir a sua loja e produtos", path: "/painel-vendedor" }] : []),
+    ...(isCompanyMember ? [{ icon: Building2, label: "Painel da Empresa", desc: "Gerir empresa e equipa", path: "/painel-empresa" }] : []),
+    ...(isModerator && !isAdmin ? [{ icon: Shield, label: "Painel do Moderador", desc: "Moderar produtos e vendedores", path: "/painel-moderador" }] : []),
+    ...(isAdmin ? [
+      { icon: Crown, label: "Administração", desc: "Gerir utilizadores e cargos", path: "/admin" },
+      { icon: Shield, label: "Painel do Moderador", desc: "Moderar produtos e vendedores", path: "/painel-moderador" },
+    ] : []),
   ];
 
   const stats = [
