@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { Shield, Users, Search, Plus, Trash2, Crown, Building2, Store, CheckCircle, XCircle, ShieldCheck, UserCheck } from "lucide-react";
+import { Shield, Users, Search, Plus, Trash2, Crown, Building2, Store, CheckCircle, XCircle, ShieldCheck, UserCheck, UsersRound } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
+import AdminUsersTab from "@/components/admin/AdminUsersTab";
+import AdminCompanyMembersModal from "@/components/admin/AdminCompanyMembersModal";
 import { toast } from "sonner";
 
 const roleBadge: Record<string, { label: string; color: string; icon: any }> = {
@@ -14,15 +16,16 @@ const roleBadge: Record<string, { label: string; color: string; icon: any }> = {
   user: { label: "Utilizador", color: "bg-primary/10 text-primary border-primary/20", icon: Users },
 };
 
-type Tab = "cargos" | "vendedores" | "empresas" | "pedidos";
+type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos";
 
 const AdminPanel = () => {
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState<Tab>("cargos");
+  const [tab, setTab] = useState<Tab>("utilizadores");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [membersModal, setMembersModal] = useState<{ id: string; name: string } | null>(null);
 
   // ── Roles ──
   const { data: allRoles = [], isLoading } = useQuery({
@@ -32,7 +35,7 @@ const AdminPanel = () => {
       if (error) throw error;
       return data;
     },
-    enabled: isAdmin,
+    enabled: isAdmin && tab === "cargos",
   });
 
   const { data: profiles = [] } = useQuery({
@@ -44,7 +47,7 @@ const AdminPanel = () => {
       if (error) throw error;
       return data;
     },
-    enabled: isAdmin,
+    enabled: isAdmin && tab === "cargos",
   });
 
   const addRole = useMutation({
@@ -78,7 +81,7 @@ const AdminPanel = () => {
 
   const toggleVerifySeller = useMutation({
     mutationFn: async ({ id, verified }: { id: string; verified: boolean }) => {
-      const { error } = await supabase.from("sellers").update({ is_verified: verified, verified_at: verified ? new Date().toISOString() : null }).eq("id", id);
+      const { error } = await supabase.from("sellers").update({ is_verified: verified }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_sellers"] }); toast.success("Vendedor atualizado"); },
@@ -122,7 +125,7 @@ const AdminPanel = () => {
 
   const toggleVerifyCompany = useMutation({
     mutationFn: async ({ id, verified }: { id: string; verified: boolean }) => {
-      const { error } = await supabase.from("companies").update({ is_verified: verified, verified_at: verified ? new Date().toISOString() : null }).eq("id", id);
+      const { error } = await supabase.from("companies").update({ is_verified: verified }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_companies"] }); toast.success("Empresa atualizada"); },
@@ -145,7 +148,7 @@ const AdminPanel = () => {
       if (error) throw error;
       if (status === "approved") {
         const slug = name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-        await supabase.from("sellers").insert({ name, slug, user_id: userId, type: "individual", is_active: true });
+        await supabase.from("sellers").insert({ name, slug, user_id: userId, type: "individual" as any, is_active: true });
       }
     },
     onSuccess: () => {
@@ -159,6 +162,7 @@ const AdminPanel = () => {
   const grouped = allRoles.reduce((acc: any, r: any) => { acc[r.role] = acc[r.role] || []; acc[r.role].push(r); return acc; }, {});
 
   const tabs: { key: Tab; label: string; icon: any }[] = [
+    { key: "utilizadores", label: "Utilizadores", icon: UsersRound },
     { key: "cargos", label: "Cargos", icon: Crown },
     { key: "vendedores", label: "Vendedores", icon: Store },
     { key: "empresas", label: "Empresas", icon: Building2 },
@@ -175,13 +179,16 @@ const AdminPanel = () => {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 mb-4 overflow-x-auto">
+        <div className="flex gap-1 mb-4 overflow-x-auto no-scrollbar">
           {tabs.map(t => (
             <button key={t.key} onClick={() => setTab(t.key)} className={`flex items-center gap-1 px-3 py-2 text-xs font-bold rounded-lg whitespace-nowrap border ${tab === t.key ? "bg-primary text-primary-foreground border-primary" : "bg-card text-foreground border-border"}`}>
               <t.icon className="w-3.5 h-3.5" /> {t.label}
             </button>
           ))}
         </div>
+
+        {/* ═══ UTILIZADORES TAB ═══ */}
+        {tab === "utilizadores" && <AdminUsersTab />}
 
         {/* ═══ CARGOS TAB ═══ */}
         {tab === "cargos" && (
@@ -271,7 +278,7 @@ const AdminPanel = () => {
                     </div>
                   </div>
                   <div className="flex gap-1">
-                    <button onClick={() => toggleVerifySeller.mutate({ id: s.id, verified: !s.is_verified })} className={`p-2 rounded-lg text-xs ${s.is_verified ? "text-blue-500 hover:bg-blue-500/10" : "text-muted-foreground hover:bg-accent"}`} title={s.is_verified ? "Remover verificação" : "Verificar"}>
+                    <button onClick={() => toggleVerifySeller.mutate({ id: s.id, verified: !s.is_verified })} className={`p-2 rounded-lg text-xs ${s.is_verified ? "text-blue-500 hover:bg-blue-500/10" : "text-muted-foreground hover:bg-accent"}`}>
                       <ShieldCheck className="w-4 h-4" />
                     </button>
                     <button onClick={() => toggleActiveSeller.mutate({ id: s.id, active: !s.is_active })} className={`p-2 rounded-lg text-xs ${s.is_active ? "text-green-500 hover:bg-green-500/10" : "text-muted-foreground hover:bg-accent"}`}>
@@ -316,9 +323,14 @@ const AdminPanel = () => {
                         <p className="text-[10px] text-muted-foreground">/{c.slug}</p>
                       </div>
                     </div>
-                    <button onClick={() => toggleVerifyCompany.mutate({ id: c.id, verified: !c.is_verified })} className={`p-2 rounded-lg ${c.is_verified ? "text-blue-500 hover:bg-blue-500/10" : "text-muted-foreground hover:bg-accent"}`}>
-                      <ShieldCheck className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => setMembersModal({ id: c.id, name: c.name })} className="p-2 rounded-lg text-muted-foreground hover:bg-accent" title="Gerir membros">
+                        <UsersRound className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => toggleVerifyCompany.mutate({ id: c.id, verified: !c.is_verified })} className={`p-2 rounded-lg ${c.is_verified ? "text-blue-500 hover:bg-blue-500/10" : "text-muted-foreground hover:bg-accent"}`}>
+                        <ShieldCheck className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -358,13 +370,22 @@ const AdminPanel = () => {
           </div>
         )}
 
-        {isLoading && (
+        {isLoading && tab === "cargos" && (
           <div className="flex justify-center py-8">
             <div className="w-6 h-6 border-4 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
         )}
       </div>
       <BottomNav />
+
+      {/* Company Members Modal */}
+      {membersModal && (
+        <AdminCompanyMembersModal
+          companyId={membersModal.id}
+          companyName={membersModal.name}
+          onClose={() => setMembersModal(null)}
+        />
+      )}
     </div>
   );
 };
