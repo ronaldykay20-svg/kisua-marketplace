@@ -192,6 +192,9 @@ const AdminPanel = () => {
         {/* ═══ UTILIZADORES TAB ═══ */}
         {tab === "utilizadores" && <AdminUsersTab />}
 
+        {/* ═══ CATEGORIAS TAB ═══ */}
+        {tab === "categorias" && <AdminCategoriesTab />}
+
         {/* ═══ CARGOS TAB ═══ */}
         {tab === "cargos" && (
           <>
