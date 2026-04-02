@@ -112,7 +112,7 @@ const Navbar = () => {
 
             {/* Quick links */}
             <div className="p-3 border-b border-border">
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-5 gap-1">
                 {quickLinks.map(link => (
                   <button
                     key={link.label}
@@ -120,7 +120,7 @@ const Navbar = () => {
                     className="flex flex-col items-center gap-1.5 py-2.5 rounded-card hover:bg-muted transition-colors"
                   >
                     <link.icon className={`w-5 h-5 ${link.color}`} />
-                    <span className="text-[10px] font-semibold text-foreground">{link.label}</span>
+                    <span className="text-[9px] font-semibold text-foreground">{link.label}</span>
                   </button>
                 ))}
               </div>
