@@ -21,11 +21,26 @@ export type Database = {
       sellers: {
         Row: { id: string; user_id: string; type: "individual" | "company"; name: string; slug: string | null; description: string | null; logo_url: string | null; cover_url: string | null; phone: string | null; whatsapp: string | null; email: string | null; province: string | null; city: string | null; address: string | null; website: string | null; rating: number; total_reviews: number; total_sales: number; followers_count: number; visits_count: number; is_verified: boolean; is_active: boolean; created_at: string; updated_at: string };
         Insert: { user_id: string; type?: "individual" | "company"; name: string; slug?: string | null; description?: string | null; logo_url?: string | null; cover_url?: string | null; phone?: string | null; whatsapp?: string | null; email?: string | null; province?: string | null; city?: string | null; address?: string | null; website?: string | null };
-        Update: { name?: string; slug?: string | null; description?: string | null; logo_url?: string | null; cover_url?: string | null; phone?: string | null; whatsapp?: string | null; email?: string | null; province?: string | null; city?: string | null; address?: string | null; website?: string | null; is_verified?: boolean };
+        Update: { name?: string; slug?: string | null; description?: string | null; logo_url?: string | null; cover_url?: string | null; phone?: string | null; whatsapp?: string | null; email?: string | null; province?: string | null; city?: string | null; address?: string | null; website?: string | null; is_verified?: boolean; is_active?: boolean };
+      };
+      companies: {
+        Row: { id: string; name: string; slug: string; description: string | null; logo_url: string | null; banner_url: string | null; phone: string | null; email: string | null; website: string | null; address: string | null; province: string | null; nif: string | null; is_verified: boolean; verified_at: string | null; is_active: boolean; rating: number; total_sales: number; created_by: string | null; created_at: string; updated_at: string };
+        Insert: { name: string; slug: string; description?: string | null; logo_url?: string | null; banner_url?: string | null; phone?: string | null; email?: string | null; website?: string | null; address?: string | null; province?: string | null; nif?: string | null; created_by?: string | null };
+        Update: { name?: string; slug?: string; description?: string | null; logo_url?: string | null; is_verified?: boolean; verified_at?: string | null; is_active?: boolean };
+      };
+      company_members: {
+        Row: { id: string; company_id: string; user_id: string; role: "owner" | "manager" | "editor" | "viewer"; added_by: string | null; created_at: string };
+        Insert: { company_id: string; user_id: string; role?: "owner" | "manager" | "editor" | "viewer"; added_by?: string | null };
+        Update: { role?: "owner" | "manager" | "editor" | "viewer" };
+      };
+      seller_applications: {
+        Row: { id: string; user_id: string; name: string; phone: string | null; province: string | null; bio: string | null; status: "pending" | "approved" | "rejected"; reviewed_by: string | null; reviewed_at: string | null; created_at: string };
+        Insert: { user_id: string; name: string; phone?: string | null; province?: string | null; bio?: string | null };
+        Update: { status?: "pending" | "approved" | "rejected"; reviewed_by?: string | null; reviewed_at?: string | null };
       };
       products: {
-        Row: { id: string; seller_id: string; category_id: string | null; title: string; description: string | null; price: number; old_price: number | null; discount_percent: number | null; currency: string; stock: number; sku: string | null; condition: string; province: string | null; city: string | null; free_shipping: boolean; badge: string | null; rating: number; total_reviews: number; views_count: number; sales_count: number; is_active: boolean; is_featured: boolean; created_at: string; updated_at: string };
-        Insert: { seller_id: string; category_id?: string | null; title: string; description?: string | null; price: number; old_price?: number | null; discount_percent?: number | null; stock?: number; free_shipping?: boolean; badge?: string | null };
+        Row: { id: string; seller_id: string; company_id: string | null; category_id: string | null; title: string; description: string | null; price: number; old_price: number | null; discount_percent: number | null; currency: string; stock: number; sku: string | null; condition: string; province: string | null; city: string | null; free_shipping: boolean; badge: string | null; rating: number; total_reviews: number; views_count: number; sales_count: number; is_active: boolean; is_featured: boolean; created_at: string; updated_at: string };
+        Insert: { seller_id: string; company_id?: string | null; category_id?: string | null; title: string; description?: string | null; price: number; old_price?: number | null; discount_percent?: number | null; stock?: number; free_shipping?: boolean; badge?: string | null };
         Update: { title?: string; description?: string | null; price?: number; old_price?: number | null; discount_percent?: number | null; stock?: number; free_shipping?: boolean; badge?: string | null; is_active?: boolean; is_featured?: boolean };
       };
       favorites: {
@@ -81,6 +96,7 @@ export type Database = {
     };
     Enums: {
       app_role: "admin" | "moderator" | "user";
+      company_role: "owner" | "manager" | "editor" | "viewer";
       order_status: "pending" | "confirmed" | "shipped" | "delivered" | "cancelled";
       seller_type: "individual" | "company";
       auction_status: "upcoming" | "active" | "ended" | "cancelled";
