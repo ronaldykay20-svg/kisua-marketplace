@@ -85,9 +85,17 @@ const Navbar = () => {
             <button className="flex-shrink-0 w-8 h-8 rounded-card bg-primary-foreground/10 flex items-center justify-center" onClick={() => setMenuOpen(true)}>
               <span className="text-primary-foreground text-sm">⊞</span>
             </button>
-            {["Receba rápido", "Promoções", "Frete grátis", "Novidades", "Electrónicos", "Moda", "Casa"].map(pill => (
-              <button key={pill} className="flex-shrink-0 px-3.5 py-1.5 rounded-full border border-primary-foreground/30 text-xs font-medium text-primary-foreground hover:bg-primary-foreground/10 transition whitespace-nowrap">
-                {pill}
+            {[
+              { label: "Receba rápido", path: "/categorias" },
+              { label: "Promoções", path: "/promocoes" },
+              { label: "Frete grátis", path: "/categorias" },
+              { label: "Novidades", path: "/categorias" },
+              { label: "Electrónicos", path: "/categoria/Electrónicos" },
+              { label: "Moda", path: "/categoria/Moda" },
+              { label: "Casa", path: "/categoria/Casa & Jardim" },
+            ].map(pill => (
+              <button key={pill.label} onClick={() => navigate(pill.path)} className="flex-shrink-0 px-3.5 py-1.5 rounded-full border border-primary-foreground/30 text-xs font-medium text-primary-foreground hover:bg-primary-foreground/10 transition whitespace-nowrap">
+                {pill.label}
               </button>
             ))}
           </div>
