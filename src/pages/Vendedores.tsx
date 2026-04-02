@@ -12,21 +12,19 @@ const Vendedores = () => {
   const navigate = useNavigate();
   const [activeFilter, setActiveFilter] = useState("Todos");
   const [search, setSearch] = useState("");
-  const { data: dbSellers } = useSellers({ type: "individual" });
+  const { data: dbSellers, isLoading } = useSellers({ type: "individual" });
 
-  const sellers = dbSellers && dbSellers.length > 0
-    ? dbSellers.map((s: any) => ({
-        id: s.id,
-        name: s.name,
-        specialty: s.description || "Vendedor",
-        location: s.province || "Angola",
-        rating: s.rating,
-        sales: s.total_sales,
-        verified: s.is_verified,
-        image: s.logo_url || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop",
-        cover: s.cover_url || "https://images.unsplash.com/photo-1556761175-b413da4baf72?w=600&h=200&fit=crop",
-      }))
-    : staticSellers;
+  const sellers = (dbSellers || []).map((s: any) => ({
+    id: s.id,
+    name: s.name,
+    specialty: s.description || "Vendedor",
+    location: s.province || "Angola",
+    rating: s.rating,
+    sales: s.total_sales,
+    verified: s.is_verified,
+    image: s.logo_url || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop",
+    cover: s.cover_url || "https://images.unsplash.com/photo-1556761175-b413da4baf72?w=600&h=200&fit=crop",
+  }));
 
   const filtered = sellers.filter((s: any) => {
     if (search && !s.name.toLowerCase().includes(search.toLowerCase())) return false;
