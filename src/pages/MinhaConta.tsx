@@ -23,10 +23,6 @@ const MinhaConta = () => {
     ...(isAdmin ? [{ icon: Crown, label: "Administração", desc: "Gerir utilizadores e cargos", path: "/admin" }] : []),
   ];
 
-const MinhaConta = () => {
-  const navigate = useNavigate();
-  const { user, userDisplayName, signOut } = useAuth();
-
   const handleLogout = async () => {
     await signOut();
     toast.success("Sessão terminada com sucesso");
