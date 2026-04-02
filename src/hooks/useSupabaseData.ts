@@ -43,7 +43,7 @@ export const useProducts = (options?: { featured?: boolean; freeShipping?: boole
     queryFn: async () => {
       let query = supabase
         .from("products")
-        .select("*, product_images(image_url, sort_order)")
+        .select("*")
         .eq("is_active", true);
 
       if (options?.featured) query = query.eq("is_featured", true);
@@ -66,7 +66,7 @@ export const useProduct = (id: string) =>
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select("*, product_images(image_url, sort_order), sellers(name, slug, logo_url, rating, total_sales, is_verified)")
+        .select("*, sellers(name, slug, logo_url, rating, total_sales, is_verified)")
         .eq("id", id)
         .single();
       if (error) throw error;
@@ -165,7 +165,7 @@ export const useFavorites = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("favorites")
-        .select("*, products(*, product_images(image_url, sort_order))")
+        .select("*, products(*)")
         .eq("user_id", user!.id);
       if (error) throw error;
       return (data || []).map((f: any) => ({
@@ -203,7 +203,7 @@ export const useCart = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("cart_items")
-        .select("*, products(*, product_images(image_url, sort_order))")
+        .select("*, products(*)")
         .eq("user_id", user!.id);
       if (error) throw error;
       return data;
