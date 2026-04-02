@@ -3,6 +3,7 @@ import { Save, Upload, X, User, Image as ImageIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { STORAGE_BUCKETS } from "@/lib/storage";
 
 const provinces = [
   "Bengo", "Benguela", "Bié", "Cabinda", "Cuando Cubango", "Cuanza Norte",
@@ -60,9 +61,9 @@ const SellerProfileEditor = ({ seller }: Props) => {
     try {
       const ext = file.name.split(".").pop();
       const path = `sellers/${seller.id}/${field.replace("_url", "")}-${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from("product-images").upload(path, file);
+      const { error } = await supabase.storage.from(STORAGE_BUCKETS.sellers).upload(path, file);
       if (error) throw error;
-      const { data } = supabase.storage.from("product-images").getPublicUrl(path);
+      const { data } = supabase.storage.from(STORAGE_BUCKETS.sellers).getPublicUrl(path);
       setForm(f => ({ ...f, [field]: data.publicUrl }));
       toast.success(field === "logo_url" ? "Logo carregado!" : "Capa carregada!");
     } catch (err: any) {

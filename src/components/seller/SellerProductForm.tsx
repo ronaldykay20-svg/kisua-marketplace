@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Save, X, Upload, Trash2, Image as ImageIcon, Film } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { STORAGE_BUCKETS } from "@/lib/storage";
 
 interface ProductFormData {
   title: string;
@@ -118,9 +119,9 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], onSave, onCance
       for (const file of Array.from(files)) {
         const ext = file.name.split(".").pop();
         const path = `products/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-        const { error } = await supabase.storage.from("product-images").upload(path, file);
+        const { error } = await supabase.storage.from(STORAGE_BUCKETS.products).upload(path, file);
         if (error) throw error;
-        const { data } = supabase.storage.from("product-images").getPublicUrl(path);
+        const { data } = supabase.storage.from(STORAGE_BUCKETS.products).getPublicUrl(path);
         setMedia(prev => [...prev, {
           url: data.publicUrl,
           type,
