@@ -2,6 +2,9 @@ import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Heart, Share2, ShoppingCart, Star, Truck, Shield, MapPin, ChevronRight, Minus, Plus, ThumbsUp, ThumbsDown, ZoomIn, Store } from "lucide-react";
 import { useState } from "react";
 import { allProducts } from "@/data/products";
+import { useProduct } from "@/hooks/useSupabaseData";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import ProductCard from "@/components/ProductCard";
 import ProductCarousel from "@/components/ProductCarousel";
 
@@ -12,7 +15,38 @@ const ProductDetail = () => {
   const [liked, setLiked] = useState(false);
   const [selectedImage, setSelectedImage] = useState(0);
 
-  const product = allProducts.find(p => p.id === Number(id));
+  // Try DB first
+  const isUuid = id && id.length > 10;
+  const { data: dbProduct } = useProduct(id || "");
+
+  // Load media from DB
+  const { data: dbMedia = [] } = useQuery({
+    queryKey: ["product_media_detail", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("product_media").select("*").eq("product_id", id!).order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!isUuid,
+  });
+
+  // Fallback to static
+  const staticProduct = allProducts.find(p => p.id === Number(id));
+
+  const product = dbProduct ? {
+    id: dbProduct.id,
+    title: dbProduct.title,
+    price: Number(dbProduct.price).toLocaleString("pt-AO").replace(/,/g, ".") + " Kz",
+    oldPrice: dbProduct.old_price ? Number(dbProduct.old_price).toLocaleString("pt-AO").replace(/,/g, ".") + " Kz" : undefined,
+    discount: dbProduct.discount_percent ? `-${dbProduct.discount_percent}%` : undefined,
+    image: dbMedia.find((m: any) => m.is_cover)?.url || dbMedia[0]?.url || dbProduct.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&h=600&fit=crop",
+    rating: dbProduct.rating || undefined,
+    reviews: dbProduct.total_reviews || undefined,
+    freeShipping: dbProduct.free_shipping || false,
+    badge: dbProduct.badge || undefined,
+    description: dbProduct.description,
+    seller: (dbProduct as any).sellers,
+  } : staticProduct;
 
   if (!product) {
     return (
@@ -25,10 +59,12 @@ const ProductDetail = () => {
     );
   }
 
-  const images = [product.image, product.image, product.image, product.image, product.image];
-  const relatedProducts = allProducts.filter(p => p.id !== product.id).slice(0, 10);
-  const moreToExplore = allProducts.filter(p => p.id !== product.id).slice(10, 20);
-  const alsoLike = allProducts.filter(p => p.id !== product.id).slice(5, 15);
+  const images = dbMedia.length > 0
+    ? dbMedia.map((m: any) => ({ url: m.url, type: m.type }))
+    : [{ url: product.image, type: "image" }, { url: product.image, type: "image" }, { url: product.image, type: "image" }];
+  const relatedProducts = allProducts.filter(p => p.id !== Number(id)).slice(0, 10);
+  const moreToExplore = allProducts.filter(p => p.id !== Number(id)).slice(10, 20);
+  const alsoLike = allProducts.filter(p => p.id !== Number(id)).slice(5, 15);
 
   const reviews = [
     { name: "Maria S.", rating: 5, date: "15 Mar 2026", text: "Produto excelente! Chegou rápido e bem embalado. Recomendo a todos.", helpful: 12, notHelpful: 1 },
