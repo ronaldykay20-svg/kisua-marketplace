@@ -1,20 +1,27 @@
-import { User, Package, Heart, HelpCircle, ChevronRight, Settings, MapPin, CreditCard, Bell, Shield, LogOut } from "lucide-react";
+import { User, Package, Heart, HelpCircle, ChevronRight, Settings, MapPin, CreditCard, Bell, Shield, LogOut, Crown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserRole } from "@/hooks/useUserRole";
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
 import { toast } from "sonner";
 
-const menuItems = [
-  { icon: Package, label: "Meus Pedidos", desc: "Acompanhe as suas encomendas", path: "/pedidos" },
-  { icon: Heart, label: "Favoritos", desc: "Produtos que guardou", path: "/favoritos" },
-  { icon: MapPin, label: "Endereços", desc: "Gerir endereços de entrega", path: "#" },
-  { icon: CreditCard, label: "Pagamentos", desc: "Métodos de pagamento", path: "#" },
-  { icon: Bell, label: "Notificações", desc: "Preferências de alertas", path: "#" },
-  { icon: Shield, label: "Segurança", desc: "Palavra-passe e privacidade", path: "#" },
-  { icon: HelpCircle, label: "Ajuda", desc: "Centro de ajuda e suporte", path: "/ajuda" },
-  { icon: Settings, label: "Definições", desc: "Configurações da conta", path: "#" },
-];
+const MinhaConta = () => {
+  const navigate = useNavigate();
+  const { user, userDisplayName, signOut } = useAuth();
+  const { isAdmin, isModerator, roles } = useUserRole();
+
+  const menuItems = [
+    { icon: Package, label: "Meus Pedidos", desc: "Acompanhe as suas encomendas", path: "/pedidos" },
+    { icon: Heart, label: "Favoritos", desc: "Produtos que guardou", path: "/favoritos" },
+    { icon: MapPin, label: "Endereços", desc: "Gerir endereços de entrega", path: "#" },
+    { icon: CreditCard, label: "Pagamentos", desc: "Métodos de pagamento", path: "#" },
+    { icon: Bell, label: "Notificações", desc: "Preferências de alertas", path: "#" },
+    { icon: Shield, label: "Segurança", desc: "Palavra-passe e privacidade", path: "#" },
+    { icon: HelpCircle, label: "Ajuda", desc: "Centro de ajuda e suporte", path: "/ajuda" },
+    { icon: Settings, label: "Definições", desc: "Configurações da conta", path: "#" },
+    ...(isAdmin ? [{ icon: Crown, label: "Administração", desc: "Gerir utilizadores e cargos", path: "/admin" }] : []),
+  ];
 
 const MinhaConta = () => {
   const navigate = useNavigate();
