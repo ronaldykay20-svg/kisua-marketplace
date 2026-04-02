@@ -22,6 +22,7 @@ import Pedidos from "./pages/Pedidos.tsx";
 import Favoritos from "./pages/Favoritos.tsx";
 import Ajuda from "./pages/Ajuda.tsx";
 import VenderKwanza from "./pages/VenderKwanza.tsx";
+import Auth from "./pages/Auth.tsx";
 
 const queryClient = new QueryClient();
 
