@@ -146,9 +146,16 @@ const Navbar = () => {
 
             {/* Footer links */}
             <div className="border-t border-border p-3 space-y-0.5">
-              {["Minha conta", "Meus pedidos", "Favoritos", "Ajuda", "Vender no Kwanza Market"].map(link => (
-                <button key={link} className="w-full text-left px-3 py-2.5 rounded-card text-sm font-medium text-foreground hover:bg-muted transition-colors">
-                  {link}
+              {[
+                { label: "Minha conta", path: "/conta" },
+                { label: "Meus pedidos", path: "/pedidos" },
+                { label: "Favoritos", path: "/favoritos" },
+                { label: "Ajuda", path: "/ajuda" },
+                { label: "Vender no Kwanza Market", path: "/vender" },
+              ].map(link => (
+                <button key={link.label} onClick={() => { navigate(link.path); setMenuOpen(false); }}
+                  className="w-full text-left px-3 py-2.5 rounded-card text-sm font-medium text-foreground hover:bg-muted transition-colors">
+                  {link.label}
                 </button>
               ))}
             </div>
