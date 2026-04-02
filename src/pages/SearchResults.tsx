@@ -28,6 +28,7 @@ const SearchResults = () => {
   const [showSort, setShowSort] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const isMobile = useIsMobile();
 
   const results = allProducts.filter(p =>
     !searchQuery || p.title.toLowerCase().includes(searchQuery.toLowerCase())
