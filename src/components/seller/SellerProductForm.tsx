@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Save, X, Upload } from "lucide-react";
+import { Save, X, Upload, Trash2, Image as ImageIcon, Film } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 
@@ -17,18 +17,27 @@ interface ProductFormData {
   category_id: string;
   free_shipping: boolean;
   badge: string;
-  image_url: string;
+}
+
+interface MediaItem {
+  id?: string;
+  url: string;
+  type: "image" | "video";
+  is_cover: boolean;
+  sort_order: number;
+  file?: File; // for new uploads not yet saved
 }
 
 const emptyForm: ProductFormData = {
   title: "", description: "", price: "", old_price: "", discount_percent: "",
   stock: "1", sku: "", condition: "new", province: "", city: "",
-  category_id: "", free_shipping: false, badge: "", image_url: "",
+  category_id: "", free_shipping: false, badge: "",
 };
 
 interface Props {
   editingProduct?: any;
-  onSave: (data: any) => void;
+  existingMedia?: any[];
+  onSave: (data: any, media: MediaItem[]) => void;
   onCancel: () => void;
   saving?: boolean;
 }
@@ -55,7 +64,7 @@ const badges = [
   { value: "LIMITED", label: "⏰ LIMITADO" },
 ];
 
-const SellerProductForm = ({ editingProduct, onSave, onCancel, saving }: Props) => {
+const SellerProductForm = ({ editingProduct, existingMedia = [], onSave, onCancel, saving }: Props) => {
   const [form, setForm] = useState<ProductFormData>(() => {
     if (editingProduct) {
       return {
@@ -72,38 +81,73 @@ const SellerProductForm = ({ editingProduct, onSave, onCancel, saving }: Props) 
         category_id: editingProduct.category_id || "",
         free_shipping: editingProduct.free_shipping || false,
         badge: editingProduct.badge || "",
-        image_url: editingProduct.image_url || "",
       };
     }
     return emptyForm;
   });
 
+  const [media, setMedia] = useState<MediaItem[]>(() =>
+    existingMedia.map((m: any, i: number) => ({
+      id: m.id,
+      url: m.url,
+      type: m.type || "image",
+      is_cover: m.is_cover || false,
+      sort_order: m.sort_order ?? i,
+    }))
+  );
+
   const [uploading, setUploading] = useState(false);
 
-  const { data: categories = [] } = useQuery({
-    queryKey: ["categories_list"],
+  const { data: allCategories = [] } = useQuery({
+    queryKey: ["categories_with_subs"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("categories").select("id, name").eq("is_active", true).order("name");
+      const { data, error } = await supabase.from("categories").select("id, name, parent_id").eq("is_active", true).order("sort_order").order("name");
       if (error) throw error;
       return data;
     },
   });
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const parentCategories = allCategories.filter((c: any) => !c.parent_id);
+  const getSubcategories = (parentId: string) => allCategories.filter((c: any) => c.parent_id === parentId);
+
+  const handleFilesUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: "image" | "video") => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
     setUploading(true);
     try {
-      const ext = file.name.split(".").pop();
-      const path = `products/${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from("product-images").upload(path, file);
-      if (error) throw error;
-      const { data } = supabase.storage.from("product-images").getPublicUrl(path);
-      setForm(f => ({ ...f, image_url: data.publicUrl }));
+      for (const file of Array.from(files)) {
+        const ext = file.name.split(".").pop();
+        const path = `products/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const { error } = await supabase.storage.from("product-images").upload(path, file);
+        if (error) throw error;
+        const { data } = supabase.storage.from("product-images").getPublicUrl(path);
+        setMedia(prev => [...prev, {
+          url: data.publicUrl,
+          type,
+          is_cover: prev.length === 0, // first image is cover
+          sort_order: prev.length,
+        }]);
+      }
     } catch (err: any) {
       console.error("Upload error:", err.message);
     }
     setUploading(false);
+    e.target.value = "";
+  };
+
+  const removeMedia = (index: number) => {
+    setMedia(prev => {
+      const updated = prev.filter((_, i) => i !== index);
+      // If removed was cover, make first remaining the cover
+      if (updated.length > 0 && !updated.some(m => m.is_cover)) {
+        updated[0].is_cover = true;
+      }
+      return updated;
+    });
+  };
+
+  const setCover = (index: number) => {
+    setMedia(prev => prev.map((m, i) => ({ ...m, is_cover: i === index })));
   };
 
   const handleSubmit = () => {
@@ -121,9 +165,9 @@ const SellerProductForm = ({ editingProduct, onSave, onCancel, saving }: Props) 
       category_id: form.category_id || null,
       free_shipping: form.free_shipping,
       badge: form.badge || null,
-      image_url: form.image_url || null,
+      image_url: media.find(m => m.is_cover)?.url || media[0]?.url || null,
     };
-    onSave(payload);
+    onSave(payload, media);
   };
 
   const set = (key: keyof ProductFormData, value: any) => setForm(f => ({ ...f, [key]: value }));
@@ -183,23 +227,33 @@ const SellerProductForm = ({ editingProduct, onSave, onCancel, saving }: Props) 
           </div>
         </div>
 
-        {/* Category & Condition */}
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Categoria</label>
-            <select value={form.category_id} onChange={e => set("category_id", e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground">
-              <option value="">Selecionar</option>
-              {categories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Condição</label>
-            <select value={form.condition} onChange={e => set("condition", e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground">
-              {conditions.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-            </select>
-          </div>
+        {/* Category with subcategories */}
+        <div>
+          <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Categoria</label>
+          <select value={form.category_id} onChange={e => set("category_id", e.target.value)}
+            className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground">
+            <option value="">Selecionar</option>
+            {parentCategories.map((c: any) => {
+              const subs = getSubcategories(c.id);
+              return (
+                <optgroup key={c.id} label={c.name}>
+                  <option value={c.id}>{c.name} (geral)</option>
+                  {subs.map((s: any) => (
+                    <option key={s.id} value={s.id}>&nbsp;&nbsp;↳ {s.name}</option>
+                  ))}
+                </optgroup>
+              );
+            })}
+          </select>
+        </div>
+
+        {/* Condition */}
+        <div>
+          <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Condição</label>
+          <select value={form.condition} onChange={e => set("condition", e.target.value)}
+            className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground">
+            {conditions.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+          </select>
         </div>
 
         {/* Location */}
@@ -232,19 +286,44 @@ const SellerProductForm = ({ editingProduct, onSave, onCancel, saving }: Props) 
           </div>
         </div>
 
-        {/* Image */}
+        {/* ═══ MEDIA (múltiplas imagens + vídeos) ═══ */}
         <div>
-          <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Imagem do produto</label>
-          <div className="flex gap-2">
-            <input value={form.image_url} onChange={e => set("image_url", e.target.value)} placeholder="URL da imagem ou faça upload"
-              className="flex-1 px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
+          <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Imagens e Vídeos</label>
+          <div className="flex gap-2 mb-2">
             <label className={`flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-bold cursor-pointer border transition ${uploading ? "opacity-50" : "bg-accent text-foreground border-border hover:bg-accent/80"}`}>
-              <Upload className="w-3.5 h-3.5" /> {uploading ? "..." : "Upload"}
-              <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={uploading} />
+              <ImageIcon className="w-3.5 h-3.5" /> Imagens
+              <input type="file" accept="image/*" multiple onChange={e => handleFilesUpload(e, "image")} className="hidden" disabled={uploading} />
             </label>
+            <label className={`flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-bold cursor-pointer border transition ${uploading ? "opacity-50" : "bg-accent text-foreground border-border hover:bg-accent/80"}`}>
+              <Film className="w-3.5 h-3.5" /> Vídeos
+              <input type="file" accept="video/*" multiple onChange={e => handleFilesUpload(e, "video")} className="hidden" disabled={uploading} />
+            </label>
+            {uploading && <span className="text-xs text-muted-foreground self-center">A enviar...</span>}
           </div>
-          {form.image_url && (
-            <img src={form.image_url} alt="Preview" className="w-20 h-20 rounded-lg object-cover mt-2 border border-border" />
+          {media.length > 0 && (
+            <div className="grid grid-cols-4 gap-2">
+              {media.map((m, i) => (
+                <div key={i} className={`relative rounded-lg border-2 overflow-hidden aspect-square ${m.is_cover ? "border-primary" : "border-border"}`}>
+                  {m.type === "image" ? (
+                    <img src={m.url} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <video src={m.url} className="w-full h-full object-cover" />
+                  )}
+                  {m.is_cover && (
+                    <span className="absolute top-0.5 left-0.5 px-1 py-0.5 rounded text-[8px] font-bold bg-primary text-primary-foreground">CAPA</span>
+                  )}
+                  <div className="absolute bottom-0 inset-x-0 bg-background/80 flex justify-between p-0.5">
+                    {!m.is_cover && (
+                      <button onClick={() => setCover(i)} className="text-[9px] font-bold text-primary px-1">Capa</button>
+                    )}
+                    <button onClick={() => removeMedia(i)} className="text-destructive ml-auto p-0.5"><Trash2 className="w-3 h-3" /></button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {media.length === 0 && (
+            <p className="text-[10px] text-muted-foreground">Nenhuma imagem. Faça upload de pelo menos uma.</p>
           )}
         </div>
 
