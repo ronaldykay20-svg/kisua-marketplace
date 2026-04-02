@@ -111,10 +111,22 @@ const Navbar = () => {
           <div className="relative w-[85%] max-w-[320px] bg-card h-full overflow-y-auto animate-in slide-in-from-left duration-200 flex flex-col">
             {/* Menu header */}
             <div className="bg-primary p-4 flex items-center justify-between">
-              <button onClick={() => { navigate("/auth"); setMenuOpen(false); }} className="flex items-center gap-2">
-                <User className="w-6 h-6 text-primary-foreground" />
-                <span className="text-sm font-bold text-primary-foreground">Olá, faça login</span>
-              </button>
+              {user ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
+                    <span className="text-secondary-foreground text-sm font-bold">{userDisplayName.charAt(0).toUpperCase()}</span>
+                  </div>
+                  <div>
+                    <span className="text-sm font-bold text-primary-foreground">Olá, {userDisplayName}</span>
+                    <p className="text-[10px] text-primary-foreground/70">{user.email}</p>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => { navigate("/auth"); setMenuOpen(false); }} className="flex items-center gap-2">
+                  <User className="w-6 h-6 text-primary-foreground" />
+                  <span className="text-sm font-bold text-primary-foreground">Olá, faça login</span>
+                </button>
+              )}
               <button onClick={() => setMenuOpen(false)}>
                 <X className="w-5 h-5 text-primary-foreground" />
               </button>
