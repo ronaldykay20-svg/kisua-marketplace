@@ -133,7 +133,7 @@ const Navbar = () => {
                 {categories.map(cat => (
                   <button
                     key={cat.name}
-                    onClick={() => { navigate(`/pesquisa?q=${encodeURIComponent(cat.name)}`); setMenuOpen(false); }}
+                    onClick={() => { navigate(`/categoria/${encodeURIComponent(cat.name)}`); setMenuOpen(false); }}
                     className="w-full flex items-center gap-3 px-3 py-2 hover:bg-muted transition-colors"
                   >
                     <img src={cat.image} alt={cat.name} className="w-10 h-10 rounded-full object-cover border border-border" />
