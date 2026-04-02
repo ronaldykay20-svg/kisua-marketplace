@@ -8,6 +8,7 @@ import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
 import AdminUsersTab from "@/components/admin/AdminUsersTab";
 import AdminCompanyMembersModal from "@/components/admin/AdminCompanyMembersModal";
+import AdminCategoriesTab from "@/components/admin/AdminCategoriesTab";
 import { toast } from "sonner";
 
 const roleBadge: Record<string, { label: string; color: string; icon: any }> = {
