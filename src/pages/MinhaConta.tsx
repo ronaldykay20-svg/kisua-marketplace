@@ -30,7 +30,7 @@ const MinhaConta = () => {
             <h2 className="text-sm font-bold text-foreground">Olá, visitante</h2>
             <p className="text-xs text-muted-foreground">Faça login para ver a sua conta</p>
           </div>
-          <button className="px-4 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-lg">Entrar</button>
+          <button onClick={() => navigate("/auth")} className="px-4 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-lg">Entrar</button>
         </div>
 
         {/* Quick stats */}
