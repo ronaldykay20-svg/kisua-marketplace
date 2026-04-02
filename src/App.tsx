@@ -51,6 +51,7 @@ const App = () => (
           <Route path="/favoritos" element={<Favoritos />} />
           <Route path="/ajuda" element={<Ajuda />} />
           <Route path="/vender" element={<VenderKwanza />} />
+          <Route path="/auth" element={<Auth />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
