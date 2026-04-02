@@ -5,14 +5,6 @@ import { Search, Star, MapPin, CheckCircle, ChevronRight, Users, ShoppingBag } f
 import { useNavigate } from "react-router-dom";
 import { useSellers } from "@/hooks/useSupabaseData";
 
-const staticSellers = [
-  { id: "1", name: "Carlos Mendes", specialty: "Electrónicos", location: "Luanda", rating: 4.9, sales: 1240, verified: true, image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop", cover: "https://images.unsplash.com/photo-1556761175-b413da4baf72?w=600&h=200&fit=crop" },
-  { id: "2", name: "Ana Ferreira", specialty: "Moda & Acessórios", location: "Benguela", rating: 4.8, sales: 980, verified: true, image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop", cover: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=600&h=200&fit=crop" },
-  { id: "3", name: "Ricardo Santos", specialty: "Veículos", location: "Luanda", rating: 4.7, sales: 560, verified: true, image: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop", cover: "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=600&h=200&fit=crop" },
-  { id: "4", name: "Maria João", specialty: "Casa & Jardim", location: "Huambo", rating: 4.6, sales: 430, verified: false, image: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop", cover: "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=600&h=200&fit=crop" },
-  { id: "5", name: "Pedro Alves", specialty: "Desporto", location: "Cabinda", rating: 4.5, sales: 320, verified: true, image: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop", cover: "https://images.unsplash.com/photo-1461896836934-bd45ba8a0a42?w=600&h=200&fit=crop" },
-  { id: "6", name: "Sofia Nunes", specialty: "Beleza & Saúde", location: "Luanda", rating: 4.8, sales: 870, verified: true, image: "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=200&h=200&fit=crop", cover: "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=600&h=200&fit=crop" },
-];
 
 const filtersList = ["Todos", "Verificados", "Mais Vendidos", "Melhor Avaliação", "Luanda", "Benguela"];
 
