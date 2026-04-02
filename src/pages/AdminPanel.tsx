@@ -17,7 +17,7 @@ const roleBadge: Record<string, { label: string; color: string; icon: any }> = {
   user: { label: "Utilizador", color: "bg-primary/10 text-primary border-primary/20", icon: Users },
 };
 
-type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos";
+type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos" | "categorias";
 
 const AdminPanel = () => {
   const { user } = useAuth();
