@@ -25,6 +25,11 @@ import Ajuda from "./pages/Ajuda.tsx";
 import VenderKwanza from "./pages/VenderKwanza.tsx";
 import Auth from "./pages/Auth.tsx";
 import AdminPanel from "./pages/AdminPanel.tsx";
+import Enderecos from "./pages/Enderecos.tsx";
+import Pagamentos from "./pages/Pagamentos.tsx";
+import Notificacoes from "./pages/Notificacoes.tsx";
+import Seguranca from "./pages/Seguranca.tsx";
+import Definicoes from "./pages/Definicoes.tsx";
 import ProtectedRoute from "./components/ProtectedRoute.tsx";
 
 const queryClient = new QueryClient();
@@ -55,6 +60,11 @@ const App = () => (
           <Route path="/favoritos" element={<ProtectedRoute><Favoritos /></ProtectedRoute>} />
           <Route path="/ajuda" element={<Ajuda />} />
           <Route path="/vender" element={<ProtectedRoute><VenderKwanza /></ProtectedRoute>} />
+          <Route path="/enderecos" element={<ProtectedRoute><Enderecos /></ProtectedRoute>} />
+          <Route path="/pagamentos" element={<ProtectedRoute><Pagamentos /></ProtectedRoute>} />
+          <Route path="/notificacoes" element={<ProtectedRoute><Notificacoes /></ProtectedRoute>} />
+          <Route path="/seguranca" element={<ProtectedRoute><Seguranca /></ProtectedRoute>} />
+          <Route path="/definicoes" element={<ProtectedRoute><Definicoes /></ProtectedRoute>} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminPanel /></ProtectedRoute>} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
