@@ -3,6 +3,7 @@ import { Plus, Edit, Trash2, ChevronRight, Upload, X, Save, FolderTree } from "l
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { STORAGE_BUCKETS } from "@/lib/storage";
 
 interface CategoryForm {
   name: string;
@@ -40,9 +41,9 @@ const AdminCategoriesTab = () => {
     try {
       const ext = file.name.split(".").pop();
       const path = `categories/${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from("product-images").upload(path, file);
+      const { error } = await supabase.storage.from(STORAGE_BUCKETS.categories).upload(path, file);
       if (error) throw error;
-      const { data } = supabase.storage.from("product-images").getPublicUrl(path);
+      const { data } = supabase.storage.from(STORAGE_BUCKETS.categories).getPublicUrl(path);
       setForm(f => ({ ...f, image_url: data.publicUrl }));
     } catch (err: any) {
       toast.error("Erro no upload: " + err.message);
