@@ -56,7 +56,16 @@ export const useProducts = (options?: { featured?: boolean; freeShipping?: boole
 
       const { data, error } = await query;
       if (error) throw error;
-      return (data || []).map(mapDbProduct);
+
+      // Load cover images for all products
+      const productIds = (data || []).map((p: any) => p.id);
+      let coverMap: Record<string, string> = {};
+      if (productIds.length > 0) {
+        const { data: mediaData } = await supabase.from("product_media").select("product_id, url").in("product_id", productIds).eq("is_cover", true);
+        (mediaData || []).forEach((m: any) => { coverMap[m.product_id] = m.url; });
+      }
+
+      return (data || []).map((p: any) => mapDbProduct({ ...p, cover_url: coverMap[p.id] }));
     },
   });
 
