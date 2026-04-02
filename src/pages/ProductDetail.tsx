@@ -252,9 +252,8 @@ const ProductDetail = () => {
             {/* Description */}
             <div className="bg-card mt-2 p-4 md:rounded-card md:border md:border-border">
               <h3 className="text-sm font-bold text-foreground mb-2">Descrição</h3>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Produto de alta qualidade disponível no Kwanza Market. Garantia do vendedor incluída. 
-                Compre com segurança e receba na sua morada em Angola.
+              <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-line">
+                {(product as any).description || "Produto de alta qualidade disponível no Kwanza Market. Garantia do vendedor incluída. Compre com segurança e receba na sua morada em Angola."}
               </p>
               <ul className="text-xs text-muted-foreground mt-3 space-y-1.5">
                 <li>• Produto original com garantia</li>
