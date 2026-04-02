@@ -144,7 +144,11 @@ const ProductDetail = () => {
                 {images.map((img, i) => (
                   <button key={i} onClick={() => setSelectedImage(i)}
                     className={`flex-shrink-0 w-14 h-14 rounded-card overflow-hidden border-2 ${i === selectedImage ? "border-primary" : "border-border"}`}>
-                    <img src={img} alt="" className="w-full h-full object-cover" />
+                    {img.type === "video" ? (
+                      <video src={img.url} className="w-full h-full object-cover" />
+                    ) : (
+                      <img src={img.url} alt="" className="w-full h-full object-cover" />
+                    )}
                   </button>
                 ))}
               </div>
