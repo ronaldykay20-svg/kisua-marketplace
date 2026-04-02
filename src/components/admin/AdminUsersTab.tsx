@@ -13,7 +13,7 @@ const AdminUsersTab = () => {
     queryFn: async () => {
       let q = supabase.from("profiles").select("id, full_name, phone, avatar_url, province, city, created_at").order("created_at", { ascending: false }).limit(50);
       if (search) {
-        q = q.or(`full_name.ilike.%${search}%,phone.ilike.%${search}%`);
+        q = q.or(`full_name.ilike.%${search}%,phone.ilike.%${search}%,id.ilike.%${search}%,province.ilike.%${search}%,city.ilike.%${search}%`);
       }
       const { data, error } = await q;
       if (error) throw error;
