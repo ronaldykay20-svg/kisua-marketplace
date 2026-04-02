@@ -39,6 +39,7 @@ const CategoriaDetalhe = () => {
 
   const subs = subcategories[categoryName] || ["Todos"];
   const products = allProducts;
+  const isMobile = useIsMobile();
 
   return (
     <div className="min-h-screen bg-background pb-14 md:pb-0">
