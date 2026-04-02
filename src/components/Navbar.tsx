@@ -1,6 +1,7 @@
-import { Search, Menu, ShoppingCart, User, MapPin, X, ChevronRight, Gavel, Radio, Store, Users, Zap } from "lucide-react";
+import { Search, Menu, ShoppingCart, User, MapPin, X, ChevronRight, Gavel, Radio, Store, Users, Zap, LogOut } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 
 const categories = [
   { name: "Electrónicos", image: "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=100&h=100&fit=crop" },
@@ -31,6 +32,7 @@ const Navbar = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const navigate = useNavigate();
+  const { user, userDisplayName, signOut } = useAuth();
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,10 +111,22 @@ const Navbar = () => {
           <div className="relative w-[85%] max-w-[320px] bg-card h-full overflow-y-auto animate-in slide-in-from-left duration-200 flex flex-col">
             {/* Menu header */}
             <div className="bg-primary p-4 flex items-center justify-between">
-              <button onClick={() => { navigate("/auth"); setMenuOpen(false); }} className="flex items-center gap-2">
-                <User className="w-6 h-6 text-primary-foreground" />
-                <span className="text-sm font-bold text-primary-foreground">Olá, faça login</span>
-              </button>
+              {user ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
+                    <span className="text-secondary-foreground text-sm font-bold">{userDisplayName.charAt(0).toUpperCase()}</span>
+                  </div>
+                  <div>
+                    <span className="text-sm font-bold text-primary-foreground">Olá, {userDisplayName}</span>
+                    <p className="text-[10px] text-primary-foreground/70">{user.email}</p>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => { navigate("/auth"); setMenuOpen(false); }} className="flex items-center gap-2">
+                  <User className="w-6 h-6 text-primary-foreground" />
+                  <span className="text-sm font-bold text-primary-foreground">Olá, faça login</span>
+                </button>
+              )}
               <button onClick={() => setMenuOpen(false)}>
                 <X className="w-5 h-5 text-primary-foreground" />
               </button>
@@ -166,6 +180,14 @@ const Navbar = () => {
                   {link.label}
                 </button>
               ))}
+              {user && (
+                <button
+                  onClick={async () => { await signOut(); setMenuOpen(false); navigate("/"); }}
+                  className="w-full text-left px-3 py-2.5 rounded-card text-sm font-medium text-destructive hover:bg-destructive/5 transition-colors flex items-center gap-2"
+                >
+                  <LogOut className="w-4 h-4" /> Sair da conta
+                </button>
+              )}
             </div>
           </div>
         </div>
