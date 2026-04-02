@@ -22,6 +22,7 @@ import Pedidos from "./pages/Pedidos.tsx";
 import Favoritos from "./pages/Favoritos.tsx";
 import Ajuda from "./pages/Ajuda.tsx";
 import VenderKwanza from "./pages/VenderKwanza.tsx";
+import Auth from "./pages/Auth.tsx";
 
 const queryClient = new QueryClient();
 
@@ -50,6 +51,7 @@ const App = () => (
           <Route path="/favoritos" element={<Favoritos />} />
           <Route path="/ajuda" element={<Ajuda />} />
           <Route path="/vender" element={<VenderKwanza />} />
+          <Route path="/auth" element={<Auth />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
