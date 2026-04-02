@@ -1,24 +1,27 @@
-import { User, Package, Heart, HelpCircle, ChevronRight, Settings, MapPin, CreditCard, Bell, Shield, LogOut } from "lucide-react";
+import { User, Package, Heart, HelpCircle, ChevronRight, Settings, MapPin, CreditCard, Bell, Shield, LogOut, Crown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserRole } from "@/hooks/useUserRole";
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
 import { toast } from "sonner";
 
-const menuItems = [
-  { icon: Package, label: "Meus Pedidos", desc: "Acompanhe as suas encomendas", path: "/pedidos" },
-  { icon: Heart, label: "Favoritos", desc: "Produtos que guardou", path: "/favoritos" },
-  { icon: MapPin, label: "Endereços", desc: "Gerir endereços de entrega", path: "#" },
-  { icon: CreditCard, label: "Pagamentos", desc: "Métodos de pagamento", path: "#" },
-  { icon: Bell, label: "Notificações", desc: "Preferências de alertas", path: "#" },
-  { icon: Shield, label: "Segurança", desc: "Palavra-passe e privacidade", path: "#" },
-  { icon: HelpCircle, label: "Ajuda", desc: "Centro de ajuda e suporte", path: "/ajuda" },
-  { icon: Settings, label: "Definições", desc: "Configurações da conta", path: "#" },
-];
-
 const MinhaConta = () => {
   const navigate = useNavigate();
   const { user, userDisplayName, signOut } = useAuth();
+  const { isAdmin, isModerator, roles } = useUserRole();
+
+  const menuItems = [
+    { icon: Package, label: "Meus Pedidos", desc: "Acompanhe as suas encomendas", path: "/pedidos" },
+    { icon: Heart, label: "Favoritos", desc: "Produtos que guardou", path: "/favoritos" },
+    { icon: MapPin, label: "Endereços", desc: "Gerir endereços de entrega", path: "#" },
+    { icon: CreditCard, label: "Pagamentos", desc: "Métodos de pagamento", path: "#" },
+    { icon: Bell, label: "Notificações", desc: "Preferências de alertas", path: "#" },
+    { icon: Shield, label: "Segurança", desc: "Palavra-passe e privacidade", path: "#" },
+    { icon: HelpCircle, label: "Ajuda", desc: "Centro de ajuda e suporte", path: "/ajuda" },
+    { icon: Settings, label: "Definições", desc: "Configurações da conta", path: "#" },
+    ...(isAdmin ? [{ icon: Crown, label: "Administração", desc: "Gerir utilizadores e cargos", path: "/admin" }] : []),
+  ];
 
   const handleLogout = async () => {
     await signOut();
@@ -43,7 +46,11 @@ const MinhaConta = () => {
             {user ? (
               <>
                 <h2 className="text-sm font-bold text-foreground">Olá, {userDisplayName}</h2>
-                <p className="text-xs text-muted-foreground">{user.email}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-xs text-muted-foreground">{user.email}</p>
+                  {isAdmin && <span className="px-1.5 py-0.5 text-[9px] font-bold bg-red-500/10 text-red-500 rounded">Admin</span>}
+                  {isModerator && !isAdmin && <span className="px-1.5 py-0.5 text-[9px] font-bold bg-amber-500/10 text-amber-500 rounded">Mod</span>}
+                </div>
               </>
             ) : (
               <>

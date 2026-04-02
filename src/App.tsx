@@ -24,6 +24,8 @@ import Favoritos from "./pages/Favoritos.tsx";
 import Ajuda from "./pages/Ajuda.tsx";
 import VenderKwanza from "./pages/VenderKwanza.tsx";
 import Auth from "./pages/Auth.tsx";
+import AdminPanel from "./pages/AdminPanel.tsx";
+import ProtectedRoute from "./components/ProtectedRoute.tsx";
 
 const queryClient = new QueryClient();
 
@@ -48,12 +50,13 @@ const App = () => (
           <Route path="/categorias" element={<Categorias />} />
           <Route path="/categoria/:nome" element={<CategoriaDetalhe />} />
           <Route path="/promocoes" element={<Promocoes />} />
-          <Route path="/conta" element={<MinhaConta />} />
-          <Route path="/pedidos" element={<Pedidos />} />
-          <Route path="/favoritos" element={<Favoritos />} />
+          <Route path="/conta" element={<ProtectedRoute><MinhaConta /></ProtectedRoute>} />
+          <Route path="/pedidos" element={<ProtectedRoute><Pedidos /></ProtectedRoute>} />
+          <Route path="/favoritos" element={<ProtectedRoute><Favoritos /></ProtectedRoute>} />
           <Route path="/ajuda" element={<Ajuda />} />
-          <Route path="/vender" element={<VenderKwanza />} />
+          <Route path="/vender" element={<ProtectedRoute><VenderKwanza /></ProtectedRoute>} />
           <Route path="/auth" element={<Auth />} />
+          <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminPanel /></ProtectedRoute>} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
