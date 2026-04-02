@@ -45,7 +45,13 @@ const MinhaConta = () => {
     { icon: Shield, label: "Segurança", desc: "Palavra-passe e privacidade", path: "/seguranca" },
     { icon: HelpCircle, label: "Ajuda", desc: "Centro de ajuda e suporte", path: "/ajuda" },
     { icon: Settings, label: "Definições", desc: "Configurações da conta", path: "/definicoes" },
-    ...(isAdmin ? [{ icon: Crown, label: "Administração", desc: "Gerir utilizadores e cargos", path: "/admin" }] : []),
+    ...(isSeller ? [{ icon: Store, label: "Painel do Vendedor", desc: "Gerir a sua loja e produtos", path: "/painel-vendedor" }] : []),
+    ...(isCompanyMember ? [{ icon: Building2, label: "Painel da Empresa", desc: "Gerir empresa e equipa", path: "/painel-empresa" }] : []),
+    ...(isModerator && !isAdmin ? [{ icon: Shield, label: "Painel do Moderador", desc: "Moderar produtos e vendedores", path: "/painel-moderador" }] : []),
+    ...(isAdmin ? [
+      { icon: Crown, label: "Administração", desc: "Gerir utilizadores e cargos", path: "/admin" },
+      { icon: Shield, label: "Painel do Moderador", desc: "Moderar produtos e vendedores", path: "/painel-moderador" },
+    ] : []),
   ];
 
   const stats = [
