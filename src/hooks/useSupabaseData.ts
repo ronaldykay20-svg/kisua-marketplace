@@ -102,7 +102,33 @@ export const useSellers = (options?: { type?: "individual" | "company"; verified
 
       const { data, error } = await query;
       if (error) throw error;
-      return data;
+
+      // Fetch real average ratings from reviews for each seller
+      const sellerIds = (data || []).map((s: any) => s.id);
+      let ratingsMap: Record<string, { avg: number; count: number }> = {};
+      if (sellerIds.length > 0) {
+        const { data: reviews } = await supabase
+          .from("reviews")
+          .select("seller_id, rating")
+          .in("seller_id", sellerIds);
+        if (reviews) {
+          const grouped: Record<string, number[]> = {};
+          reviews.forEach((r: any) => {
+            if (!grouped[r.seller_id]) grouped[r.seller_id] = [];
+            grouped[r.seller_id].push(r.rating);
+          });
+          Object.entries(grouped).forEach(([sid, ratings]) => {
+            const avg = ratings.reduce((a, b) => a + b, 0) / ratings.length;
+            ratingsMap[sid] = { avg: Math.round(avg * 10) / 10, count: ratings.length };
+          });
+        }
+      }
+
+      return (data || []).map((s: any) => ({
+        ...s,
+        rating: ratingsMap[s.id]?.avg ?? s.rating ?? 0,
+        total_reviews: ratingsMap[s.id]?.count ?? 0,
+      }));
     },
   });
 

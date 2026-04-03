@@ -31,9 +31,10 @@ const Empresas = () => {
         name: s.name,
         category: s.description || "Empresa",
         icon: ShoppingBag,
-        rating: s.rating,
-        visits: s.visits_count > 1000 ? `${(s.visits_count / 1000).toFixed(0)}K` : String(s.visits_count),
-        followers: s.followers_count > 1000 ? `${(s.followers_count / 1000).toFixed(1)}K` : String(s.followers_count),
+        rating: s.rating ?? 0,
+        reviews: s.total_reviews ?? 0,
+        visits: s.visits_count > 1000 ? `${(s.visits_count / 1000).toFixed(0)}K` : String(s.visits_count ?? 0),
+        followers: s.followers_count > 1000 ? `${(s.followers_count / 1000).toFixed(1)}K` : String(s.followers_count ?? 0),
         cover: s.cover_url || "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=600&h=300&fit=crop",
         verified: s.is_verified,
       }))
@@ -94,7 +95,7 @@ const Empresas = () => {
                     <p className="text-xs text-muted-foreground">{empresa.category}</p>
                   </div>
                   <div className="flex items-center gap-2 mt-2.5 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-0.5"><Star className="w-3 h-3 text-secondary fill-secondary" /> {empresa.rating}</span>
+                    <span className="flex items-center gap-0.5"><Star className="w-3 h-3 text-secondary fill-secondary" /> {empresa.rating} ({empresa.reviews || 0})</span>
                     <span className="text-border">|</span>
                     <span className="flex items-center gap-0.5"><MapPin className="w-3 h-3" /> {empresa.visits} visitas</span>
                     <span className="text-border">|</span>
