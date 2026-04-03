@@ -49,6 +49,17 @@ const SellerDashboard = () => {
     enabled: !!editingProduct?.id,
   });
 
+  // Load variants for editing product
+  const { data: editingVariants = [] } = useQuery({
+    queryKey: ["product_variants_edit", editingProduct?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("product_variants").select("*").eq("product_id", editingProduct!.id).order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!editingProduct?.id,
+  });
+
   // Load cover images for product list
   const { data: productCovers = {} } = useQuery({
     queryKey: ["product_covers", seller?.id],
