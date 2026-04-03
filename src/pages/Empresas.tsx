@@ -31,9 +31,10 @@ const Empresas = () => {
         name: s.name,
         category: s.description || "Empresa",
         icon: ShoppingBag,
-        rating: s.rating,
-        visits: s.visits_count > 1000 ? `${(s.visits_count / 1000).toFixed(0)}K` : String(s.visits_count),
-        followers: s.followers_count > 1000 ? `${(s.followers_count / 1000).toFixed(1)}K` : String(s.followers_count),
+        rating: s.rating ?? 0,
+        reviews: s.total_reviews ?? 0,
+        visits: s.visits_count > 1000 ? `${(s.visits_count / 1000).toFixed(0)}K` : String(s.visits_count ?? 0),
+        followers: s.followers_count > 1000 ? `${(s.followers_count / 1000).toFixed(1)}K` : String(s.followers_count ?? 0),
         cover: s.cover_url || "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=600&h=300&fit=crop",
         verified: s.is_verified,
       }))
