@@ -142,6 +142,16 @@ const VendedorPerfil = () => {
         )}
       </section>
 
+      {/* Review Dialog */}
+      {seller && (
+        <ReviewDialog
+          open={reviewDialogOpen}
+          onOpenChange={setReviewDialogOpen}
+          sellerId={seller.id}
+          sellerUserId={seller.user_id}
+        />
+      )}
+
       <Footer />
     </div>
   );
