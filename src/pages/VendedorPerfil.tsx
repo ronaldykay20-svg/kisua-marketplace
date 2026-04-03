@@ -143,15 +143,23 @@ const VendedorPerfil = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
+          <div className="grid grid-cols-3 gap-2 mt-3 text-xs text-muted-foreground">
             <div className="flex items-center gap-1">
               <Star className="w-3.5 h-3.5 text-secondary fill-secondary" />
               <span className="font-bold text-foreground">{reviewStats?.avg || 0}</span>
               <span>({reviewStats?.total || 0})</span>
             </div>
             <div className="flex items-center gap-1">
-              <ShoppingBag className="w-3.5 h-3.5" />
+              <Package className="w-3.5 h-3.5" />
               <span>{productCount || 0} produtos</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <ShoppingBag className="w-3.5 h-3.5" />
+              <span>{seller.total_sales || 0} vendas</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Users className="w-3.5 h-3.5" />
+              <span>{seller.followers_count || 0} seguidores</span>
             </div>
             <div className="flex items-center gap-1">
               <Eye className="w-3.5 h-3.5" />
@@ -160,8 +168,17 @@ const VendedorPerfil = () => {
           </div>
 
           <div className="flex gap-2 mt-3">
-            <button className="flex-1 py-2 rounded-card text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition flex items-center justify-center gap-1">
-              <UserPlus className="w-3.5 h-3.5" /> Seguir
+            <button
+              onClick={() => toggleFollow.mutate()}
+              disabled={toggleFollow.isPending}
+              className={`flex-1 py-2 rounded-card text-xs font-bold transition flex items-center justify-center gap-1 ${
+                isFollowing
+                  ? "bg-muted text-foreground border border-border hover:bg-muted/80"
+                  : "bg-primary text-primary-foreground hover:bg-primary/90"
+              }`}
+            >
+              {isFollowing ? <UserCheck className="w-3.5 h-3.5" /> : <UserPlus className="w-3.5 h-3.5" />}
+              {isFollowing ? "A seguir" : "Seguir"}
             </button>
             <button
               onClick={() => {
