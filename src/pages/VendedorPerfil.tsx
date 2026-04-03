@@ -273,10 +273,10 @@ const SellerReviewsTab = ({ sellerId, sellerUserId }: { sellerId: string; seller
             <div key={r.id} className="bg-card rounded-card border border-border p-3">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
-                  {(r.profiles?.full_name || "U").charAt(0).toUpperCase()}
+                  {(r.profile?.full_name || "U").charAt(0).toUpperCase()}
                 </div>
                 <div className="flex-1">
-                  <p className="text-xs font-bold text-foreground">{r.profiles?.full_name || "Utilizador"}</p>
+                  <p className="text-xs font-bold text-foreground">{r.profile?.full_name || "Utilizador"}</p>
                   <div className="flex gap-0.5">
                     {[1, 2, 3, 4, 5].map(s => (
                       <Star key={s} className={`w-3 h-3 ${s <= r.rating ? "text-secondary fill-secondary" : "text-muted-foreground/30"}`} />
