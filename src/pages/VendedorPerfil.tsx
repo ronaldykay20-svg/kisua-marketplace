@@ -1,7 +1,7 @@
 import { useState } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { Star, MapPin, CheckCircle, ShoppingBag, MessageCircle, Phone, Clock, Loader2, Send, X } from "lucide-react";
+import { Star, MapPin, CheckCircle, ShoppingBag, UserPlus, Phone, Clock, Loader2, Send, X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useNavigate, useParams } from "react-router-dom";
 import { useSeller } from "@/hooks/useSupabaseData";
@@ -117,7 +117,7 @@ const VendedorPerfil = () => {
 
           <div className="flex gap-2 mt-3">
             <button className="flex-1 py-2 rounded-card text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition flex items-center justify-center gap-1">
-              <MessageCircle className="w-3.5 h-3.5" /> Mensagem
+              <UserPlus className="w-3.5 h-3.5" /> Seguir
             </button>
             <button className="flex-1 py-2 rounded-card text-xs font-bold border border-border text-foreground hover:bg-muted transition flex items-center justify-center gap-1">
               <Phone className="w-3.5 h-3.5" /> Contactar
