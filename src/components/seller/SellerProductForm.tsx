@@ -415,7 +415,16 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
                   <div>
                     <label className="text-[10px] font-bold text-muted-foreground mb-0.5 block">Nome *</label>
                     <input value={variant.name} onChange={e => updateVariant(idx, "name", e.target.value)}
-                      placeholder={variant.variant_type === "color" ? "Ex: Azul" : variant.variant_type === "size" ? "Ex: M" : "Ex: Algodão"}
+                      placeholder={
+                        variant.variant_type === "color" ? "Ex: Azul" :
+                        variant.variant_type === "size" ? "Ex: M, L, XL" :
+                        variant.variant_type === "weight" ? "Ex: 500g, 1kg" :
+                        variant.variant_type === "capacity" ? "Ex: 64GB, 128GB" :
+                        variant.variant_type === "model" ? "Ex: Pro, Lite" :
+                        variant.variant_type === "voltage" ? "Ex: 110V, 220V" :
+                        variant.variant_type === "pack" ? "Ex: 3 unidades" :
+                        "Ex: Algodão"
+                      }
                       className="w-full px-2 py-1.5 rounded-lg bg-muted border border-border text-xs text-foreground" />
                   </div>
                 </div>
