@@ -157,6 +157,26 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
     }))
   );
 
+  // Sync media/variants when loaded asynchronously (editing)
+  useEffect(() => {
+    if (existingMedia.length > 0 && media.length === 0) {
+      setMedia(existingMedia.map((m: any, i: number) => ({
+        id: m.id, url: m.url, type: m.type || "image", is_cover: m.is_cover || false, sort_order: m.sort_order ?? i,
+      })));
+    }
+  }, [existingMedia]);
+
+  useEffect(() => {
+    if (existingVariants.length > 0 && variants.length === 0) {
+      setVariants(existingVariants.map((v: any, i: number) => ({
+        id: v.id, variant_type: v.variant_type || "color", name: v.name || "", value: v.value || "",
+        price_override: v.price_override ? String(v.price_override) : "", stock: String(v.stock ?? 1),
+        image_url: v.image_url || "", sort_order: v.sort_order ?? i, is_active: v.is_active ?? true,
+        parent_id: v.parent_id || null, _tempId: v.id || generateTempId(), _expanded: true,
+      })));
+    }
+  }, [existingVariants]);
+
   const [uploading, setUploading] = useState(false);
   const [uploadingVariantIdx, setUploadingVariantIdx] = useState<string | null>(null);
 
