@@ -95,7 +95,7 @@ const Empresas = () => {
                     <p className="text-xs text-muted-foreground">{empresa.category}</p>
                   </div>
                   <div className="flex items-center gap-2 mt-2.5 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-0.5"><Star className="w-3 h-3 text-secondary fill-secondary" /> {empresa.rating}</span>
+                    <span className="flex items-center gap-0.5"><Star className="w-3 h-3 text-secondary fill-secondary" /> {empresa.rating} ({empresa.reviews || 0})</span>
                     <span className="text-border">|</span>
                     <span className="flex items-center gap-0.5"><MapPin className="w-3 h-3" /> {empresa.visits} visitas</span>
                     <span className="text-border">|</span>
