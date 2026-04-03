@@ -217,7 +217,7 @@ const SellerDashboard = () => {
               <SellerProductForm
                 editingProduct={editingProduct}
                 existingMedia={editingProduct ? editingMedia : []}
-                onSave={(data, media) => saveProduct.mutate({ payload: data, media })}
+                onSave={(data, media, variants) => saveProduct.mutate({ payload: data, media, variants })}
                 onCancel={() => { setShowForm(false); setEditingProduct(null); }}
                 saving={saveProduct.isPending}
               />
