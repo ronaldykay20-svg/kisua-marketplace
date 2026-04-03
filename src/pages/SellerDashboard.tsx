@@ -92,21 +92,36 @@ const SellerDashboard = () => {
         if (error) throw error;
       }
 
-      // Insert variants
+      // Insert variants with parent_id support
       if (variants && variants.length > 0 && productId) {
-        const variantRows = variants.filter((v: any) => v.name).map((v: any, i: number) => ({
-          product_id: productId,
-          variant_type: v.variant_type,
-          name: v.name,
-          value: v.value || null,
-          price_override: v.price_override ? parseFloat(v.price_override) : null,
-          stock: parseInt(v.stock) || 0,
-          image_url: v.image_url || null,
-          sort_order: i,
-          is_active: true,
-        }));
-        if (variantRows.length > 0) {
-          const { error } = await supabase.from("product_variants").insert(variantRows);
+        // First insert parent variants (no parent_id)
+        const parents = variants.filter((v: any) => v.name && !v.parent_id);
+        const tempIdToDbId: Record<string, string> = {};
+
+        for (let i = 0; i < parents.length; i++) {
+          const v = parents[i];
+          const row = {
+            product_id: productId, variant_type: v.variant_type, name: v.name,
+            value: v.value || null, price_override: v.price_override ? parseFloat(v.price_override) : null,
+            stock: parseInt(v.stock) || 0, image_url: v.image_url || null,
+            sort_order: i, is_active: true, parent_id: null,
+          };
+          const { data, error } = await supabase.from("product_variants").insert(row).select("id").single();
+          if (error) throw error;
+          tempIdToDbId[v._tempId] = data.id;
+        }
+
+        // Then insert children with resolved parent_id
+        const children = variants.filter((v: any) => v.name && v.parent_id);
+        if (children.length > 0) {
+          const childRows = children.map((v: any, i: number) => ({
+            product_id: productId, variant_type: v.variant_type, name: v.name,
+            value: v.value || null, price_override: v.price_override ? parseFloat(v.price_override) : null,
+            stock: parseInt(v.stock) || 0, image_url: v.image_url || null,
+            sort_order: i, is_active: true,
+            parent_id: tempIdToDbId[v.parent_id] || null,
+          }));
+          const { error } = await supabase.from("product_variants").insert(childRows);
           if (error) throw error;
         }
       }
