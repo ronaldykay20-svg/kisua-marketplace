@@ -108,7 +108,7 @@ export const useSellers = (options?: { type?: "individual" | "company"; verified
       let ratingsMap: Record<string, { avg: number; count: number }> = {};
       if (sellerIds.length > 0) {
         const { data: reviews } = await supabase
-          .from("reviews")
+          .from("seller_reviews")
           .select("seller_id, rating")
           .in("seller_id", sellerIds);
         if (reviews) {

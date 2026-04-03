@@ -23,6 +23,7 @@ const Vendedores = () => {
     reviews: s.total_reviews ?? 0,
     sales: s.total_sales ?? 0,
     visits: s.visits_count ?? 0,
+    followers: s.followers_count ?? 0,
     verified: s.is_verified,
     image: s.logo_url || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop",
     cover: s.cover_url || "https://images.unsplash.com/photo-1556761175-b413da4baf72?w=600&h=200&fit=crop",
@@ -89,10 +90,11 @@ const Vendedores = () => {
                     <p className="text-[10px] text-muted-foreground">{seller.specialty}</p>
                   </div>
                 </div>
-                <div className="flex items-center justify-between mt-3 text-[10px] text-muted-foreground">
+                <div className="flex items-center justify-between mt-3 text-[10px] text-muted-foreground flex-wrap gap-1">
                   <div className="flex items-center gap-1"><Star className="w-3 h-3 text-secondary fill-secondary" /><span className="font-bold text-foreground">{seller.rating}</span><span>({seller.reviews})</span></div>
-                  <div className="flex items-center gap-1"><ShoppingBag className="w-3 h-3" /><span>{seller.sales} vendas</span></div>
-                  <div className="flex items-center gap-1"><Eye className="w-3 h-3" /><span>{seller.visits} visitas</span></div>
+                  <div className="flex items-center gap-1"><ShoppingBag className="w-3 h-3" /><span>{seller.sales}</span></div>
+                  <div className="flex items-center gap-1"><Users className="w-3 h-3" /><span>{seller.followers}</span></div>
+                  <div className="flex items-center gap-1"><Eye className="w-3 h-3" /><span>{seller.visits}</span></div>
                 </div>
                 <button className="w-full mt-3 py-2 rounded-card text-[11px] font-bold border border-primary/20 text-primary hover:bg-primary/5 transition flex items-center justify-center gap-1">
                   Ver perfil <ChevronRight className="w-3 h-3" />
