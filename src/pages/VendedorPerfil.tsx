@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Star, MapPin, CheckCircle, ShoppingBag, UserPlus, Eye, Clock, Loader2, Send, X } from "lucide-react";
