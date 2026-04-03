@@ -68,15 +68,15 @@ const SellerDashboard = () => {
   const activeProducts = products.filter((p: any) => p.is_active).length;
 
   const saveProduct = useMutation({
-    mutationFn: async ({ payload, media }: { payload: any; media: any[] }) => {
+    mutationFn: async ({ payload, media, variants }: { payload: any; media: any[]; variants?: any[] }) => {
       const fullPayload = { ...payload, seller_id: seller!.id, is_active: true };
       let productId = editingProduct?.id;
 
       if (editingProduct) {
         const { error } = await supabase.from("products").update(fullPayload).eq("id", editingProduct.id);
         if (error) throw error;
-        // Delete old media and re-insert
         await supabase.from("product_media").delete().eq("product_id", editingProduct.id);
+        await supabase.from("product_variants").delete().eq("product_id", editingProduct.id);
       } else {
         const { data, error } = await supabase.from("products").insert(fullPayload).select("id").single();
         if (error) throw error;
@@ -86,14 +86,29 @@ const SellerDashboard = () => {
       // Insert media
       if (media.length > 0 && productId) {
         const mediaRows = media.map((m: any, i: number) => ({
-          product_id: productId,
-          url: m.url,
-          type: m.type,
-          is_cover: m.is_cover,
-          sort_order: i,
+          product_id: productId, url: m.url, type: m.type, is_cover: m.is_cover, sort_order: i,
         }));
         const { error } = await supabase.from("product_media").insert(mediaRows);
         if (error) throw error;
+      }
+
+      // Insert variants
+      if (variants && variants.length > 0 && productId) {
+        const variantRows = variants.filter((v: any) => v.name).map((v: any, i: number) => ({
+          product_id: productId,
+          variant_type: v.variant_type,
+          name: v.name,
+          value: v.value || null,
+          price_override: v.price_override ? parseFloat(v.price_override) : null,
+          stock: parseInt(v.stock) || 0,
+          image_url: v.image_url || null,
+          sort_order: i,
+          is_active: true,
+        }));
+        if (variantRows.length > 0) {
+          const { error } = await supabase.from("product_variants").insert(variantRows);
+          if (error) throw error;
+        }
       }
     },
     onSuccess: () => {
