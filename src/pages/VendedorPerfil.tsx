@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { Star, MapPin, CheckCircle, ShoppingBag, UserPlus, Eye, Phone, Clock, Loader2, Send, X } from "lucide-react";
+import { Star, MapPin, CheckCircle, ShoppingBag, UserPlus, UserCheck, Eye, Phone, Clock, Loader2, Send, X, Package, Users } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useNavigate, useParams } from "react-router-dom";
 import { useSeller } from "@/hooks/useSupabaseData";
@@ -50,6 +50,41 @@ const VendedorPerfil = () => {
       return count || 0;
     },
     enabled: !!id,
+  });
+
+  // Check if current user follows this seller
+  const { data: isFollowing, refetch: refetchFollow } = useQuery({
+    queryKey: ["seller_follow", id, user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("seller_follows")
+        .select("id")
+        .eq("seller_id", id!)
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      return !!data;
+    },
+    enabled: !!id && !!user,
+  });
+
+  const queryClient = useQueryClient();
+
+  const toggleFollow = useMutation({
+    mutationFn: async () => {
+      if (!user) { window.location.href = "/auth"; return; }
+      if (isFollowing) {
+        await supabase.from("seller_follows").delete().eq("seller_id", id!).eq("user_id", user.id);
+      } else {
+        await supabase.from("seller_follows").insert({ seller_id: id!, user_id: user.id });
+      }
+    },
+    onSuccess: () => {
+      refetchFollow();
+      queryClient.invalidateQueries({ queryKey: ["seller", id] });
+      queryClient.invalidateQueries({ queryKey: ["sellers"] });
+      toast.success(isFollowing ? "Deixou de seguir" : "A seguir!");
+    },
+    onError: (e: any) => toast.error(e.message),
   });
 
   // Increment visits on page load
@@ -108,15 +143,23 @@ const VendedorPerfil = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
+          <div className="grid grid-cols-3 gap-2 mt-3 text-xs text-muted-foreground">
             <div className="flex items-center gap-1">
               <Star className="w-3.5 h-3.5 text-secondary fill-secondary" />
               <span className="font-bold text-foreground">{reviewStats?.avg || 0}</span>
               <span>({reviewStats?.total || 0})</span>
             </div>
             <div className="flex items-center gap-1">
-              <ShoppingBag className="w-3.5 h-3.5" />
+              <Package className="w-3.5 h-3.5" />
               <span>{productCount || 0} produtos</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <ShoppingBag className="w-3.5 h-3.5" />
+              <span>{seller.total_sales || 0} vendas</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Users className="w-3.5 h-3.5" />
+              <span>{seller.followers_count || 0} seguidores</span>
             </div>
             <div className="flex items-center gap-1">
               <Eye className="w-3.5 h-3.5" />
@@ -125,8 +168,17 @@ const VendedorPerfil = () => {
           </div>
 
           <div className="flex gap-2 mt-3">
-            <button className="flex-1 py-2 rounded-card text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition flex items-center justify-center gap-1">
-              <UserPlus className="w-3.5 h-3.5" /> Seguir
+            <button
+              onClick={() => toggleFollow.mutate()}
+              disabled={toggleFollow.isPending}
+              className={`flex-1 py-2 rounded-card text-xs font-bold transition flex items-center justify-center gap-1 ${
+                isFollowing
+                  ? "bg-muted text-foreground border border-border hover:bg-muted/80"
+                  : "bg-primary text-primary-foreground hover:bg-primary/90"
+              }`}
+            >
+              {isFollowing ? <UserCheck className="w-3.5 h-3.5" /> : <UserPlus className="w-3.5 h-3.5" />}
+              {isFollowing ? "A seguir" : "Seguir"}
             </button>
             <button
               onClick={() => {
