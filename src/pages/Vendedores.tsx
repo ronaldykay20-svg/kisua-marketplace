@@ -1,7 +1,7 @@
 import { useState } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { Search, Star, MapPin, CheckCircle, ChevronRight, Users, ShoppingBag } from "lucide-react";
+import { Search, Star, MapPin, CheckCircle, ChevronRight, Users, ShoppingBag, Eye } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useSellers } from "@/hooks/useSupabaseData";
 
