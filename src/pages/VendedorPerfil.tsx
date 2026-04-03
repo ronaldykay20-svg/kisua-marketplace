@@ -55,7 +55,10 @@ const VendedorPerfil = () => {
   // Increment visits on page load
   useEffect(() => {
     if (!id) return;
-    supabase.rpc("increment_seller_visits", { seller_id_input: id }).then(() => {});
+    supabase.rpc("increment_seller_visits", { seller_id_input: id })
+      .then(({ error }) => {
+        if (error) console.error("Visit increment error:", error.message);
+      });
   }, [id]);
 
   if (isLoading) {
