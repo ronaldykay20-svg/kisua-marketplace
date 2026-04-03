@@ -31,6 +31,16 @@ const ProductDetail = () => {
     enabled: !!isUuid,
   });
 
+  const { data: dbVariants = [] } = useQuery({
+    queryKey: ["product_variants", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("product_variants").select("*").eq("product_id", id!).eq("is_active", true).order("sort_order");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!isUuid,
+  });
+
   // Fallback to static
   const staticProduct = allProducts.find(p => p.id === Number(id));
 
