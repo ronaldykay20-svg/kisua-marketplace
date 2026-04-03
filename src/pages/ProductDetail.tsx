@@ -161,10 +161,10 @@ const ProductDetail = () => {
             {/* Image gallery */}
             <div className="bg-card md:rounded-card md:border md:border-border">
               <div className="aspect-square relative overflow-hidden md:rounded-t-card md:max-h-[450px]">
-                {images[selectedImage]?.type === "video" ? (
-                  <video src={images[selectedImage].url} controls className="w-full h-full object-cover" />
+                {displayImages[selectedImage]?.type === "video" ? (
+                  <video src={displayImages[selectedImage].url} controls className="w-full h-full object-cover" />
                 ) : (
-                  <img src={images[selectedImage].url} alt={product.title} className="w-full h-full object-cover" />
+                  <img src={displayImages[selectedImage]?.url} alt={product.title} className="w-full h-full object-cover" />
                 )}
                 <div className="absolute right-3 top-1/3 flex flex-col gap-2">
                   <button className="w-9 h-9 rounded-full bg-card/80 shadow flex items-center justify-center"><Share2 className="w-4 h-4 text-muted-foreground" /></button>
@@ -175,7 +175,7 @@ const ProductDetail = () => {
                 </div>
               </div>
               <div className="flex gap-2 p-3 overflow-x-auto scrollbar-hide">
-                {images.map((img, i) => (
+                {displayImages.map((img, i) => (
                   <button key={i} onClick={() => setSelectedImage(i)}
                     className={`flex-shrink-0 w-14 h-14 rounded-card overflow-hidden border-2 ${i === selectedImage ? "border-primary" : "border-border"}`}>
                     {img.type === "video" ? (
