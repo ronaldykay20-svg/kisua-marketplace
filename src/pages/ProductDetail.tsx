@@ -14,6 +14,7 @@ const ProductDetail = () => {
   const [qty, setQty] = useState(1);
   const [liked, setLiked] = useState(false);
   const [selectedImage, setSelectedImage] = useState(0);
+  const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
 
   // Try DB first
   const isUuid = id && id.length > 10;
@@ -26,6 +27,16 @@ const ProductDetail = () => {
       const { data, error } = await supabase.from("product_media").select("*").eq("product_id", id!).order("sort_order");
       if (error) throw error;
       return data;
+    },
+    enabled: !!isUuid,
+  });
+
+  const { data: dbVariants = [] } = useQuery({
+    queryKey: ["product_variants", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("product_variants").select("*").eq("product_id", id!).eq("is_active", true).order("sort_order");
+      if (error) throw error;
+      return data || [];
     },
     enabled: !!isUuid,
   });
@@ -59,9 +70,32 @@ const ProductDetail = () => {
     );
   }
 
+  // Group variants by type
+  const variantGroups: Record<string, any[]> = {};
+  (dbVariants as any[]).forEach((v: any) => {
+    if (!variantGroups[v.variant_type]) variantGroups[v.variant_type] = [];
+    variantGroups[v.variant_type].push(v);
+  });
+
+  // Get active variant for price override
+  const selectedVariantsList = Object.values(selectedVariants);
+  const activeVariant = (dbVariants as any[]).find((v: any) => selectedVariantsList.includes(v.id));
+  const activePrice = activeVariant?.price_override
+    ? Number(activeVariant.price_override).toLocaleString("pt-AO").replace(/,/g, ".") + " Kz"
+    : product.price;
+
+  // When a variant with image is selected, show that image
+  const variantImage = activeVariant?.image_url || null;
+
   const images = dbMedia.length > 0
     ? dbMedia.map((m: any) => ({ url: m.url, type: m.type }))
     : [{ url: product.image, type: "image" }, { url: product.image, type: "image" }, { url: product.image, type: "image" }];
+
+  // Prepend variant image if selected
+  const displayImages = variantImage
+    ? [{ url: variantImage, type: "image" }, ...images.filter(img => img.url !== variantImage)]
+    : images;
+
   const relatedProducts = allProducts.filter(p => p.id !== Number(id)).slice(0, 10);
   const moreToExplore = allProducts.filter(p => p.id !== Number(id)).slice(10, 20);
   const alsoLike = allProducts.filter(p => p.id !== Number(id)).slice(5, 15);
@@ -127,10 +161,10 @@ const ProductDetail = () => {
             {/* Image gallery */}
             <div className="bg-card md:rounded-card md:border md:border-border">
               <div className="aspect-square relative overflow-hidden md:rounded-t-card md:max-h-[450px]">
-                {images[selectedImage]?.type === "video" ? (
-                  <video src={images[selectedImage].url} controls className="w-full h-full object-cover" />
+                {displayImages[selectedImage]?.type === "video" ? (
+                  <video src={displayImages[selectedImage].url} controls className="w-full h-full object-cover" />
                 ) : (
-                  <img src={images[selectedImage].url} alt={product.title} className="w-full h-full object-cover" />
+                  <img src={displayImages[selectedImage]?.url} alt={product.title} className="w-full h-full object-cover" />
                 )}
                 <div className="absolute right-3 top-1/3 flex flex-col gap-2">
                   <button className="w-9 h-9 rounded-full bg-card/80 shadow flex items-center justify-center"><Share2 className="w-4 h-4 text-muted-foreground" /></button>
@@ -141,7 +175,7 @@ const ProductDetail = () => {
                 </div>
               </div>
               <div className="flex gap-2 p-3 overflow-x-auto scrollbar-hide">
-                {images.map((img, i) => (
+                {displayImages.map((img, i) => (
                   <button key={i} onClick={() => setSelectedImage(i)}
                     className={`flex-shrink-0 w-14 h-14 rounded-card overflow-hidden border-2 ${i === selectedImage ? "border-primary" : "border-border"}`}>
                     {img.type === "video" ? (
@@ -202,7 +236,7 @@ const ProductDetail = () => {
             <div className="bg-card mt-0.5 md:mt-0 p-4 md:rounded-card md:border md:border-border">
               <div className="flex items-baseline gap-1">
                 {product.discount && <span className="text-sm font-bold text-walmart-green mr-1">Now</span>}
-                <span className="text-2xl font-black text-foreground">{product.price}</span>
+                <span className="text-2xl font-black text-foreground">{activePrice}</span>
               </div>
               {product.oldPrice && (
                 <div className="flex items-center gap-2 mt-1">
@@ -213,6 +247,68 @@ const ProductDetail = () => {
               {product.freeShipping && (
                 <div className="flex items-center gap-1.5 mt-3 text-xs text-walmart-green font-semibold">
                   <Truck className="w-4 h-4" /><span>Frete grátis para Luanda</span>
+                </div>
+              )}
+
+              {/* ═══ VARIAÇÕES ═══ */}
+              {Object.keys(variantGroups).length > 0 && (
+                <div className="mt-4 space-y-3">
+                  {Object.entries(variantGroups).map(([type, variants]) => {
+                    const typeLabels: Record<string, string> = { color: "Cor", size: "Tamanho", material: "Material", style: "Estilo", other: "Opção" };
+                    const selectedId = selectedVariants[type];
+                    return (
+                      <div key={type}>
+                        <p className="text-[11px] font-bold text-muted-foreground mb-1.5">
+                          {typeLabels[type] || type}
+                          {selectedId && ": "}
+                          {selectedId && <span className="text-foreground">{variants.find((v: any) => v.id === selectedId)?.name}</span>}
+                        </p>
+                        <div className="flex gap-2 flex-wrap">
+                          {variants.map((v: any) => {
+                            const isSelected = selectedId === v.id;
+                            if (type === "color" && v.value?.startsWith("#")) {
+                              // Color swatch with optional image
+                              return (
+                                <button key={v.id}
+                                  onClick={() => {
+                                    setSelectedVariants(prev => ({ ...prev, [type]: isSelected ? "" : v.id }));
+                                    if (!isSelected && v.image_url) setSelectedImage(0);
+                                  }}
+                                  className={`relative rounded-lg border-2 overflow-hidden transition ${isSelected ? "border-primary ring-1 ring-primary" : "border-border"}`}
+                                  title={v.name}>
+                                  {v.image_url ? (
+                                    <img src={v.image_url} alt={v.name} className="w-10 h-10 object-cover" />
+                                  ) : (
+                                    <div className="w-10 h-10 flex items-center justify-center">
+                                      <div className="w-7 h-7 rounded-full border border-border" style={{ backgroundColor: v.value }} />
+                                    </div>
+                                  )}
+                                  {v.price_override && (
+                                    <span className="absolute bottom-0 inset-x-0 text-center bg-background/80 text-[7px] font-bold text-foreground leading-tight py-0.5">
+                                      {Number(v.price_override).toLocaleString("pt-AO").replace(/,/g, ".")} Kz
+                                    </span>
+                                  )}
+                                </button>
+                              );
+                            }
+                            // Text-based variant (size, material, etc.)
+                            return (
+                              <button key={v.id}
+                                onClick={() => setSelectedVariants(prev => ({ ...prev, [type]: isSelected ? "" : v.id }))}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${isSelected ? "bg-primary text-primary-foreground border-primary" : "bg-muted text-foreground border-border hover:border-primary/50"}`}>
+                                {v.name}
+                                {v.price_override && (
+                                  <span className="block text-[9px] font-normal opacity-80">
+                                    {Number(v.price_override).toLocaleString("pt-AO").replace(/,/g, ".")} Kz
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
