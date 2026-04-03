@@ -236,7 +236,7 @@ const ProductDetail = () => {
             <div className="bg-card mt-0.5 md:mt-0 p-4 md:rounded-card md:border md:border-border">
               <div className="flex items-baseline gap-1">
                 {product.discount && <span className="text-sm font-bold text-walmart-green mr-1">Now</span>}
-                <span className="text-2xl font-black text-foreground">{product.price}</span>
+                <span className="text-2xl font-black text-foreground">{activePrice}</span>
               </div>
               {product.oldPrice && (
                 <div className="flex items-center gap-2 mt-1">
@@ -247,6 +247,68 @@ const ProductDetail = () => {
               {product.freeShipping && (
                 <div className="flex items-center gap-1.5 mt-3 text-xs text-walmart-green font-semibold">
                   <Truck className="w-4 h-4" /><span>Frete grátis para Luanda</span>
+                </div>
+              )}
+
+              {/* ═══ VARIAÇÕES ═══ */}
+              {Object.keys(variantGroups).length > 0 && (
+                <div className="mt-4 space-y-3">
+                  {Object.entries(variantGroups).map(([type, variants]) => {
+                    const typeLabels: Record<string, string> = { color: "Cor", size: "Tamanho", material: "Material", style: "Estilo", other: "Opção" };
+                    const selectedId = selectedVariants[type];
+                    return (
+                      <div key={type}>
+                        <p className="text-[11px] font-bold text-muted-foreground mb-1.5">
+                          {typeLabels[type] || type}
+                          {selectedId && ": "}
+                          {selectedId && <span className="text-foreground">{variants.find((v: any) => v.id === selectedId)?.name}</span>}
+                        </p>
+                        <div className="flex gap-2 flex-wrap">
+                          {variants.map((v: any) => {
+                            const isSelected = selectedId === v.id;
+                            if (type === "color" && v.value?.startsWith("#")) {
+                              // Color swatch with optional image
+                              return (
+                                <button key={v.id}
+                                  onClick={() => {
+                                    setSelectedVariants(prev => ({ ...prev, [type]: isSelected ? "" : v.id }));
+                                    if (!isSelected && v.image_url) setSelectedImage(0);
+                                  }}
+                                  className={`relative rounded-lg border-2 overflow-hidden transition ${isSelected ? "border-primary ring-1 ring-primary" : "border-border"}`}
+                                  title={v.name}>
+                                  {v.image_url ? (
+                                    <img src={v.image_url} alt={v.name} className="w-10 h-10 object-cover" />
+                                  ) : (
+                                    <div className="w-10 h-10 flex items-center justify-center">
+                                      <div className="w-7 h-7 rounded-full border border-border" style={{ backgroundColor: v.value }} />
+                                    </div>
+                                  )}
+                                  {v.price_override && (
+                                    <span className="absolute bottom-0 inset-x-0 text-center bg-background/80 text-[7px] font-bold text-foreground leading-tight py-0.5">
+                                      {Number(v.price_override).toLocaleString("pt-AO").replace(/,/g, ".")} Kz
+                                    </span>
+                                  )}
+                                </button>
+                              );
+                            }
+                            // Text-based variant (size, material, etc.)
+                            return (
+                              <button key={v.id}
+                                onClick={() => setSelectedVariants(prev => ({ ...prev, [type]: isSelected ? "" : v.id }))}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${isSelected ? "bg-primary text-primary-foreground border-primary" : "bg-muted text-foreground border-border hover:border-primary/50"}`}>
+                                {v.name}
+                                {v.price_override && (
+                                  <span className="block text-[9px] font-normal opacity-80">
+                                    {Number(v.price_override).toLocaleString("pt-AO").replace(/,/g, ".")} Kz
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
