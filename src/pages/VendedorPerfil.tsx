@@ -117,7 +117,7 @@ const VendedorPerfil = () => {
 
           <div className="flex gap-2 mt-3">
             <button className="flex-1 py-2 rounded-card text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition flex items-center justify-center gap-1">
-              <MessageCircle className="w-3.5 h-3.5" /> Mensagem
+              <Plus className="w-3.5 h-3.5" /> Seguir
             </button>
             <button className="flex-1 py-2 rounded-card text-xs font-bold border border-border text-foreground hover:bg-muted transition flex items-center justify-center gap-1">
               <Phone className="w-3.5 h-3.5" /> Contactar
