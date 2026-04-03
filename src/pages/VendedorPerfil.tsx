@@ -1,7 +1,8 @@
 import { useState } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { Star, MapPin, CheckCircle, ShoppingBag, MessageCircle, Phone, Clock, Loader2, Send } from "lucide-react";
+import { Star, MapPin, CheckCircle, ShoppingBag, MessageCircle, Phone, Clock, Loader2, Send, X } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useNavigate, useParams } from "react-router-dom";
 import { useSeller } from "@/hooks/useSupabaseData";
 import { useAuth } from "@/contexts/AuthContext";
