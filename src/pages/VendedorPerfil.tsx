@@ -102,12 +102,12 @@ const VendedorPerfil = () => {
           <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
             <div className="flex items-center gap-1">
               <Star className="w-3.5 h-3.5 text-secondary fill-secondary" />
-              <span className="font-bold text-foreground">{seller.rating || 0}</span>
-              <span>({seller.total_reviews || 0})</span>
+              <span className="font-bold text-foreground">{reviewStats?.avg || 0}</span>
+              <span>({reviewStats?.total || 0})</span>
             </div>
             <div className="flex items-center gap-1">
               <ShoppingBag className="w-3.5 h-3.5" />
-              <span>{seller.total_sales || 0} vendas</span>
+              <span>{productCount || 0} produtos</span>
             </div>
             <div className="flex items-center gap-1">
               <MapPin className="w-3.5 h-3.5" />
