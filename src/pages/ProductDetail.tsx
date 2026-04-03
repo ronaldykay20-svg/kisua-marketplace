@@ -70,16 +70,29 @@ const ProductDetail = () => {
     );
   }
 
-  // Group variants by type
+  // Separate parent and child variants
+  const parentVariants = (dbVariants as any[]).filter((v: any) => !v.parent_id);
+  const childVariants = (dbVariants as any[]).filter((v: any) => v.parent_id);
+
+  // Group parent variants by type
   const variantGroups: Record<string, any[]> = {};
-  (dbVariants as any[]).forEach((v: any) => {
+  parentVariants.forEach((v: any) => {
     if (!variantGroups[v.variant_type]) variantGroups[v.variant_type] = [];
     variantGroups[v.variant_type].push(v);
   });
 
-  // Get active variant for price override
-  const selectedVariantsList = Object.values(selectedVariants);
-  const activeVariant = (dbVariants as any[]).find((v: any) => selectedVariantsList.includes(v.id));
+  // Get children of selected parent variant
+  const selectedParentIds = Object.values(selectedVariants).filter(Boolean);
+  const activeChildren = childVariants.filter((c: any) => selectedParentIds.includes(c.parent_id));
+  const childGroups: Record<string, any[]> = {};
+  activeChildren.forEach((v: any) => {
+    if (!childGroups[v.variant_type]) childGroups[v.variant_type] = [];
+    childGroups[v.variant_type].push(v);
+  });
+
+  // Get active variant for price override (prefer child, fallback to parent)
+  const allSelectedIds = [...Object.values(selectedVariants), ...Object.values(selectedSubVariants || {})].filter(Boolean);
+  const activeVariant = (dbVariants as any[]).find((v: any) => allSelectedIds.includes(v.id) && v.price_override);
   const activePrice = activeVariant?.price_override
     ? Number(activeVariant.price_override).toLocaleString("pt-AO").replace(/,/g, ".") + " Kz"
     : product.price;
