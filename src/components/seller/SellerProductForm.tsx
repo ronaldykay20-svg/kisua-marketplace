@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Save, X, Upload, Trash2, Image as ImageIcon, Film, Plus, Palette, Ruler } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Save, X, Upload, Trash2, Image as ImageIcon, Film, Plus, Palette, Ruler, ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { STORAGE_BUCKETS } from "@/lib/storage";
@@ -39,11 +39,20 @@ export interface VariantItem {
   image_url: string;
   sort_order: number;
   is_active: boolean;
+  parent_id?: string | null;
+  _tempId: string; // local tracking
+  _children?: VariantItem[];
+  _expanded?: boolean;
 }
 
-const emptyVariant: VariantItem = {
-  variant_type: "color", name: "", value: "", price_override: "", stock: "1", image_url: "", sort_order: 0, is_active: true,
-};
+const generateTempId = () => `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+const createEmptyVariant = (parentId?: string | null): VariantItem => ({
+  variant_type: parentId ? "size" : "color",
+  name: "", value: "", price_override: "", stock: "1", image_url: "",
+  sort_order: 0, is_active: true, parent_id: parentId || null,
+  _tempId: generateTempId(), _expanded: true,
+});
 
 const emptyForm: ProductFormData = {
   title: "", description: "", price: "", old_price: "", discount_percent: "",
@@ -83,8 +92,8 @@ const badges = [
 ];
 
 const variantTypes = [
-  { value: "color", label: "Cor", icon: Palette },
-  { value: "size", label: "Tamanho", icon: Ruler },
+  { value: "color", label: "Cor" },
+  { value: "size", label: "Tamanho" },
   { value: "weight", label: "Peso" },
   { value: "capacity", label: "Capacidade" },
   { value: "model", label: "Modelo" },
@@ -96,37 +105,38 @@ const variantTypes = [
 ];
 
 const colorPresets = [
-  { name: "Preto", value: "#000000" },
-  { name: "Branco", value: "#FFFFFF" },
-  { name: "Vermelho", value: "#EF4444" },
-  { name: "Azul", value: "#3B82F6" },
-  { name: "Verde", value: "#22C55E" },
-  { name: "Amarelo", value: "#EAB308" },
-  { name: "Rosa", value: "#EC4899" },
-  { name: "Roxo", value: "#A855F7" },
-  { name: "Laranja", value: "#F97316" },
-  { name: "Cinza", value: "#6B7280" },
-  { name: "Castanho", value: "#92400E" },
-  { name: "Bege", value: "#D2B48C" },
+  { name: "Preto", value: "#000000" }, { name: "Branco", value: "#FFFFFF" },
+  { name: "Vermelho", value: "#EF4444" }, { name: "Azul", value: "#3B82F6" },
+  { name: "Verde", value: "#22C55E" }, { name: "Amarelo", value: "#EAB308" },
+  { name: "Rosa", value: "#EC4899" }, { name: "Roxo", value: "#A855F7" },
+  { name: "Laranja", value: "#F97316" }, { name: "Cinza", value: "#6B7280" },
+  { name: "Castanho", value: "#92400E" }, { name: "Bege", value: "#D2B48C" },
 ];
+
+const getPlaceholder = (type: string) => {
+  switch (type) {
+    case "color": return "Ex: Azul";
+    case "size": return "Ex: M, L, XL";
+    case "weight": return "Ex: 500g, 1kg";
+    case "capacity": return "Ex: 64GB, 128GB";
+    case "model": return "Ex: Pro, Lite";
+    case "voltage": return "Ex: 110V, 220V";
+    case "pack": return "Ex: 3 unidades";
+    default: return "Ex: Algodão";
+  }
+};
 
 const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariants = [], onSave, onCancel, saving }: Props) => {
   const [form, setForm] = useState<ProductFormData>(() => {
     if (editingProduct) {
       return {
-        title: editingProduct.title || "",
-        description: editingProduct.description || "",
-        price: String(editingProduct.price || ""),
-        old_price: editingProduct.old_price ? String(editingProduct.old_price) : "",
+        title: editingProduct.title || "", description: editingProduct.description || "",
+        price: String(editingProduct.price || ""), old_price: editingProduct.old_price ? String(editingProduct.old_price) : "",
         discount_percent: editingProduct.discount_percent ? String(editingProduct.discount_percent) : "",
-        stock: String(editingProduct.stock ?? 1),
-        sku: editingProduct.sku || "",
-        condition: editingProduct.condition || "new",
-        province: editingProduct.province || "",
-        city: editingProduct.city || "",
-        category_id: editingProduct.category_id || "",
-        free_shipping: editingProduct.free_shipping || false,
-        badge: editingProduct.badge || "",
+        stock: String(editingProduct.stock ?? 1), sku: editingProduct.sku || "",
+        condition: editingProduct.condition || "new", province: editingProduct.province || "",
+        city: editingProduct.city || "", category_id: editingProduct.category_id || "",
+        free_shipping: editingProduct.free_shipping || false, badge: editingProduct.badge || "",
       };
     }
     return emptyForm;
@@ -143,11 +153,34 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
       id: v.id, variant_type: v.variant_type || "color", name: v.name || "", value: v.value || "",
       price_override: v.price_override ? String(v.price_override) : "", stock: String(v.stock ?? 1),
       image_url: v.image_url || "", sort_order: v.sort_order ?? i, is_active: v.is_active ?? true,
+      parent_id: v.parent_id || null, _tempId: v.id || generateTempId(), _expanded: true,
     }))
   );
 
   const [uploading, setUploading] = useState(false);
-  const [uploadingVariantIdx, setUploadingVariantIdx] = useState<number | null>(null);
+  const [uploadingVariantIdx, setUploadingVariantIdx] = useState<string | null>(null);
+
+  // Organize variants into tree: parents + children
+  const parentVariants = useMemo(() => variants.filter(v => !v.parent_id), [variants]);
+  const getChildren = (parentTempId: string) => variants.filter(v => v.parent_id === parentTempId);
+
+  // Stock validation
+  const totalVariantStock = useMemo(() => {
+    // Only count leaf variants (children if they exist, otherwise parents)
+    let total = 0;
+    for (const parent of parentVariants) {
+      const children = getChildren(parent._tempId);
+      if (children.length > 0) {
+        total += children.reduce((sum, c) => sum + (parseInt(c.stock) || 0), 0);
+      } else {
+        total += parseInt(parent.stock) || 0;
+      }
+    }
+    return total;
+  }, [variants, parentVariants]);
+
+  const productStock = parseInt(form.stock) || 0;
+  const stockExceeded = variants.length > 0 && totalVariantStock > productStock;
 
   const { data: allCategories = [] } = useQuery({
     queryKey: ["categories_with_subs"],
@@ -181,17 +214,17 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
     e.target.value = "";
   };
 
-  const handleVariantImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
+  const handleVariantImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, tempId: string) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setUploadingVariantIdx(index);
+    setUploadingVariantIdx(tempId);
     try {
       const ext = file.name.split(".").pop();
       const path = `products/variants/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
       const { error } = await supabase.storage.from(STORAGE_BUCKETS.products).upload(path, file);
       if (error) throw error;
       const { data } = supabase.storage.from(STORAGE_BUCKETS.products).getPublicUrl(path);
-      setVariants(prev => prev.map((v, i) => i === index ? { ...v, image_url: data.publicUrl } : v));
+      setVariants(prev => prev.map(v => v._tempId === tempId ? { ...v, image_url: data.publicUrl } : v));
     } catch (err: any) {
       console.error("Variant image upload error:", err.message);
     }
@@ -207,23 +240,28 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
     });
   };
 
-  const setCover = (index: number) => {
-    setMedia(prev => prev.map((m, i) => ({ ...m, is_cover: i === index })));
+  const setCover = (index: number) => setMedia(prev => prev.map((m, i) => ({ ...m, is_cover: i === index })));
+
+  const addVariant = () => setVariants(prev => [...prev, createEmptyVariant()]);
+
+  const addSubVariant = (parentTempId: string) => {
+    setVariants(prev => [...prev, createEmptyVariant(parentTempId)]);
   };
 
-  const addVariant = () => {
-    setVariants(prev => [...prev, { ...emptyVariant, sort_order: prev.length }]);
+  const updateVariant = (tempId: string, key: keyof VariantItem, value: any) => {
+    setVariants(prev => prev.map(v => v._tempId === tempId ? { ...v, [key]: value } : v));
   };
 
-  const updateVariant = (index: number, key: keyof VariantItem, value: any) => {
-    setVariants(prev => prev.map((v, i) => i === index ? { ...v, [key]: value } : v));
+  const removeVariant = (tempId: string) => {
+    setVariants(prev => prev.filter(v => v._tempId !== tempId && v.parent_id !== tempId));
   };
 
-  const removeVariant = (index: number) => {
-    setVariants(prev => prev.filter((_, i) => i !== index));
+  const toggleExpanded = (tempId: string) => {
+    setVariants(prev => prev.map(v => v._tempId === tempId ? { ...v, _expanded: !v._expanded } : v));
   };
 
   const handleSubmit = () => {
+    if (stockExceeded) return;
     const payload: any = {
       title: form.title, description: form.description || null,
       price: parseFloat(form.price), old_price: form.old_price ? parseFloat(form.old_price) : null,
@@ -236,6 +274,115 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
   };
 
   const set = (key: keyof ProductFormData, value: any) => setForm(f => ({ ...f, [key]: value }));
+
+  const renderVariantCard = (variant: VariantItem, isChild: boolean) => {
+    const children = isChild ? [] : getChildren(variant._tempId);
+    const childrenStock = children.reduce((s, c) => s + (parseInt(c.stock) || 0), 0);
+
+    return (
+      <div key={variant._tempId} className={`border rounded-lg p-3 relative ${isChild ? "border-border/50 bg-muted/20 ml-4" : "border-border bg-muted/30"}`}>
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-1">
+            {!isChild && (
+              <button type="button" onClick={() => toggleExpanded(variant._tempId)} className="p-0.5 text-muted-foreground">
+                {variant._expanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+              </button>
+            )}
+            <span className="text-[10px] font-bold text-muted-foreground uppercase">
+              {isChild ? "Sub-variação" : "Variação"} • {variantTypes.find(t => t.value === variant.variant_type)?.label}
+            </span>
+          </div>
+          <button onClick={() => removeVariant(variant._tempId)} className="text-destructive hover:bg-destructive/10 rounded p-0.5">
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 mb-2">
+          <div>
+            <label className="text-[10px] font-bold text-muted-foreground mb-0.5 block">Tipo</label>
+            <select value={variant.variant_type} onChange={e => updateVariant(variant._tempId, "variant_type", e.target.value)}
+              className="w-full px-2 py-1.5 rounded-lg bg-muted border border-border text-xs text-foreground">
+              {variantTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] font-bold text-muted-foreground mb-0.5 block">Nome *</label>
+            <input value={variant.name} onChange={e => updateVariant(variant._tempId, "name", e.target.value)}
+              placeholder={getPlaceholder(variant.variant_type)}
+              className="w-full px-2 py-1.5 rounded-lg bg-muted border border-border text-xs text-foreground" />
+          </div>
+        </div>
+
+        {variant.variant_type === "color" && (
+          <div className="mb-2">
+            <label className="text-[10px] font-bold text-muted-foreground mb-1 block">Cor</label>
+            <div className="flex gap-1.5 flex-wrap">
+              {colorPresets.map(c => (
+                <button key={c.value} type="button" onClick={() => { updateVariant(variant._tempId, "value", c.value); if (!variant.name) updateVariant(variant._tempId, "name", c.name); }}
+                  className={`w-6 h-6 rounded-full border-2 transition ${variant.value === c.value ? "border-primary scale-110" : "border-border"}`}
+                  style={{ backgroundColor: c.value }} title={c.name} />
+              ))}
+              <input type="color" value={variant.value || "#000000"} onChange={e => updateVariant(variant._tempId, "value", e.target.value)}
+                className="w-6 h-6 rounded-full cursor-pointer border-0 p-0" title="Cor personalizada" />
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-2 mb-2">
+          <div>
+            <label className="text-[10px] font-bold text-muted-foreground mb-0.5 block">Preço (Kz) — vazio = base</label>
+            <input type="number" value={variant.price_override} onChange={e => updateVariant(variant._tempId, "price_override", e.target.value)}
+              placeholder={form.price || "Preço base"} className="w-full px-2 py-1.5 rounded-lg bg-muted border border-border text-xs text-foreground" />
+          </div>
+          <div>
+            <label className="text-[10px] font-bold text-muted-foreground mb-0.5 block">
+              Stock {!isChild && children.length > 0 ? `(filhos: ${childrenStock})` : ""}
+            </label>
+            <input type="number" value={variant.stock} onChange={e => updateVariant(variant._tempId, "stock", e.target.value)}
+              placeholder="1" className={`w-full px-2 py-1.5 rounded-lg bg-muted border text-xs text-foreground ${
+                !isChild && children.length > 0 && childrenStock > (parseInt(variant.stock) || 0)
+                  ? "border-destructive" : "border-border"
+              }`} />
+            {!isChild && children.length > 0 && childrenStock > (parseInt(variant.stock) || 0) && (
+              <p className="text-[9px] text-destructive mt-0.5">Sub-variações excedem o stock desta variação</p>
+            )}
+          </div>
+        </div>
+
+        {/* Variant image */}
+        <div className="mb-2">
+          <label className="text-[10px] font-bold text-muted-foreground mb-0.5 block">Imagem</label>
+          <div className="flex items-center gap-2">
+            {variant.image_url ? (
+              <div className="relative w-14 h-14 rounded-lg border border-border overflow-hidden">
+                <img src={variant.image_url} alt="" className="w-full h-full object-cover" />
+                <button onClick={() => updateVariant(variant._tempId, "image_url", "")} className="absolute top-0 right-0 bg-destructive/80 text-destructive-foreground p-0.5 rounded-bl">
+                  <X className="w-2.5 h-2.5" />
+                </button>
+              </div>
+            ) : (
+              <label className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer border transition ${uploadingVariantIdx === variant._tempId ? "opacity-50" : "bg-accent text-foreground border-border hover:bg-accent/80"}`}>
+                <ImageIcon className="w-3 h-3" /> Upload
+                <input type="file" accept="image/*" onChange={e => handleVariantImageUpload(e, variant._tempId)} className="hidden" disabled={uploadingVariantIdx === variant._tempId} />
+              </label>
+            )}
+            {uploadingVariantIdx === variant._tempId && <span className="text-[10px] text-muted-foreground">A enviar...</span>}
+          </div>
+        </div>
+
+        {/* Sub-variants */}
+        {!isChild && variant._expanded && (
+          <div className="mt-2 space-y-2">
+            {children.map(child => renderVariantCard(child, true))}
+            <button type="button" onClick={() => addSubVariant(variant._tempId)}
+              className="flex items-center gap-1 ml-4 px-2 py-1 rounded-lg text-[10px] font-bold text-primary border border-primary/30 hover:bg-primary/5 transition">
+              <Plus className="w-3 h-3" /> Sub-variação (ex: tamanho)
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="bg-card rounded-xl border border-border p-4 mb-4">
@@ -281,9 +428,15 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
         {/* Stock & SKU */}
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Stock</label>
+            <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Stock total</label>
             <input type="number" value={form.stock} onChange={e => set("stock", e.target.value)} placeholder="1"
-              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
+              className={`w-full px-3 py-2 rounded-lg bg-muted border text-sm text-foreground ${stockExceeded ? "border-destructive" : "border-border"}`} />
+            {stockExceeded && (
+              <p className="text-[10px] text-destructive mt-0.5 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" />
+                Variações ({totalVariantStock}) excedem o stock ({productStock})
+              </p>
+            )}
           </div>
           <div>
             <label className="text-[11px] font-bold text-muted-foreground mb-1 block">SKU</label>
@@ -303,9 +456,7 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
               return (
                 <optgroup key={c.id} label={c.name}>
                   <option value={c.id}>{c.name} (geral)</option>
-                  {subs.map((s: any) => (
-                    <option key={s.id} value={s.id}>&nbsp;&nbsp;↳ {s.name}</option>
-                  ))}
+                  {subs.map((s: any) => <option key={s.id} value={s.id}>&nbsp;&nbsp;↳ {s.name}</option>)}
                 </optgroup>
               );
             })}
@@ -385,9 +536,17 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
         {/* ═══ VARIAÇÕES ═══ */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <label className="text-[11px] font-bold text-muted-foreground">Variações (cor, tamanho, etc.)</label>
+            <div>
+              <label className="text-[11px] font-bold text-muted-foreground">Variações (cor, tamanho, etc.)</label>
+              {variants.length > 0 && (
+                <p className="text-[10px] text-muted-foreground">
+                  Stock total: {productStock} • Usado em variações: {totalVariantStock}
+                  {stockExceeded && <span className="text-destructive font-bold"> ⚠ Excedido!</span>}
+                </p>
+              )}
+            </div>
             <button type="button" onClick={addVariant} className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-primary border border-primary/30 hover:bg-primary/5 transition">
-              <Plus className="w-3 h-3" /> Adicionar variação
+              <Plus className="w-3 h-3" /> Variação
             </button>
           </div>
 
@@ -396,92 +555,7 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
           )}
 
           <div className="space-y-3">
-            {variants.map((variant, idx) => (
-              <div key={idx} className="border border-border rounded-lg p-3 bg-muted/30 relative">
-                <button onClick={() => removeVariant(idx)} className="absolute top-2 right-2 text-destructive hover:bg-destructive/10 rounded p-0.5">
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-
-                <div className="grid grid-cols-2 gap-2 mb-2">
-                  {/* Type */}
-                  <div>
-                    <label className="text-[10px] font-bold text-muted-foreground mb-0.5 block">Tipo</label>
-                    <select value={variant.variant_type} onChange={e => updateVariant(idx, "variant_type", e.target.value)}
-                      className="w-full px-2 py-1.5 rounded-lg bg-muted border border-border text-xs text-foreground">
-                      {variantTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                    </select>
-                  </div>
-                  {/* Name */}
-                  <div>
-                    <label className="text-[10px] font-bold text-muted-foreground mb-0.5 block">Nome *</label>
-                    <input value={variant.name} onChange={e => updateVariant(idx, "name", e.target.value)}
-                      placeholder={
-                        variant.variant_type === "color" ? "Ex: Azul" :
-                        variant.variant_type === "size" ? "Ex: M, L, XL" :
-                        variant.variant_type === "weight" ? "Ex: 500g, 1kg" :
-                        variant.variant_type === "capacity" ? "Ex: 64GB, 128GB" :
-                        variant.variant_type === "model" ? "Ex: Pro, Lite" :
-                        variant.variant_type === "voltage" ? "Ex: 110V, 220V" :
-                        variant.variant_type === "pack" ? "Ex: 3 unidades" :
-                        "Ex: Algodão"
-                      }
-                      className="w-full px-2 py-1.5 rounded-lg bg-muted border border-border text-xs text-foreground" />
-                  </div>
-                </div>
-
-                {/* Color presets */}
-                {variant.variant_type === "color" && (
-                  <div className="mb-2">
-                    <label className="text-[10px] font-bold text-muted-foreground mb-1 block">Cor</label>
-                    <div className="flex gap-1.5 flex-wrap">
-                      {colorPresets.map(c => (
-                        <button key={c.value} type="button" onClick={() => { updateVariant(idx, "value", c.value); if (!variant.name) updateVariant(idx, "name", c.name); }}
-                          className={`w-6 h-6 rounded-full border-2 transition ${variant.value === c.value ? "border-primary scale-110" : "border-border"}`}
-                          style={{ backgroundColor: c.value }} title={c.name} />
-                      ))}
-                      <input type="color" value={variant.value || "#000000"} onChange={e => updateVariant(idx, "value", e.target.value)}
-                        className="w-6 h-6 rounded-full cursor-pointer border-0 p-0" title="Cor personalizada" />
-                    </div>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-2 mb-2">
-                  {/* Price override */}
-                  <div>
-                    <label className="text-[10px] font-bold text-muted-foreground mb-0.5 block">Preço (Kz) — vazio = base</label>
-                    <input type="number" value={variant.price_override} onChange={e => updateVariant(idx, "price_override", e.target.value)}
-                      placeholder={form.price || "Preço base"} className="w-full px-2 py-1.5 rounded-lg bg-muted border border-border text-xs text-foreground" />
-                  </div>
-                  {/* Stock */}
-                  <div>
-                    <label className="text-[10px] font-bold text-muted-foreground mb-0.5 block">Stock</label>
-                    <input type="number" value={variant.stock} onChange={e => updateVariant(idx, "stock", e.target.value)}
-                      placeholder="1" className="w-full px-2 py-1.5 rounded-lg bg-muted border border-border text-xs text-foreground" />
-                  </div>
-                </div>
-
-                {/* Variant image */}
-                <div>
-                  <label className="text-[10px] font-bold text-muted-foreground mb-0.5 block">Imagem da variação</label>
-                  <div className="flex items-center gap-2">
-                    {variant.image_url ? (
-                      <div className="relative w-14 h-14 rounded-lg border border-border overflow-hidden">
-                        <img src={variant.image_url} alt="" className="w-full h-full object-cover" />
-                        <button onClick={() => updateVariant(idx, "image_url", "")} className="absolute top-0 right-0 bg-destructive/80 text-destructive-foreground p-0.5 rounded-bl">
-                          <X className="w-2.5 h-2.5" />
-                        </button>
-                      </div>
-                    ) : (
-                      <label className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer border transition ${uploadingVariantIdx === idx ? "opacity-50" : "bg-accent text-foreground border-border hover:bg-accent/80"}`}>
-                        <ImageIcon className="w-3 h-3" /> Upload
-                        <input type="file" accept="image/*" onChange={e => handleVariantImageUpload(e, idx)} className="hidden" disabled={uploadingVariantIdx === idx} />
-                      </label>
-                    )}
-                    {uploadingVariantIdx === idx && <span className="text-[10px] text-muted-foreground">A enviar...</span>}
-                  </div>
-                </div>
-              </div>
-            ))}
+            {parentVariants.map(variant => renderVariantCard(variant, false))}
           </div>
         </div>
 
@@ -492,7 +566,7 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
         </label>
 
         {/* Submit */}
-        <button onClick={handleSubmit} disabled={!form.title || !form.price || saving}
+        <button onClick={handleSubmit} disabled={!form.title || !form.price || saving || stockExceeded}
           className="w-full py-2.5 bg-primary text-primary-foreground text-sm font-bold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2">
           <Save className="w-4 h-4" />
           {editingProduct ? "Atualizar Produto" : "Adicionar Produto"}
