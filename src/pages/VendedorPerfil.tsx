@@ -230,13 +230,22 @@ const SellerReviewsTab = ({ sellerId, sellerUserId }: { sellerId: string; seller
   const { data: reviews = [], isLoading } = useQuery({
     queryKey: ["seller_reviews", sellerId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Fetch reviews
+      const { data: revData, error } = await supabase
         .from("seller_reviews")
-        .select("*, profiles:user_id(full_name, avatar_url)")
+        .select("*")
         .eq("seller_id", sellerId)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data || [];
+      if (!revData || revData.length === 0) return [];
+      // Fetch profile names for each reviewer
+      const userIds = [...new Set(revData.map((r: any) => r.user_id))];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, full_name, avatar_url")
+        .in("id", userIds);
+      const profileMap = Object.fromEntries((profiles || []).map((p: any) => [p.id, p]));
+      return revData.map((r: any) => ({ ...r, profile: profileMap[r.user_id] || null }));
     },
   });
 
@@ -264,10 +273,10 @@ const SellerReviewsTab = ({ sellerId, sellerUserId }: { sellerId: string; seller
             <div key={r.id} className="bg-card rounded-card border border-border p-3">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
-                  {(r.profiles?.full_name || "U").charAt(0).toUpperCase()}
+                  {(r.profile?.full_name || "U").charAt(0).toUpperCase()}
                 </div>
                 <div className="flex-1">
-                  <p className="text-xs font-bold text-foreground">{r.profiles?.full_name || "Utilizador"}</p>
+                  <p className="text-xs font-bold text-foreground">{r.profile?.full_name || "Utilizador"}</p>
                   <div className="flex gap-0.5">
                     {[1, 2, 3, 4, 5].map(s => (
                       <Star key={s} className={`w-3 h-3 ${s <= r.rating ? "text-secondary fill-secondary" : "text-muted-foreground/30"}`} />
