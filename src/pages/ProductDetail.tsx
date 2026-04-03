@@ -15,6 +15,7 @@ const ProductDetail = () => {
   const [liked, setLiked] = useState(false);
   const [selectedImage, setSelectedImage] = useState(0);
   const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
+  const [selectedSubVariants, setSelectedSubVariants] = useState<Record<string, string>>({});
 
   // Try DB first
   const isUuid = id && id.length > 10;
