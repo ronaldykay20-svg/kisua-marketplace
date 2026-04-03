@@ -16,6 +16,8 @@ const VendedorPerfil = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const [activeTab, setActiveTab] = useState("Produtos");
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
+  const { user } = useAuth();
 
   const { data: seller, isLoading } = useSeller(id || "");
 
