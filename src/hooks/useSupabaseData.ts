@@ -106,6 +106,7 @@ export const useSellers = (options?: { type?: "individual" | "company"; verified
       // Fetch real average ratings from reviews for each seller
       const sellerIds = (data || []).map((s: any) => s.id);
       let ratingsMap: Record<string, { avg: number; count: number }> = {};
+      let productsCountMap: Record<string, number> = {};
       if (sellerIds.length > 0) {
         const { data: reviews } = await supabase
           .from("seller_reviews")
@@ -123,19 +124,15 @@ export const useSellers = (options?: { type?: "individual" | "company"; verified
           });
         }
 
-        // Fetch product count per seller
-        let productsCountMap: Record<string, number> = {};
-        if (sellerIds.length > 0) {
-          const { data: products } = await supabase
-            .from("products")
-            .select("seller_id")
-            .in("seller_id", sellerIds)
-            .eq("is_active", true);
-          if (products) {
-            products.forEach((p: any) => {
-              productsCountMap[p.seller_id] = (productsCountMap[p.seller_id] || 0) + 1;
-            });
-          }
+        const { data: products } = await supabase
+          .from("products")
+          .select("seller_id")
+          .in("seller_id", sellerIds)
+          .eq("is_active", true);
+        if (products) {
+          products.forEach((p: any) => {
+            productsCountMap[p.seller_id] = (productsCountMap[p.seller_id] || 0) + 1;
+          });
         }
       }
 
