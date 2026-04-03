@@ -52,6 +52,41 @@ const VendedorPerfil = () => {
     enabled: !!id,
   });
 
+  // Check if current user follows this seller
+  const { data: isFollowing, refetch: refetchFollow } = useQuery({
+    queryKey: ["seller_follow", id, user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("seller_follows")
+        .select("id")
+        .eq("seller_id", id!)
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      return !!data;
+    },
+    enabled: !!id && !!user,
+  });
+
+  const queryClient = useQueryClient();
+
+  const toggleFollow = useMutation({
+    mutationFn: async () => {
+      if (!user) { window.location.href = "/auth"; return; }
+      if (isFollowing) {
+        await supabase.from("seller_follows").delete().eq("seller_id", id!).eq("user_id", user.id);
+      } else {
+        await supabase.from("seller_follows").insert({ seller_id: id!, user_id: user.id });
+      }
+    },
+    onSuccess: () => {
+      refetchFollow();
+      queryClient.invalidateQueries({ queryKey: ["seller", id] });
+      queryClient.invalidateQueries({ queryKey: ["sellers"] });
+      toast.success(isFollowing ? "Deixou de seguir" : "A seguir!");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   // Increment visits on page load
   useEffect(() => {
     if (!id) return;
