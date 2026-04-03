@@ -90,11 +90,12 @@ const Vendedores = () => {
                     <p className="text-[10px] text-muted-foreground">{seller.specialty}</p>
                   </div>
                 </div>
-                <div className="flex items-center justify-between mt-3 text-[10px] text-muted-foreground flex-wrap gap-1">
+                <div className="grid grid-cols-2 gap-1.5 mt-3 text-[10px] text-muted-foreground">
                   <div className="flex items-center gap-1"><Star className="w-3 h-3 text-secondary fill-secondary" /><span className="font-bold text-foreground">{seller.rating}</span><span>({seller.reviews})</span></div>
-                  <div className="flex items-center gap-1"><Package className="w-3 h-3" /><span>{seller.products} prod.</span></div>
+                  <div className="flex items-center gap-1"><Package className="w-3 h-3" /><span>{seller.products} produtos</span></div>
                   <div className="flex items-center gap-1"><ShoppingBag className="w-3 h-3" /><span>{seller.sales} vendas</span></div>
-                  <div className="flex items-center gap-1"><Eye className="w-3 h-3" /><span>{seller.visits}</span></div>
+                  <div className="flex items-center gap-1"><Users className="w-3 h-3" /><span>{seller.followers} seguidores</span></div>
+                  <div className="flex items-center gap-1"><Eye className="w-3 h-3" /><span>{seller.visits} visitas</span></div>
                 </div>
                 <button className="w-full mt-3 py-2 rounded-card text-[11px] font-bold border border-primary/20 text-primary hover:bg-primary/5 transition flex items-center justify-center gap-1">
                   Ver perfil <ChevronRight className="w-3 h-3" />
