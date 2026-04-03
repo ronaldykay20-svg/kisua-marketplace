@@ -70,9 +70,32 @@ const ProductDetail = () => {
     );
   }
 
+  // Group variants by type
+  const variantGroups: Record<string, any[]> = {};
+  (dbVariants as any[]).forEach((v: any) => {
+    if (!variantGroups[v.variant_type]) variantGroups[v.variant_type] = [];
+    variantGroups[v.variant_type].push(v);
+  });
+
+  // Get active variant for price override
+  const selectedVariantsList = Object.values(selectedVariants);
+  const activeVariant = (dbVariants as any[]).find((v: any) => selectedVariantsList.includes(v.id));
+  const activePrice = activeVariant?.price_override
+    ? Number(activeVariant.price_override).toLocaleString("pt-AO").replace(/,/g, ".") + " Kz"
+    : product.price;
+
+  // When a variant with image is selected, show that image
+  const variantImage = activeVariant?.image_url || null;
+
   const images = dbMedia.length > 0
     ? dbMedia.map((m: any) => ({ url: m.url, type: m.type }))
     : [{ url: product.image, type: "image" }, { url: product.image, type: "image" }, { url: product.image, type: "image" }];
+
+  // Prepend variant image if selected
+  const displayImages = variantImage
+    ? [{ url: variantImage, type: "image" }, ...images.filter(img => img.url !== variantImage)]
+    : images;
+
   const relatedProducts = allProducts.filter(p => p.id !== Number(id)).slice(0, 10);
   const moreToExplore = allProducts.filter(p => p.id !== Number(id)).slice(10, 20);
   const alsoLike = allProducts.filter(p => p.id !== Number(id)).slice(5, 15);
