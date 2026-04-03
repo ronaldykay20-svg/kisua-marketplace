@@ -92,7 +92,10 @@ const VendedorPerfil = () => {
               <Phone className="w-3.5 h-3.5" /> Contactar
             </button>
             <button
-              onClick={() => setActiveTab("Avaliações")}
+              onClick={() => {
+                if (!user) { window.location.href = "/auth"; return; }
+                setReviewDialogOpen(true);
+              }}
               className="flex-1 py-2 rounded-card text-xs font-bold bg-secondary text-secondary-foreground hover:bg-secondary/90 transition flex items-center justify-center gap-1"
             >
               <Star className="w-3.5 h-3.5" /> Avaliar
