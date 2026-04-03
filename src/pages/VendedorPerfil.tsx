@@ -116,8 +116,8 @@ const VendedorPerfil = () => {
               <span>{productCount || 0} produtos</span>
             </div>
             <div className="flex items-center gap-1">
-              <MapPin className="w-3.5 h-3.5" />
-              <span>{location}</span>
+              <Eye className="w-3.5 h-3.5" />
+              <span>{seller.visits_count || 0} visitas</span>
             </div>
           </div>
 
