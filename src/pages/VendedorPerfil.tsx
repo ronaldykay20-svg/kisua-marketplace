@@ -230,13 +230,22 @@ const SellerReviewsTab = ({ sellerId, sellerUserId }: { sellerId: string; seller
   const { data: reviews = [], isLoading } = useQuery({
     queryKey: ["seller_reviews", sellerId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Fetch reviews
+      const { data: revData, error } = await supabase
         .from("seller_reviews")
-        .select("*, profiles:user_id(full_name, avatar_url)")
+        .select("*")
         .eq("seller_id", sellerId)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data || [];
+      if (!revData || revData.length === 0) return [];
+      // Fetch profile names for each reviewer
+      const userIds = [...new Set(revData.map((r: any) => r.user_id))];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, full_name, avatar_url")
+        .in("id", userIds);
+      const profileMap = Object.fromEntries((profiles || []).map((p: any) => [p.id, p]));
+      return revData.map((r: any) => ({ ...r, profile: profileMap[r.user_id] || null }));
     },
   });
 
