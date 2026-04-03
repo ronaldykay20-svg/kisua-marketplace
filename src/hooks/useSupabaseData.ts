@@ -122,12 +122,28 @@ export const useSellers = (options?: { type?: "individual" | "company"; verified
             ratingsMap[sid] = { avg: Math.round(avg * 10) / 10, count: ratings.length };
           });
         }
+
+        // Fetch product count per seller
+        let productsCountMap: Record<string, number> = {};
+        if (sellerIds.length > 0) {
+          const { data: products } = await supabase
+            .from("products")
+            .select("seller_id")
+            .in("seller_id", sellerIds)
+            .eq("is_active", true);
+          if (products) {
+            products.forEach((p: any) => {
+              productsCountMap[p.seller_id] = (productsCountMap[p.seller_id] || 0) + 1;
+            });
+          }
+        }
       }
 
       return (data || []).map((s: any) => ({
         ...s,
         rating: ratingsMap[s.id]?.avg ?? s.rating ?? 0,
         total_reviews: ratingsMap[s.id]?.count ?? 0,
+        products_count: productsCountMap[s.id] ?? 0,
       }));
     },
   });
