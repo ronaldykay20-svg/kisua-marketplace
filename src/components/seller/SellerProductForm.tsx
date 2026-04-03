@@ -85,8 +85,13 @@ const badges = [
 const variantTypes = [
   { value: "color", label: "Cor", icon: Palette },
   { value: "size", label: "Tamanho", icon: Ruler },
+  { value: "weight", label: "Peso" },
+  { value: "capacity", label: "Capacidade" },
+  { value: "model", label: "Modelo" },
+  { value: "voltage", label: "Voltagem" },
   { value: "material", label: "Material" },
   { value: "style", label: "Estilo" },
+  { value: "pack", label: "Pacote/Quantidade" },
   { value: "other", label: "Outro" },
 ];
 
