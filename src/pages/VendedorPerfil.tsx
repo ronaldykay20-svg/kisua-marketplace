@@ -21,6 +21,37 @@ const VendedorPerfil = () => {
 
   const { data: seller, isLoading } = useSeller(id || "");
 
+  // Real review stats
+  const { data: reviewStats } = useQuery({
+    queryKey: ["seller_review_stats", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("seller_reviews")
+        .select("rating")
+        .eq("seller_id", id!);
+      if (error) throw error;
+      if (!data || data.length === 0) return { avg: 0, total: 0 };
+      const avg = data.reduce((s: number, r: any) => s + r.rating, 0) / data.length;
+      return { avg: Math.round(avg * 10) / 10, total: data.length };
+    },
+    enabled: !!id,
+  });
+
+  // Real product count
+  const { data: productCount } = useQuery({
+    queryKey: ["seller_product_count", id],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("products")
+        .select("id", { count: "exact", head: true })
+        .eq("seller_id", id!)
+        .eq("is_active", true);
+      if (error) throw error;
+      return count || 0;
+    },
+    enabled: !!id,
+  });
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
