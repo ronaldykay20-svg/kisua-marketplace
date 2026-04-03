@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { Star, MapPin, CheckCircle, ShoppingBag, UserPlus, Phone, Clock, Loader2, Send, X } from "lucide-react";
+import { Star, MapPin, CheckCircle, ShoppingBag, UserPlus, Eye, Phone, Clock, Loader2, Send, X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useNavigate, useParams } from "react-router-dom";
 import { useSeller } from "@/hooks/useSupabaseData";
@@ -51,6 +51,12 @@ const VendedorPerfil = () => {
     },
     enabled: !!id,
   });
+
+  // Increment visits on page load
+  useEffect(() => {
+    if (!id) return;
+    supabase.rpc("increment_seller_visits", { seller_id_input: id }).then(() => {});
+  }, [id]);
 
   if (isLoading) {
     return (
@@ -110,8 +116,8 @@ const VendedorPerfil = () => {
               <span>{productCount || 0} produtos</span>
             </div>
             <div className="flex items-center gap-1">
-              <MapPin className="w-3.5 h-3.5" />
-              <span>{location}</span>
+              <Eye className="w-3.5 h-3.5" />
+              <span>{seller.visits_count || 0} visitas</span>
             </div>
           </div>
 
@@ -119,15 +125,12 @@ const VendedorPerfil = () => {
             <button className="flex-1 py-2 rounded-card text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition flex items-center justify-center gap-1">
               <UserPlus className="w-3.5 h-3.5" /> Seguir
             </button>
-            <button className="flex-1 py-2 rounded-card text-xs font-bold border border-border text-foreground hover:bg-muted transition flex items-center justify-center gap-1">
-              <Phone className="w-3.5 h-3.5" /> Contactar
-            </button>
             <button
               onClick={() => {
                 if (!user) { window.location.href = "/auth"; return; }
                 setReviewDialogOpen(true);
               }}
-              className="flex-1 py-2 rounded-card text-xs font-bold bg-secondary text-secondary-foreground hover:bg-secondary/90 transition flex items-center justify-center gap-1"
+              className="flex-1 py-2 rounded-card text-xs font-bold border border-border text-foreground hover:bg-muted transition flex items-center justify-center gap-1"
             >
               <Star className="w-3.5 h-3.5" /> Avaliar
             </button>
