@@ -315,29 +315,7 @@ const AdminPanel = () => {
 
             <div className="space-y-2">
               {companies.map((c: any) => (
-                <div key={c.id} className="bg-card rounded-xl border border-border p-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                        <Building2 className="w-4 h-4 text-primary" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-foreground flex items-center gap-1">
-                          {c.name} {c.is_verified && <ShieldCheck className="w-3.5 h-3.5 text-blue-500" />}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground">/{c.slug}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => setMembersModal({ id: c.id, name: c.name })} className="p-2 rounded-lg text-muted-foreground hover:bg-accent" title="Gerir membros">
-                        <UsersRound className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => toggleVerifyCompany.mutate({ id: c.id, verified: !c.is_verified })} className={`p-2 rounded-lg ${c.is_verified ? "text-blue-500 hover:bg-blue-500/10" : "text-muted-foreground hover:bg-accent"}`}>
-                        <ShieldCheck className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                <AdminCompanyCard key={c.id} company={c} onMembers={() => setMembersModal({ id: c.id, name: c.name })} onVerify={() => toggleVerifyCompany.mutate({ id: c.id, verified: !c.is_verified })} queryClient={queryClient} />
               ))}
               {companies.length === 0 && <p className="text-center py-6 text-sm text-muted-foreground">Nenhuma empresa.</p>}
             </div>
