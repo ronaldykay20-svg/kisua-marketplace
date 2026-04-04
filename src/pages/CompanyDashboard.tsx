@@ -329,58 +329,66 @@ const CompanyDashboard = () => {
 
         {tab === "produtos" && (
           <>
-            {canEdit && (
-              <button onClick={() => { resetForm(); setShowForm(true); }} className="w-full mb-3 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-lg flex items-center justify-center gap-1">
+            {canEdit && !showForm && (
+              <button onClick={() => { setEditingProduct(null); setShowForm(true); }} className="w-full mb-3 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-lg flex items-center justify-center gap-1">
                 <Plus className="w-4 h-4" /> Novo Produto
               </button>
             )}
 
-            {showForm && canEdit && (
-              <div className="bg-card rounded-xl border border-border p-4 mb-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-sm font-bold text-foreground">{editingProduct ? "Editar" : "Novo"} Produto</h2>
-                  <button onClick={resetForm}><X className="w-4 h-4 text-muted-foreground" /></button>
-                </div>
-                <div className="space-y-3">
-                  <input placeholder="Nome" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
-                  <textarea placeholder="Descrição" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground h-16 resize-none" />
-                  <div className="grid grid-cols-2 gap-2">
-                    <input placeholder="Preço (Kz)" type="number" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
-                    <input placeholder="Preço antigo" type="number" value={form.old_price} onChange={e => setForm({ ...form, old_price: e.target.value })} className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
-                  </div>
-                  <input placeholder="URL imagem" value={form.image_url} onChange={e => setForm({ ...form, image_url: e.target.value })} className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
-                  <select value={form.category_id} onChange={e => setForm({ ...form, category_id: e.target.value })} className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground">
-                    <option value="">Categoria</option>
-                    {categories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                  <button onClick={() => saveProduct.mutate()} disabled={!form.title || !form.price} className="w-full py-2 bg-primary text-primary-foreground text-sm font-bold rounded-lg disabled:opacity-50">
-                    <Save className="w-4 h-4 inline mr-1" /> {editingProduct ? "Atualizar" : "Adicionar"}
-                  </button>
-                </div>
+            {/* Stats */}
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              <div className="bg-card rounded-xl border border-border p-3 text-center">
+                <Package className="w-5 h-5 mx-auto mb-1 text-primary" />
+                <p className="text-lg font-bold text-foreground">{totalProducts}</p>
+                <p className="text-[10px] text-muted-foreground">Produtos</p>
               </div>
+              <div className="bg-card rounded-xl border border-border p-3 text-center">
+                <Eye className="w-5 h-5 mx-auto mb-1 text-green-500" />
+                <p className="text-lg font-bold text-foreground">{activeProducts}</p>
+                <p className="text-[10px] text-muted-foreground">Ativos</p>
+              </div>
+              <div className="bg-card rounded-xl border border-border p-3 text-center">
+                <ShoppingCart className="w-5 h-5 mx-auto mb-1 text-amber-500" />
+                <p className="text-lg font-bold text-foreground">0</p>
+                <p className="text-[10px] text-muted-foreground">Vendas</p>
+              </div>
+            </div>
+
+            {showForm && canEdit && (
+              <SellerProductForm
+                editingProduct={editingProduct}
+                existingMedia={editingProduct ? editingMedia : []}
+                existingVariants={editingProduct ? editingVariants : []}
+                onSave={(data, media, variants) => saveProduct.mutate({ payload: data, media, variants })}
+                onCancel={() => { setShowForm(false); setEditingProduct(null); }}
+                saving={saveProduct.isPending}
+              />
             )}
 
             <div className="space-y-2">
-              {products.map((p: any) => (
-                <div key={p.id} className={`bg-card rounded-xl border border-border p-3 flex gap-3 ${!p.is_active ? "opacity-60" : ""}`}>
-                  <div className="w-14 h-14 rounded-lg bg-muted flex-shrink-0 overflow-hidden">
-                    {p.image_url ? <img src={p.image_url} alt="" className="w-full h-full object-cover" /> : <ImageIcon className="w-5 h-5 m-4 text-muted-foreground" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-bold text-foreground truncate">{p.title}</h3>
-                    <p className="text-xs text-primary font-bold">{Number(p.price).toLocaleString("pt-AO")} Kz</p>
-                  </div>
-                  {canEdit && (
-                    <div className="flex flex-col gap-1">
-                      <button onClick={() => startEdit(p)} className="p-1 rounded hover:bg-accent text-muted-foreground"><Edit className="w-3.5 h-3.5" /></button>
-                      <button onClick={() => toggleActive.mutate({ id: p.id, active: !p.is_active })} className="p-1 rounded hover:bg-accent text-muted-foreground">
-                        {p.is_active ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                      </button>
-                      <button onClick={() => deleteProduct.mutate(p.id)} className="p-1 rounded hover:bg-destructive/10 text-destructive"><Trash2 className="w-3.5 h-3.5" /></button>
+              {products.map((p: any) => {
+                const coverUrl = (productCovers as Record<string, string>)[p.id] || p.image_url;
+                return (
+                  <div key={p.id} className={`bg-card rounded-xl border border-border p-3 flex gap-3 ${!p.is_active ? "opacity-60" : ""}`}>
+                    <div className="w-14 h-14 rounded-lg bg-muted flex-shrink-0 overflow-hidden">
+                      {coverUrl ? <img src={coverUrl} alt="" className="w-full h-full object-cover" /> : <ImageIcon className="w-5 h-5 m-4 text-muted-foreground" />}
                     </div>
-                  )}
-                </div>
-              ))}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-bold text-foreground truncate">{p.title}</h3>
+                      <p className="text-xs text-primary font-bold">{Number(p.price).toLocaleString("pt-AO")} Kz</p>
+                    </div>
+                    {canEdit && (
+                      <div className="flex flex-col gap-1">
+                        <button onClick={() => { setEditingProduct(p); setShowForm(true); }} className="p-1 rounded hover:bg-accent text-muted-foreground"><Edit className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => toggleActive.mutate({ id: p.id, active: !p.is_active })} className="p-1 rounded hover:bg-accent text-muted-foreground">
+                          {p.is_active ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                        <button onClick={() => deleteProduct.mutate(p.id)} className="p-1 rounded hover:bg-destructive/10 text-destructive"><Trash2 className="w-3.5 h-3.5" /></button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
               {!isLoading && products.length === 0 && <p className="text-center py-6 text-sm text-muted-foreground">Sem produtos ainda.</p>}
             </div>
           </>
