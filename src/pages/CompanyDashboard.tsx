@@ -140,7 +140,7 @@ const CompanyDashboard = () => {
 
   const saveProduct = useMutation({
     mutationFn: async ({ payload, media, variants }: { payload: any; media: any[]; variants?: any[] }) => {
-      const fullPayload = { ...payload, company_id: company!.id, is_active: true };
+      const fullPayload = { ...payload, company_id: company!.id, seller_id: mySeller?.id, is_active: true };
       let productId = editingProduct?.id;
 
       if (editingProduct) {
