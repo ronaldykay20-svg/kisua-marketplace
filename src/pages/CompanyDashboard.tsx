@@ -47,6 +47,22 @@ const CompanyDashboard = () => {
   // Profile edit state
   const [profileForm, setProfileForm] = useState<any>(null);
 
+  // Get or create seller for current user (needed for product seller_id)
+  const { data: mySeller } = useQuery({
+    queryKey: ["my_seller_for_company", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("sellers").select("id").eq("user_id", user!.id).maybeSingle();
+      if (error) throw error;
+      if (data) return data;
+      // Auto-create a seller record for this user
+      const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", user!.id).single();
+      const { data: newSeller, error: err2 } = await supabase.from("sellers").insert({ user_id: user!.id, name: profile?.full_name || "Vendedor", type: "company" }).select("id").single();
+      if (err2) throw err2;
+      return newSeller;
+    },
+    enabled: !!user,
+  });
+
   // Company products
   const { data: products = [], isLoading } = useQuery({
     queryKey: ["company_products", company?.id],
