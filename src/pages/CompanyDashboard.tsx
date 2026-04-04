@@ -123,24 +123,62 @@ const CompanyDashboard = () => {
   });
 
   const saveProduct = useMutation({
-    mutationFn: async () => {
-      const payload = {
-        title: form.title, description: form.description, price: parseFloat(form.price),
-        old_price: form.old_price ? parseFloat(form.old_price) : null, image_url: form.image_url || null,
-        category_id: form.category_id || null, free_shipping: form.free_shipping, company_id: company!.id, is_active: true,
-      };
+    mutationFn: async ({ payload, media, variants }: { payload: any; media: any[]; variants?: any[] }) => {
+      const fullPayload = { ...payload, company_id: company!.id, is_active: true };
+      let productId = editingProduct?.id;
+
       if (editingProduct) {
-        const { error } = await supabase.from("products").update(payload).eq("id", editingProduct.id);
+        const { error } = await supabase.from("products").update(fullPayload).eq("id", editingProduct.id);
         if (error) throw error;
+        await supabase.from("product_media").delete().eq("product_id", editingProduct.id);
+        await supabase.from("product_variants").delete().eq("product_id", editingProduct.id);
       } else {
-        const { error } = await supabase.from("products").insert(payload);
+        const { data, error } = await supabase.from("products").insert(fullPayload).select("id").single();
         if (error) throw error;
+        productId = data.id;
+      }
+
+      if (media.length > 0 && productId) {
+        const mediaRows = media.map((m: any, i: number) => ({
+          product_id: productId, url: m.url, type: m.type, is_cover: m.is_cover, sort_order: i,
+        }));
+        await supabase.from("product_media").insert(mediaRows);
+      }
+
+      if (variants && variants.length > 0 && productId) {
+        const parents = variants.filter((v: any) => v.name && !v.parent_id);
+        const tempIdToDbId: Record<string, string> = {};
+        for (let i = 0; i < parents.length; i++) {
+          const v = parents[i];
+          const row = {
+            product_id: productId, variant_type: v.variant_type, name: v.name,
+            value: v.value || null, price_override: v.price_override ? parseFloat(v.price_override) : null,
+            stock: parseInt(v.stock) || 0, image_url: v.image_url || null,
+            sort_order: i, is_active: true, parent_id: null,
+          };
+          const { data, error } = await supabase.from("product_variants").insert(row).select("id").single();
+          if (error) throw error;
+          tempIdToDbId[v._tempId] = data.id;
+        }
+        const children = variants.filter((v: any) => v.name && v.parent_id);
+        if (children.length > 0) {
+          const childRows = children.map((v: any, i: number) => ({
+            product_id: productId, variant_type: v.variant_type, name: v.name,
+            value: v.value || null, price_override: v.price_override ? parseFloat(v.price_override) : null,
+            stock: parseInt(v.stock) || 0, image_url: v.image_url || null,
+            sort_order: i, is_active: true, parent_id: tempIdToDbId[v.parent_id] || null,
+          }));
+          await supabase.from("product_variants").insert(childRows);
+        }
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["company_products"] });
+      queryClient.invalidateQueries({ queryKey: ["company_product_covers"] });
+      queryClient.invalidateQueries({ queryKey: ["company_product_media"] });
       toast.success(editingProduct ? "Produto atualizado!" : "Produto adicionado!");
-      resetForm();
+      setShowForm(false);
+      setEditingProduct(null);
     },
     onError: (e: any) => toast.error(e.message),
   });
