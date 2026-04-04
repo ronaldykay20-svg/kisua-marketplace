@@ -164,13 +164,22 @@ const AdminCompanyMembersModal = ({ companyId, companyName, onClose }: Props) =>
           {/* Current members */}
           <div>
             <p className="text-xs font-bold text-foreground mb-2">Membros atuais ({members.length})</p>
+            {/* Filter by role */}
+            <div className="flex gap-1 mb-2">
+              {[{ key: "all", label: "Todos" }, { key: "owner", label: "Dono" }, { key: "manager", label: "Gestor" }, { key: "editor", label: "Editor" }, { key: "viewer", label: "Visualizador" }].map(f => (
+                <button key={f.key} onClick={() => setFilterRole(f.key)}
+                  className={`flex-1 py-1 text-[10px] font-bold rounded-lg border transition ${filterRole === f.key ? "bg-primary/10 border-primary text-primary" : "border-border text-muted-foreground"}`}>
+                  {f.label}
+                </button>
+              ))}
+            </div>
             {isLoading ? (
               <div className="flex justify-center py-4">
                 <div className="w-5 h-5 border-3 border-primary border-t-transparent rounded-full animate-spin" />
               </div>
             ) : (
               <div className="space-y-1">
-                {members.map((m: any) => {
+                {members.filter((m: any) => filterRole === "all" || m.role === filterRole).map((m: any) => {
                   const info = roleInfo[m.role] || roleInfo.viewer;
                   const Icon = info.icon;
                   return (
