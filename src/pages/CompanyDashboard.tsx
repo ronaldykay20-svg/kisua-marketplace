@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
-import { Building2, Package, Plus, Edit, Trash2, Eye, EyeOff, Users, UserPlus, Save, X, Crown, ShieldCheck, Image as ImageIcon, Camera, Search } from "lucide-react";
+import { Building2, Package, Plus, Edit, Trash2, Eye, EyeOff, Users, UserPlus, Save, X, Crown, ShieldCheck, Image as ImageIcon, Camera, Search, ShoppingCart } from "lucide-react";
+import SellerProductForm from "@/components/seller/SellerProductForm";
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
 import { useAuth } from "@/contexts/AuthContext";
