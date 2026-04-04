@@ -14,7 +14,6 @@ const CompanyDashboard = () => {
   const [tab, setTab] = useState<"produtos" | "membros" | "perfil">("produtos");
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
-  const [form, setForm] = useState({ title: "", description: "", price: "", old_price: "", image_url: "", category_id: "", free_shipping: false });
   const [memberSearch, setMemberSearch] = useState("");
   const logoRef = useRef<HTMLInputElement>(null);
   const bannerRef = useRef<HTMLInputElement>(null);
