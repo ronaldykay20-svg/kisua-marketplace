@@ -207,7 +207,7 @@ const AdminCompanyMembersModal = ({ companyId, companyName, onClose }: Props) =>
                     </div>
                   );
                 })}
-                {members.length === 0 && <p className="text-center py-4 text-xs text-muted-foreground">Nenhum membro.</p>}
+                {members.filter((m: any) => filterRole === "all" || m.role === filterRole).length === 0 && <p className="text-center py-4 text-xs text-muted-foreground">Nenhum membro{filterRole !== "all" ? ` com cargo "${roleInfo[filterRole]?.label || filterRole}"` : ""}.</p>}
               </div>
             )}
           </div>
