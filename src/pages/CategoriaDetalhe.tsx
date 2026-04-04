@@ -1,11 +1,14 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ChevronLeft, SlidersHorizontal, ChevronDown, ShoppingCart, Star } from "lucide-react";
+import { SlidersHorizontal, ChevronDown, ShoppingCart, Star, Loader2 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
 import MobileProductCard from "@/components/MobileProductCard";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { allProducts } from "@/data/products";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useCategories } from "@/hooks/useSupabaseData";
 
 const subcategories: Record<string, string[]> = {
   "Electrónicos": ["Smartphones", "Tablets", "Computadores", "Áudio", "TV & Vídeo", "Câmeras", "Acessórios"],
@@ -36,16 +39,64 @@ const CategoriaDetalhe = () => {
   const [showSort, setShowSort] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [selectedSub, setSelectedSub] = useState<string | null>(null);
+  const isMobile = useIsMobile();
+
+  const { data: dbCategories } = useCategories();
+
+  // Find the category ID from the name
+  const category = (dbCategories || []).find((c: any) => c.name === categoryName);
+  const categoryId = category?.id;
+
+  // Load products from DB filtered by category
+  const { data: dbProducts, isLoading } = useQuery({
+    queryKey: ["category_products", categoryId, sortBy],
+    queryFn: async () => {
+      let query = supabase
+        .from("products")
+        .select("*, product_media(url, is_cover)")
+        .eq("is_active", true);
+
+      if (categoryId) {
+        query = query.eq("category_id", categoryId);
+      }
+
+      if (sortBy === "Menor preço") query = query.order("price", { ascending: true });
+      else if (sortBy === "Maior preço") query = query.order("price", { ascending: false });
+      else if (sortBy === "Mais vendidos") query = query.order("sales_count", { ascending: false });
+      else query = query.order("created_at", { ascending: false });
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: true,
+  });
+
+  // Map DB products to display format, fallback to static
+  const products = dbProducts && dbProducts.length > 0
+    ? dbProducts.map((p: any) => {
+        const cover = p.product_media?.find((m: any) => m.is_cover)?.url || p.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&h=600&fit=crop";
+        return {
+          id: p.id,
+          title: p.title,
+          price: Number(p.price).toLocaleString("pt-AO").replace(/,/g, ".") + " Kz",
+          oldPrice: p.old_price ? Number(p.old_price).toLocaleString("pt-AO").replace(/,/g, ".") + " Kz" : undefined,
+          discount: p.discount_percent ? `-${p.discount_percent}%` : undefined,
+          image: cover,
+          rating: p.rating || 0,
+          reviews: p.total_reviews || 0,
+          freeShipping: p.free_shipping,
+          badge: p.badge,
+        };
+      })
+    : allProducts;
 
   const subs = subcategories[categoryName] || ["Todos"];
-  const products = allProducts;
-  const isMobile = useIsMobile();
 
   return (
     <div className="min-h-screen bg-background pb-14 md:pb-0">
       <Navbar />
 
-      {/* Breadcrumb */}
       <div className="container mx-auto px-3 py-2 flex items-center gap-1 text-xs text-muted-foreground">
         <button onClick={() => navigate("/")} className="hover:text-primary">Início</button>
         <span>/</span>
@@ -54,7 +105,6 @@ const CategoriaDetalhe = () => {
         <span className="text-foreground font-medium">{categoryName}</span>
       </div>
 
-      {/* Sort & Filter bar */}
       <div className="sticky top-[7.5rem] z-30 bg-card border-b border-border">
         <div className="container mx-auto px-3 py-2 flex items-center gap-2">
           <div className="relative flex-1">
@@ -79,7 +129,6 @@ const CategoriaDetalhe = () => {
       </div>
 
       <div className="container mx-auto px-3 flex gap-4">
-        {/* Sidebar filters - tablet/desktop */}
         <aside className={`${showFilters ? "block" : "hidden"} md:block w-full md:w-56 flex-shrink-0 py-3`}>
           <div className="bg-card rounded-lg border border-border p-3 space-y-4">
             <div>
@@ -105,30 +154,9 @@ const CategoriaDetalhe = () => {
                 ))}
               </div>
             </div>
-            <div>
-              <h3 className="text-xs font-bold text-foreground mb-2">Condição</h3>
-              <div className="space-y-1">
-                {["Novo", "Usado", "Recondicionado"].map(c => (
-                  <button key={c} className="flex items-center gap-2 w-full text-left px-2 py-1.5 rounded text-xs text-foreground hover:bg-muted">
-                    <div className="w-3.5 h-3.5 rounded border border-muted-foreground" />
-                    {c}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <h3 className="text-xs font-bold text-foreground mb-2">Envio</h3>
-              <div className="space-y-1">
-                <button className="flex items-center gap-2 w-full text-left px-2 py-1.5 rounded text-xs text-foreground hover:bg-muted">
-                  <div className="w-3.5 h-3.5 rounded border border-muted-foreground" />
-                  Frete grátis
-                </button>
-              </div>
-            </div>
           </div>
         </aside>
 
-        {/* Products grid */}
         <div className="flex-1 py-3">
           <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide mb-3 pb-1">
             {subs.map(sub => (
@@ -139,47 +167,49 @@ const CategoriaDetalhe = () => {
             ))}
           </div>
 
-          <p className="text-xs text-muted-foreground mb-3">{products.length} resultados em "{categoryName}"</p>
-
-          {isMobile ? (
-            <div className="columns-2 gap-1.5 space-y-1.5">
-              {products.map((p, i) => (
-                <MobileProductCard key={p.id} product={p} index={i} />
-              ))}
-            </div>
+          {isLoading ? (
+            <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-              {products.map(p => (
-                <button key={p.id} onClick={() => navigate(`/produto/${p.id}`)} className="bg-card rounded-lg border border-border overflow-hidden text-left hover:shadow-md transition group">
-                  <div className="relative aspect-square overflow-hidden">
-                    {p.discount && (
-                      <span className="absolute top-1.5 left-1.5 bg-destructive text-destructive-foreground text-[10px] font-bold px-1.5 py-0.5 rounded z-10">{p.discount}</span>
-                    )}
-                    {p.badge && (
-                      <span className="absolute top-1.5 right-1.5 bg-walmart-orange text-primary-foreground text-[10px] font-bold px-1.5 py-0.5 rounded z-10">{p.badge}</span>
-                    )}
-                    <img src={p.image} alt={p.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy" />
-                  </div>
-                  <div className="p-2">
-                    <h3 className="text-xs font-medium text-foreground line-clamp-2 leading-tight mb-1">{p.title}</h3>
-                    <div className="flex items-center gap-1 mb-1">
-                      {[...Array(5)].map((_, i) => (
-                        <Star key={i} className={`w-2.5 h-2.5 ${i < (p.rating || 0) ? "fill-walmart-orange text-walmart-orange" : "text-muted-foreground"}`} />
-                      ))}
-                      <span className="text-[10px] text-muted-foreground">({p.reviews})</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <span className="text-sm font-bold text-foreground">{p.price}</span>
-                        {p.oldPrice && <span className="text-[10px] text-muted-foreground line-through ml-1">{p.oldPrice}</span>}
+            <>
+              <p className="text-xs text-muted-foreground mb-3">{products.length} resultados em "{categoryName}"</p>
+
+              {isMobile ? (
+                <div className="columns-2 gap-1.5 space-y-1.5">
+                  {products.map((p: any, i: number) => (
+                    <MobileProductCard key={p.id} product={p} index={i} />
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                  {products.map((p: any) => (
+                    <button key={p.id} onClick={() => navigate(`/produto/${p.id}`)} className="bg-card rounded-lg border border-border overflow-hidden text-left hover:shadow-md transition group">
+                      <div className="relative aspect-square overflow-hidden">
+                        {p.discount && <span className="absolute top-1.5 left-1.5 bg-destructive text-destructive-foreground text-[10px] font-bold px-1.5 py-0.5 rounded z-10">{p.discount}</span>}
+                        {p.badge && <span className="absolute top-1.5 right-1.5 bg-walmart-orange text-primary-foreground text-[10px] font-bold px-1.5 py-0.5 rounded z-10">{p.badge}</span>}
+                        <img src={p.image} alt={p.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy" />
                       </div>
-                      <ShoppingCart className="w-4 h-4 text-primary" />
-                    </div>
-                    {p.freeShipping && <span className="text-[9px] text-walmart-green font-semibold">Frete grátis</span>}
-                  </div>
-                </button>
-              ))}
-            </div>
+                      <div className="p-2">
+                        <h3 className="text-xs font-medium text-foreground line-clamp-2 leading-tight mb-1">{p.title}</h3>
+                        <div className="flex items-center gap-1 mb-1">
+                          {[...Array(5)].map((_, i) => (
+                            <Star key={i} className={`w-2.5 h-2.5 ${i < (p.rating || 0) ? "fill-walmart-orange text-walmart-orange" : "text-muted-foreground"}`} />
+                          ))}
+                          <span className="text-[10px] text-muted-foreground">({p.reviews})</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="text-sm font-bold text-foreground">{p.price}</span>
+                            {p.oldPrice && <span className="text-[10px] text-muted-foreground line-through ml-1">{p.oldPrice}</span>}
+                          </div>
+                          <ShoppingCart className="w-4 h-4 text-primary" />
+                        </div>
+                        {p.freeShipping && <span className="text-[9px] text-walmart-green font-semibold">Frete grátis</span>}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
