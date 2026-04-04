@@ -1,9 +1,10 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Heart, Share2, ShoppingCart, Star, Truck, Shield, MapPin, ChevronRight, Minus, Plus, ThumbsUp, ThumbsDown, ZoomIn, Store } from "lucide-react";
+import { ArrowLeft, Heart, Share2, ShoppingCart, Star, Truck, Shield, MapPin, ChevronRight, Minus, Plus, ThumbsUp, ThumbsDown, ZoomIn, Store, MessageCircle, Send, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { allProducts } from "@/data/products";
 import { useProduct } from "@/hooks/useSupabaseData";
-import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import ProductCard from "@/components/ProductCard";
 import ProductCarousel from "@/components/ProductCarousel";
@@ -114,7 +115,47 @@ const ProductDetail = () => {
   const moreToExplore = allProducts.filter(p => p.id !== Number(id)).slice(10, 20);
   const alsoLike = allProducts.filter(p => p.id !== Number(id)).slice(5, 15);
 
-  const reviews = [
+  // Load product reviews from DB
+  const { data: dbReviews = [] } = useQuery({
+    queryKey: ["product_reviews_detail", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("seller_reviews").select("*").eq("seller_id", (product as any)?.seller?.id || "none").order("created_at", { ascending: false });
+      // Fallback: check if there are product-level reviews (seller_reviews where seller matches product's seller)
+      if (error) return [];
+      const userIds = [...new Set((data || []).map((r: any) => r.user_id))];
+      let profileMap: Record<string, any> = {};
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase.from("profiles").select("id, full_name, avatar_url").in("id", userIds);
+        profileMap = Object.fromEntries((profiles || []).map((p: any) => [p.id, p]));
+      }
+      // Load replies
+      const reviewIds = (data || []).map((r: any) => r.id);
+      let repliesMap: Record<string, any[]> = {};
+      if (reviewIds.length > 0) {
+        const { data: replies } = await supabase.from("review_replies").select("*").in("review_id", reviewIds).order("created_at");
+        if (replies) {
+          const replyUserIds = [...new Set(replies.map((r: any) => r.user_id))];
+          let replyProfileMap: Record<string, any> = {};
+          if (replyUserIds.length > 0) {
+            const { data: rProfiles } = await supabase.from("profiles").select("id, full_name").in("id", replyUserIds);
+            replyProfileMap = Object.fromEntries((rProfiles || []).map((p: any) => [p.id, p]));
+          }
+          replies.forEach((r: any) => {
+            if (!repliesMap[r.review_id]) repliesMap[r.review_id] = [];
+            repliesMap[r.review_id].push({ ...r, profile: replyProfileMap[r.user_id] || null });
+          });
+        }
+      }
+      return (data || []).map((r: any) => ({
+        ...r,
+        profile: profileMap[r.user_id] || null,
+        replies: repliesMap[r.id] || [],
+      }));
+    },
+    enabled: !!product,
+  });
+
+  const staticReviews = [
     { name: "Maria S.", rating: 5, date: "15 Mar 2026", text: "Produto excelente! Chegou rápido e bem embalado. Recomendo a todos.", helpful: 12, notHelpful: 1 },
     { name: "João P.", rating: 4, date: "10 Mar 2026", text: "Muito bom, qualidade acima do esperado. Só demorou um pouco na entrega.", helpful: 8, notHelpful: 2 },
     { name: "Ana L.", rating: 5, date: "5 Mar 2026", text: "Adorei! Exactamente como na descrição. Vendedor de confiança.", helpful: 5, notHelpful: 0 },
@@ -449,40 +490,7 @@ const ProductDetail = () => {
       </div>
 
       {/* Reviews section */}
-      <div className="bg-card mt-2 p-4 md:container md:mx-auto md:rounded-card md:border md:border-border md:my-4">
-        <h3 className="text-base font-black text-foreground mb-1">Avaliações dos clientes</h3>
-        <div className="flex items-center gap-2 mb-4">
-          <div className="flex items-center gap-0.5">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Star key={i} className={`w-4 h-4 ${i < Math.floor(product.rating || 0) ? "text-secondary fill-secondary" : "text-border"}`} />
-            ))}
-          </div>
-          <span className="text-sm font-semibold text-foreground">{product.rating} de 5</span>
-          <span className="text-xs text-muted-foreground">({product.reviews} avaliações)</span>
-        </div>
-        <div className="md:grid md:grid-cols-3 md:gap-4 space-y-4 md:space-y-0">
-          {reviews.map((review, i) => (
-            <div key={i} className="border-t md:border-t-0 md:border md:border-border md:rounded-card md:p-3 border-border pt-3">
-              <div className="flex items-center gap-0.5 mb-1">
-                {Array.from({ length: 5 }).map((_, j) => (
-                  <Star key={j} className={`w-3 h-3 ${j < review.rating ? "text-secondary fill-secondary" : "text-border"}`} />
-                ))}
-              </div>
-              <p className="text-xs text-foreground leading-relaxed mt-1">{review.text}</p>
-              <div className="flex items-center justify-between mt-2">
-                <span className="text-[10px] text-muted-foreground">{review.name} — {review.date}</span>
-                <div className="flex items-center gap-3">
-                  <button className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"><ThumbsUp className="w-3 h-3" /> ({review.helpful})</button>
-                  <button className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"><ThumbsDown className="w-3 h-3" /> ({review.notHelpful})</button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-        <button className="mt-4 w-full py-2.5 rounded-full border border-border text-sm font-semibold text-foreground hover:bg-muted transition">
-          Ver todas as avaliações ({product.reviews})
-        </button>
-      </div>
+      <ProductReviewsSection productId={id || ""} product={product} dbReviews={dbReviews} staticReviews={staticReviews} />
 
       {/* Carousels */}
       <div className="mt-2 bg-card p-4 md:container md:mx-auto md:rounded-card md:border md:border-border md:my-4">
@@ -520,6 +528,126 @@ const ProductDetail = () => {
           <Plus className="w-4 h-4" /> Adicionar ao carrinho
         </button>
       </div>
+    </div>
+  );
+};
+
+// ── Product Reviews Section with Replies ──
+const ProductReviewsSection = ({ productId, product, dbReviews, staticReviews }: { productId: string; product: any; dbReviews: any[]; staticReviews: any[] }) => {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState("");
+
+  const reviews = dbReviews.length > 0 ? dbReviews : null;
+
+  const submitReply = useMutation({
+    mutationFn: async (reviewId: string) => {
+      const { error } = await supabase.from("review_replies").insert({
+        review_id: reviewId,
+        review_type: "seller",
+        user_id: user!.id,
+        content: replyText,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["product_reviews_detail", productId] });
+      setReplyText("");
+      setReplyingTo(null);
+    },
+  });
+
+  return (
+    <div className="bg-card mt-2 p-4 md:container md:mx-auto md:rounded-card md:border md:border-border md:my-4">
+      <h3 className="text-base font-black text-foreground mb-1">Avaliações dos clientes</h3>
+      <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-0.5">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Star key={i} className={`w-4 h-4 ${i < Math.floor(product.rating || 0) ? "text-secondary fill-secondary" : "text-border"}`} />
+          ))}
+        </div>
+        <span className="text-sm font-semibold text-foreground">{product.rating} de 5</span>
+        <span className="text-xs text-muted-foreground">({product.reviews} avaliações)</span>
+      </div>
+
+      {reviews ? (
+        <div className="space-y-4">
+          {reviews.map((review: any) => (
+            <div key={review.id} className="border-t border-border pt-3">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">
+                  {(review.profile?.full_name || "U").charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1">
+                  <span className="text-xs font-bold text-foreground">{review.profile?.full_name || "Utilizador"}</span>
+                  <div className="flex items-center gap-0.5">
+                    {Array.from({ length: 5 }).map((_, j) => (
+                      <Star key={j} className={`w-2.5 h-2.5 ${j < review.rating ? "text-secondary fill-secondary" : "text-border"}`} />
+                    ))}
+                    <span className="text-[10px] text-muted-foreground ml-1">{new Date(review.created_at).toLocaleDateString("pt-AO")}</span>
+                  </div>
+                </div>
+              </div>
+              {review.comment && <p className="text-xs text-foreground leading-relaxed mt-1">{review.comment}</p>}
+
+              {/* Replies */}
+              {review.replies?.length > 0 && (
+                <div className="ml-6 mt-2 space-y-2">
+                  {review.replies.map((reply: any) => (
+                    <div key={reply.id} className="bg-muted rounded-lg p-2">
+                      <p className="text-[10px] font-bold text-foreground">{reply.profile?.full_name || "Utilizador"}</p>
+                      <p className="text-[11px] text-muted-foreground">{reply.content}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Reply button */}
+              <div className="flex items-center gap-3 mt-2">
+                {user && (
+                  <button onClick={() => setReplyingTo(replyingTo === review.id ? null : review.id)}
+                    className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground">
+                    <MessageCircle className="w-3 h-3" /> Responder
+                  </button>
+                )}
+              </div>
+
+              {/* Reply form */}
+              {replyingTo === review.id && user && (
+                <div className="ml-6 mt-2 flex gap-2">
+                  <input value={replyText} onChange={e => setReplyText(e.target.value)} placeholder="Escrever resposta..."
+                    className="flex-1 px-3 py-1.5 rounded-lg bg-muted border border-border text-xs text-foreground" />
+                  <button onClick={() => submitReply.mutate(review.id)} disabled={!replyText.trim() || submitReply.isPending}
+                    className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-bold disabled:opacity-50">
+                    <Send className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="md:grid md:grid-cols-3 md:gap-4 space-y-4 md:space-y-0">
+          {staticReviews.map((review: any, i: number) => (
+            <div key={i} className="border-t md:border-t-0 md:border md:border-border md:rounded-card md:p-3 border-border pt-3">
+              <div className="flex items-center gap-0.5 mb-1">
+                {Array.from({ length: 5 }).map((_, j) => (
+                  <Star key={j} className={`w-3 h-3 ${j < review.rating ? "text-secondary fill-secondary" : "text-border"}`} />
+                ))}
+              </div>
+              <p className="text-xs text-foreground leading-relaxed mt-1">{review.text}</p>
+              <div className="flex items-center justify-between mt-2">
+                <span className="text-[10px] text-muted-foreground">{review.name} — {review.date}</span>
+                <div className="flex items-center gap-3">
+                  <button className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"><ThumbsUp className="w-3 h-3" /> ({review.helpful})</button>
+                  <button className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"><ThumbsDown className="w-3 h-3" /> ({review.notHelpful})</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
