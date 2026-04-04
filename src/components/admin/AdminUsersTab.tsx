@@ -177,7 +177,7 @@ const AdminUsersTab = () => {
             </div>
           );
         })}
-        {!isLoading && users.length === 0 && (
+        {!isLoading && filteredUsers.length === 0 && (
           <p className="text-center py-6 text-sm text-muted-foreground">Nenhum utilizador encontrado.</p>
         )}
       </div>
