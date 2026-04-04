@@ -9,17 +9,20 @@ const AdminUsersTab = () => {
   const [search, setSearch] = useState("");
 
   const { data: users = [], isLoading } = useQuery({
-    queryKey: ["admin_all_users", search],
+    queryKey: ["admin_all_users"],
     queryFn: async () => {
-      let q = supabase.from("profiles").select("id, full_name, phone, avatar_url, province, city, created_at").order("created_at", { ascending: false }).limit(50);
-      if (search) {
-        q = q.or(`full_name.ilike.%${search}%,phone.ilike.%${search}%,id.ilike.%${search}%,province.ilike.%${search}%,city.ilike.%${search}%`);
-      }
-      const { data, error } = await q;
+      const { data, error } = await supabase.from("profiles").select("id, full_name, phone, avatar_url, province, city, created_at").order("created_at", { ascending: false }).limit(200);
       if (error) throw error;
       return data;
     },
   });
+
+  const filteredUsers = search
+    ? users.filter((u: any) => {
+        const s = search.toLowerCase();
+        return (u.full_name?.toLowerCase().includes(s)) || (u.phone?.toLowerCase().includes(s)) || (u.id?.toLowerCase().includes(s)) || (u.province?.toLowerCase().includes(s)) || (u.city?.toLowerCase().includes(s));
+      })
+    : users;
 
   // Check which users are already sellers
   const { data: sellerUserIds = [] } = useQuery({
