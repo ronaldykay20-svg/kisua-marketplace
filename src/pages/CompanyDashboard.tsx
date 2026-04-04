@@ -57,9 +57,13 @@ const CompanyDashboard = () => {
   const { data: members = [] } = useQuery({
     queryKey: ["company_members", company?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("company_members").select("*, profiles(full_name, avatar_url)").eq("company_id", company!.id).order("role");
+      const { data, error } = await supabase.from("company_members").select("*").eq("company_id", company!.id).order("role");
       if (error) throw error;
-      return data;
+      if (!data || data.length === 0) return [];
+      const userIds = [...new Set(data.map((m: any) => m.user_id))];
+      const { data: profiles } = await supabase.from("profiles").select("id, full_name, avatar_url").in("id", userIds);
+      const pMap = Object.fromEntries((profiles || []).map((p: any) => [p.id, p]));
+      return data.map((m: any) => ({ ...m, profiles: pMap[m.user_id] || null }));
     },
     enabled: !!company,
   });

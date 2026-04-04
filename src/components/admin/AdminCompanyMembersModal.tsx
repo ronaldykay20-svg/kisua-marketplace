@@ -29,11 +29,15 @@ const AdminCompanyMembersModal = ({ companyId, companyName, onClose }: Props) =>
     queryFn: async () => {
       const { data, error } = await supabase
         .from("company_members")
-        .select("*, profiles:user_id(full_name, phone)")
+        .select("*")
         .eq("company_id", companyId)
         .order("created_at");
       if (error) throw error;
-      return data;
+      if (!data || data.length === 0) return [];
+      const userIds = [...new Set(data.map((m: any) => m.user_id))];
+      const { data: profiles } = await supabase.from("profiles").select("id, full_name, phone, avatar_url").in("id", userIds);
+      const pMap = Object.fromEntries((profiles || []).map((p: any) => [p.id, p]));
+      return data.map((m: any) => ({ ...m, profiles: pMap[m.user_id] || null }));
     },
   });
 
