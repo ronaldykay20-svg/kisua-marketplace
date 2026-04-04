@@ -110,8 +110,9 @@ const AdminUsersTab = () => {
         </div>
       )}
 
+      <p className="text-xs text-muted-foreground mb-2">{filteredUsers.length} utilizador(es)</p>
       <div className="space-y-2">
-        {users.map((u: any) => {
+        {filteredUsers.map((u: any) => {
           const isSeller = sellerUserIds.includes(u.id);
           const roles = (userRolesMap as Record<string, string[]>)[u.id] || [];
           const isAdmin = roles.includes("admin");
