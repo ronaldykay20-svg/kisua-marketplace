@@ -85,13 +85,41 @@ const CompanyDashboard = () => {
     enabled: memberSearch.length >= 2,
   });
 
-  const { data: categories = [] } = useQuery({
-    queryKey: ["categories_list"],
+  // Load media for editing product
+  const { data: editingMedia = [] } = useQuery({
+    queryKey: ["company_product_media", editingProduct?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("categories").select("id, name").eq("is_active", true).order("name");
+      const { data, error } = await supabase.from("product_media").select("*").eq("product_id", editingProduct!.id).order("sort_order");
       if (error) throw error;
       return data;
     },
+    enabled: !!editingProduct?.id,
+  });
+
+  // Load variants for editing product
+  const { data: editingVariants = [] } = useQuery({
+    queryKey: ["company_product_variants_edit", editingProduct?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("product_variants").select("*").eq("product_id", editingProduct!.id).order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!editingProduct?.id,
+  });
+
+  // Load cover images for product list
+  const { data: productCovers = {} } = useQuery({
+    queryKey: ["company_product_covers", company?.id],
+    queryFn: async () => {
+      const productIds = products.map((p: any) => p.id);
+      if (productIds.length === 0) return {};
+      const { data, error } = await supabase.from("product_media").select("product_id, url").in("product_id", productIds).eq("is_cover", true);
+      if (error) throw error;
+      const map: Record<string, string> = {};
+      (data || []).forEach((m: any) => { map[m.product_id] = m.url; });
+      return map;
+    },
+    enabled: products.length > 0,
   });
 
   const saveProduct = useMutation({
