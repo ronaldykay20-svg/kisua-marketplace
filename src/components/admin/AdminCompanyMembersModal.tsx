@@ -56,6 +56,9 @@ const AdminCompanyMembersModal = ({ companyId, companyName, onClose }: Props) =>
   const maxMembers = 11; // 10 members + 1 owner
   const addMember = useMutation({
     mutationFn: async (userId: string) => {
+      if (members.length >= maxMembers) {
+        throw new Error(`Limite de ${maxMembers} membros atingido (10 membros + dono)`);
+      }
       const { error } = await supabase.from("company_members").insert({
         company_id: companyId,
         user_id: userId,
