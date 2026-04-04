@@ -532,4 +532,124 @@ const ProductDetail = () => {
   );
 };
 
+// ── Product Reviews Section with Replies ──
+const ProductReviewsSection = ({ productId, product, dbReviews, staticReviews }: { productId: string; product: any; dbReviews: any[]; staticReviews: any[] }) => {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState("");
+
+  const reviews = dbReviews.length > 0 ? dbReviews : null;
+
+  const submitReply = useMutation({
+    mutationFn: async (reviewId: string) => {
+      const { error } = await supabase.from("review_replies").insert({
+        review_id: reviewId,
+        review_type: "seller",
+        user_id: user!.id,
+        content: replyText,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["product_reviews_detail", productId] });
+      setReplyText("");
+      setReplyingTo(null);
+    },
+  });
+
+  return (
+    <div className="bg-card mt-2 p-4 md:container md:mx-auto md:rounded-card md:border md:border-border md:my-4">
+      <h3 className="text-base font-black text-foreground mb-1">Avaliações dos clientes</h3>
+      <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-0.5">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Star key={i} className={`w-4 h-4 ${i < Math.floor(product.rating || 0) ? "text-secondary fill-secondary" : "text-border"}`} />
+          ))}
+        </div>
+        <span className="text-sm font-semibold text-foreground">{product.rating} de 5</span>
+        <span className="text-xs text-muted-foreground">({product.reviews} avaliações)</span>
+      </div>
+
+      {reviews ? (
+        <div className="space-y-4">
+          {reviews.map((review: any) => (
+            <div key={review.id} className="border-t border-border pt-3">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">
+                  {(review.profile?.full_name || "U").charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1">
+                  <span className="text-xs font-bold text-foreground">{review.profile?.full_name || "Utilizador"}</span>
+                  <div className="flex items-center gap-0.5">
+                    {Array.from({ length: 5 }).map((_, j) => (
+                      <Star key={j} className={`w-2.5 h-2.5 ${j < review.rating ? "text-secondary fill-secondary" : "text-border"}`} />
+                    ))}
+                    <span className="text-[10px] text-muted-foreground ml-1">{new Date(review.created_at).toLocaleDateString("pt-AO")}</span>
+                  </div>
+                </div>
+              </div>
+              {review.comment && <p className="text-xs text-foreground leading-relaxed mt-1">{review.comment}</p>}
+
+              {/* Replies */}
+              {review.replies?.length > 0 && (
+                <div className="ml-6 mt-2 space-y-2">
+                  {review.replies.map((reply: any) => (
+                    <div key={reply.id} className="bg-muted rounded-lg p-2">
+                      <p className="text-[10px] font-bold text-foreground">{reply.profile?.full_name || "Utilizador"}</p>
+                      <p className="text-[11px] text-muted-foreground">{reply.content}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Reply button */}
+              <div className="flex items-center gap-3 mt-2">
+                {user && (
+                  <button onClick={() => setReplyingTo(replyingTo === review.id ? null : review.id)}
+                    className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground">
+                    <MessageCircle className="w-3 h-3" /> Responder
+                  </button>
+                )}
+              </div>
+
+              {/* Reply form */}
+              {replyingTo === review.id && user && (
+                <div className="ml-6 mt-2 flex gap-2">
+                  <input value={replyText} onChange={e => setReplyText(e.target.value)} placeholder="Escrever resposta..."
+                    className="flex-1 px-3 py-1.5 rounded-lg bg-muted border border-border text-xs text-foreground" />
+                  <button onClick={() => submitReply.mutate(review.id)} disabled={!replyText.trim() || submitReply.isPending}
+                    className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-bold disabled:opacity-50">
+                    <Send className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="md:grid md:grid-cols-3 md:gap-4 space-y-4 md:space-y-0">
+          {staticReviews.map((review: any, i: number) => (
+            <div key={i} className="border-t md:border-t-0 md:border md:border-border md:rounded-card md:p-3 border-border pt-3">
+              <div className="flex items-center gap-0.5 mb-1">
+                {Array.from({ length: 5 }).map((_, j) => (
+                  <Star key={j} className={`w-3 h-3 ${j < review.rating ? "text-secondary fill-secondary" : "text-border"}`} />
+                ))}
+              </div>
+              <p className="text-xs text-foreground leading-relaxed mt-1">{review.text}</p>
+              <div className="flex items-center justify-between mt-2">
+                <span className="text-[10px] text-muted-foreground">{review.name} — {review.date}</span>
+                <div className="flex items-center gap-3">
+                  <button className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"><ThumbsUp className="w-3 h-3" /> ({review.helpful})</button>
+                  <button className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"><ThumbsDown className="w-3 h-3" /> ({review.notHelpful})</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default ProductDetail;
