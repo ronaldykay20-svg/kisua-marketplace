@@ -248,21 +248,8 @@ const CompanyDashboard = () => {
     onError: (e: any) => toast.error(e.message),
   });
 
-  const resetForm = () => {
-    setForm({ title: "", description: "", price: "", old_price: "", image_url: "", category_id: "", free_shipping: false });
-    setEditingProduct(null);
-    setShowForm(false);
-  };
-
-  const startEdit = (p: any) => {
-    setForm({
-      title: p.title, description: p.description || "", price: String(p.price),
-      old_price: p.old_price ? String(p.old_price) : "", image_url: p.image_url || "",
-      category_id: p.category_id || "", free_shipping: p.free_shipping || false,
-    });
-    setEditingProduct(p);
-    setShowForm(true);
-  };
+  const totalProducts = products.length;
+  const activeProducts = products.filter((p: any) => p.is_active).length;
 
   const roleLabel: Record<string, string> = { owner: "Dono", manager: "Gestor", editor: "Editor", viewer: "Visualizador" };
 
