@@ -490,40 +490,7 @@ const ProductDetail = () => {
       </div>
 
       {/* Reviews section */}
-      <div className="bg-card mt-2 p-4 md:container md:mx-auto md:rounded-card md:border md:border-border md:my-4">
-        <h3 className="text-base font-black text-foreground mb-1">Avaliações dos clientes</h3>
-        <div className="flex items-center gap-2 mb-4">
-          <div className="flex items-center gap-0.5">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Star key={i} className={`w-4 h-4 ${i < Math.floor(product.rating || 0) ? "text-secondary fill-secondary" : "text-border"}`} />
-            ))}
-          </div>
-          <span className="text-sm font-semibold text-foreground">{product.rating} de 5</span>
-          <span className="text-xs text-muted-foreground">({product.reviews} avaliações)</span>
-        </div>
-        <div className="md:grid md:grid-cols-3 md:gap-4 space-y-4 md:space-y-0">
-          {reviews.map((review, i) => (
-            <div key={i} className="border-t md:border-t-0 md:border md:border-border md:rounded-card md:p-3 border-border pt-3">
-              <div className="flex items-center gap-0.5 mb-1">
-                {Array.from({ length: 5 }).map((_, j) => (
-                  <Star key={j} className={`w-3 h-3 ${j < review.rating ? "text-secondary fill-secondary" : "text-border"}`} />
-                ))}
-              </div>
-              <p className="text-xs text-foreground leading-relaxed mt-1">{review.text}</p>
-              <div className="flex items-center justify-between mt-2">
-                <span className="text-[10px] text-muted-foreground">{review.name} — {review.date}</span>
-                <div className="flex items-center gap-3">
-                  <button className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"><ThumbsUp className="w-3 h-3" /> ({review.helpful})</button>
-                  <button className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"><ThumbsDown className="w-3 h-3" /> ({review.notHelpful})</button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-        <button className="mt-4 w-full py-2.5 rounded-full border border-border text-sm font-semibold text-foreground hover:bg-muted transition">
-          Ver todas as avaliações ({product.reviews})
-        </button>
-      </div>
+      <ProductReviewsSection productId={id || ""} product={product} dbReviews={dbReviews} staticReviews={staticReviews} />
 
       {/* Carousels */}
       <div className="mt-2 bg-card p-4 md:container md:mx-auto md:rounded-card md:border md:border-border md:my-4">
