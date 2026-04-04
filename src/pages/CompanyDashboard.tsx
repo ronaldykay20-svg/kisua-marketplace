@@ -24,11 +24,16 @@ const CompanyDashboard = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("company_members")
-        .select("*, companies(*)")
+        .select("*")
         .eq("user_id", user!.id)
-        .single();
+        .limit(1)
+        .maybeSingle();
       if (error) throw error;
-      return data;
+      if (!data) return null;
+      // Fetch company separately
+      const { data: comp, error: compErr } = await supabase.from("companies").select("*").eq("id", data.company_id).single();
+      if (compErr) throw compErr;
+      return { ...data, companies: comp };
     },
     enabled: !!user,
   });
