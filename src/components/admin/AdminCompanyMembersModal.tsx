@@ -23,6 +23,7 @@ const AdminCompanyMembersModal = ({ companyId, companyName, onClose }: Props) =>
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [selectedRole, setSelectedRole] = useState<string>("editor");
+  const [filterRole, setFilterRole] = useState<string>("all");
 
   const { data: members = [], isLoading } = useQuery({
     queryKey: ["company_members", companyId],
