@@ -53,7 +53,7 @@ const AdminCompanyMembersModal = ({ companyId, companyName, onClose }: Props) =>
   });
 
   const memberUserIds = members.map((m: any) => m.user_id);
-
+  const maxMembers = 11; // 10 members + 1 owner
   const addMember = useMutation({
     mutationFn: async (userId: string) => {
       const { error } = await supabase.from("company_members").insert({
