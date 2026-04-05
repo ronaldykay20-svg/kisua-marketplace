@@ -38,27 +38,36 @@ const SellerOrdersTab = ({ sellerId }: Props) => {
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ["seller_orders", sellerId],
     queryFn: async () => {
-      const { data: prods } = await supabase
+      // Use RPC or direct join — fetch products owned by this seller
+      const { data: prods, error: prodsErr } = await supabase
         .from("products")
         .select("id")
         .eq("seller_id", sellerId);
+      if (prodsErr) console.error("Error fetching seller products:", prodsErr);
       const productIds = (prods || []).map((p: any) => p.id);
       if (productIds.length === 0) return [];
 
-      const { data: items } = await supabase
+      // Fetch order_items for these products — use service-level query
+      const { data: items, error: itemsErr } = await supabase
         .from("order_items")
         .select("order_id, product_id, quantity, unit_price, product_title, variant_info")
         .in("product_id", productIds);
+      if (itemsErr) console.error("Error fetching order items:", itemsErr);
       if (!items || items.length === 0) return [];
 
       const orderIds = [...new Set(items.map((i: any) => i.order_id))];
-      const { data: ordersData } = await supabase
+      
+      // Fetch orders
+      const { data: ordersData, error: ordersErr } = await supabase
         .from("orders")
         .select("*")
         .in("id", orderIds)
         .order("created_at", { ascending: false });
+      if (ordersErr) console.error("Error fetching orders:", ordersErr);
+      if (!ordersData || ordersData.length === 0) return [];
 
-      const buyerIds = [...new Set((ordersData || []).map((o: any) => o.user_id))];
+      // Fetch buyer profiles
+      const buyerIds = [...new Set(ordersData.map((o: any) => o.user_id))];
       const { data: profiles } = await supabase.from("profiles").select("id, full_name").in("id", buyerIds);
       const profileMap = Object.fromEntries((profiles || []).map((p: any) => [p.id, p]));
 
@@ -68,7 +77,7 @@ const SellerOrdersTab = ({ sellerId }: Props) => {
         itemsByOrder[i.order_id].push(i);
       });
 
-      return (ordersData || []).map((o: any) => ({
+      return ordersData.map((o: any) => ({
         ...o,
         items: itemsByOrder[o.id] || [],
         buyer: profileMap[o.user_id] || null,
