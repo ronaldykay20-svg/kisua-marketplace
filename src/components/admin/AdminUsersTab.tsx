@@ -181,7 +181,11 @@ const AdminUsersTab = () => {
                 )}
 
                 {/* Seller toggle */}
-                {!isSeller && (
+                {isSeller ? (
+                  <button onClick={() => removeSeller.mutate({ userId: u.id })} className="flex items-center gap-1 text-[10px] font-bold text-green-500 bg-green-500/10 px-2 py-1 rounded-lg hover:bg-green-500/20 transition">
+                    <Store className="w-3 h-3" /> Remover Vendedor
+                  </button>
+                ) : (
                   <button onClick={() => makeSeller.mutate({ userId: u.id, name: u.full_name || `Vendedor ${u.id.slice(0, 6)}` })} className="flex items-center gap-1 text-[10px] font-bold text-primary bg-primary/10 px-2 py-1 rounded-lg hover:bg-primary/20 transition">
                     <Store className="w-3 h-3" /> Vendedor
                   </button>
