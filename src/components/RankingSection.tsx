@@ -1,101 +1,7 @@
 import { useState, useRef } from "react";
 import { Trophy, Medal, Crown, TrendingUp, Loader2, Store, Package, ChevronRight } from "lucide-react";
-import { useSellerRanking } from "@/hooks/useSalesCount";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { useSellerRanking, useProductRanking, useCompanyRanking } from "@/hooks/useSalesCount";
 import { useNavigate } from "react-router-dom";
-
-const useTopProducts = () =>
-  useQuery({
-    queryKey: ["top_products_ranking"],
-    queryFn: async () => {
-      const { data: items } = await supabase
-        .from("order_items")
-        .select("product_id, order_id, quantity");
-      if (!items || items.length === 0) return [];
-
-      const orderIds = [...new Set(items.map((i: any) => i.order_id))];
-      const { data: orders } = await supabase
-        .from("orders")
-        .select("id")
-        .in("id", orderIds)
-        .in("status", ["confirmed", "shipped", "delivered"]);
-      const confirmedIds = new Set((orders || []).map((o: any) => o.id));
-
-      const salesMap: Record<string, number> = {};
-      items.forEach((item: any) => {
-        if (confirmedIds.has(item.order_id)) {
-          salesMap[item.product_id] = (salesMap[item.product_id] || 0) + (item.quantity || 1);
-        }
-      });
-
-      const productIds = Object.keys(salesMap);
-      if (productIds.length === 0) return [];
-
-      const { data: products } = await supabase
-        .from("products")
-        .select("id, title, price, image_url, product_media(url, is_cover)")
-        .in("id", productIds);
-
-      return (products || [])
-        .map((p: any) => {
-          const cover = p.product_media?.find((m: any) => m.is_cover)?.url || p.image_url || "";
-          return { id: p.id, name: p.title, image: cover, price: p.price, sales: salesMap[p.id] || 0, type: "product" as const };
-        })
-        .sort((a, b) => b.sales - a.sales)
-        .slice(0, 5);
-    },
-  });
-
-const useTopCompanies = () =>
-  useQuery({
-    queryKey: ["top_companies_ranking"],
-    queryFn: async () => {
-      const { data: companies } = await supabase
-        .from("companies")
-        .select("id, name, logo_url")
-        .eq("is_active", true);
-      if (!companies || companies.length === 0) return [];
-
-      const companyIds = companies.map((c: any) => c.id);
-      const { data: products } = await supabase
-        .from("products")
-        .select("id, company_id")
-        .in("company_id", companyIds);
-      if (!products || products.length === 0) return companies.slice(0, 5).map((c: any) => ({ ...c, sales: 0, type: "company" as const }));
-
-      const productIds = products.map((p: any) => p.id);
-      const pcMap: Record<string, string> = {};
-      products.forEach((p: any) => { pcMap[p.id] = p.company_id; });
-
-      const { data: items } = await supabase
-        .from("order_items")
-        .select("product_id, order_id, quantity")
-        .in("product_id", productIds);
-      if (!items || items.length === 0) return companies.slice(0, 5).map((c: any) => ({ ...c, sales: 0, type: "company" as const }));
-
-      const orderIds = [...new Set(items.map((i: any) => i.order_id))];
-      const { data: orders } = await supabase
-        .from("orders")
-        .select("id")
-        .in("id", orderIds)
-        .in("status", ["confirmed", "shipped", "delivered"]);
-      const confirmedIds = new Set((orders || []).map((o: any) => o.id));
-
-      const salesMap: Record<string, number> = {};
-      items.forEach((item: any) => {
-        if (confirmedIds.has(item.order_id)) {
-          const cid = pcMap[item.product_id];
-          if (cid) salesMap[cid] = (salesMap[cid] || 0) + (item.quantity || 1);
-        }
-      });
-
-      return companies
-        .map((c: any) => ({ id: c.id, name: c.name, image: c.logo_url, sales: salesMap[c.id] || 0, type: "company" as const }))
-        .sort((a, b) => b.sales - a.sales)
-        .slice(0, 5);
-    },
-  });
 
 const RankingSection = () => {
   const navigate = useNavigate();
@@ -103,8 +9,8 @@ const RankingSection = () => {
   const [activeSlide, setActiveSlide] = useState(0);
 
   const { data: sellers = [], isLoading: ls } = useSellerRanking();
-  const { data: products = [], isLoading: lp } = useTopProducts();
-  const { data: companies = [], isLoading: lc } = useTopCompanies();
+  const { data: products = [], isLoading: lp } = useProductRanking();
+  const { data: companies = [], isLoading: lc } = useCompanyRanking();
 
   const isLoading = ls || lp || lc;
 
@@ -112,10 +18,18 @@ const RankingSection = () => {
     id: s.id, name: s.name, image: s.logo_url, sales: s.sales, rating: s.rating, type: "seller" as const,
   }));
 
+  const topProducts = products.slice(0, 5).map((p: any) => ({
+    id: p.id, name: p.name || p.title, image: p.image || p.image_url, sales: p.sales, price: p.price, type: "product" as const,
+  }));
+
+  const topCompanies = companies.slice(0, 5).map((c: any) => ({
+    id: c.id, name: c.name, image: c.logo_url, sales: c.sales, type: "company" as const,
+  }));
+
   const slides = [
-    { key: "produtos", label: "Produtos", icon: Package, items: products },
+    { key: "produtos", label: "Produtos", icon: Package, items: topProducts },
     { key: "vendedores", label: "Vendedores", icon: Trophy, items: topSellers },
-    { key: "empresas", label: "Empresas", icon: Store, items: companies },
+    { key: "empresas", label: "Empresas", icon: Store, items: topCompanies },
   ];
 
   const getIcon = (rank: number) => {
@@ -159,7 +73,6 @@ const RankingSection = () => {
         </a>
       </div>
 
-      {/* Slide indicators */}
       <div className="flex items-center justify-center gap-2 mb-3">
         {slides.map((s, i) => (
           <button
@@ -231,7 +144,6 @@ const RankingSection = () => {
         </div>
       )}
 
-      {/* Dots */}
       <div className="flex justify-center gap-1.5 mt-3">
         {slides.map((_, i) => (
           <div key={i} className={`w-2 h-2 rounded-full transition ${activeSlide === i ? "bg-primary" : "bg-border"}`} />
