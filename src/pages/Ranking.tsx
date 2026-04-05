@@ -1,33 +1,135 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Search, Crown, Medal, Award, Star, ChevronLeft, ChevronRight, ShoppingCart, Loader2 } from "lucide-react";
+import { ArrowLeft, Search, Crown, Medal, Award, Star, ChevronLeft, ChevronRight, ShoppingCart, Loader2, Trophy, Store, Package } from "lucide-react";
 import { useSellerRanking } from "@/hooks/useSalesCount";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import BottomNav from "@/components/BottomNav";
 
 const ITEMS_PER_PAGE = 10;
 
+type RankingTab = "vendedores" | "empresas" | "produtos";
+
+const useProductRanking = () =>
+  useQuery({
+    queryKey: ["product_ranking"],
+    queryFn: async () => {
+      const { data: items } = await supabase
+        .from("order_items")
+        .select("product_id, order_id, quantity");
+      if (!items || items.length === 0) return [];
+
+      const orderIds = [...new Set(items.map((i: any) => i.order_id))];
+      const { data: orders } = await supabase
+        .from("orders")
+        .select("id")
+        .in("id", orderIds)
+        .in("status", ["confirmed", "shipped", "delivered"]);
+      const confirmedIds = new Set((orders || []).map((o: any) => o.id));
+
+      const salesMap: Record<string, number> = {};
+      items.forEach((item: any) => {
+        if (confirmedIds.has(item.order_id)) {
+          salesMap[item.product_id] = (salesMap[item.product_id] || 0) + (item.quantity || 1);
+        }
+      });
+
+      const productIds = Object.keys(salesMap);
+      if (productIds.length === 0) return [];
+
+      const { data: products } = await supabase
+        .from("products")
+        .select("id, title, price, image_url, rating, total_reviews, product_media(url, is_cover)")
+        .in("id", productIds);
+
+      return (products || [])
+        .map((p: any) => {
+          const cover = p.product_media?.find((m: any) => m.is_cover)?.url || p.image_url || "";
+          return { ...p, image: cover, sales: salesMap[p.id] || 0 };
+        })
+        .sort((a: any, b: any) => b.sales - a.sales);
+    },
+  });
+
+const useCompanyRanking = () =>
+  useQuery({
+    queryKey: ["company_ranking"],
+    queryFn: async () => {
+      const { data: companies } = await supabase
+        .from("companies")
+        .select("id, name, slug, logo_url, is_verified")
+        .eq("is_active", true);
+      if (!companies || companies.length === 0) return [];
+
+      // Get products linked to companies
+      const companyIds = companies.map((c: any) => c.id);
+      const { data: products } = await supabase
+        .from("products")
+        .select("id, company_id")
+        .in("company_id", companyIds);
+      if (!products || products.length === 0) return companies.map((c: any) => ({ ...c, sales: 0 }));
+
+      const productIds = products.map((p: any) => p.id);
+      const productCompanyMap: Record<string, string> = {};
+      products.forEach((p: any) => { productCompanyMap[p.id] = p.company_id; });
+
+      const { data: items } = await supabase
+        .from("order_items")
+        .select("product_id, order_id, quantity")
+        .in("product_id", productIds);
+      if (!items || items.length === 0) return companies.map((c: any) => ({ ...c, sales: 0 }));
+
+      const orderIds = [...new Set(items.map((i: any) => i.order_id))];
+      const { data: orders } = await supabase
+        .from("orders")
+        .select("id")
+        .in("id", orderIds)
+        .in("status", ["confirmed", "shipped", "delivered"]);
+      const confirmedIds = new Set((orders || []).map((o: any) => o.id));
+
+      const salesMap: Record<string, number> = {};
+      items.forEach((item: any) => {
+        if (confirmedIds.has(item.order_id)) {
+          const cid = productCompanyMap[item.product_id];
+          if (cid) salesMap[cid] = (salesMap[cid] || 0) + (item.quantity || 1);
+        }
+      });
+
+      return companies
+        .map((c: any) => ({ ...c, sales: salesMap[c.id] || 0 }))
+        .sort((a: any, b: any) => b.sales - a.sales);
+    },
+  });
+
 const Ranking = () => {
   const navigate = useNavigate();
+  const [tab, setTab] = useState<RankingTab>("vendedores");
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const { data: sellers = [], isLoading } = useSellerRanking();
+
+  const { data: sellers = [], isLoading: loadingSellers } = useSellerRanking();
+  const { data: products = [], isLoading: loadingProducts } = useProductRanking();
+  const { data: companies = [], isLoading: loadingCompanies } = useCompanyRanking();
+
+  const tabs: { key: RankingTab; label: string; icon: any }[] = [
+    { key: "vendedores", label: "Vendedores", icon: Trophy },
+    { key: "empresas", label: "Empresas", icon: Store },
+    { key: "produtos", label: "Produtos", icon: Package },
+  ];
+
+  const currentData = tab === "vendedores" ? sellers : tab === "empresas" ? companies : products;
+  const isLoading = tab === "vendedores" ? loadingSellers : tab === "empresas" ? loadingCompanies : loadingProducts;
 
   const filtered = searchQuery
-    ? sellers.filter((s: any) => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
-    : sellers;
+    ? currentData.filter((s: any) => (s.name || s.title || "").toLowerCase().includes(searchQuery.toLowerCase()))
+    : currentData;
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+  const top3 = currentData.slice(0, 3);
 
-  const top3 = sellers.slice(0, 3);
-  const top3Labels = ["Mais Vendas", "2º Lugar", "3º Lugar"];
+  const top3Labels = ["Campeão de Vendas", "2º Lugar", "3º Lugar"];
   const top3Colors = ["from-primary to-primary/80", "from-muted-foreground to-muted-foreground/80", "from-amber-700 to-amber-600"];
-
-  const getRankIcon = (rank: number) => {
-    if (rank === 1) return <Crown className="w-5 h-5 text-secondary" />;
-    if (rank === 2) return <Medal className="w-5 h-5 text-muted-foreground" />;
-    if (rank === 3) return <Award className="w-5 h-5 text-amber-700" />;
-    return null;
-  };
 
   const getRankColor = (rank: number) => {
     if (rank === 1) return "bg-secondary/10 text-secondary border-secondary/30";
@@ -36,68 +138,83 @@ const Ranking = () => {
     return "bg-muted text-foreground border-border";
   };
 
+  const getItemName = (item: any) => item.name || item.title || "";
+  const getItemImage = (item: any) => item.logo_url || item.image || item.image_url || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop";
+  const getItemLink = (item: any) => {
+    if (tab === "vendedores") return `/vendedor/${item.id}`;
+    if (tab === "empresas") return `/empresa/${item.id}`;
+    return `/produto/${item.id}`;
+  };
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pb-14 md:pb-0">
       <div className="bg-primary">
         <div className="container mx-auto px-4 h-14 flex items-center justify-between">
-          <button onClick={() => navigate(-1)} className="text-primary-foreground">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
+          <button onClick={() => navigate(-1)} className="text-primary-foreground"><ArrowLeft className="w-5 h-5" /></button>
           <h1 className="text-lg font-black text-primary-foreground tracking-tight">RANKING</h1>
-          <button className="text-primary-foreground relative">
-            <ShoppingCart className="w-5 h-5" />
-          </button>
+          <button onClick={() => navigate("/carrinho")} className="text-primary-foreground"><ShoppingCart className="w-5 h-5" /></button>
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-4 md:py-6 space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <h2 className="text-xl font-black text-foreground">Ranking de Vendedores</h2>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Pesquisar vendedor..."
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-              className="w-full sm:w-64 pl-9 pr-4 py-2.5 rounded-card border border-border bg-card text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-            />
-          </div>
+      {/* Tabs */}
+      <div className="bg-card border-b border-border sticky top-0 z-30">
+        <div className="container mx-auto px-4 flex">
+          {tabs.map(t => (
+            <button
+              key={t.key}
+              onClick={() => { setTab(t.key); setCurrentPage(1); setSearchQuery(""); }}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-bold border-b-2 transition ${
+                tab === t.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <t.icon className="w-4 h-4" />
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="container mx-auto px-4 py-4 space-y-5">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder={`Pesquisar ${tab}...`}
+            value={searchQuery}
+            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+            className="w-full pl-9 pr-4 py-2.5 rounded-card border border-border bg-card text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
         </div>
 
         {isLoading ? (
-          <div className="flex justify-center py-12">
-            <Loader2 className="w-6 h-6 animate-spin text-primary" />
-          </div>
+          <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
         ) : (
           <>
             {/* Top 3 */}
             {top3.length > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {top3.map((seller: any, i: number) => (
-                  <div
-                    key={seller.id}
-                    onClick={() => navigate(`/vendedor/${seller.id}`)}
-                    className="bg-card rounded-card border border-border overflow-hidden cursor-pointer hover:shadow-lg transition group"
-                  >
+                {top3.map((item: any, i: number) => (
+                  <div key={item.id} onClick={() => navigate(getItemLink(item))}
+                    className="bg-card rounded-card border border-border overflow-hidden cursor-pointer hover:shadow-lg transition group">
                     <div className={`bg-gradient-to-r ${top3Colors[i]} px-3 py-2`}>
                       <span className="text-xs font-black text-primary-foreground uppercase tracking-wide">{top3Labels[i]}</span>
                     </div>
                     <div className="p-4 flex flex-col items-center">
-                      <div className="w-20 h-20 rounded-full overflow-hidden mb-3 bg-muted border-2 border-border">
-                        <img
-                          src={seller.logo_url || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop"}
-                          alt={seller.name}
-                          className="w-full h-full object-cover"
-                        />
+                      <div className={`w-20 h-20 ${tab === "produtos" ? "rounded-card" : "rounded-full"} overflow-hidden mb-3 bg-muted border-2 border-border`}>
+                        <img src={getItemImage(item)} alt={getItemName(item)} className="w-full h-full object-cover" />
                       </div>
-                      <p className="text-sm font-bold text-foreground text-center line-clamp-1">{seller.name}</p>
-                      <div className="flex items-center gap-1 mt-1.5">
-                        <Star className="w-3.5 h-3.5 text-secondary fill-secondary" />
-                        <span className="text-xs font-semibold text-foreground">{seller.rating}</span>
-                        <span className="text-[10px] text-muted-foreground">({seller.reviews_count} avaliações)</span>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1 font-semibold">{seller.sales} vendas</p>
+                      <p className="text-sm font-bold text-foreground text-center line-clamp-2">{getItemName(item)}</p>
+                      {tab === "produtos" && item.price && (
+                        <span className="text-xs font-black text-primary mt-1">{Number(item.price).toLocaleString("pt-AO")} Kz</span>
+                      )}
+                      {tab === "vendedores" && (
+                        <div className="flex items-center gap-1 mt-1.5">
+                          <Star className="w-3.5 h-3.5 text-secondary fill-secondary" />
+                          <span className="text-xs font-semibold text-foreground">{item.rating}</span>
+                          <span className="text-[10px] text-muted-foreground">({item.reviews_count || 0} avaliações)</span>
+                        </div>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-1 font-semibold">{item.sales} vendas</p>
                     </div>
                   </div>
                 ))}
@@ -106,49 +223,36 @@ const Ranking = () => {
 
             {/* Table */}
             <div>
-              <h2 className="text-lg font-black text-foreground mb-3 uppercase tracking-tight">Top Vendedores</h2>
+              <h2 className="text-lg font-black text-foreground mb-3 uppercase tracking-tight">
+                Campeões de Vendas — {tabs.find(t => t.key === tab)?.label}
+              </h2>
               <div className="bg-card rounded-card border border-border overflow-hidden">
-                <div className="grid grid-cols-[48px_1fr_100px_80px] md:grid-cols-[60px_1fr_150px_100px] bg-primary text-primary-foreground">
+                <div className="grid grid-cols-[48px_1fr_100px] md:grid-cols-[60px_1fr_150px] bg-primary text-primary-foreground">
                   <div className="px-3 py-3 text-xs font-black uppercase">#</div>
-                  <div className="px-3 py-3 text-xs font-black uppercase">Vendedor</div>
+                  <div className="px-3 py-3 text-xs font-black uppercase">{tab === "produtos" ? "Produto" : tab === "empresas" ? "Empresa" : "Vendedor"}</div>
                   <div className="px-3 py-3 text-xs font-black uppercase text-center">Vendas</div>
-                  <div className="px-3 py-3 text-xs font-black uppercase text-center">Rating</div>
                 </div>
 
                 {paginated.length === 0 ? (
-                  <p className="text-center py-8 text-sm text-muted-foreground">Nenhum vendedor encontrado.</p>
+                  <p className="text-center py-8 text-sm text-muted-foreground">Nenhum resultado encontrado.</p>
                 ) : (
-                  paginated.map((seller: any, i: number) => {
+                  paginated.map((item: any, i: number) => {
                     const rank = (currentPage - 1) * ITEMS_PER_PAGE + i + 1;
                     return (
-                      <div
-                        key={seller.id}
-                        onClick={() => navigate(`/vendedor/${seller.id}`)}
-                        className={`grid grid-cols-[48px_1fr_100px_80px] md:grid-cols-[60px_1fr_150px_100px] items-center cursor-pointer hover:bg-muted/50 transition ${
+                      <div key={item.id} onClick={() => navigate(getItemLink(item))}
+                        className={`grid grid-cols-[48px_1fr_100px] md:grid-cols-[60px_1fr_150px] items-center cursor-pointer hover:bg-muted/50 transition ${
                           i !== paginated.length - 1 ? "border-b border-border" : ""
-                        }`}
-                      >
+                        }`}>
                         <div className="px-3 py-3 flex items-center justify-center">
-                          <span className={`w-8 h-8 rounded-card border flex items-center justify-center text-sm font-black ${getRankColor(rank)}`}>
-                            {rank}
-                          </span>
+                          <span className={`w-8 h-8 rounded-card border flex items-center justify-center text-sm font-black ${getRankColor(rank)}`}>{rank}</span>
                         </div>
                         <div className="px-3 py-3 flex items-center gap-3">
-                          <img
-                            src={seller.logo_url || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop"}
-                            alt={seller.name}
-                            className="w-10 h-10 md:w-12 md:h-12 rounded-full object-cover flex-shrink-0"
-                          />
-                          <div className="min-w-0 flex items-center gap-2">
-                            <span className="text-sm font-semibold text-foreground truncate">{seller.name}</span>
-                            {getRankIcon(rank)}
-                          </div>
+                          <img src={getItemImage(item)} alt={getItemName(item)}
+                            className={`w-10 h-10 md:w-12 md:h-12 ${tab === "produtos" ? "rounded-card" : "rounded-full"} object-cover flex-shrink-0`} />
+                          <span className="text-sm font-semibold text-foreground truncate">{getItemName(item)}</span>
                         </div>
                         <div className="px-3 py-3 text-center">
-                          <span className="text-xs font-semibold text-muted-foreground">{seller.sales} vendas</span>
-                        </div>
-                        <div className="px-3 py-3 text-center">
-                          <span className="text-sm font-black text-primary">{seller.rating}</span>
+                          <span className="text-xs font-semibold text-muted-foreground">{item.sales} vendas</span>
                         </div>
                       </div>
                     );
@@ -159,31 +263,18 @@ const Ranking = () => {
               {totalPages > 1 && (
                 <div className="flex items-center justify-center gap-1.5 mt-4">
                   <span className="text-xs text-muted-foreground mr-2">Página {currentPage} de {totalPages}</span>
-                  <button
-                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                    disabled={currentPage === 1}
-                    className="w-8 h-8 rounded-card border border-border flex items-center justify-center text-muted-foreground hover:bg-muted disabled:opacity-40 transition"
-                  >
+                  <button onClick={() => setCurrentPage(Math.max(1, currentPage - 1))} disabled={currentPage === 1}
+                    className="w-8 h-8 rounded-card border border-border flex items-center justify-center text-muted-foreground hover:bg-muted disabled:opacity-40 transition">
                     <ChevronLeft className="w-4 h-4" />
                   </button>
-                  {Array.from({ length: totalPages }).map((_, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setCurrentPage(i + 1)}
+                  {Array.from({ length: Math.min(totalPages, 5) }).map((_, i) => (
+                    <button key={i} onClick={() => setCurrentPage(i + 1)}
                       className={`w-8 h-8 rounded-card text-xs font-bold transition ${
-                        currentPage === i + 1
-                          ? "bg-primary text-primary-foreground"
-                          : "border border-border text-foreground hover:bg-muted"
-                      }`}
-                    >
-                      {i + 1}
-                    </button>
+                        currentPage === i + 1 ? "bg-primary text-primary-foreground" : "border border-border text-foreground hover:bg-muted"
+                      }`}>{i + 1}</button>
                   ))}
-                  <button
-                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                    disabled={currentPage === totalPages}
-                    className="w-8 h-8 rounded-card border border-border flex items-center justify-center text-muted-foreground hover:bg-muted disabled:opacity-40 transition"
-                  >
+                  <button onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))} disabled={currentPage === totalPages}
+                    className="w-8 h-8 rounded-card border border-border flex items-center justify-center text-muted-foreground hover:bg-muted disabled:opacity-40 transition">
                     <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
@@ -192,6 +283,7 @@ const Ranking = () => {
           </>
         )}
       </div>
+      <BottomNav />
     </div>
   );
 };
