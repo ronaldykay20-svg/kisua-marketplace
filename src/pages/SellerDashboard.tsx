@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Store, Package, Plus, Edit, Trash2, Eye, EyeOff, ShoppingCart, Settings, Image as ImageIcon } from "lucide-react";
+import { Store, Package, Plus, Edit, Trash2, Eye, EyeOff, ShoppingCart, Settings, Image as ImageIcon, ClipboardList } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
 import { useAuth } from "@/contexts/AuthContext";
@@ -8,8 +8,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import SellerProductForm from "@/components/seller/SellerProductForm";
 import SellerProfileEditor from "@/components/seller/SellerProfileEditor";
+import SellerOrdersTab from "@/components/seller/SellerOrdersTab";
 
-type Tab = "produtos" | "perfil";
+type Tab = "produtos" | "pedidos" | "perfil";
 
 const SellerDashboard = () => {
   const { user } = useAuth();
@@ -207,6 +208,7 @@ const SellerDashboard = () => {
         <div className="flex gap-1 mb-4">
           {([
             { key: "produtos" as Tab, label: "Produtos", icon: Package },
+            { key: "pedidos" as Tab, label: "Pedidos", icon: ClipboardList },
             { key: "perfil" as Tab, label: "Perfil", icon: Settings },
           ]).map(t => (
             <button key={t.key} onClick={() => setTab(t.key)}
@@ -291,6 +293,9 @@ const SellerDashboard = () => {
             </div>
           </>
         )}
+
+        {/* ═══ PEDIDOS ═══ */}
+        {tab === "pedidos" && <SellerOrdersTab sellerId={seller.id} />}
 
         {/* ═══ PERFIL ═══ */}
         {tab === "perfil" && <SellerProfileEditor seller={seller} />}
