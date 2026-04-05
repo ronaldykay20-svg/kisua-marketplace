@@ -65,7 +65,11 @@ const ProductDetail = () => {
   const { data: dbReviews = [] } = useQuery({
     queryKey: ["product_reviews_detail", id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("seller_reviews").select("*").eq("seller_id", (product as any)?.seller?.id || "none").order("created_at", { ascending: false });
+      const { data, error } = await supabase
+        .from("product_reviews")
+        .select("*")
+        .eq("product_id", id!)
+        .order("created_at", { ascending: false });
       if (error) return [];
       const userIds = [...new Set((data || []).map((r: any) => r.user_id))];
       let profileMap: Record<string, any> = {};
@@ -96,7 +100,24 @@ const ProductDetail = () => {
         replies: repliesMap[r.id] || [],
       }));
     },
-    enabled: !!product,
+    enabled: !!isUuid,
+  });
+
+  // Check if user has purchased this product (delivered orders)
+  const { user } = useAuth();
+  const { data: userOrders = [] } = useQuery({
+    queryKey: ["user_delivered_orders_for_product", id, user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("orders")
+        .select("id, order_items!inner(product_id)")
+        .eq("user_id", user!.id)
+        .eq("status", "delivered")
+        .eq("order_items.product_id", id!);
+      if (error) return [];
+      return data || [];
+    },
+    enabled: !!user && !!isUuid,
   });
 
   if (!product) {
@@ -496,7 +517,7 @@ const ProductDetail = () => {
       </div>
 
       {/* Reviews section */}
-      <ProductReviewsSection productId={id || ""} product={product} dbReviews={dbReviews} staticReviews={staticReviews} />
+      <ProductReviewsSection productId={id || ""} product={product} dbReviews={dbReviews} staticReviews={staticReviews} userOrders={userOrders} />
 
       {/* Carousels */}
       <div className="mt-2 bg-card p-4 md:container md:mx-auto md:rounded-card md:border md:border-border md:my-4">
@@ -538,20 +559,47 @@ const ProductDetail = () => {
   );
 };
 
-// ── Product Reviews Section with Replies ──
-const ProductReviewsSection = ({ productId, product, dbReviews, staticReviews }: { productId: string; product: any; dbReviews: any[]; staticReviews: any[] }) => {
+// ── Product Reviews Section with Replies + Review Form ──
+const ProductReviewsSection = ({ productId, product, dbReviews, staticReviews, userOrders }: { productId: string; product: any; dbReviews: any[]; staticReviews: any[]; userOrders: any[] }) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState("");
+  const [showReviewForm, setShowReviewForm] = useState(false);
 
   const reviews = dbReviews.length > 0 ? dbReviews : null;
+
+  // Check if user already reviewed this product
+  const alreadyReviewed = reviews?.some((r: any) => r.user_id === user?.id);
+  const canReview = user && userOrders.length > 0 && !alreadyReviewed;
+
+  const submitReview = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("product_reviews").insert({
+        product_id: productId,
+        user_id: user!.id,
+        order_id: userOrders[0]?.id,
+        rating: reviewRating,
+        comment: reviewComment || null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["product_reviews_detail", productId] });
+      queryClient.invalidateQueries({ queryKey: ["product", productId] });
+      setReviewComment("");
+      setReviewRating(5);
+      setShowReviewForm(false);
+    },
+  });
 
   const submitReply = useMutation({
     mutationFn: async (reviewId: string) => {
       const { error } = await supabase.from("review_replies").insert({
         review_id: reviewId,
-        review_type: "seller",
+        review_type: "product",
         user_id: user!.id,
         content: replyText,
       });
@@ -566,16 +614,65 @@ const ProductReviewsSection = ({ productId, product, dbReviews, staticReviews }:
 
   return (
     <div className="bg-card mt-2 p-4 md:container md:mx-auto md:rounded-card md:border md:border-border md:my-4">
-      <h3 className="text-base font-black text-foreground mb-1">Avaliações dos clientes</h3>
+      <div className="flex items-center justify-between mb-1">
+        <h3 className="text-base font-black text-foreground">Avaliações dos clientes</h3>
+        {canReview && (
+          <button
+            onClick={() => setShowReviewForm(!showReviewForm)}
+            className="px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-bold"
+          >
+            Avaliar produto
+          </button>
+        )}
+      </div>
       <div className="flex items-center gap-2 mb-4">
         <div className="flex items-center gap-0.5">
           {Array.from({ length: 5 }).map((_, i) => (
             <Star key={i} className={`w-4 h-4 ${i < Math.floor(product.rating || 0) ? "text-secondary fill-secondary" : "text-border"}`} />
           ))}
         </div>
-        <span className="text-sm font-semibold text-foreground">{product.rating} de 5</span>
-        <span className="text-xs text-muted-foreground">({product.reviews} avaliações)</span>
+        <span className="text-sm font-semibold text-foreground">{product.rating || 0} de 5</span>
+        <span className="text-xs text-muted-foreground">({product.reviews || 0} avaliações)</span>
       </div>
+
+      {/* Review form */}
+      {showReviewForm && canReview && (
+        <div className="border border-primary/20 rounded-card p-4 mb-4 bg-primary/5">
+          <p className="text-sm font-bold text-foreground mb-3">A sua avaliação</p>
+          <div className="flex items-center gap-1 mb-3">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <button key={i} onClick={() => setReviewRating(i + 1)}>
+                <Star className={`w-6 h-6 transition ${i < reviewRating ? "text-secondary fill-secondary" : "text-border"}`} />
+              </button>
+            ))}
+            <span className="text-sm text-muted-foreground ml-2">{reviewRating}/5</span>
+          </div>
+          <textarea
+            value={reviewComment}
+            onChange={e => setReviewComment(e.target.value)}
+            placeholder="Escreva a sua opinião sobre o produto (opcional)..."
+            rows={3}
+            className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground resize-none"
+          />
+          <div className="flex justify-end gap-2 mt-3">
+            <button onClick={() => setShowReviewForm(false)} className="px-4 py-2 rounded-full text-xs font-bold text-muted-foreground hover:text-foreground">
+              Cancelar
+            </button>
+            <button
+              onClick={() => submitReview.mutate()}
+              disabled={submitReview.isPending}
+              className="px-4 py-2 rounded-full bg-primary text-primary-foreground text-xs font-bold disabled:opacity-50 flex items-center gap-1"
+            >
+              {submitReview.isPending && <Loader2 className="w-3 h-3 animate-spin" />}
+              Enviar avaliação
+            </button>
+          </div>
+        </div>
+      )}
+
+      {alreadyReviewed && (
+        <p className="text-xs text-muted-foreground mb-3 italic">✓ Já avaliou este produto</p>
+      )}
 
       {reviews ? (
         <div className="space-y-4">
