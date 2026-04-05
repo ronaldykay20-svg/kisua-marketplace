@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { SlidersHorizontal, ChevronDown, ShoppingCart, Star, Loader2 } from "lucide-react";
+import { SlidersHorizontal, ChevronDown, ShoppingCart, Star, Loader2, Plus, X } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
-import MobileProductCard from "@/components/MobileProductCard";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { allProducts } from "@/data/products";
 import { useQuery } from "@tanstack/react-query";
@@ -29,6 +28,22 @@ const subcategories: Record<string, string[]> = {
   "Animais": ["Cães", "Gatos", "Aves", "Acessórios", "Alimentação"],
 };
 
+const colorOptions = [
+  { name: "Múltiplo", color: "bg-gradient-to-br from-yellow-400 via-pink-500 to-blue-500" },
+  { name: "Preto", color: "bg-black" },
+  { name: "Branco", color: "bg-white border border-border" },
+  { name: "Rosa", color: "bg-pink-400" },
+  { name: "Azul", color: "bg-blue-500" },
+  { name: "Cinza", color: "bg-gray-400" },
+  { name: "Verde", color: "bg-green-500" },
+  { name: "Vermelho", color: "bg-red-500" },
+  { name: "Amarelo", color: "bg-yellow-400" },
+  { name: "Cáqui", color: "bg-amber-600" },
+  { name: "Marrom", color: "bg-amber-800" },
+  { name: "Roxo", color: "bg-purple-500" },
+  { name: "Laranja", color: "bg-orange-500" },
+];
+
 const sortOptions = ["Recomendado", "Menor preço", "Maior preço", "Mais vendidos", "Mais recentes"];
 
 const CategoriaDetalhe = () => {
@@ -37,17 +52,15 @@ const CategoriaDetalhe = () => {
   const categoryName = decodeURIComponent(nome || "");
   const [sortBy, setSortBy] = useState("Recomendado");
   const [showSort, setShowSort] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [selectedSub, setSelectedSub] = useState<string | null>(null);
+  const [selectedColors, setSelectedColors] = useState<string[]>([]);
   const isMobile = useIsMobile();
 
   const { data: dbCategories } = useCategories();
-
-  // Find the category ID from the name
   const category = (dbCategories || []).find((c: any) => c.name === categoryName);
   const categoryId = category?.id;
 
-  // Load products from DB filtered by category
   const { data: dbProducts, isLoading } = useQuery({
     queryKey: ["category_products", categoryId, sortBy],
     queryFn: async () => {
@@ -55,16 +68,11 @@ const CategoriaDetalhe = () => {
         .from("products")
         .select("*, product_media(url, is_cover)")
         .eq("is_active", true);
-
-      if (categoryId) {
-        query = query.eq("category_id", categoryId);
-      }
-
+      if (categoryId) query = query.eq("category_id", categoryId);
       if (sortBy === "Menor preço") query = query.order("price", { ascending: true });
       else if (sortBy === "Maior preço") query = query.order("price", { ascending: false });
       else if (sortBy === "Mais vendidos") query = query.order("sales_count", { ascending: false });
       else query = query.order("created_at", { ascending: false });
-
       const { data, error } = await query;
       if (error) throw error;
       return data || [];
@@ -72,14 +80,14 @@ const CategoriaDetalhe = () => {
     enabled: true,
   });
 
-  // Map DB products to display format, fallback to static
   const products = dbProducts && dbProducts.length > 0
     ? dbProducts.map((p: any) => {
         const cover = p.product_media?.find((m: any) => m.is_cover)?.url || p.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&h=600&fit=crop";
         return {
           id: p.id,
           title: p.title,
-          price: Number(p.price).toLocaleString("pt-AO").replace(/,/g, ".") + " Kz",
+          price: Number(p.price),
+          priceFormatted: Number(p.price).toLocaleString("pt-AO").replace(/,/g, ".") + " Kz",
           oldPrice: p.old_price ? Number(p.old_price).toLocaleString("pt-AO").replace(/,/g, ".") + " Kz" : undefined,
           discount: p.discount_percent ? `-${p.discount_percent}%` : undefined,
           image: cover,
@@ -87,16 +95,121 @@ const CategoriaDetalhe = () => {
           reviews: p.total_reviews || 0,
           freeShipping: p.free_shipping,
           badge: p.badge,
+          salesCount: p.sales_count || 0,
+          sellerName: "",
         };
       })
-    : allProducts;
+    : allProducts.map(p => ({ ...p, price: 0, priceFormatted: p.price, salesCount: 0, sellerName: "" }));
 
   const subs = subcategories[categoryName] || ["Todos"];
+
+  const toggleColor = (c: string) => {
+    setSelectedColors(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]);
+  };
+
+  const FiltersPanel = () => (
+    <div className="space-y-5">
+      {/* Subcategory */}
+      <div>
+        <h3 className="text-sm font-bold text-foreground mb-2">Categoria</h3>
+        <div className="space-y-1">
+          {subs.map(sub => (
+            <button key={sub} onClick={() => setSelectedSub(selectedSub === sub ? null : sub)}
+              className="flex items-center justify-between w-full text-left px-1 py-1.5 text-xs text-foreground hover:text-primary">
+              <div className="flex items-center gap-2">
+                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${selectedSub === sub ? "border-primary" : "border-muted-foreground"}`}>
+                  {selectedSub === sub && <div className="w-2 h-2 rounded-full bg-primary" />}
+                </div>
+                {sub}
+              </div>
+              <Plus className="w-3 h-3 text-muted-foreground" />
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Colors */}
+      <div>
+        <h3 className="text-sm font-bold text-foreground mb-2">Cor</h3>
+        <div className="grid grid-cols-2 gap-2">
+          {colorOptions.map(c => (
+            <button key={c.name} onClick={() => toggleColor(c.name)}
+              className={`flex items-center gap-2 text-xs ${selectedColors.includes(c.name) ? "font-bold text-primary" : "text-foreground"}`}>
+              <div className={`w-5 h-5 rounded-full ${c.color} flex-shrink-0`} />
+              {c.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Price */}
+      <div>
+        <h3 className="text-sm font-bold text-foreground mb-2">Preço</h3>
+        <div className="space-y-1">
+          {["Até 10.000 Kz", "10.000 - 50.000 Kz", "50.000 - 200.000 Kz", "200.000+"].map(p => (
+            <button key={p} className="flex items-center gap-2 w-full text-left px-1 py-1.5 text-xs text-foreground hover:text-primary">
+              <div className="w-4 h-4 rounded border border-muted-foreground" />
+              {p}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  // Product card matching SHEIN style
+  const ProductCardShein = ({ product }: { product: any }) => (
+    <button onClick={() => navigate(`/produto/${product.id}`)}
+      className="w-full text-left bg-card overflow-hidden group">
+      <div className="relative aspect-[3/4] overflow-hidden bg-muted">
+        <img src={product.image} alt={product.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
+        {product.discount && (
+          <span className="absolute bottom-1.5 right-1.5 w-7 h-7 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center">{product.discount}</span>
+        )}
+      </div>
+      <div className="px-1 py-2">
+        {product.badge && (
+          <div className="flex items-center gap-1 mb-0.5">
+            <span className="text-[9px] font-bold bg-primary/10 text-primary px-1 py-0.5 rounded">Local</span>
+            {product.discount && <span className="text-[9px] font-bold bg-destructive/10 text-destructive px-1 py-0.5 rounded">{product.discount}</span>}
+          </div>
+        )}
+        <h3 className="text-xs font-medium text-foreground line-clamp-1 mb-0.5">{product.title}</h3>
+        {product.salesCount > 0 && (
+          <p className="text-[10px] text-primary font-bold mb-0.5">
+            #{Math.min(product.salesCount, 7)} Mais Vendido
+          </p>
+        )}
+        {product.rating > 0 && (
+          <div className="flex items-center gap-0.5 mb-0.5">
+            {[...Array(5)].map((_, i) => (
+              <Star key={i} className={`w-2.5 h-2.5 ${i < product.rating ? "fill-secondary text-secondary" : "text-muted-foreground/30"}`} />
+            ))}
+            {product.reviews > 0 && <span className="text-[9px] text-muted-foreground ml-0.5">({product.reviews})</span>}
+          </div>
+        )}
+        <div className="flex items-baseline gap-1">
+          {product.oldPrice && <span className="text-[10px] text-muted-foreground line-through">{product.oldPrice}</span>}
+          <span className="text-sm font-black text-foreground">{product.priceFormatted}</span>
+        </div>
+        {product.salesCount > 100 && (
+          <p className="text-[10px] text-muted-foreground mt-0.5">Mais de {product.salesCount.toLocaleString()} unidades vendidas</p>
+        )}
+        <div className="flex items-center justify-between mt-1">
+          {product.freeShipping && <span className="text-[9px] text-accent font-semibold">Frete grátis</span>}
+          <div className="ml-auto w-7 h-7 rounded border border-border flex items-center justify-center">
+            <ShoppingCart className="w-3.5 h-3.5 text-muted-foreground" />
+          </div>
+        </div>
+      </div>
+    </button>
+  );
 
   return (
     <div className="min-h-screen bg-background pb-14 md:pb-0">
       <Navbar />
 
+      {/* Breadcrumb */}
       <div className="container mx-auto px-3 py-2 flex items-center gap-1 text-xs text-muted-foreground">
         <button onClick={() => navigate("/")} className="hover:text-primary">Início</button>
         <span>/</span>
@@ -105,11 +218,12 @@ const CategoriaDetalhe = () => {
         <span className="text-foreground font-medium">{categoryName}</span>
       </div>
 
+      {/* Sort bar */}
       <div className="sticky top-[7.5rem] z-30 bg-card border-b border-border">
         <div className="container mx-auto px-3 py-2 flex items-center gap-2">
           <div className="relative flex-1">
             <button onClick={() => setShowSort(!showSort)} className="flex items-center gap-1 text-xs font-medium text-foreground">
-              Ordenar: <span className="text-primary">{sortBy}</span> <ChevronDown className="w-3 h-3" />
+              Ordenar por <span className="text-primary font-bold">{sortBy}</span> <ChevronDown className="w-3 h-3" />
             </button>
             {showSort && (
               <div className="absolute top-full left-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-40 min-w-[160px]">
@@ -122,93 +236,47 @@ const CategoriaDetalhe = () => {
               </div>
             )}
           </div>
-          <button onClick={() => setShowFilters(!showFilters)} className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-border text-xs font-medium text-foreground">
-            <SlidersHorizontal className="w-3.5 h-3.5" /> Filtros
-          </button>
+          {isMobile && (
+            <button onClick={() => setShowMobileFilters(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-border text-xs font-medium text-foreground">
+              <SlidersHorizontal className="w-3.5 h-3.5" /> Filtro
+            </button>
+          )}
         </div>
       </div>
 
+      {/* Mobile filter drawer */}
+      {isMobile && showMobileFilters && (
+        <div className="fixed inset-0 z-50 bg-black/50" onClick={() => setShowMobileFilters(false)}>
+          <div className="absolute left-0 top-0 bottom-0 w-72 bg-card overflow-y-auto p-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-bold text-foreground">Filtro</h2>
+              <button onClick={() => setShowMobileFilters(false)}><X className="w-5 h-5 text-muted-foreground" /></button>
+            </div>
+            <FiltersPanel />
+          </div>
+        </div>
+      )}
+
       <div className="container mx-auto px-3 flex gap-4">
-        <aside className={`${showFilters ? "block" : "hidden"} md:block w-full md:w-56 flex-shrink-0 py-3`}>
-          <div className="bg-card rounded-lg border border-border p-3 space-y-4">
-            <div>
-              <h3 className="text-xs font-bold text-foreground mb-2">Subcategoria</h3>
-              <div className="space-y-1">
-                {subs.map(sub => (
-                  <button key={sub} onClick={() => setSelectedSub(selectedSub === sub ? null : sub)}
-                    className={`flex items-center gap-2 w-full text-left px-2 py-1.5 rounded text-xs ${selectedSub === sub ? "bg-primary/10 text-primary font-semibold" : "text-foreground hover:bg-muted"}`}>
-                    <div className={`w-3.5 h-3.5 rounded-full border-2 ${selectedSub === sub ? "border-primary bg-primary" : "border-muted-foreground"}`} />
-                    {sub}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <h3 className="text-xs font-bold text-foreground mb-2">Preço</h3>
-              <div className="space-y-1">
-                {["Até 10.000 Kz", "10.000 - 50.000 Kz", "50.000 - 200.000 Kz", "200.000+"].map(p => (
-                  <button key={p} className="flex items-center gap-2 w-full text-left px-2 py-1.5 rounded text-xs text-foreground hover:bg-muted">
-                    <div className="w-3.5 h-3.5 rounded border border-muted-foreground" />
-                    {p}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </aside>
+        {/* Desktop sidebar filters */}
+        {!isMobile && (
+          <aside className="w-56 flex-shrink-0 py-3">
+            <FiltersPanel />
+          </aside>
+        )}
 
+        {/* Products grid */}
         <div className="flex-1 py-3">
-          <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide mb-3 pb-1">
-            {subs.map(sub => (
-              <button key={sub} onClick={() => setSelectedSub(selectedSub === sub ? null : sub)}
-                className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition ${selectedSub === sub ? "bg-primary text-primary-foreground border-primary" : "border-border text-foreground hover:border-primary/30"}`}>
-                {sub}
-              </button>
-            ))}
-          </div>
-
           {isLoading ? (
             <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
           ) : (
             <>
               <p className="text-xs text-muted-foreground mb-3">{products.length} resultados em "{categoryName}"</p>
-
-              {isMobile ? (
-                <div className="columns-2 gap-1.5 space-y-1.5">
-                  {products.map((p: any, i: number) => (
-                    <MobileProductCard key={p.id} product={p} index={i} />
-                  ))}
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-                  {products.map((p: any) => (
-                    <button key={p.id} onClick={() => navigate(`/produto/${p.id}`)} className="bg-card rounded-lg border border-border overflow-hidden text-left hover:shadow-md transition group">
-                      <div className="relative aspect-square overflow-hidden">
-                        {p.discount && <span className="absolute top-1.5 left-1.5 bg-destructive text-destructive-foreground text-[10px] font-bold px-1.5 py-0.5 rounded z-10">{p.discount}</span>}
-                        {p.badge && <span className="absolute top-1.5 right-1.5 bg-walmart-orange text-primary-foreground text-[10px] font-bold px-1.5 py-0.5 rounded z-10">{p.badge}</span>}
-                        <img src={p.image} alt={p.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy" />
-                      </div>
-                      <div className="p-2">
-                        <h3 className="text-xs font-medium text-foreground line-clamp-2 leading-tight mb-1">{p.title}</h3>
-                        <div className="flex items-center gap-1 mb-1">
-                          {[...Array(5)].map((_, i) => (
-                            <Star key={i} className={`w-2.5 h-2.5 ${i < (p.rating || 0) ? "fill-walmart-orange text-walmart-orange" : "text-muted-foreground"}`} />
-                          ))}
-                          <span className="text-[10px] text-muted-foreground">({p.reviews})</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <span className="text-sm font-bold text-foreground">{p.price}</span>
-                            {p.oldPrice && <span className="text-[10px] text-muted-foreground line-through ml-1">{p.oldPrice}</span>}
-                          </div>
-                          <ShoppingCart className="w-4 h-4 text-primary" />
-                        </div>
-                        {p.freeShipping && <span className="text-[9px] text-walmart-green font-semibold">Frete grátis</span>}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                {products.map((p: any) => (
+                  <ProductCardShein key={p.id} product={p} />
+                ))}
+              </div>
             </>
           )}
         </div>

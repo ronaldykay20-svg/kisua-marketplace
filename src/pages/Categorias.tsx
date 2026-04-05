@@ -1,4 +1,5 @@
-import { Car, Home, Smartphone, ShoppingBag, Briefcase, Dumbbell, BookOpen, Utensils, Wrench, Baby, HeartPulse, Monitor, Gamepad2, Gem, Plane, PawPrint } from "lucide-react";
+import { useState } from "react";
+import { Car, Home, Smartphone, ShoppingBag, Briefcase, Dumbbell, BookOpen, Utensils, Wrench, Baby, HeartPulse, Monitor, Gamepad2, Gem, Plane, PawPrint, ChevronRight, Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
@@ -31,9 +32,18 @@ const staticCategories = [
   { name: "Animais", image: "https://images.unsplash.com/photo-1450778869180-41d0601e046e?w=200&h=200&fit=crop" },
 ];
 
+const subcategories: Record<string, string[]> = {
+  "Electrónicos": ["Smartphones", "Tablets", "Computadores", "Áudio", "TV & Vídeo", "Câmeras", "Acessórios"],
+  "Moda": ["Feminino", "Masculino", "Calçado", "Acessórios", "Infantil"],
+  "Casa & Jardim": ["Mobília", "Decoração", "Ferramentas", "Jardim", "Iluminação"],
+  "Desporto": ["Fitness", "Futebol", "Natação", "Corrida", "Ciclismo"],
+  "Saúde & Beleza": ["Skincare", "Maquiagem", "Perfumes", "Cabelo", "Suplementos"],
+};
+
 const Categorias = () => {
   const navigate = useNavigate();
   const { data: dbCategories } = useCategories();
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   const categories = dbCategories && dbCategories.length > 0
     ? dbCategories.map((c: any) => ({ name: c.name, image: c.image_url || "" }))
@@ -42,26 +52,76 @@ const Categorias = () => {
   return (
     <div className="min-h-screen bg-background pb-14 md:pb-0">
       <Navbar />
-      <div className="container mx-auto px-3 py-4">
-        <h1 className="text-lg font-bold text-foreground mb-4">Todas as Categorias</h1>
-        <div className="space-y-1">
+      <div className="container mx-auto px-3 flex gap-0">
+        {/* Left sidebar - category list */}
+        <aside className="w-28 md:w-48 flex-shrink-0 border-r border-border bg-card">
           {categories.map((cat: any) => {
             const Icon = iconMap[cat.name] || ShoppingBag;
+            const isActive = selectedCategory === cat.name;
             return (
-              <button key={cat.name} onClick={() => navigate(`/categoria/${encodeURIComponent(cat.name)}`)}
-                className="w-full flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-muted transition-colors">
-                {cat.image ? (
-                  <img src={cat.image} alt={cat.name} className="w-12 h-12 rounded-full object-cover border border-border" />
-                ) : (
-                  <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center border border-border">
-                    <Icon className="w-6 h-6 text-muted-foreground" />
-                  </div>
-                )}
-                <span className="text-sm font-medium text-foreground flex-1 text-left">{cat.name}</span>
-                <span className="text-xs text-muted-foreground">Ver todos →</span>
+              <button
+                key={cat.name}
+                onClick={() => setSelectedCategory(isActive ? null : cat.name)}
+                className={`w-full flex items-center gap-2 px-2 py-3 text-left border-b border-border/50 transition ${
+                  isActive ? "bg-primary/5 border-l-2 border-l-primary" : "hover:bg-muted"
+                }`}
+              >
+                <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
+                <span className={`text-[11px] md:text-xs leading-tight ${isActive ? "font-bold text-primary" : "font-medium text-foreground"}`}>{cat.name}</span>
               </button>
             );
           })}
+        </aside>
+
+        {/* Right content */}
+        <div className="flex-1 py-3 px-3">
+          {selectedCategory ? (
+            <>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-bold text-foreground">{selectedCategory}</h2>
+                <button onClick={() => navigate(`/categoria/${encodeURIComponent(selectedCategory)}`)}
+                  className="text-[11px] text-primary font-semibold flex items-center gap-0.5">
+                  Ver todos <ChevronRight className="w-3 h-3" />
+                </button>
+              </div>
+              {/* Subcategories grid */}
+              <div className="grid grid-cols-3 gap-3">
+                {(subcategories[selectedCategory] || ["Todos"]).map(sub => (
+                  <button key={sub} onClick={() => navigate(`/categoria/${encodeURIComponent(selectedCategory)}`)}
+                    className="flex flex-col items-center gap-1.5 group">
+                    <div className="w-14 h-14 rounded-full bg-muted border border-border flex items-center justify-center group-hover:border-primary/50 transition">
+                      <ShoppingBag className="w-5 h-5 text-muted-foreground group-hover:text-primary transition" />
+                    </div>
+                    <span className="text-[10px] text-foreground text-center leading-tight">{sub}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              <h2 className="text-sm font-bold text-foreground mb-3">Todas as Categorias</h2>
+              <div className="grid grid-cols-3 gap-3">
+                {categories.map((cat: any) => {
+                  const Icon = iconMap[cat.name] || ShoppingBag;
+                  return (
+                    <button key={cat.name} onClick={() => navigate(`/categoria/${encodeURIComponent(cat.name)}`)}
+                      className="flex flex-col items-center gap-1.5 group">
+                      {cat.image ? (
+                        <div className="w-14 h-14 rounded-full overflow-hidden border border-border">
+                          <img src={cat.image} alt={cat.name} className="w-full h-full object-cover" />
+                        </div>
+                      ) : (
+                        <div className="w-14 h-14 rounded-full bg-muted border border-border flex items-center justify-center">
+                          <Icon className="w-5 h-5 text-muted-foreground" />
+                        </div>
+                      )}
+                      <span className="text-[10px] text-foreground text-center leading-tight">{cat.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
       </div>
       <BottomNav />
