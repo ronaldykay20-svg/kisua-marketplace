@@ -35,15 +35,15 @@ const SellerOrdersTab = ({ sellerId }: Props) => {
   const [trackingNote, setTrackingNote] = useState("");
   const [rejectReason, setRejectReason] = useState("");
 
-  const { data: orders = [], isLoading } = useQuery({
-    queryKey: ["seller_orders", sellerId],
+  const { data: orders = [], isLoading, error } = useQuery({
+    queryKey: ["seller_orders", sellerId, user?.id],
     queryFn: async () => {
       // Use RPC or direct join — fetch products owned by this seller
       const { data: prods, error: prodsErr } = await supabase
         .from("products")
         .select("id")
         .eq("seller_id", sellerId);
-      if (prodsErr) console.error("Error fetching seller products:", prodsErr);
+      if (prodsErr) throw prodsErr;
       const productIds = (prods || []).map((p: any) => p.id);
       if (productIds.length === 0) return [];
 
@@ -63,12 +63,13 @@ const SellerOrdersTab = ({ sellerId }: Props) => {
         .select("*")
         .in("id", orderIds)
         .order("created_at", { ascending: false });
-      if (ordersErr) console.error("Error fetching orders:", ordersErr);
+      if (ordersErr) throw ordersErr;
       if (!ordersData || ordersData.length === 0) return [];
 
       // Fetch buyer profiles
       const buyerIds = [...new Set(ordersData.map((o: any) => o.user_id))];
-      const { data: profiles } = await supabase.from("profiles").select("id, full_name").in("id", buyerIds);
+      const { data: profiles, error: profilesErr } = await supabase.from("profiles").select("id, full_name").in("id", buyerIds);
+      if (profilesErr) throw profilesErr;
       const profileMap = Object.fromEntries((profiles || []).map((p: any) => [p.id, p]));
 
       const itemsByOrder: Record<string, any[]> = {};
@@ -83,7 +84,7 @@ const SellerOrdersTab = ({ sellerId }: Props) => {
         buyer: profileMap[o.user_id] || null,
       }));
     },
-    enabled: !!sellerId,
+    enabled: !!sellerId && !!user,
   });
 
   const updateStatus = useMutation({
@@ -159,7 +160,15 @@ const SellerOrdersTab = ({ sellerId }: Props) => {
 
       {isLoading && <p className="text-center text-muted-foreground text-sm py-8">A carregar...</p>}
 
-      {!isLoading && filteredOrders.length === 0 && (
+      {!isLoading && error && (
+        <div className="text-center py-8">
+          <Package className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
+          <p className="text-sm text-destructive">Erro ao carregar pedidos</p>
+          <p className="text-xs text-muted-foreground mt-1">{error instanceof Error ? error.message : "Verifique as permissões SQL"}</p>
+        </div>
+      )}
+
+      {!isLoading && !error && filteredOrders.length === 0 && (
         <div className="text-center py-8">
           <Package className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">Nenhum pedido {filter !== "all" ? "neste estado" : "ainda"}</p>
