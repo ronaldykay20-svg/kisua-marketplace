@@ -5,6 +5,7 @@ import { Star, MapPin, CheckCircle, ShoppingBag, UserPlus, UserCheck, Eye, Phone
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useNavigate, useParams } from "react-router-dom";
 import { useSeller } from "@/hooks/useSupabaseData";
+import { useSellerSalesCount } from "@/hooks/useSalesCount";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,6 +21,7 @@ const VendedorPerfil = () => {
   const { user } = useAuth();
 
   const { data: seller, isLoading } = useSeller(id || "");
+  const { data: salesCount = 0 } = useSellerSalesCount(id);
 
   // Real review stats
   const { data: reviewStats } = useQuery({
@@ -155,7 +157,7 @@ const VendedorPerfil = () => {
             </div>
             <div className="flex items-center gap-1">
               <ShoppingBag className="w-3.5 h-3.5" />
-              <span>{seller.total_sales || 0} vendas</span>
+              <span>{salesCount} vendas</span>
             </div>
             <div className="flex items-center gap-1">
               <Users className="w-3.5 h-3.5" />
