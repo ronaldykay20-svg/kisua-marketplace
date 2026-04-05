@@ -233,11 +233,31 @@ export const useOrders = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
-        .select("*, order_items(*)")
+        .select("*")
         .eq("user_id", user!.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data;
+
+      const orders = data || [];
+      if (orders.length === 0) return [];
+
+      const orderIds = orders.map((order: any) => order.id);
+      const { data: items, error: itemsError } = await supabase
+        .from("order_items")
+        .select("*")
+        .in("order_id", orderIds);
+      if (itemsError) throw itemsError;
+
+      const itemsByOrder = (items || []).reduce((acc: Record<string, any[]>, item: any) => {
+        if (!acc[item.order_id]) acc[item.order_id] = [];
+        acc[item.order_id].push(item);
+        return acc;
+      }, {});
+
+      return orders.map((order: any) => ({
+        ...order,
+        order_items: itemsByOrder[order.id] || [],
+      }));
     },
     enabled: !!user,
   });
