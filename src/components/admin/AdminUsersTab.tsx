@@ -65,6 +65,19 @@ const AdminUsersTab = () => {
     onError: (e: any) => toast.error(e.message),
   });
 
+  const removeSeller = useMutation({
+    mutationFn: async ({ userId }: { userId: string }) => {
+      const { error } = await supabase.from("sellers").delete().eq("user_id", userId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin_seller_user_ids"] });
+      queryClient.invalidateQueries({ queryKey: ["admin_sellers"] });
+      toast.success("Vendedor removido!");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   const promoteRole = useMutation({
     mutationFn: async ({ userId, role }: { userId: string; role: string }) => {
       const { error } = await supabase.from("user_roles").insert({ user_id: userId, role: role as any });
