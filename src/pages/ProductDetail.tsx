@@ -517,7 +517,7 @@ const ProductDetail = () => {
       </div>
 
       {/* Reviews section */}
-      <ProductReviewsSection productId={id || ""} product={product} dbReviews={dbReviews} staticReviews={staticReviews} />
+      <ProductReviewsSection productId={id || ""} product={product} dbReviews={dbReviews} staticReviews={staticReviews} userOrders={userOrders} />
 
       {/* Carousels */}
       <div className="mt-2 bg-card p-4 md:container md:mx-auto md:rounded-card md:border md:border-border md:my-4">
