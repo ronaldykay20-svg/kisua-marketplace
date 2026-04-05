@@ -6,8 +6,10 @@ import { useProduct } from "@/hooks/useSupabaseData";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAddToCart } from "@/hooks/useCartActions";
 import ProductCard from "@/components/ProductCard";
 import ProductCarousel from "@/components/ProductCarousel";
+import { toast } from "sonner";
 
 const ProductDetail = () => {
   const { id } = useParams();
@@ -105,6 +107,13 @@ const ProductDetail = () => {
 
   // Check if user has purchased this product (delivered orders)
   const { user } = useAuth();
+  const addToCart = useAddToCart();
+  const handleAddToCart = () => {
+    if (!user) { navigate("/auth"); return; }
+    if (!isUuid) { toast.info("Produto de demonstração"); return; }
+    const selectedVariantId = Object.values(selectedSubVariants).find(Boolean) || Object.values(selectedVariants).find(Boolean) || undefined;
+    addToCart.mutate({ productId: id!, quantity: qty, variantId: selectedVariantId });
+  };
   const { data: userOrders = [] } = useQuery({
     queryKey: ["user_delivered_orders_for_product", id, user?.id],
     queryFn: async () => {
@@ -207,9 +216,8 @@ const ProductDetail = () => {
           <span className="text-sm font-bold text-primary-foreground truncate mx-4 flex-1">{product.title}</span>
           <div className="flex items-center gap-2">
             <button className="text-primary-foreground"><Share2 className="w-5 h-5" /></button>
-            <button className="text-primary-foreground relative">
+            <button onClick={() => navigate("/carrinho")} className="text-primary-foreground relative">
               <ShoppingCart className="w-5 h-5" />
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-secondary text-secondary-foreground text-[9px] font-bold flex items-center justify-center">0</span>
             </button>
           </div>
         </div>
@@ -439,8 +447,8 @@ const ProductDetail = () => {
                   <span className="w-9 text-center text-sm font-bold text-foreground">{qty}</span>
                   <button onClick={() => setQty(qty + 1)} className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:bg-muted transition"><Plus className="w-4 h-4" /></button>
                 </div>
-                <button className="flex-1 py-3 rounded-full bg-primary text-primary-foreground font-bold text-sm hover:brightness-110 transition flex items-center justify-center gap-2">
-                  <Plus className="w-4 h-4" /> Adicionar ao carrinho
+                <button onClick={handleAddToCart} disabled={addToCart.isPending} className="flex-1 py-3 rounded-full bg-primary text-primary-foreground font-bold text-sm hover:brightness-110 transition flex items-center justify-center gap-2 disabled:opacity-50">
+                  {addToCart.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Adicionar ao carrinho
                 </button>
               </div>
             </div>
@@ -551,8 +559,8 @@ const ProductDetail = () => {
           <span className="w-9 text-center text-sm font-bold text-foreground">{qty}</span>
           <button onClick={() => setQty(qty + 1)} className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:bg-muted transition"><Plus className="w-4 h-4" /></button>
         </div>
-        <button className="flex-1 py-3 rounded-full bg-primary text-primary-foreground font-bold text-sm hover:brightness-110 transition flex items-center justify-center gap-2">
-          <Plus className="w-4 h-4" /> Adicionar ao carrinho
+        <button onClick={handleAddToCart} disabled={addToCart.isPending} className="flex-1 py-3 rounded-full bg-primary text-primary-foreground font-bold text-sm hover:brightness-110 transition flex items-center justify-center gap-2 disabled:opacity-50">
+          {addToCart.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Adicionar ao carrinho
         </button>
       </div>
     </div>
