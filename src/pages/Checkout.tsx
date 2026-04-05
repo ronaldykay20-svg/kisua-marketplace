@@ -59,6 +59,32 @@ const Checkout = () => {
       const { error: itemsError } = await supabase.from("order_items").insert(items);
       if (itemsError) throw itemsError;
 
+      // Notify seller(s) — find seller user_id from products
+      const productIds = cartItems.map((item: any) => item.product_id);
+      const { data: prods } = await supabase
+        .from("products")
+        .select("seller_id")
+        .in("id", productIds);
+      const sellerIds = [...new Set((prods || []).map((p: any) => p.seller_id))];
+
+      if (sellerIds.length > 0) {
+        const { data: sellers } = await supabase
+          .from("sellers")
+          .select("id, user_id")
+          .in("id", sellerIds);
+
+        const notifications = (sellers || []).map((s: any) => ({
+          user_id: s.user_id,
+          title: "Novo pedido recebido!",
+          message: `Tem um novo pedido #${order.id.slice(0, 8)} no valor de ${total.toLocaleString("pt-AO")} Kz. Aceite ou rejeite no painel.`,
+          type: "order",
+          link_url: "/painel-vendedor",
+          is_read: false,
+        }));
+
+        await supabase.from("notifications").insert(notifications);
+      }
+
       // Clear cart
       await clearCart.mutateAsync();
 

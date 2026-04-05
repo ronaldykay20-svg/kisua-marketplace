@@ -1,27 +1,67 @@
-import { Bell, ChevronLeft, Package, Tag, Megaphone, ShieldCheck } from "lucide-react";
+import { Bell, ChevronLeft, Package, Tag, Megaphone, ShieldCheck, Check, Trash2, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
-import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
-const categories = [
-  { key: "pedidos", icon: Package, label: "Pedidos", desc: "Atualizações de encomendas e entregas" },
-  { key: "promocoes", icon: Tag, label: "Promoções", desc: "Ofertas especiais e descontos" },
-  { key: "sistema", icon: ShieldCheck, label: "Sistema", desc: "Segurança e atualizações da conta" },
-  { key: "marketing", icon: Megaphone, label: "Marketing", desc: "Novidades e lançamentos" },
-];
+const typeIcons: Record<string, any> = {
+  order: Package,
+  promo: Tag,
+  system: ShieldCheck,
+  marketing: Megaphone,
+};
 
 const Notificacoes = () => {
   const navigate = useNavigate();
-  const [prefs, setPrefs] = useState<Record<string, boolean>>({
-    pedidos: true, promocoes: true, sistema: true, marketing: false,
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  const { data: notifications = [], isLoading } = useQuery({
+    queryKey: ["notifications", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("notifications")
+        .select("*")
+        .eq("user_id", user!.id)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
   });
 
-  const toggle = (key: string) => {
-    setPrefs(p => ({ ...p, [key]: !p[key] }));
-    toast.success("Preferência atualizada");
-  };
+  const markRead = useMutation({
+    mutationFn: async (id: string) => {
+      await supabase.from("notifications").update({ is_read: true }).eq("id", id);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notifications"] }),
+  });
+
+  const markAllRead = useMutation({
+    mutationFn: async () => {
+      await supabase.from("notifications").update({ is_read: true }).eq("user_id", user!.id).eq("is_read", false);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notifications"] }),
+  });
+
+  const unreadCount = notifications.filter((n: any) => !n.is_read).length;
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-background pb-14 md:pb-0">
+        <Navbar />
+        <div className="container mx-auto px-3 py-8 text-center">
+          <Bell className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+          <p className="text-sm text-muted-foreground">Faça login para ver notificações.</p>
+          <button onClick={() => navigate("/auth")} className="mt-3 px-6 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-card">Entrar</button>
+        </div>
+        <BottomNav />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background pb-14 md:pb-0">
@@ -30,23 +70,71 @@ const Notificacoes = () => {
         <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-muted-foreground mb-4">
           <ChevronLeft className="w-4 h-4" /> Voltar
         </button>
-        <h1 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
-          <Bell className="w-5 h-5 text-primary" /> Notificações
-        </h1>
-        <div className="bg-card rounded-lg border border-border divide-y divide-border">
-          {categories.map(c => (
-            <div key={c.key} className="flex items-center gap-3 px-4 py-3">
-              <c.icon className="w-5 h-5 text-primary" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-foreground">{c.label}</p>
-                <p className="text-[10px] text-muted-foreground">{c.desc}</p>
-              </div>
-              <button onClick={() => toggle(c.key)}
-                className={`w-10 h-6 rounded-full transition-colors relative ${prefs[c.key] ? "bg-primary" : "bg-muted"}`}>
-                <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${prefs[c.key] ? "translate-x-4" : "translate-x-0.5"}`} />
+
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-lg font-bold text-foreground flex items-center gap-2">
+            <Bell className="w-5 h-5 text-primary" /> Notificações
+            {unreadCount > 0 && (
+              <span className="bg-primary text-primary-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full">{unreadCount}</span>
+            )}
+          </h1>
+          {unreadCount > 0 && (
+            <button
+              onClick={() => markAllRead.mutate()}
+              className="text-[11px] text-primary font-semibold flex items-center gap-1"
+            >
+              <Check className="w-3.5 h-3.5" /> Marcar tudo como lido
+            </button>
+          )}
+        </div>
+
+        {isLoading && (
+          <div className="text-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-primary mx-auto" />
+          </div>
+        )}
+
+        {!isLoading && notifications.length === 0 && (
+          <div className="text-center py-12">
+            <Bell className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+            <p className="text-sm text-muted-foreground">Nenhuma notificação ainda</p>
+          </div>
+        )}
+
+        <div className="space-y-2">
+          {notifications.map((n: any) => {
+            const Icon = typeIcons[n.type] || Bell;
+            return (
+              <button
+                key={n.id}
+                onClick={() => {
+                  if (!n.is_read) markRead.mutate(n.id);
+                  if (n.link_url) navigate(n.link_url);
+                }}
+                className={`w-full text-left p-3 rounded-xl border transition ${
+                  n.is_read
+                    ? "bg-card border-border"
+                    : "bg-primary/5 border-primary/20 shadow-sm"
+                }`}
+              >
+                <div className="flex gap-3">
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${n.is_read ? "bg-muted" : "bg-primary/10"}`}>
+                    <Icon className={`w-4 h-4 ${n.is_read ? "text-muted-foreground" : "text-primary"}`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className={`text-xs font-bold truncate ${n.is_read ? "text-foreground" : "text-primary"}`}>{n.title}</p>
+                      {!n.is_read && <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />}
+                    </div>
+                    {n.message && <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{n.message}</p>}
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      {new Date(n.created_at).toLocaleDateString("pt-AO")} • {new Date(n.created_at).toLocaleTimeString("pt-AO", { hour: "2-digit", minute: "2-digit" })}
+                    </p>
+                  </div>
+                </div>
               </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
       <BottomNav />
