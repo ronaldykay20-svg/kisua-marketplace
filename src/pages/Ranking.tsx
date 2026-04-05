@@ -1,105 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Search, Crown, Medal, Award, Star, ChevronLeft, ChevronRight, ShoppingCart, Loader2, Trophy, Store, Package } from "lucide-react";
-import { useSellerRanking } from "@/hooks/useSalesCount";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { useSellerRanking, useProductRanking, useCompanyRanking } from "@/hooks/useSalesCount";
 import BottomNav from "@/components/BottomNav";
 
 const ITEMS_PER_PAGE = 10;
 
 type RankingTab = "vendedores" | "empresas" | "produtos";
-
-const useProductRanking = () =>
-  useQuery({
-    queryKey: ["product_ranking"],
-    queryFn: async () => {
-      const { data: items } = await supabase
-        .from("order_items")
-        .select("product_id, order_id, quantity");
-      if (!items || items.length === 0) return [];
-
-      const orderIds = [...new Set(items.map((i: any) => i.order_id))];
-      const { data: orders } = await supabase
-        .from("orders")
-        .select("id")
-        .in("id", orderIds)
-        .in("status", ["confirmed", "shipped", "delivered"]);
-      const confirmedIds = new Set((orders || []).map((o: any) => o.id));
-
-      const salesMap: Record<string, number> = {};
-      items.forEach((item: any) => {
-        if (confirmedIds.has(item.order_id)) {
-          salesMap[item.product_id] = (salesMap[item.product_id] || 0) + (item.quantity || 1);
-        }
-      });
-
-      const productIds = Object.keys(salesMap);
-      if (productIds.length === 0) return [];
-
-      const { data: products } = await supabase
-        .from("products")
-        .select("id, title, price, image_url, rating, total_reviews, product_media(url, is_cover)")
-        .in("id", productIds);
-
-      return (products || [])
-        .map((p: any) => {
-          const cover = p.product_media?.find((m: any) => m.is_cover)?.url || p.image_url || "";
-          return { ...p, image: cover, sales: salesMap[p.id] || 0 };
-        })
-        .sort((a: any, b: any) => b.sales - a.sales);
-    },
-  });
-
-const useCompanyRanking = () =>
-  useQuery({
-    queryKey: ["company_ranking"],
-    queryFn: async () => {
-      const { data: companies } = await supabase
-        .from("companies")
-        .select("id, name, slug, logo_url, is_verified")
-        .eq("is_active", true);
-      if (!companies || companies.length === 0) return [];
-
-      // Get products linked to companies
-      const companyIds = companies.map((c: any) => c.id);
-      const { data: products } = await supabase
-        .from("products")
-        .select("id, company_id")
-        .in("company_id", companyIds);
-      if (!products || products.length === 0) return companies.map((c: any) => ({ ...c, sales: 0 }));
-
-      const productIds = products.map((p: any) => p.id);
-      const productCompanyMap: Record<string, string> = {};
-      products.forEach((p: any) => { productCompanyMap[p.id] = p.company_id; });
-
-      const { data: items } = await supabase
-        .from("order_items")
-        .select("product_id, order_id, quantity")
-        .in("product_id", productIds);
-      if (!items || items.length === 0) return companies.map((c: any) => ({ ...c, sales: 0 }));
-
-      const orderIds = [...new Set(items.map((i: any) => i.order_id))];
-      const { data: orders } = await supabase
-        .from("orders")
-        .select("id")
-        .in("id", orderIds)
-        .in("status", ["confirmed", "shipped", "delivered"]);
-      const confirmedIds = new Set((orders || []).map((o: any) => o.id));
-
-      const salesMap: Record<string, number> = {};
-      items.forEach((item: any) => {
-        if (confirmedIds.has(item.order_id)) {
-          const cid = productCompanyMap[item.product_id];
-          if (cid) salesMap[cid] = (salesMap[cid] || 0) + (item.quantity || 1);
-        }
-      });
-
-      return companies
-        .map((c: any) => ({ ...c, sales: salesMap[c.id] || 0 }))
-        .sort((a: any, b: any) => b.sales - a.sales);
-    },
-  });
 
 const Ranking = () => {
   const navigate = useNavigate();
@@ -156,7 +63,6 @@ const Ranking = () => {
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="bg-card border-b border-border sticky top-0 z-30">
         <div className="container mx-auto px-4 flex">
           {tabs.map(t => (
@@ -190,7 +96,6 @@ const Ranking = () => {
           <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
         ) : (
           <>
-            {/* Top 3 */}
             {top3.length > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {top3.map((item: any, i: number) => (
@@ -221,7 +126,6 @@ const Ranking = () => {
               </div>
             )}
 
-            {/* Table */}
             <div>
               <h2 className="text-lg font-black text-foreground mb-3 uppercase tracking-tight">
                 Campeões de Vendas — {tabs.find(t => t.key === tab)?.label}
