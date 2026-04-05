@@ -107,6 +107,13 @@ const ProductDetail = () => {
 
   // Check if user has purchased this product (delivered orders)
   const { user } = useAuth();
+  const addToCart = useAddToCart();
+  const handleAddToCart = () => {
+    if (!user) { navigate("/auth"); return; }
+    if (!isUuid) { toast.info("Produto de demonstração"); return; }
+    const selectedVariantId = Object.values(selectedSubVariants).find(Boolean) || Object.values(selectedVariants).find(Boolean) || undefined;
+    addToCart.mutate({ productId: id!, quantity: qty, variantId: selectedVariantId });
+  };
   const { data: userOrders = [] } = useQuery({
     queryKey: ["user_delivered_orders_for_product", id, user?.id],
     queryFn: async () => {
