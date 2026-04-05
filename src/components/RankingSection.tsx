@@ -108,35 +108,45 @@ const RankingSection = () => {
                 {slide.items.length === 0 ? (
                   <p className="text-center py-6 text-xs text-muted-foreground">Nenhuma venda confirmada ainda.</p>
                 ) : (
-                  slide.items.map((item: any, i: number) => {
-                    const Icon = getIcon(i + 1);
-                    return (
-                      <div
-                        key={item.id}
-                        onClick={() => navigate(getLink(item))}
-                        className={`flex items-center gap-3 p-3 ${i !== slide.items.length - 1 ? "border-b border-border" : ""} hover:bg-muted/50 transition-colors cursor-pointer`}
-                      >
-                        <div className="w-8 h-8 rounded-card bg-muted flex items-center justify-center flex-shrink-0">
-                          <span className="text-sm font-black text-foreground">{i + 1}</span>
+                  <div className="grid grid-cols-1 gap-0">
+                    {slide.items.map((item: any, i: number) => {
+                      const Icon = getIcon(i + 1);
+                      return (
+                        <div
+                          key={item.id}
+                          onClick={() => navigate(getLink(item))}
+                          className={`flex items-center gap-3 p-3 ${i !== slide.items.length - 1 ? "border-b border-border" : ""} hover:bg-muted/50 transition-colors cursor-pointer`}
+                        >
+                          <div className="relative flex-shrink-0">
+                            <div className={`w-16 h-16 ${item.type === "product" ? "rounded-card" : "rounded-full"} overflow-hidden bg-muted border-2 border-border`}>
+                              <img src={item.image || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop"} alt={item.name} className="w-full h-full object-cover" />
+                            </div>
+                            <div className={`absolute -top-1 -left-1 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${
+                              i === 0 ? "bg-secondary text-secondary-foreground" : i === 1 ? "bg-muted-foreground text-primary-foreground" : i === 2 ? "bg-amber-700 text-primary-foreground" : "bg-muted text-foreground"
+                            }`}>
+                              {i + 1}
+                            </div>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 mb-0.5">
+                              <h3 className="text-sm font-bold text-foreground truncate">{item.name}</h3>
+                              <Icon className={`w-4 h-4 ${getColor(i + 1)} flex-shrink-0`} />
+                            </div>
+                            {item.type === "product" && item.price && (
+                              <p className="text-xs font-black text-primary mb-0.5">{Number(item.price).toLocaleString("pt-AO")} Kz</p>
+                            )}
+                            <p className="text-[11px] text-muted-foreground font-medium">
+                              🔥 {item.sales} vendas
+                              {item.type === "seller" && item.rating ? ` • ⭐ ${item.rating}` : ""}
+                            </p>
+                          </div>
+                          <button className="px-3 py-2 rounded-card text-[10px] font-bold bg-primary/10 text-primary hover:bg-primary/20 transition-colors flex-shrink-0">
+                            Ver →
+                          </button>
                         </div>
-                        <Icon className={`w-5 h-5 ${getColor(i + 1)} flex-shrink-0`} />
-                        <div className="w-9 h-9 rounded-full overflow-hidden bg-muted flex-shrink-0">
-                          <img src={item.image || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop"} alt={item.name} className="w-full h-full object-cover" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-sm font-semibold text-foreground truncate">{item.name}</h3>
-                          <p className="text-[10px] text-muted-foreground">
-                            {item.sales} vendas
-                            {item.type === "product" && item.price ? ` • ${Number(item.price).toLocaleString("pt-AO")} Kz` : ""}
-                            {item.type === "seller" && item.rating ? ` • ⭐ ${item.rating}` : ""}
-                          </p>
-                        </div>
-                        <button className="px-3 py-1.5 rounded-card text-[10px] font-bold text-primary border border-primary/20 hover:bg-primary/5 transition-colors flex-shrink-0">
-                          Ver
-                        </button>
-                      </div>
-                    );
-                  })
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             </div>
