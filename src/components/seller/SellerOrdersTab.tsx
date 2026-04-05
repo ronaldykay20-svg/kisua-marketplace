@@ -50,9 +50,9 @@ const SellerOrdersTab = ({ sellerId }: Props) => {
       // Fetch order_items for these products — use service-level query
       const { data: items, error: itemsErr } = await supabase
         .from("order_items")
-        .select("order_id, product_id, quantity, unit_price, product_title, variant_info")
+        .select("order_id, product_id, quantity, price, title, image_url, variant_id")
         .in("product_id", productIds);
-      if (itemsErr) console.error("Error fetching order items:", itemsErr);
+      if (itemsErr) throw itemsErr;
       if (!items || items.length === 0) return [];
 
       const orderIds = [...new Set(items.map((i: any) => i.order_id))];
@@ -214,8 +214,8 @@ const SellerOrdersTab = ({ sellerId }: Props) => {
                     <p className="text-[10px] font-bold text-muted-foreground mb-1.5">ITENS</p>
                     {order.items.map((item: any, idx: number) => (
                       <div key={idx} className="flex justify-between text-xs py-1">
-                        <span className="text-foreground">{item.product_title || "Produto"} {item.variant_info ? `(${item.variant_info})` : ""} × {item.quantity}</span>
-                        <span className="text-muted-foreground font-medium">{Number(item.unit_price || 0).toLocaleString("pt-AO")} Kz</span>
+                         <span className="text-foreground">{item.title || "Produto"} × {item.quantity}</span>
+                         <span className="text-muted-foreground font-medium">{Number(item.price || 0).toLocaleString("pt-AO")} Kz</span>
                       </div>
                     ))}
                   </div>
