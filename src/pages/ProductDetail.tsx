@@ -65,7 +65,11 @@ const ProductDetail = () => {
   const { data: dbReviews = [] } = useQuery({
     queryKey: ["product_reviews_detail", id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("seller_reviews").select("*").eq("seller_id", (product as any)?.seller?.id || "none").order("created_at", { ascending: false });
+      const { data, error } = await supabase
+        .from("product_reviews")
+        .select("*")
+        .eq("product_id", id!)
+        .order("created_at", { ascending: false });
       if (error) return [];
       const userIds = [...new Set((data || []).map((r: any) => r.user_id))];
       let profileMap: Record<string, any> = {};
@@ -96,7 +100,24 @@ const ProductDetail = () => {
         replies: repliesMap[r.id] || [],
       }));
     },
-    enabled: !!product,
+    enabled: !!isUuid,
+  });
+
+  // Check if user has purchased this product (delivered orders)
+  const { user } = useAuth();
+  const { data: userOrders = [] } = useQuery({
+    queryKey: ["user_delivered_orders_for_product", id, user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("orders")
+        .select("id, order_items!inner(product_id)")
+        .eq("user_id", user!.id)
+        .eq("status", "delivered")
+        .eq("order_items.product_id", id!);
+      if (error) return [];
+      return data || [];
+    },
+    enabled: !!user && !!isUuid,
   });
 
   if (!product) {
