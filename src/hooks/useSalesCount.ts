@@ -119,11 +119,12 @@ export const useSellerRanking = () =>
 
       const sellerIds = sellers.map((s: any) => s.id);
 
-      // Get all products for these sellers
+      // Get products for these sellers that are NOT linked to a company (avoid mixing with empresa ranking)
       const { data: products } = await supabase
         .from("products")
         .select("id, seller_id")
-        .in("seller_id", sellerIds);
+        .in("seller_id", sellerIds)
+        .is("company_id", null);
 
       if (!products || products.length === 0) {
         return sellers.map((s: any) => ({ ...s, sales: 0 }));
