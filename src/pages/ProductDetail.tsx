@@ -20,7 +20,7 @@ const ProductDetail = () => {
 
   // Try DB first
   const isUuid = id && id.length > 10;
-  const { data: dbProduct } = useProduct(id || "");
+  const { data: dbProduct, isLoading: loadingProduct } = useProduct(id || "");
 
   // Load media from DB
   const { data: dbMedia = [] } = useQuery({
@@ -61,7 +61,52 @@ const ProductDetail = () => {
     seller: (dbProduct as any).sellers,
   } : staticProduct;
 
+  // Load product reviews from DB — MUST be before any early return to respect React hooks rules
+  const { data: dbReviews = [] } = useQuery({
+    queryKey: ["product_reviews_detail", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("seller_reviews").select("*").eq("seller_id", (product as any)?.seller?.id || "none").order("created_at", { ascending: false });
+      if (error) return [];
+      const userIds = [...new Set((data || []).map((r: any) => r.user_id))];
+      let profileMap: Record<string, any> = {};
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase.from("profiles").select("id, full_name, avatar_url").in("id", userIds);
+        profileMap = Object.fromEntries((profiles || []).map((p: any) => [p.id, p]));
+      }
+      const reviewIds = (data || []).map((r: any) => r.id);
+      let repliesMap: Record<string, any[]> = {};
+      if (reviewIds.length > 0) {
+        const { data: replies } = await supabase.from("review_replies").select("*").in("review_id", reviewIds).order("created_at");
+        if (replies) {
+          const replyUserIds = [...new Set(replies.map((r: any) => r.user_id))];
+          let replyProfileMap: Record<string, any> = {};
+          if (replyUserIds.length > 0) {
+            const { data: rProfiles } = await supabase.from("profiles").select("id, full_name").in("id", replyUserIds);
+            replyProfileMap = Object.fromEntries((rProfiles || []).map((p: any) => [p.id, p]));
+          }
+          replies.forEach((r: any) => {
+            if (!repliesMap[r.review_id]) repliesMap[r.review_id] = [];
+            repliesMap[r.review_id].push({ ...r, profile: replyProfileMap[r.user_id] || null });
+          });
+        }
+      }
+      return (data || []).map((r: any) => ({
+        ...r,
+        profile: profileMap[r.user_id] || null,
+        replies: repliesMap[r.id] || [],
+      }));
+    },
+    enabled: !!product,
+  });
+
   if (!product) {
+    if (isUuid && loadingProduct) {
+      return (
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <Loader2 className="w-6 h-6 animate-spin text-primary" />
+        </div>
+      );
+    }
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -115,45 +160,6 @@ const ProductDetail = () => {
   const moreToExplore = allProducts.filter(p => p.id !== Number(id)).slice(10, 20);
   const alsoLike = allProducts.filter(p => p.id !== Number(id)).slice(5, 15);
 
-  // Load product reviews from DB
-  const { data: dbReviews = [] } = useQuery({
-    queryKey: ["product_reviews_detail", id],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("seller_reviews").select("*").eq("seller_id", (product as any)?.seller?.id || "none").order("created_at", { ascending: false });
-      // Fallback: check if there are product-level reviews (seller_reviews where seller matches product's seller)
-      if (error) return [];
-      const userIds = [...new Set((data || []).map((r: any) => r.user_id))];
-      let profileMap: Record<string, any> = {};
-      if (userIds.length > 0) {
-        const { data: profiles } = await supabase.from("profiles").select("id, full_name, avatar_url").in("id", userIds);
-        profileMap = Object.fromEntries((profiles || []).map((p: any) => [p.id, p]));
-      }
-      // Load replies
-      const reviewIds = (data || []).map((r: any) => r.id);
-      let repliesMap: Record<string, any[]> = {};
-      if (reviewIds.length > 0) {
-        const { data: replies } = await supabase.from("review_replies").select("*").in("review_id", reviewIds).order("created_at");
-        if (replies) {
-          const replyUserIds = [...new Set(replies.map((r: any) => r.user_id))];
-          let replyProfileMap: Record<string, any> = {};
-          if (replyUserIds.length > 0) {
-            const { data: rProfiles } = await supabase.from("profiles").select("id, full_name").in("id", replyUserIds);
-            replyProfileMap = Object.fromEntries((rProfiles || []).map((p: any) => [p.id, p]));
-          }
-          replies.forEach((r: any) => {
-            if (!repliesMap[r.review_id]) repliesMap[r.review_id] = [];
-            repliesMap[r.review_id].push({ ...r, profile: replyProfileMap[r.user_id] || null });
-          });
-        }
-      }
-      return (data || []).map((r: any) => ({
-        ...r,
-        profile: profileMap[r.user_id] || null,
-        replies: repliesMap[r.id] || [],
-      }));
-    },
-    enabled: !!product,
-  });
 
   const staticReviews = [
     { name: "Maria S.", rating: 5, date: "15 Mar 2026", text: "Produto excelente! Chegou rápido e bem embalado. Recomendo a todos.", helpful: 12, notHelpful: 1 },
