@@ -216,9 +216,8 @@ const ProductDetail = () => {
           <span className="text-sm font-bold text-primary-foreground truncate mx-4 flex-1">{product.title}</span>
           <div className="flex items-center gap-2">
             <button className="text-primary-foreground"><Share2 className="w-5 h-5" /></button>
-            <button className="text-primary-foreground relative">
+            <button onClick={() => navigate("/carrinho")} className="text-primary-foreground relative">
               <ShoppingCart className="w-5 h-5" />
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-secondary text-secondary-foreground text-[9px] font-bold flex items-center justify-center">0</span>
             </button>
           </div>
         </div>
