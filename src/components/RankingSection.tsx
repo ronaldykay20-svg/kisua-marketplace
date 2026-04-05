@@ -19,7 +19,7 @@ const RankingSection = () => {
   }));
 
   const topProducts = products.slice(0, 5).map((p: any) => ({
-    id: p.id, name: p.name || p.title, image: p.image || p.image_url, sales: p.sales, price: p.price, type: "product" as const,
+    id: p.id, name: p.name || p.title, image: p.image || "", sales: p.sales, price: p.price, type: "product" as const,
   }));
 
   const topCompanies = companies.slice(0, 5).map((c: any) => ({

@@ -278,12 +278,12 @@ export const useProductRanking = () =>
 
       const { data: products } = await supabase
         .from("products")
-        .select("id, title, price, image_url, rating, total_reviews, product_media(url, is_cover)")
+        .select("id, title, price, rating, total_reviews, product_media(url, is_cover)")
         .in("id", productIds);
 
       return (products || [])
         .map((p: any) => {
-          const cover = p.product_media?.find((m: any) => m.is_cover)?.url || p.image_url || "";
+          const cover = p.product_media?.find((m: any) => m.is_cover)?.url || "";
           return { ...p, image: cover, sales: salesMap[p.id] || 0, name: p.title, type: "product" as const };
         })
         .sort((a: any, b: any) => b.sales - a.sales);
