@@ -448,8 +448,8 @@ const ProductDetail = () => {
                   <span className="w-9 text-center text-sm font-bold text-foreground">{qty}</span>
                   <button onClick={() => setQty(qty + 1)} className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:bg-muted transition"><Plus className="w-4 h-4" /></button>
                 </div>
-                <button className="flex-1 py-3 rounded-full bg-primary text-primary-foreground font-bold text-sm hover:brightness-110 transition flex items-center justify-center gap-2">
-                  <Plus className="w-4 h-4" /> Adicionar ao carrinho
+                <button onClick={handleAddToCart} disabled={addToCart.isPending} className="flex-1 py-3 rounded-full bg-primary text-primary-foreground font-bold text-sm hover:brightness-110 transition flex items-center justify-center gap-2 disabled:opacity-50">
+                  {addToCart.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Adicionar ao carrinho
                 </button>
               </div>
             </div>
@@ -560,8 +560,8 @@ const ProductDetail = () => {
           <span className="w-9 text-center text-sm font-bold text-foreground">{qty}</span>
           <button onClick={() => setQty(qty + 1)} className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:bg-muted transition"><Plus className="w-4 h-4" /></button>
         </div>
-        <button className="flex-1 py-3 rounded-full bg-primary text-primary-foreground font-bold text-sm hover:brightness-110 transition flex items-center justify-center gap-2">
-          <Plus className="w-4 h-4" /> Adicionar ao carrinho
+        <button onClick={handleAddToCart} disabled={addToCart.isPending} className="flex-1 py-3 rounded-full bg-primary text-primary-foreground font-bold text-sm hover:brightness-110 transition flex items-center justify-center gap-2 disabled:opacity-50">
+          {addToCart.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Adicionar ao carrinho
         </button>
       </div>
     </div>
