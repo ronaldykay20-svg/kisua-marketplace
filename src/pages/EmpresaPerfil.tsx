@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, CheckCircle, Star, MapPin, Phone, Mail, Globe, Clock, Share2, ThumbsUp, Heart, ShoppingCart, Users, Eye, UserPlus, UserCheck, Send, Loader2, Package } from "lucide-react";
+import { ArrowLeft, CheckCircle, Star, MapPin, Phone, Mail, Globe, Clock, Share2, ThumbsUp, Heart, ShoppingCart, Users, Eye, UserPlus, UserCheck, Send, Loader2, Package, ShoppingBag } from "lucide-react";
 import ProductCard from "@/components/ProductCard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useCompanySalesCount } from "@/hooks/useSalesCount";
 
 const tabs = ["Início", "Produtos", "Avaliações", "Sobre"];
 
@@ -17,6 +18,7 @@ const EmpresaPerfil = () => {
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { data: companySales = 0 } = useCompanySalesCount(id);
 
   // Load company from DB
   const { data: company, isLoading } = useQuery({
@@ -175,6 +177,7 @@ const EmpresaPerfil = () => {
           <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" /> {followersCount} seguidores</span>
           <span className="flex items-center gap-1"><Eye className="w-3.5 h-3.5" /> {company.visits_count || 0} visitas</span>
           <span className="flex items-center gap-1"><Package className="w-3.5 h-3.5" /> {products.length} produtos</span>
+          <span className="flex items-center gap-1"><ShoppingBag className="w-3.5 h-3.5" /> {companySales} vendas</span>
         </div>
 
         <div className="flex items-center gap-2 mt-3">
