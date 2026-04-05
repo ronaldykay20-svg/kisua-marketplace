@@ -35,6 +35,7 @@ import CompanyDashboard from "./pages/CompanyDashboard.tsx";
 import ModeratorPanel from "./pages/ModeratorPanel.tsx";
 import Carrinho from "./pages/Carrinho.tsx";
 import Checkout from "./pages/Checkout.tsx";
+import PedidoDetalhe from "./pages/PedidoDetalhe.tsx";
 import ProtectedRoute from "./components/ProtectedRoute.tsx";
 
 const queryClient = new QueryClient();
@@ -62,6 +63,7 @@ const App = () => (
           <Route path="/promocoes" element={<Promocoes />} />
           <Route path="/conta" element={<ProtectedRoute><MinhaConta /></ProtectedRoute>} />
           <Route path="/pedidos" element={<ProtectedRoute><Pedidos /></ProtectedRoute>} />
+          <Route path="/pedido/:id" element={<ProtectedRoute><PedidoDetalhe /></ProtectedRoute>} />
           <Route path="/favoritos" element={<ProtectedRoute><Favoritos /></ProtectedRoute>} />
           <Route path="/ajuda" element={<Ajuda />} />
           <Route path="/vender" element={<ProtectedRoute><VenderKwanza /></ProtectedRoute>} />
