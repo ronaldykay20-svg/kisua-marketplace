@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Shield, Users, Search, Plus, Trash2, Crown, Building2, Store, CheckCircle, XCircle, ShieldCheck, UserCheck, UsersRound, FolderTree, ImageIcon, Camera } from "lucide-react";
+import { Shield, Users, Search, Plus, Trash2, Crown, Building2, Store, CheckCircle, XCircle, ShieldCheck, UserCheck, UsersRound, FolderTree, ImageIcon, Camera, ShoppingBag } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,6 +10,7 @@ import AdminUsersTab from "@/components/admin/AdminUsersTab";
 import AdminCompanyMembersModal from "@/components/admin/AdminCompanyMembersModal";
 import AdminCompanyCard from "@/components/admin/AdminCompanyCard";
 import AdminCategoriesTab from "@/components/admin/AdminCategoriesTab";
+import AdminOrdersTab from "@/components/admin/AdminOrdersTab";
 import { toast } from "sonner";
 
 const roleBadge: Record<string, { label: string; color: string; icon: any }> = {
@@ -18,7 +19,7 @@ const roleBadge: Record<string, { label: string; color: string; icon: any }> = {
   user: { label: "Utilizador", color: "bg-primary/10 text-primary border-primary/20", icon: Users },
 };
 
-type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos" | "categorias";
+type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos" | "encomendas" | "categorias";
 
 const AdminPanel = () => {
   const { user } = useAuth();
@@ -169,7 +170,8 @@ const AdminPanel = () => {
     { key: "cargos", label: "Cargos", icon: Crown },
     { key: "vendedores", label: "Vendedores", icon: Store },
     { key: "empresas", label: "Empresas", icon: Building2 },
-    { key: "pedidos", label: "Pedidos", icon: UserCheck },
+    { key: "encomendas", label: "Encomendas", icon: ShoppingBag },
+    { key: "pedidos", label: "Candidaturas", icon: UserCheck },
   ];
 
   return (
@@ -323,7 +325,10 @@ const AdminPanel = () => {
           </>
         )}
 
-        {/* ═══ PEDIDOS VENDEDOR TAB ═══ */}
+        {/* ═══ ENCOMENDAS TAB ═══ */}
+        {tab === "encomendas" && <AdminOrdersTab />}
+
+        {/* ═══ CANDIDATURAS VENDEDOR TAB ═══ */}
         {tab === "pedidos" && (
           <div className="space-y-2">
             {applications.map((a: any) => (
@@ -350,7 +355,7 @@ const AdminPanel = () => {
                 )}
               </div>
             ))}
-            {applications.length === 0 && <p className="text-center py-6 text-sm text-muted-foreground">Nenhum pedido de vendedor.</p>}
+            {applications.length === 0 && <p className="text-center py-6 text-sm text-muted-foreground">Nenhuma candidatura de vendedor.</p>}
           </div>
         )}
 
