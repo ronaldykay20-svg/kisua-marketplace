@@ -4,6 +4,7 @@ import Footer from "@/components/Footer";
 import { Search, Star, MapPin, CheckCircle, ChevronRight, Users, ShoppingBag, Eye, Package } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useSellers } from "@/hooks/useSupabaseData";
+import { useBulkSellerSales } from "@/hooks/useSalesCount";
 
 
 const filtersList = ["Todos", "Verificados", "Mais Vendidos", "Melhor Avaliação", "Luanda", "Benguela"];
@@ -13,6 +14,8 @@ const Vendedores = () => {
   const [activeFilter, setActiveFilter] = useState("Todos");
   const [search, setSearch] = useState("");
   const { data: dbSellers, isLoading } = useSellers({ type: "individual" });
+  const sellerIds = (dbSellers || []).map((s: any) => s.id);
+  const { data: salesMap = {} } = useBulkSellerSales(sellerIds);
 
   const sellers = (dbSellers || []).map((s: any) => ({
     id: s.id,
@@ -21,7 +24,7 @@ const Vendedores = () => {
     location: s.province || "Angola",
     rating: s.rating ?? 0,
     reviews: s.total_reviews ?? 0,
-    sales: s.total_sales ?? 0,
+    sales: (salesMap as Record<string, number>)[s.id] ?? 0,
     products: s.products_count ?? 0,
     visits: s.visits_count ?? 0,
     followers: s.followers_count ?? 0,

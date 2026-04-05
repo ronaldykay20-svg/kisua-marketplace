@@ -54,6 +54,41 @@ const Empresas = () => {
         }
       }
 
+      // Count sales per company (confirmed orders)
+      let salesMap: Record<string, number> = {};
+      if (companyIds.length > 0) {
+        // Get products for these companies
+        const { data: companyProducts } = await supabase
+          .from("products")
+          .select("id, company_id")
+          .in("company_id", companyIds);
+        if (companyProducts && companyProducts.length > 0) {
+          const prodIds = companyProducts.map((p: any) => p.id);
+          const prodCompanyMap: Record<string, string> = {};
+          companyProducts.forEach((p: any) => { prodCompanyMap[p.id] = p.company_id; });
+
+          const { data: orderItems } = await supabase
+            .from("order_items")
+            .select("id, product_id, order_id")
+            .in("product_id", prodIds);
+          if (orderItems && orderItems.length > 0) {
+            const oIds = [...new Set(orderItems.map((i: any) => i.order_id))];
+            const { data: confirmedOrders } = await supabase
+              .from("orders")
+              .select("id")
+              .in("id", oIds)
+              .in("status", ["confirmed", "shipped", "delivered"]);
+            const confirmedSet = new Set((confirmedOrders || []).map((o: any) => o.id));
+            orderItems.forEach((item: any) => {
+              if (confirmedSet.has(item.order_id)) {
+                const cid = prodCompanyMap[item.product_id];
+                if (cid) salesMap[cid] = (salesMap[cid] || 0) + 1;
+              }
+            });
+          }
+        }
+      }
+
       return (data || []).map((c: any) => ({
         id: c.id,
         name: c.name,
@@ -62,6 +97,7 @@ const Empresas = () => {
         reviews: ratingsMap[c.id]?.count ?? c.total_reviews ?? 0,
         visits: c.visits_count ?? 0,
         followers: followersMap[c.id] ?? c.followers_count ?? 0,
+        sales: salesMap[c.id] ?? 0,
         cover: c.banner_url || "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=600&h=300&fit=crop",
         logo: c.logo_url || null,
         verified: c.is_verified,
@@ -140,6 +176,8 @@ const Empresas = () => {
                     <span className="flex items-center gap-0.5"><Star className="w-3 h-3 text-secondary fill-secondary" /> {empresa.rating} ({empresa.reviews})</span>
                     <span className="text-border">|</span>
                     <span className="flex items-center gap-0.5"><Eye className="w-3 h-3" /> {formatCount(empresa.visits)} visitas</span>
+                    <span className="text-border">|</span>
+                    <span className="flex items-center gap-0.5"><ShoppingBag className="w-3 h-3" /> {formatCount(empresa.sales)} vendas</span>
                     <span className="text-border">|</span>
                     <span className="flex items-center gap-0.5"><Users className="w-3 h-3" /> {formatCount(empresa.followers)} seguidores</span>
                   </div>
