@@ -141,6 +141,8 @@ const Empresas = () => {
                     <span className="text-border">|</span>
                     <span className="flex items-center gap-0.5"><Eye className="w-3 h-3" /> {formatCount(empresa.visits)} visitas</span>
                     <span className="text-border">|</span>
+                    <span className="flex items-center gap-0.5"><ShoppingBag className="w-3 h-3" /> {formatCount(empresa.sales)} vendas</span>
+                    <span className="text-border">|</span>
                     <span className="flex items-center gap-0.5"><Users className="w-3 h-3" /> {formatCount(empresa.followers)} seguidores</span>
                   </div>
                 </div>
