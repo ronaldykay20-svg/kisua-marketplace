@@ -12,6 +12,8 @@ import RankingSection from "@/components/RankingSection";
 import VerifiedStores from "@/components/VerifiedStores";
 import RecentProducts from "@/components/RecentProducts";
 import ForYouSection from "@/components/ForYouSection";
+import FeaturedSellerSection from "@/components/FeaturedSellerSection";
+import VideoStories from "@/components/VideoStories";
 import Footer from "@/components/Footer";
 
 const Index = () => {
@@ -22,9 +24,11 @@ const Index = () => {
       <PromoCards />
       <SellerStories />
       <BenefitsBanner />
+      <FeaturedSellerSection />
       <PromoSection />
       <AdBanner variant="wide-1" />
       <FreeShippingSection />
+      <VideoStories />
       <AdBanner variant="double" />
       <LowPriceSection />
       <RankingSection />
