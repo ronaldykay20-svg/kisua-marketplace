@@ -29,7 +29,7 @@ const PromoCards = () => {
           >
             <img src={card.image} alt={card.title} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-            <div className="relative h-full flex flex-col justify-end p-3">
+            <div className="relative h-full flex flex-col justify-end p-3 pt-16">
               <h3 className="text-xs sm:text-sm font-bold text-white leading-tight">{card.title}</h3>
               <p className="text-[10px] text-white/70">{card.subtitle}</p>
               <a href="#" className="text-[10px] font-semibold text-white hover:underline mt-0.5">{card.cta}</a>
