@@ -14,9 +14,9 @@ export type Database = {
         Update: { role?: "admin" | "moderator" | "user" };
       };
       categories: {
-        Row: { id: string; name: string; slug: string; icon: string | null; image_url: string | null; parent_id: string | null; sort_order: number; is_active: boolean; created_at: string };
-        Insert: { name: string; slug: string; icon?: string | null; image_url?: string | null; parent_id?: string | null; sort_order?: number; is_active?: boolean };
-        Update: { name?: string; slug?: string; icon?: string | null; image_url?: string | null; parent_id?: string | null; sort_order?: number; is_active?: boolean };
+        Row: { id: string; name: string; slug: string; icon: string | null; image_url: string | null; cover_image_url: string | null; color: string | null; parent_id: string | null; sort_order: number; is_active: boolean; created_at: string };
+        Insert: { name: string; slug: string; icon?: string | null; image_url?: string | null; cover_image_url?: string | null; color?: string | null; parent_id?: string | null; sort_order?: number; is_active?: boolean };
+        Update: { name?: string; slug?: string; icon?: string | null; image_url?: string | null; cover_image_url?: string | null; color?: string | null; parent_id?: string | null; sort_order?: number; is_active?: boolean };
       };
       sellers: {
         Row: { id: string; user_id: string; type: "individual" | "company"; name: string; slug: string | null; description: string | null; logo_url: string | null; cover_url: string | null; phone: string | null; whatsapp: string | null; email: string | null; province: string | null; city: string | null; address: string | null; website: string | null; rating: number; total_reviews: number; total_sales: number; followers_count: number; visits_count: number; is_verified: boolean; is_active: boolean; created_at: string; updated_at: string };
