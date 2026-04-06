@@ -2,6 +2,7 @@ import { Search, Menu, ShoppingCart, User, MapPin, X, ChevronRight, Gavel, Radio
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSiteSetting } from "@/hooks/useSiteSettings";
 
 const categories = [
   { name: "Electrónicos", image: "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=100&h=100&fit=crop" },
@@ -33,6 +34,7 @@ const Navbar = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const navigate = useNavigate();
   const { user, userDisplayName, signOut } = useAuth();
+  const { data: logoUrl } = useSiteSetting("site_logo_url");
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,8 +54,14 @@ const Navbar = () => {
             </button>
 
             <a href="/" className="flex items-center gap-1 flex-shrink-0">
-              <span className="text-secondary text-2xl font-black">✻</span>
-              <span className="text-lg font-black text-primary-foreground tracking-tight hidden sm:block">Kwanza</span>
+              {logoUrl ? (
+                <img src={logoUrl} alt="Logo" className="h-7 object-contain" />
+              ) : (
+                <>
+                  <span className="text-secondary text-2xl font-black">✻</span>
+                  <span className="text-lg font-black text-primary-foreground tracking-tight hidden sm:block">Kwanza</span>
+                </>
+              )}
             </a>
 
             <div className="flex-1 min-w-0">
