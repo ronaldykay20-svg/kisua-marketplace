@@ -248,44 +248,47 @@ export const useProductRanking = () =>
   useQuery({
     queryKey: ["product_ranking"],
     queryFn: async () => {
-      // Get all order_items
-      const { data: items } = await supabase
-        .from("order_items")
-        .select("product_id, order_id, quantity");
-      if (!items || items.length === 0) return [];
-
-      const orderIds = [...new Set(items.map((i: any) => i.order_id))];
-      const { data: orders } = await supabase
-        .from("orders")
-        .select("id, status")
-        .in("id", orderIds);
-
-      // Count as sale if order status is confirmed/shipped/delivered
-      const confirmedIds = new Set(
-        (orders || [])
-          .filter((o: any) => ["confirmed", "shipped", "delivered"].includes(o.status))
-          .map((o: any) => o.id)
-      );
-
-      const salesMap: Record<string, number> = {};
-      items.forEach((item: any) => {
-        if (confirmedIds.has(item.order_id)) {
-          salesMap[item.product_id] = (salesMap[item.product_id] || 0) + (item.quantity || 1);
-        }
-      });
-
-      const productIds = Object.keys(salesMap);
-      if (productIds.length === 0) return [];
-
+      // Get all active products
       const { data: products } = await supabase
         .from("products")
-        .select("id, title, price, rating, total_reviews, product_media(url, is_cover)")
-        .in("id", productIds);
+        .select("id, title, price, rating, total_reviews, sales_count, product_media(url, is_cover)")
+        .eq("is_active", true);
+      if (!products || products.length === 0) return [];
 
-      return (products || [])
+      // Also count from order_items for accuracy
+      const productIds = products.map((p: any) => p.id);
+      const { data: items } = await supabase
+        .from("order_items")
+        .select("product_id, order_id, quantity")
+        .in("product_id", productIds);
+
+      let salesMap: Record<string, number> = {};
+
+      if (items && items.length > 0) {
+        const orderIds = [...new Set(items.map((i: any) => i.order_id))];
+        const { data: orders } = await supabase
+          .from("orders")
+          .select("id, status")
+          .in("id", orderIds);
+
+        const confirmedIds = new Set(
+          (orders || [])
+            .filter((o: any) => ["confirmed", "shipped", "delivered"].includes(o.status))
+            .map((o: any) => o.id)
+        );
+
+        items.forEach((item: any) => {
+          if (confirmedIds.has(item.order_id)) {
+            salesMap[item.product_id] = (salesMap[item.product_id] || 0) + (item.quantity || 1);
+          }
+        });
+      }
+
+      return products
         .map((p: any) => {
           const cover = p.product_media?.find((m: any) => m.is_cover)?.url || "";
-          return { ...p, image: cover, sales: salesMap[p.id] || 0, name: p.title, type: "product" as const };
+          const sales = salesMap[p.id] || p.sales_count || 0;
+          return { ...p, image: cover, sales, name: p.title, type: "product" as const };
         })
         .sort((a: any, b: any) => b.sales - a.sales);
     },
