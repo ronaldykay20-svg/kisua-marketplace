@@ -1,16 +1,18 @@
 import { useState } from "react";
-import { Plus, Edit, Trash2, X, Save, Upload, Eye, EyeOff, Image as ImageIcon } from "lucide-react";
+import { Plus, Edit, Trash2, X, Save, Eye, EyeOff, Monitor } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { STORAGE_BUCKETS } from "@/lib/storage";
+import BannerPreview from "./banner/BannerPreview";
+import BannerImageUploader from "./banner/BannerImageUploader";
+import { formats } from "./banner/BannerPreview";
 
 interface BannerForm {
   title: string;
   subtitle: string;
   cta_text: string;
   cta_link: string;
-  image_url: string;
+  images: string[];
   format: string;
   bg_color: string;
   sort_order: string;
@@ -18,23 +20,16 @@ interface BannerForm {
 
 const empty: BannerForm = {
   title: "", subtitle: "", cta_text: "Compre agora", cta_link: "#",
-  image_url: "", format: "hero", bg_color: "#F0F9FF", sort_order: "0",
+  images: [], format: "hero", bg_color: "#F0F9FF", sort_order: "0",
 };
-
-const formats = [
-  { value: "hero", label: "🖼️ Hero (carrossel principal)", aspect: "aspect-[21/9]" },
-  { value: "wide", label: "📐 Wide (publicidade horizontal)", aspect: "aspect-[21/9]" },
-  { value: "square", label: "⬜ Square (publicidade quadrada)", aspect: "aspect-square" },
-  { value: "promo", label: "🎯 Promo (card promocional)", aspect: "aspect-[4/3]" },
-];
 
 const AdminBannersTab = () => {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<BannerForm>(empty);
-  const [uploading, setUploading] = useState(false);
   const [filterFormat, setFilterFormat] = useState<string>("all");
+  const [showPreview, setShowPreview] = useState(true);
 
   const { data: banners = [] } = useQuery({
     queryKey: ["admin_banners"],
@@ -45,29 +40,16 @@ const AdminBannersTab = () => {
     },
   });
 
-  const handleUpload = async (file: File) => {
-    setUploading(true);
-    try {
-      const ext = file.name.split(".").pop();
-      const path = `banners/${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from(STORAGE_BUCKETS.banners).upload(path, file);
-      if (error) throw error;
-      const { data } = supabase.storage.from(STORAGE_BUCKETS.banners).getPublicUrl(path);
-      setForm(f => ({ ...f, image_url: data.publicUrl }));
-    } catch (err: any) {
-      toast.error("Erro no upload: " + err.message);
-    }
-    setUploading(false);
-  };
-
   const saveBanner = useMutation({
     mutationFn: async () => {
+      if (form.images.length === 0) throw new Error("Adicione pelo menos uma imagem");
       const payload = {
         title: form.title,
         subtitle: form.subtitle || "",
         cta_text: form.cta_text || "Compre agora",
         cta_link: form.cta_link || "#",
-        image_url: form.image_url,
+        image_url: form.images[0],
+        extra_images: form.images.length > 1 ? form.images.slice(1) : [],
         format: form.format,
         bg_color: form.bg_color || "#F0F9FF",
         sort_order: parseInt(form.sort_order) || 0,
@@ -117,13 +99,14 @@ const AdminBannersTab = () => {
   });
 
   const openEdit = (b: any) => {
+    const allImages = [b.image_url, ...(b.extra_images || [])].filter(Boolean);
     setEditing(b);
     setForm({
       title: b.title || "",
       subtitle: b.subtitle || "",
       cta_text: b.cta_text || "Compre agora",
       cta_link: b.cta_link || "#",
-      image_url: b.image_url || "",
+      images: allImages,
       format: b.format || "hero",
       bg_color: b.bg_color || "#F0F9FF",
       sort_order: String(b.sort_order || 0),
@@ -131,9 +114,7 @@ const AdminBannersTab = () => {
     setShowForm(true);
   };
 
-  const set = (k: keyof BannerForm, v: string) => setForm(f => ({ ...f, [k]: v }));
-
-  const selectedFormat = formats.find(f => f.value === form.format);
+  const set = (k: keyof BannerForm, v: any) => setForm(f => ({ ...f, [k]: v }));
   const filtered = filterFormat === "all" ? banners : banners.filter((b: any) => b.format === filterFormat);
 
   return (
@@ -153,31 +134,45 @@ const AdminBannersTab = () => {
           {/* Format selector */}
           <div>
             <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Formato *</label>
-            <div className="grid grid-cols-2 gap-1.5">
+            <div className="grid grid-cols-3 gap-1.5">
               {formats.map(f => (
                 <button key={f.value} type="button" onClick={() => set("format", f.value)}
-                  className={`px-3 py-2 rounded-lg text-xs font-bold border transition text-left ${form.format === f.value ? "border-primary bg-primary/10 text-primary" : "border-border text-foreground"}`}>
+                  className={`px-2 py-1.5 rounded-lg text-[10px] font-bold border transition text-center ${form.format === f.value ? "border-primary bg-primary/10 text-primary" : "border-border text-foreground"}`}>
                   {f.label}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Image upload + preview */}
+          {/* Image upload */}
+          <BannerImageUploader
+            images={form.images}
+            onChange={(imgs) => set("images", imgs)}
+            maxImages={format === "trio-banner" ? 3 : format === "duo-square" || format === "mosaic" ? 3 : 10}
+          />
+
+          {/* Live preview */}
           <div>
-            <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Imagem *</label>
-            {form.image_url && (
-              <div className={`relative rounded-lg overflow-hidden border border-border mb-2 ${selectedFormat?.aspect || "aspect-[21/9]"} max-w-full`}>
-                <img src={form.image_url} alt="Preview" className="w-full h-full object-cover" />
-                <button onClick={() => set("image_url", "")} className="absolute top-1 right-1 bg-destructive/80 text-destructive-foreground rounded-full p-1">
-                  <X className="w-3 h-3" />
-                </button>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-[11px] font-bold text-muted-foreground flex items-center gap-1">
+                <Monitor className="w-3 h-3" /> Preview na Home
+              </label>
+              <button onClick={() => setShowPreview(!showPreview)} className="text-[10px] text-primary font-bold">
+                {showPreview ? "Ocultar" : "Mostrar"}
+              </button>
+            </div>
+            {showPreview && (
+              <div className="bg-muted/50 rounded-xl p-3 border border-border">
+                <BannerPreview
+                  format={form.format}
+                  images={form.images}
+                  title={form.title}
+                  subtitle={form.subtitle}
+                  ctaText={form.cta_text}
+                  bgColor={form.bg_color}
+                />
               </div>
             )}
-            <label className="flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-bold cursor-pointer bg-accent text-foreground border border-border w-fit">
-              <Upload className="w-3.5 h-3.5" /> {uploading ? "Enviando..." : "Upload Imagem"}
-              <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && handleUpload(e.target.files[0])} className="hidden" disabled={uploading} />
-            </label>
           </div>
 
           <input placeholder="Título" value={form.title} onChange={e => set("title", e.target.value)}
@@ -209,9 +204,9 @@ const AdminBannersTab = () => {
             </div>
           </div>
 
-          <button onClick={() => saveBanner.mutate()} disabled={!form.image_url || saveBanner.isPending}
-            className="w-full py-2 bg-primary text-primary-foreground text-sm font-bold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2">
-            <Save className="w-4 h-4" /> {editing ? "Atualizar" : "Criar"}
+          <button onClick={() => saveBanner.mutate()} disabled={form.images.length === 0 || saveBanner.isPending}
+            className="w-full py-2.5 bg-primary text-primary-foreground text-sm font-bold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2">
+            <Save className="w-4 h-4" /> {editing ? "Atualizar" : "Publicar Banner"}
           </button>
         </div>
       )}
@@ -224,10 +219,11 @@ const AdminBannersTab = () => {
         </button>
         {formats.map(f => {
           const count = banners.filter((b: any) => b.format === f.value).length;
+          if (count === 0) return null;
           return (
             <button key={f.value} onClick={() => setFilterFormat(f.value)}
               className={`px-3 py-1.5 text-[10px] font-bold rounded-lg border whitespace-nowrap ${filterFormat === f.value ? "bg-primary text-primary-foreground border-primary" : "bg-card text-foreground border-border"}`}>
-              {f.value} ({count})
+              {f.label} ({count})
             </button>
           );
         })}
@@ -237,15 +233,18 @@ const AdminBannersTab = () => {
       <div className="space-y-2">
         {filtered.map((b: any) => {
           const fmt = formats.find(f => f.value === b.format);
+          const imgCount = 1 + (b.extra_images?.length || 0);
           return (
             <div key={b.id} className={`bg-card rounded-xl border border-border overflow-hidden ${!b.is_active ? "opacity-50" : ""}`}>
-              <div className={`${fmt?.aspect || "aspect-[21/9]"} max-h-32 overflow-hidden`}>
+              <div className="aspect-[21/9] max-h-28 overflow-hidden">
                 <img src={b.image_url} alt={b.title} className="w-full h-full object-cover" />
               </div>
               <div className="p-2.5 flex items-center gap-2">
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-bold text-foreground truncate">{b.title || "Sem título"}</p>
-                  <p className="text-[10px] text-muted-foreground">{fmt?.label || b.format} • Ordem: {b.sort_order}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {fmt?.label || b.format} • Ordem: {b.sort_order} • {imgCount} img{imgCount > 1 ? "s" : ""}
+                  </p>
                 </div>
                 <button onClick={() => toggleActive.mutate({ id: b.id, active: !b.is_active })}
                   className={`p-1.5 rounded-lg ${b.is_active ? "text-green-500" : "text-muted-foreground"}`}>
