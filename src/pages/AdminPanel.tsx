@@ -12,6 +12,7 @@ import AdminCompanyCard from "@/components/admin/AdminCompanyCard";
 import AdminCategoriesTab from "@/components/admin/AdminCategoriesTab";
 import AdminOrdersTab from "@/components/admin/AdminOrdersTab";
 import AdminSettingsTab from "@/components/admin/AdminSettingsTab";
+import AdminBannersTab from "@/components/admin/AdminBannersTab";
 import { toast } from "sonner";
 
 const roleBadge: Record<string, { label: string; color: string; icon: any }> = {
@@ -20,7 +21,7 @@ const roleBadge: Record<string, { label: string; color: string; icon: any }> = {
   user: { label: "Utilizador", color: "bg-primary/10 text-primary border-primary/20", icon: Users },
 };
 
-type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos" | "encomendas" | "categorias" | "definicoes";
+type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos" | "encomendas" | "categorias" | "banners" | "definicoes";
 
 const AdminPanel = () => {
   const { user } = useAuth();
@@ -172,6 +173,7 @@ const AdminPanel = () => {
     { key: "vendedores", label: "Vendedores", icon: Store },
     { key: "empresas", label: "Empresas", icon: Building2 },
     { key: "encomendas", label: "Encomendas", icon: ShoppingBag },
+    { key: "banners", label: "Banners", icon: ImageIcon },
     { key: "pedidos", label: "Candidaturas", icon: UserCheck },
     { key: "definicoes", label: "Definições", icon: Settings },
   ];
@@ -329,6 +331,9 @@ const AdminPanel = () => {
 
         {/* ═══ ENCOMENDAS TAB ═══ */}
         {tab === "encomendas" && <AdminOrdersTab />}
+
+        {/* ═══ BANNERS TAB ═══ */}
+        {tab === "banners" && <AdminBannersTab />}
 
         {/* ═══ DEFINIÇÕES TAB ═══ */}
         {tab === "definicoes" && <AdminSettingsTab />}
