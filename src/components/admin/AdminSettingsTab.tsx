@@ -1,14 +1,30 @@
 import { useRef, useState } from "react";
-import { Upload, Image } from "lucide-react";
+import { Upload, Image, Star, Trash2, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSiteSetting, useUpdateSiteSetting } from "@/hooks/useSiteSettings";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 const AdminSettingsTab = () => {
   const { data: logoUrl } = useSiteSetting("site_logo_url");
+  const { data: featuredSellerId } = useSiteSetting("featured_seller_id");
   const updateSetting = useUpdateSiteSetting();
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+
+  // Load all active sellers for the dropdown
+  const { data: allSellers = [] } = useQuery({
+    queryKey: ["admin_all_sellers_for_featured"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sellers")
+        .select("id, name, type, is_verified")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
 
   const handleUpload = async (file: File) => {
     setUploading(true);
@@ -27,6 +43,7 @@ const AdminSettingsTab = () => {
 
   return (
     <div className="space-y-4">
+      {/* Logo */}
       <div className="bg-card rounded-xl border border-border p-4">
         <h3 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
           <Image className="w-4 h-4" /> Logo do Cabeçalho
@@ -34,7 +51,6 @@ const AdminSettingsTab = () => {
         <p className="text-xs text-muted-foreground mb-3">
           Este logo será exibido no cabeçalho do site no lugar do texto padrão.
         </p>
-
         <div className="flex items-center gap-4">
           {logoUrl ? (
             <div className="h-10 bg-primary rounded-lg px-3 flex items-center">
@@ -45,21 +61,46 @@ const AdminSettingsTab = () => {
               <span className="text-xs text-muted-foreground">Sem logo</span>
             </div>
           )}
-
           <label className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold cursor-pointer bg-primary text-primary-foreground">
             <Upload className="w-3.5 h-3.5" /> {uploading ? "Enviando..." : "Upload Logo"}
             <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={e => e.target.files?.[0] && handleUpload(e.target.files[0])} disabled={uploading} />
           </label>
-
           {logoUrl && (
-            <button
-              onClick={() => updateSetting.mutate({ key: "site_logo_url", value: "" })}
-              className="text-xs text-destructive hover:underline"
-            >
+            <button onClick={() => updateSetting.mutate({ key: "site_logo_url", value: "" })} className="text-xs text-destructive hover:underline">
               Remover
             </button>
           )}
         </div>
+      </div>
+
+      {/* Featured Seller */}
+      <div className="bg-card rounded-xl border border-border p-4">
+        <h3 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
+          <Star className="w-4 h-4 text-secondary" /> Vendedor/Empresa em Destaque
+        </h3>
+        <p className="text-xs text-muted-foreground mb-3">
+          Escolha um vendedor ou empresa para destacar na homepage com os seus produtos.
+        </p>
+        <select
+          value={featuredSellerId || ""}
+          onChange={(e) => updateSetting.mutate({ key: "featured_seller_id", value: e.target.value })}
+          className="w-full px-3 py-2.5 rounded-lg bg-background border border-border text-sm text-foreground"
+        >
+          <option value="">Automático (maior vendedor verificado)</option>
+          {allSellers.map((s: any) => (
+            <option key={s.id} value={s.id}>
+              {s.name} {s.is_verified ? "✅" : ""} ({s.type === "company" ? "Empresa" : "Vendedor"})
+            </option>
+          ))}
+        </select>
+        {featuredSellerId && (
+          <button
+            onClick={() => updateSetting.mutate({ key: "featured_seller_id", value: "" })}
+            className="mt-2 text-xs text-destructive hover:underline flex items-center gap-1"
+          >
+            <Trash2 className="w-3 h-3" /> Remover destaque manual
+          </button>
+        )}
       </div>
     </div>
   );
