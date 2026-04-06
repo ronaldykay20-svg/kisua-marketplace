@@ -15,7 +15,7 @@ const VideoStories = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("seller_stories")
-        .select("*, sellers(id, name, logo_url, is_verified, type), products(id, title, price, old_price, image_url)")
+        .select("*, sellers(id, name, logo_url, is_verified, type), products(id, title, price, old_price)")
         .eq("is_active", true)
         .order("created_at", { ascending: false })
         .limit(10);
