@@ -148,7 +148,7 @@ const AdminBannersTab = () => {
           <BannerImageUploader
             images={form.images}
             onChange={(imgs) => set("images", imgs)}
-            maxImages={format === "trio-banner" ? 3 : format === "duo-square" || format === "mosaic" ? 3 : 10}
+            maxImages={form.format === "trio-banner" ? 3 : form.format === "duo-square" || form.format === "mosaic" ? 3 : 10}
           />
 
           {/* Live preview */}
