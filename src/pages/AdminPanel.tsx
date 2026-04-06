@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Shield, Users, Search, Plus, Trash2, Crown, Building2, Store, CheckCircle, XCircle, ShieldCheck, UserCheck, UsersRound, FolderTree, ImageIcon, Camera, ShoppingBag } from "lucide-react";
+import { Shield, Users, Search, Plus, Trash2, Crown, Building2, Store, CheckCircle, XCircle, ShieldCheck, UserCheck, UsersRound, FolderTree, ImageIcon, Camera, ShoppingBag, Settings } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,6 +11,7 @@ import AdminCompanyMembersModal from "@/components/admin/AdminCompanyMembersModa
 import AdminCompanyCard from "@/components/admin/AdminCompanyCard";
 import AdminCategoriesTab from "@/components/admin/AdminCategoriesTab";
 import AdminOrdersTab from "@/components/admin/AdminOrdersTab";
+import AdminSettingsTab from "@/components/admin/AdminSettingsTab";
 import { toast } from "sonner";
 
 const roleBadge: Record<string, { label: string; color: string; icon: any }> = {
@@ -19,7 +20,7 @@ const roleBadge: Record<string, { label: string; color: string; icon: any }> = {
   user: { label: "Utilizador", color: "bg-primary/10 text-primary border-primary/20", icon: Users },
 };
 
-type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos" | "encomendas" | "categorias";
+type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos" | "encomendas" | "categorias" | "definicoes";
 
 const AdminPanel = () => {
   const { user } = useAuth();
@@ -172,6 +173,7 @@ const AdminPanel = () => {
     { key: "empresas", label: "Empresas", icon: Building2 },
     { key: "encomendas", label: "Encomendas", icon: ShoppingBag },
     { key: "pedidos", label: "Candidaturas", icon: UserCheck },
+    { key: "definicoes", label: "Definições", icon: Settings },
   ];
 
   return (
@@ -327,6 +329,9 @@ const AdminPanel = () => {
 
         {/* ═══ ENCOMENDAS TAB ═══ */}
         {tab === "encomendas" && <AdminOrdersTab />}
+
+        {/* ═══ DEFINIÇÕES TAB ═══ */}
+        {tab === "definicoes" && <AdminSettingsTab />}
 
         {/* ═══ CANDIDATURAS VENDEDOR TAB ═══ */}
         {tab === "pedidos" && (

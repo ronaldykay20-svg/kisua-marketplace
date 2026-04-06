@@ -98,6 +98,11 @@ export type Database = {
         Insert: { product_id: string; url: string; type?: string; is_cover?: boolean; sort_order?: number };
         Update: { url?: string; type?: string; is_cover?: boolean; sort_order?: number };
       };
+      site_settings: {
+        Row: { id: string; key: string; value: string | null; updated_at: string };
+        Insert: { key: string; value?: string | null };
+        Update: { value?: string | null; updated_at?: string };
+      };
     };
     Enums: {
       app_role: "admin" | "moderator" | "user";

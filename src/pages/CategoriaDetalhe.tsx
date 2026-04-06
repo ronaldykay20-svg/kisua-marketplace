@@ -77,29 +77,27 @@ const CategoriaDetalhe = () => {
       if (error) throw error;
       return data || [];
     },
-    enabled: true,
+    enabled: !!categoryId,
   });
 
-  const products = dbProducts && dbProducts.length > 0
-    ? dbProducts.map((p: any) => {
-        const cover = p.product_media?.find((m: any) => m.is_cover)?.url || p.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&h=600&fit=crop";
-        return {
-          id: p.id,
-          title: p.title,
-          price: Number(p.price),
-          priceFormatted: Number(p.price).toLocaleString("pt-AO").replace(/,/g, ".") + " Kz",
-          oldPrice: p.old_price ? Number(p.old_price).toLocaleString("pt-AO").replace(/,/g, ".") + " Kz" : undefined,
-          discount: p.discount_percent ? `-${p.discount_percent}%` : undefined,
-          image: cover,
-          rating: p.rating || 0,
-          reviews: p.total_reviews || 0,
-          freeShipping: p.free_shipping,
-          badge: p.badge,
-          salesCount: p.sales_count || 0,
-          sellerName: "",
-        };
-      })
-    : allProducts.map(p => ({ ...p, price: 0, priceFormatted: p.price, salesCount: 0, sellerName: "" }));
+  const products = (dbProducts || []).map((p: any) => {
+    const cover = p.product_media?.find((m: any) => m.is_cover)?.url || p.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&h=600&fit=crop";
+    return {
+      id: p.id,
+      title: p.title,
+      price: Number(p.price),
+      priceFormatted: Number(p.price).toLocaleString("pt-AO").replace(/,/g, ".") + " Kz",
+      oldPrice: p.old_price ? Number(p.old_price).toLocaleString("pt-AO").replace(/,/g, ".") + " Kz" : undefined,
+      discount: p.discount_percent ? `-${p.discount_percent}%` : undefined,
+      image: cover,
+      rating: p.rating || 0,
+      reviews: p.total_reviews || 0,
+      freeShipping: p.free_shipping,
+      badge: p.badge,
+      salesCount: p.sales_count || 0,
+      sellerName: "",
+    };
+  });
 
   const subs = subcategories[categoryName] || ["Todos"];
 
