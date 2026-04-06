@@ -9,8 +9,9 @@ import { toast } from "sonner";
 import SellerProductForm from "@/components/seller/SellerProductForm";
 import SellerProfileEditor from "@/components/seller/SellerProfileEditor";
 import SellerOrdersTab from "@/components/seller/SellerOrdersTab";
+import SellerStoriesTab from "@/components/seller/SellerStoriesTab";
 
-type Tab = "produtos" | "pedidos" | "perfil";
+type Tab = "produtos" | "pedidos" | "stories" | "perfil";
 
 const SellerDashboard = () => {
   const { user } = useAuth();
@@ -209,6 +210,7 @@ const SellerDashboard = () => {
           {([
             { key: "produtos" as Tab, label: "Produtos", icon: Package },
             { key: "pedidos" as Tab, label: "Pedidos", icon: ClipboardList },
+            { key: "stories" as Tab, label: "Stories", icon: Eye },
             { key: "perfil" as Tab, label: "Perfil", icon: Settings },
           ]).map(t => (
             <button key={t.key} onClick={() => setTab(t.key)}
@@ -296,6 +298,9 @@ const SellerDashboard = () => {
 
         {/* ═══ PEDIDOS ═══ */}
         {tab === "pedidos" && <SellerOrdersTab sellerId={seller.id} />}
+
+        {/* ═══ STORIES ═══ */}
+        {tab === "stories" && <SellerStoriesTab sellerId={seller.id} />}
 
         {/* ═══ PERFIL ═══ */}
         {tab === "perfil" && <SellerProfileEditor seller={seller} />}

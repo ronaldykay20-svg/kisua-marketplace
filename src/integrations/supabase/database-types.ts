@@ -103,6 +103,11 @@ export type Database = {
         Insert: { key: string; value?: string | null };
         Update: { value?: string | null; updated_at?: string };
       };
+      seller_stories: {
+        Row: { id: string; seller_id: string; video_url: string; thumbnail_url: string | null; product_id: string | null; views_count: number; is_active: boolean; created_at: string };
+        Insert: { seller_id: string; video_url: string; thumbnail_url?: string | null; product_id?: string | null; is_active?: boolean };
+        Update: { video_url?: string; thumbnail_url?: string | null; product_id?: string | null; views_count?: number; is_active?: boolean };
+      };
     };
     Enums: {
       app_role: "admin" | "moderator" | "user";
