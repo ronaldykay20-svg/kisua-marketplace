@@ -10,11 +10,13 @@ interface CategoryForm {
   slug: string;
   icon: string;
   image_url: string;
+  cover_image_url: string;
+  color: string;
   parent_id: string;
   sort_order: string;
 }
 
-const empty: CategoryForm = { name: "", slug: "", icon: "", image_url: "", parent_id: "", sort_order: "0" };
+const empty: CategoryForm = { name: "", slug: "", icon: "", image_url: "", cover_image_url: "", color: "#3B82F6", parent_id: "", sort_order: "0" };
 
 const AdminCategoriesTab = () => {
   const queryClient = useQueryClient();
@@ -22,6 +24,7 @@ const AdminCategoriesTab = () => {
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<CategoryForm>(empty);
   const [uploading, setUploading] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
   const [expandedParent, setExpandedParent] = useState<string | null>(null);
 
   const { data: categories = [] } = useQuery({
@@ -51,6 +54,21 @@ const AdminCategoriesTab = () => {
     setUploading(false);
   };
 
+  const handleCoverUpload = async (file: File) => {
+    setUploadingCover(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const path = `categories/covers/${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from(STORAGE_BUCKETS.categories).upload(path, file);
+      if (error) throw error;
+      const { data } = supabase.storage.from(STORAGE_BUCKETS.categories).getPublicUrl(path);
+      setForm(f => ({ ...f, cover_image_url: data.publicUrl }));
+    } catch (err: any) {
+      toast.error("Erro no upload: " + err.message);
+    }
+    setUploadingCover(false);
+  };
+
   const saveCategory = useMutation({
     mutationFn: async () => {
       const payload = {
@@ -58,6 +76,8 @@ const AdminCategoriesTab = () => {
         slug: form.slug || form.name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, ""),
         icon: form.icon || null,
         image_url: form.image_url || null,
+        cover_image_url: form.cover_image_url || null,
+        color: form.color || "#3B82F6",
         parent_id: form.parent_id || null,
         sort_order: parseInt(form.sort_order) || 0,
         is_active: true,
@@ -101,6 +121,8 @@ const AdminCategoriesTab = () => {
       slug: cat.slug,
       icon: cat.icon || "",
       image_url: cat.image_url || "",
+      cover_image_url: cat.cover_image_url || "",
+      color: cat.color || "#3B82F6",
       parent_id: cat.parent_id || "",
       sort_order: String(cat.sort_order || 0),
     });
@@ -150,6 +172,25 @@ const AdminCategoriesTab = () => {
                 <Upload className="w-3.5 h-3.5" /> {uploading ? "..." : "Upload"}
                 <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && handleUpload(e.target.files[0])} className="hidden" disabled={uploading} />
               </label>
+            </div>
+          </div>
+          <div>
+            <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Imagem de Capa</label>
+            <div className="flex items-center gap-2">
+              {form.cover_image_url && <img src={form.cover_image_url} alt="" className="w-20 h-10 rounded-lg object-cover border border-border" />}
+              <label className="flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-bold cursor-pointer bg-accent text-foreground border border-border">
+                <Upload className="w-3.5 h-3.5" /> {uploadingCover ? "..." : "Upload Capa"}
+                <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && handleCoverUpload(e.target.files[0])} className="hidden" disabled={uploadingCover} />
+              </label>
+            </div>
+          </div>
+          <div>
+            <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Cor da Categoria</label>
+            <div className="flex items-center gap-2">
+              <input type="color" value={form.color} onChange={e => set("color", e.target.value)}
+                className="w-10 h-10 rounded-lg border border-border cursor-pointer" />
+              <input placeholder="#3B82F6" value={form.color} onChange={e => set("color", e.target.value)}
+                className="flex-1 px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
             </div>
           </div>
           <button onClick={() => saveCategory.mutate()} disabled={!form.name || saveCategory.isPending}
