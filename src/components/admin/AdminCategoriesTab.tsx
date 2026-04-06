@@ -103,6 +103,8 @@ const AdminCategoriesTab = () => {
       slug: cat.slug,
       icon: cat.icon || "",
       image_url: cat.image_url || "",
+      cover_image_url: cat.cover_image_url || "",
+      color: cat.color || "#3B82F6",
       parent_id: cat.parent_id || "",
       sort_order: String(cat.sort_order || 0),
     });
