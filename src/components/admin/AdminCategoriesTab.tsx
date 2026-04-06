@@ -60,6 +60,8 @@ const AdminCategoriesTab = () => {
         slug: form.slug || form.name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, ""),
         icon: form.icon || null,
         image_url: form.image_url || null,
+        cover_image_url: form.cover_image_url || null,
+        color: form.color || "#3B82F6",
         parent_id: form.parent_id || null,
         sort_order: parseInt(form.sort_order) || 0,
         is_active: true,
