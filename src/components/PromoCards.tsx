@@ -22,14 +22,13 @@ const PromoCards = () => {
     <section className="container mx-auto px-3 pt-3">
       <div className="grid grid-cols-2 gap-2.5">
         {cards.map((card) => (
-          <div key={card.title} className="rounded-card overflow-hidden cursor-pointer group" style={{ backgroundColor: card.bg }}>
-            <div className="p-3 pb-0">
-              <h3 className="text-xs sm:text-sm font-bold text-foreground leading-tight">{card.title}</h3>
-              <p className="text-[10px] text-muted-foreground">{card.subtitle}</p>
-              <a href="#" className="text-[10px] font-semibold text-primary hover:underline">{card.cta}</a>
-            </div>
-            <div className="aspect-[4/3] mt-2 overflow-hidden">
-              <img src={card.image} alt={card.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
+          <div key={card.title} className="relative rounded-card overflow-hidden cursor-pointer group min-h-[200px] sm:min-h-[260px]">
+            <img src={card.image} alt={card.title} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+            <div className="relative h-full flex flex-col justify-end p-3">
+              <h3 className="text-xs sm:text-sm font-bold text-white leading-tight">{card.title}</h3>
+              <p className="text-[10px] text-white/70">{card.subtitle}</p>
+              <a href="#" className="text-[10px] font-semibold text-white hover:underline mt-0.5">{card.cta}</a>
             </div>
           </div>
         ))}
