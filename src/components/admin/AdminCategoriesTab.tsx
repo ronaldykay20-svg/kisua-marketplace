@@ -174,6 +174,25 @@ const AdminCategoriesTab = () => {
               </label>
             </div>
           </div>
+          <div>
+            <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Imagem de Capa</label>
+            <div className="flex items-center gap-2">
+              {form.cover_image_url && <img src={form.cover_image_url} alt="" className="w-20 h-10 rounded-lg object-cover border border-border" />}
+              <label className="flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-bold cursor-pointer bg-accent text-foreground border border-border">
+                <Upload className="w-3.5 h-3.5" /> {uploadingCover ? "..." : "Upload Capa"}
+                <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && handleCoverUpload(e.target.files[0])} className="hidden" disabled={uploadingCover} />
+              </label>
+            </div>
+          </div>
+          <div>
+            <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Cor da Categoria</label>
+            <div className="flex items-center gap-2">
+              <input type="color" value={form.color} onChange={e => set("color", e.target.value)}
+                className="w-10 h-10 rounded-lg border border-border cursor-pointer" />
+              <input placeholder="#3B82F6" value={form.color} onChange={e => set("color", e.target.value)}
+                className="flex-1 px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
+            </div>
+          </div>
           <button onClick={() => saveCategory.mutate()} disabled={!form.name || saveCategory.isPending}
             className="w-full py-2 bg-primary text-primary-foreground text-sm font-bold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2">
             <Save className="w-4 h-4" /> {editing ? "Atualizar" : "Criar"}
