@@ -24,6 +24,7 @@ const AdminCategoriesTab = () => {
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<CategoryForm>(empty);
   const [uploading, setUploading] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
   const [expandedParent, setExpandedParent] = useState<string | null>(null);
 
   const { data: categories = [] } = useQuery({
