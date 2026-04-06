@@ -62,7 +62,7 @@ const SellerStoriesTab = ({ sellerId }: Props) => {
 
       const { error: insertErr } = await supabase.from("seller_stories").insert({
         seller_id: sellerId,
-        video_url: urlData.publicUrl,
+        image_url: urlData.publicUrl,
         product_id: selectedProduct || null,
         is_active: true,
       });
@@ -155,7 +155,7 @@ const SellerStoriesTab = ({ sellerId }: Props) => {
             <div key={s.id} className="bg-card rounded-xl border border-border overflow-hidden group relative">
               <div className="aspect-[9/14] bg-muted">
                 <video
-                  src={s.video_url}
+                  src={s.image_url}
                   className="w-full h-full object-cover"
                   muted
                   preload="metadata"

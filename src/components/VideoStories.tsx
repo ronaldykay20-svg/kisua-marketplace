@@ -81,7 +81,7 @@ const VideoStories = () => {
                     <img src={story.thumbnail_url} alt="" className="w-full h-full object-cover" loading="lazy" />
                   ) : (
         <video
-                      src={story.video_url}
+                      src={story.image_url}
                       className="w-full h-full object-cover"
                       muted
                       preload="metadata"
@@ -169,7 +169,7 @@ const VideoStories = () => {
 
           <video
             ref={videoRef}
-            src={activeStory.video_url}
+            src={activeStory.image_url}
             className="w-full h-full object-contain"
             controls
             autoPlay
