@@ -31,14 +31,15 @@ const HeroBanner = () => {
   return (
     <section className="container mx-auto px-3 pt-3">
       <div className="relative rounded-card overflow-hidden" style={{ backgroundColor: slide.bg }}>
-        <div className="flex items-stretch min-h-[200px] sm:min-h-[280px]">
-          <div className="flex-1 p-5 sm:p-8 flex flex-col justify-center">
-            <p className="text-xs font-bold text-foreground/60 mb-1">{slide.subtitle}</p>
-            <h2 className="text-xl sm:text-3xl font-black text-foreground leading-tight whitespace-pre-line mb-3">{slide.title}</h2>
-            <a href="#" className="text-sm font-semibold text-primary hover:underline">{slide.cta}</a>
-          </div>
-          <div className="w-2/5 sm:w-1/2 relative">
-            <img src={slide.image} alt="Banner" className="absolute inset-0 w-full h-full object-cover" />
+        {/* Full-cover background image */}
+        <img src={slide.image} alt="Banner" className="absolute inset-0 w-full h-full object-cover" />
+        {/* Gradient overlay for text readability */}
+        <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/30 to-transparent" />
+        <div className="relative flex items-stretch min-h-[220px] sm:min-h-[300px]">
+          <div className="flex-1 p-5 sm:p-8 flex flex-col justify-center max-w-[60%]">
+            <p className="text-xs font-bold text-white/70 mb-1">{slide.subtitle}</p>
+            <h2 className="text-xl sm:text-3xl font-black text-white leading-tight whitespace-pre-line mb-3">{slide.title}</h2>
+            <a href="#" className="text-sm font-semibold text-white hover:underline">{slide.cta}</a>
           </div>
         </div>
         <div className="absolute bottom-3 right-3 flex items-center gap-1.5">
