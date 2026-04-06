@@ -54,6 +54,21 @@ const AdminCategoriesTab = () => {
     setUploading(false);
   };
 
+  const handleCoverUpload = async (file: File) => {
+    setUploadingCover(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const path = `categories/covers/${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from(STORAGE_BUCKETS.categories).upload(path, file);
+      if (error) throw error;
+      const { data } = supabase.storage.from(STORAGE_BUCKETS.categories).getPublicUrl(path);
+      setForm(f => ({ ...f, cover_image_url: data.publicUrl }));
+    } catch (err: any) {
+      toast.error("Erro no upload: " + err.message);
+    }
+    setUploadingCover(false);
+  };
+
   const saveCategory = useMutation({
     mutationFn: async () => {
       const payload = {
