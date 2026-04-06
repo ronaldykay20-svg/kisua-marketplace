@@ -233,7 +233,7 @@ const CategoriaDetalhe = () => {
       </div>
 
       {/* Sort bar */}
-      <div className="sticky top-[7.5rem] z-30 bg-card border-b border-border">
+      <div className="sticky top-[7.5rem] z-30 border-b" style={{ backgroundColor: `${categoryColor}0A`, borderBottomColor: `${categoryColor}30` }}>
         <div className="container mx-auto px-3 py-2 flex items-center gap-2">
           <div className="relative flex-1">
             <button onClick={() => setShowSort(!showSort)} className="flex items-center gap-1 text-xs font-medium text-foreground">
