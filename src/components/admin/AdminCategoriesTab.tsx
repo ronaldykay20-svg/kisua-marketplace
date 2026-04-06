@@ -10,11 +10,13 @@ interface CategoryForm {
   slug: string;
   icon: string;
   image_url: string;
+  cover_image_url: string;
+  color: string;
   parent_id: string;
   sort_order: string;
 }
 
-const empty: CategoryForm = { name: "", slug: "", icon: "", image_url: "", parent_id: "", sort_order: "0" };
+const empty: CategoryForm = { name: "", slug: "", icon: "", image_url: "", cover_image_url: "", color: "#3B82F6", parent_id: "", sort_order: "0" };
 
 const AdminCategoriesTab = () => {
   const queryClient = useQueryClient();
