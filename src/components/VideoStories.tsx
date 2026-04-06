@@ -80,7 +80,7 @@ const VideoStories = () => {
                   {story.thumbnail_url ? (
                     <img src={story.thumbnail_url} alt="" className="w-full h-full object-cover" loading="lazy" />
                   ) : (
-                    <video
+        <video
                       src={story.video_url}
                       className="w-full h-full object-cover"
                       muted
