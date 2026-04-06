@@ -14,64 +14,34 @@ const Index = () => {
     <div className="min-h-screen bg-background pb-14 md:pb-0">
       <NewNavbar />
 
-      {/* 1. Banner single (hero) */}
+      {/* 1. Hero banner (single) */}
       <HeroBanner />
 
-      {/* 2. Banner quad (4 promo cards) */}
+      {/* 2. Banner de 4 (promo cards) */}
       <PromoCards />
 
-      {/* 3. Banner triple (3 images) - NEW */}
+      {/* 3. Banner de 3 (mosaic: 1 grande à esquerda + 2 à direita) */}
       <BannerBlock format="triple" />
 
-      {/* 4. Banner single */}
+      {/* 4. Banner de 1 (publicidade) */}
       <BannerBlock format="single" offset={0} />
 
-      {/* 5. Banner double */}
-      <BannerBlock format="double" offset={0} />
-
-      {/* 6. Featured seller/store with cover + products */}
+      {/* 5. Vendedores em destaque com capa + 3 produtos */}
       <FeaturedSellers />
 
-      {/* 7. Banner single */}
+      {/* 6. Banner de 4 */}
+      <BannerBlock format="quad" offset={0} />
+
+      {/* 7. Banner de 1 (publicidade) */}
       <BannerBlock format="single" offset={1} />
 
-      {/* 8. Banner quad */}
-      <BannerBlock format="quad" offset={1} />
-
-      {/* 9. Promo product cards from DB */}
-      <PromoProductCards />
-
-      {/* 10. Banner publicidade */}
-      <BannerBlock format="single" offset={2} />
-
-      {/* 11. Video stories (24h, grouped by seller) */}
+      {/* 8. Stories de vídeo */}
       <GroupedVideoStories />
 
-      {/* 12. Banner publicidade */}
-      <BannerBlock format="single" offset={3} />
+      {/* 9. Banner de 2 */}
+      <BannerBlock format="double" offset={0} />
 
-      {/* 13. Banner double */}
-      <BannerBlock format="double" offset={1} />
-
-      {/* 14. Banner publicidade */}
-      <BannerBlock format="single" offset={4} />
-
-      {/* 15. Banner quad */}
-      <BannerBlock format="quad" offset={2} />
-
-      {/* 16. Banner double */}
-      <BannerBlock format="double" offset={2} />
-
-      {/* 17. Banner single */}
-      <BannerBlock format="single" offset={5} />
-
-      {/* 18. Banner triple */}
-      <BannerBlock format="triple" offset={1} />
-
-      {/* 19. Banner double */}
-      <BannerBlock format="double" offset={3} />
-
-      {/* 20. Infinite scroll products */}
+      {/* 10. Scroll infinito de produtos */}
       <InfiniteProducts />
 
       <Footer />
