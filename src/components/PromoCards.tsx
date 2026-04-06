@@ -17,12 +17,16 @@ const PromoCards = () => {
   const cards = dbPromos.length > 0
     ? dbPromos.map(b => ({ title: b.title, subtitle: b.subtitle, cta: b.cta_text, image: b.image_url, bg: b.bg_color }))
     : fallbackCards;
+  const hasSinglePromo = cards.length === 1;
 
   return (
     <section className="container mx-auto px-3 pt-3">
-      <div className="grid grid-cols-2 gap-2.5">
+      <div className={`grid gap-2.5 ${hasSinglePromo ? "grid-cols-1" : "grid-cols-2"}`}>
         {cards.map((card) => (
-          <div key={card.title} className="relative rounded-card overflow-hidden cursor-pointer group min-h-[200px] sm:min-h-[260px]">
+          <div
+            key={card.title}
+            className={`relative rounded-card overflow-hidden cursor-pointer group ${hasSinglePromo ? "min-h-[240px] sm:min-h-[320px]" : "min-h-[200px] sm:min-h-[260px]"}`}
+          >
             <img src={card.image} alt={card.title} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
             <div className="relative h-full flex flex-col justify-end p-3">
