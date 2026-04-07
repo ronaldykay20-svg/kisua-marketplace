@@ -10,8 +10,8 @@ const BannerBlock = ({ format, offset = 0 }: BannerBlockProps) => {
   const formatKey = format === "single" ? "wide" : format === "quad" ? "promo" : format === "triple" ? "triple" : "square";
   const { data: banners = [] } = useBanners(formatKey);
 
-  const items = banners.slice(offset * count, offset * count + count);
-
+  const start = offset * count;
+  const items = banners.slice(start, start + count);
   if (items.length === 0) return null;
 
   if (format === "single") {

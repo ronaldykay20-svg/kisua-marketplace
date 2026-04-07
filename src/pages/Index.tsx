@@ -26,22 +26,52 @@ const Index = () => {
       {/* 4. Banner de 1 (publicidade) */}
       <BannerBlock format="single" offset={0} />
 
-      {/* 5. Vendedores em destaque com capa + 3 produtos */}
-      <FeaturedSellers />
+      {/* 5. Banner de 2 */}
+      <BannerBlock format="double" offset={0} />
 
-      {/* 6. Banner de 4 */}
-      <BannerBlock format="quad" offset={0} />
+      {/* 6. Vendedores em destaque com capa + 3 produtos */}
+      <FeaturedSellers />
 
       {/* 7. Banner de 1 (publicidade) */}
       <BannerBlock format="single" offset={1} />
 
-      {/* 8. Stories de vídeo */}
+      {/* 8. Banner de 4 */}
+      <BannerBlock format="quad" offset={0} />
+
+      {/* 9. Cards de promoção */}
+      <PromoProductCards />
+
+      {/* 10. Banner de 1 (publicidade) */}
+      <BannerBlock format="single" offset={2} />
+
+      {/* 11. Stories de vídeo */}
       <GroupedVideoStories />
 
-      {/* 9. Banner de 2 */}
-      <BannerBlock format="double" offset={0} />
+      {/* 12. Banner de 1 (publicidade) */}
+      <BannerBlock format="single" offset={3} />
 
-      {/* 10. Scroll infinito de produtos */}
+      {/* 13. Banner de 2 */}
+      <BannerBlock format="double" offset={1} />
+
+      {/* 14. Banner de 1 (publicidade) */}
+      <BannerBlock format="single" offset={4} />
+
+      {/* 15. Banner de 4 */}
+      <BannerBlock format="quad" offset={1} />
+
+      {/* 16. Banner de 2 */}
+      <BannerBlock format="double" offset={2} />
+
+      {/* 17. Banner de 1 */}
+      <BannerBlock format="single" offset={5} />
+
+      {/* 18. Banner de 3 (mosaic) */}
+      <BannerBlock format="triple" offset={1} />
+
+      {/* 19. Banner de 2 */}
+      <BannerBlock format="double" offset={3} />
+
+      {/* 20. Scroll infinito de produtos */}
       <InfiniteProducts />
 
       <Footer />
