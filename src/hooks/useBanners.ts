@@ -8,6 +8,7 @@ export interface Banner {
   cta_text: string;
   cta_link: string;
   image_url: string;
+  extra_images?: string[];
   format: string;
   bg_color: string;
   sort_order: number;
