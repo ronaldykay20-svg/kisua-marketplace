@@ -8,6 +8,13 @@ import BannerImageUploader from "./banner/BannerImageUploader";
 import { formats } from "./banner/BannerPreview";
 import { HOME_BANNER_SLOTS, getHomeSlotLabel } from "@/lib/bannerSlots";
 
+const TEXT_POSITIONS = [
+  { value: "bottom-left", label: "Inferior esquerdo" },
+  { value: "bottom-right", label: "Inferior direito" },
+  { value: "top-left", label: "Superior esquerdo" },
+  { value: "top-right", label: "Superior direito" },
+];
+
 interface BannerForm {
   title: string;
   subtitle: string;
@@ -17,6 +24,7 @@ interface BannerForm {
   format: string;
   bg_color: string;
   sort_order: string;
+  text_position: string;
 }
 
 const DEFAULT_HOME_SLOT = String(HOME_BANNER_SLOTS[0]?.value ?? 1);
@@ -24,6 +32,7 @@ const DEFAULT_HOME_SLOT = String(HOME_BANNER_SLOTS[0]?.value ?? 1);
 const empty: BannerForm = {
   title: "", subtitle: "", cta_text: "Compre agora", cta_link: "#",
   images: [], format: "hero", bg_color: "#F0F9FF", sort_order: DEFAULT_HOME_SLOT,
+  text_position: "bottom-left",
 };
 
 const AdminBannersTab = () => {
@@ -62,6 +71,7 @@ const AdminBannersTab = () => {
         bg_color: form.bg_color || "#F0F9FF",
         sort_order: selectedSlot,
         is_active: true,
+        text_position: form.text_position || "bottom-left",
       };
       if (editing) {
         const { error } = await supabase.from("banners").update(payload).eq("id", editing.id);
@@ -118,6 +128,7 @@ const AdminBannersTab = () => {
       format: b.format || "hero",
       bg_color: b.bg_color || "#F0F9FF",
       sort_order: String(b.sort_order || HOME_BANNER_SLOTS[0]?.value || 1),
+      text_position: b.text_position || "bottom-left",
     });
     setShowForm(true);
   };
@@ -217,6 +228,19 @@ const AdminBannersTab = () => {
             <div className="rounded-lg border border-border bg-muted/50 px-3 py-2">
               <p className="text-[11px] font-bold text-muted-foreground">Banner vai aparecer em</p>
               <p className="text-sm font-semibold text-foreground">{getHomeSlotLabel(form.sort_order)}</p>
+            </div>
+          </div>
+
+          {/* Text position selector */}
+          <div>
+            <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Posição do texto</label>
+            <div className="grid grid-cols-2 gap-1.5">
+              {TEXT_POSITIONS.map(tp => (
+                <button key={tp.value} type="button" onClick={() => set("text_position", tp.value)}
+                  className={`px-2 py-1.5 rounded-lg text-[10px] font-bold border transition text-center ${form.text_position === tp.value ? "border-primary bg-primary/10 text-primary" : "border-border text-foreground"}`}>
+                  {tp.label}
+                </button>
+              ))}
             </div>
           </div>
 

@@ -41,7 +41,6 @@ const GroupedVideoStories = () => {
     },
   });
 
-  // Group by seller
   const grouped = stories.reduce((acc: Record<string, any>, story: any) => {
     const sid = story.seller_id;
     if (!acc[sid]) acc[sid] = { seller: story.sellers, stories: [] };
@@ -73,7 +72,7 @@ const GroupedVideoStories = () => {
           <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-destructive/10 text-destructive font-bold">24h</span>
         </div>
 
-        {/* 1 on mobile, 2 on tablet */}
+        {/* Full width on mobile (1 col), 2 on tablet */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {sellerGroups.map((group: any) => {
             const firstStory = group.stories[0];
@@ -84,7 +83,7 @@ const GroupedVideoStories = () => {
             return (
               <div key={seller?.id} className="rounded-card overflow-hidden border border-border bg-card">
                 <div
-                  className="relative aspect-[9/14] max-h-[400px] cursor-pointer group"
+                  className="relative aspect-[9/14] cursor-pointer group"
                   onClick={() => openGroup(group)}
                 >
                   {firstStory.thumbnail_url ? (
@@ -96,7 +95,6 @@ const GroupedVideoStories = () => {
                     <Play className="w-10 h-10 text-white fill-white opacity-80" />
                   </div>
 
-                  {/* Seller info */}
                   <div className="absolute top-2 left-2 flex items-center gap-1.5">
                     <div className="w-7 h-7 rounded-full overflow-hidden border-2 border-white bg-muted">
                       {seller?.logo_url ? (
@@ -111,7 +109,6 @@ const GroupedVideoStories = () => {
                     {seller?.is_verified && <CheckCircle className="w-3 h-3 text-white" />}
                   </div>
 
-                  {/* Story count & views */}
                   <div className="absolute bottom-2 left-2 flex items-center gap-2">
                     <span className="flex items-center gap-1 text-white text-[10px] font-bold">
                       <Eye className="w-3 h-3" /> {firstStory.views_count || 0}
@@ -124,7 +121,6 @@ const GroupedVideoStories = () => {
                   </div>
                 </div>
 
-                {/* Product link */}
                 {product && (
                   <div className="p-2 flex items-center gap-2 cursor-pointer hover:bg-muted/50 transition"
                     onClick={() => navigate(`/produto/${product.id}`)}>
@@ -148,7 +144,6 @@ const GroupedVideoStories = () => {
       {/* Fullscreen story viewer */}
       {activeGroup && (
         <div className="fixed inset-0 z-50 bg-black flex flex-col" onClick={() => setActiveGroup(null)}>
-          {/* Progress bars */}
           <div className="absolute top-2 left-4 right-4 z-50 flex gap-1">
             {activeGroup.stories.map((_: any, i: number) => (
               <div key={i} className="flex-1 h-0.5 rounded-full bg-white/30 overflow-hidden">
@@ -176,7 +171,6 @@ const GroupedVideoStories = () => {
             <p className="text-white text-sm font-bold">{activeGroup.seller?.name}</p>
           </div>
 
-          {/* Navigation arrows */}
           {storyIdx > 0 && (
             <button className="absolute left-2 top-1/2 -translate-y-1/2 z-50 p-2 rounded-full bg-white/20 text-white"
               onClick={(e) => { e.stopPropagation(); setStoryIdx(storyIdx - 1); }}>

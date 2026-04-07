@@ -13,6 +13,7 @@ export interface Banner {
   bg_color: string;
   sort_order: number;
   is_active: boolean;
+  text_position?: string;
 }
 
 export const useBanners = (format?: string) => {
