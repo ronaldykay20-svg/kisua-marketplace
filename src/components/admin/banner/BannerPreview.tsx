@@ -124,6 +124,18 @@ const BannerPreview = ({ format, images, title, subtitle, ctaText, bgColor }: Ba
 
   // Promo card preview
   if (format === "promo") {
+    if (images.length >= 4) {
+      return (
+        <div className="grid grid-cols-2 gap-2">
+          {images.slice(0, 4).map((image, index) => (
+            <div key={index} className="rounded-card overflow-hidden border border-border aspect-[4/3]">
+              <img src={image} alt={`Preview ${index + 1}`} className="w-full h-full object-cover" />
+            </div>
+          ))}
+        </div>
+      );
+    }
+
     return (
       <div className="max-w-[220px] rounded-card overflow-hidden border border-border" style={{ backgroundColor: bgColor }}>
         <div className="p-3 pb-0">

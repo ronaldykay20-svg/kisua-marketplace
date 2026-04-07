@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import BannerPreview from "./banner/BannerPreview";
 import BannerImageUploader from "./banner/BannerImageUploader";
 import { formats } from "./banner/BannerPreview";
+import { HOME_BANNER_SLOTS, getHomeSlotLabel } from "@/lib/bannerSlots";
 
 interface BannerForm {
   title: string;
@@ -18,9 +19,11 @@ interface BannerForm {
   sort_order: string;
 }
 
+const DEFAULT_HOME_SLOT = String(HOME_BANNER_SLOTS[0]?.value ?? 1);
+
 const empty: BannerForm = {
   title: "", subtitle: "", cta_text: "Compre agora", cta_link: "#",
-  images: [], format: "hero", bg_color: "#F0F9FF", sort_order: "0",
+  images: [], format: "hero", bg_color: "#F0F9FF", sort_order: DEFAULT_HOME_SLOT,
 };
 
 const AdminBannersTab = () => {
@@ -34,7 +37,7 @@ const AdminBannersTab = () => {
   const { data: banners = [] } = useQuery({
     queryKey: ["admin_banners"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("banners").select("*").order("format").order("sort_order");
+      const { data, error } = await supabase.from("banners").select("*").order("sort_order").order("format");
       if (error) throw error;
       return data;
     },
@@ -43,6 +46,11 @@ const AdminBannersTab = () => {
   const saveBanner = useMutation({
     mutationFn: async () => {
       if (form.images.length === 0) throw new Error("Adicione pelo menos uma imagem");
+      const selectedSlot = parseInt(form.sort_order, 10);
+      if (!Number.isFinite(selectedSlot) || selectedSlot < 1) throw new Error("Selecione uma posição válida na home");
+      const duplicatedSlot = banners.find((banner: any) => banner.sort_order === selectedSlot && banner.id !== editing?.id);
+      if (duplicatedSlot) throw new Error("Já existe um banner nesta posição da home. Edite o actual ou escolha outra posição.");
+
       const payload = {
         title: form.title,
         subtitle: form.subtitle || "",
@@ -52,7 +60,7 @@ const AdminBannersTab = () => {
         extra_images: form.images.length > 1 ? form.images.slice(1) : [],
         format: form.format,
         bg_color: form.bg_color || "#F0F9FF",
-        sort_order: parseInt(form.sort_order) || 0,
+        sort_order: selectedSlot,
         is_active: true,
       };
       if (editing) {
@@ -109,7 +117,7 @@ const AdminBannersTab = () => {
       images: allImages,
       format: b.format || "hero",
       bg_color: b.bg_color || "#F0F9FF",
-      sort_order: String(b.sort_order || 0),
+      sort_order: String(b.sort_order || HOME_BANNER_SLOTS[0]?.value || 1),
     });
     setShowForm(true);
   };
@@ -148,7 +156,7 @@ const AdminBannersTab = () => {
           <BannerImageUploader
             images={form.images}
             onChange={(imgs) => set("images", imgs)}
-            maxImages={form.format === "trio-banner" ? 3 : form.format === "duo-square" || form.format === "mosaic" ? 3 : 10}
+            maxImages={form.format === "promo" ? 4 : form.format === "trio-banner" ? 3 : form.format === "duo-square" ? 2 : form.format === "mosaic" ? 3 : 10}
           />
 
           {/* Live preview */}
@@ -189,6 +197,15 @@ const AdminBannersTab = () => {
 
           <div className="grid grid-cols-2 gap-2">
             <div>
+              <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Posição na Home</label>
+              <select value={form.sort_order} onChange={e => set("sort_order", e.target.value)}
+                className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground">
+                {HOME_BANNER_SLOTS.map((slot) => (
+                  <option key={slot.value} value={slot.value}>{slot.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
               <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Cor de fundo</label>
               <div className="flex items-center gap-2">
                 <input type="color" value={form.bg_color} onChange={e => set("bg_color", e.target.value)}
@@ -197,10 +214,9 @@ const AdminBannersTab = () => {
                   className="flex-1 px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
               </div>
             </div>
-            <div>
-              <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Ordem</label>
-              <input type="number" value={form.sort_order} onChange={e => set("sort_order", e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
+            <div className="rounded-lg border border-border bg-muted/50 px-3 py-2">
+              <p className="text-[11px] font-bold text-muted-foreground">Banner vai aparecer em</p>
+              <p className="text-sm font-semibold text-foreground">{getHomeSlotLabel(form.sort_order)}</p>
             </div>
           </div>
 
@@ -243,7 +259,7 @@ const AdminBannersTab = () => {
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-bold text-foreground truncate">{b.title || "Sem título"}</p>
                   <p className="text-[10px] text-muted-foreground">
-                    {fmt?.label || b.format} • Ordem: {b.sort_order} • {imgCount} img{imgCount > 1 ? "s" : ""}
+                    {fmt?.label || b.format} • {getHomeSlotLabel(b.sort_order)} • {imgCount} img{imgCount > 1 ? "s" : ""}
                   </p>
                 </div>
                 <button onClick={() => toggleActive.mutate({ id: b.id, active: !b.is_active })}
