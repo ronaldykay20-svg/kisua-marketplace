@@ -87,7 +87,7 @@ const FeaturedSellers = () => {
           return (
             <div key={seller.id} className="flex-shrink-0 w-full snap-start">
               {/* Cover */}
-              <div className="relative rounded-t-card overflow-hidden h-[120px] sm:h-[160px] bg-muted">
+              <div className="relative rounded-t-card overflow-hidden h-[160px] sm:h-[200px] md:h-[240px] bg-muted">
                 {seller.cover_url ? (
                   <img src={seller.cover_url} alt="" className="w-full h-full object-cover" />
                 ) : (
