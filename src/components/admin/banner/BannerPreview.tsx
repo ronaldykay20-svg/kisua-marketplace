@@ -14,6 +14,8 @@ const formatConfigs: Record<string, { label: string; aspect: string; previewClas
   "hero-full": { label: "Hero Full", aspect: "aspect-[16/9]", previewClass: "min-h-[200px]" },
   wide: { label: "Wide", aspect: "aspect-[21/9]", previewClass: "min-h-[100px]" },
   "wide-slim": { label: "Wide Slim", aspect: "aspect-[4/1]", previewClass: "min-h-[80px]" },
+  tall: { label: "Tall (aspecto natural)", aspect: "aspect-auto", previewClass: "min-h-[200px]" },
+  natural: { label: "Natural", aspect: "aspect-auto", previewClass: "min-h-[200px]" },
   square: { label: "Square", aspect: "aspect-square", previewClass: "max-w-[200px]" },
   "square-rounded": { label: "Square Round", aspect: "aspect-square rounded-full overflow-hidden", previewClass: "max-w-[180px]" },
   promo: { label: "Promo Card", aspect: "aspect-[4/3]", previewClass: "max-w-[220px]" },
