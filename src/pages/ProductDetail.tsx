@@ -228,9 +228,9 @@ const ProductDetail = () => {
     ? [{ url: variantImage, type: "image" }, ...images.filter(img => img.url !== variantImage)]
     : images;
 
-  const relatedProducts = allProducts.filter(p => p.id !== Number(id)).slice(0, 10);
-  const moreToExplore = allProducts.filter(p => p.id !== Number(id)).slice(10, 20);
-  const alsoLike = allProducts.filter(p => p.id !== Number(id)).slice(5, 15);
+  const relatedProducts = relatedDb.slice(0, 10);
+  const moreToExplore = relatedDb.slice(10, 20);
+  const alsoLike = relatedDb.length > 5 ? relatedDb.slice(5, 15) : relatedDb.slice(0, 10);
 
 
   const staticReviews = [
