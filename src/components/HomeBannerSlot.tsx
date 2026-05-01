@@ -233,6 +233,29 @@ const HomeBannerSlot = ({ slot }: HomeBannerSlotProps) => {
     );
   }
 
+  // ── Tall / Natural (respects image's natural aspect ratio — no crop) ──
+  if (banner.format === "tall" || banner.format === "natural") {
+    return (
+      <section className="container mx-auto px-3 pt-3">
+        <a href={href} className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
+          <img src={image} alt={banner.title || "Banner"} className="w-full h-auto object-contain" loading="lazy" />
+          {banner.title && (
+            <>
+              <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
+              <div className={`absolute inset-0 flex flex-col p-4 ${pos.wrapper}`}>
+                <div className={`max-w-[80%] space-y-1 ${pos.align}`}>
+                  {banner.subtitle && <p className="text-xs font-bold text-white/90 drop-shadow-md">{banner.subtitle}</p>}
+                  <h3 className="text-sm sm:text-lg font-black text-white drop-shadow-lg">{banner.title}</h3>
+                  {banner.cta_text && <span className="text-[11px] font-semibold text-white drop-shadow-md">{banner.cta_text}</span>}
+                </div>
+              </div>
+            </>
+          )}
+        </a>
+      </section>
+    );
+  }
+
   // ── Fallback ──
   return (
     <section className="container mx-auto px-3 pt-3">
