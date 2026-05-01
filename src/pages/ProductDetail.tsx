@@ -129,6 +129,48 @@ const ProductDetail = () => {
     enabled: !!user && !!isUuid,
   });
 
+  // ── Related products from DB (same category, then fallback to popular) ──
+  const categoryId = (dbProduct as any)?.category_id;
+  const sellerId = (dbProduct as any)?.seller_id;
+  const { data: relatedDb = [] } = useQuery({
+    queryKey: ["related_products", id, categoryId, sellerId],
+    queryFn: async () => {
+      const collected: any[] = [];
+      const seen = new Set<string>([id!]);
+
+      const fetchSet = async (filter: (q: any) => any, limit: number) => {
+        let q = supabase.from("products").select("*").eq("is_active", true).neq("id", id!).limit(limit);
+        q = filter(q);
+        const { data } = await q;
+        (data || []).forEach((p: any) => { if (!seen.has(p.id)) { seen.add(p.id); collected.push(p); } });
+      };
+
+      if (categoryId) await fetchSet((q) => q.eq("category_id", categoryId).order("sales_count", { ascending: false }), 30);
+      if (sellerId && collected.length < 30) await fetchSet((q) => q.eq("seller_id", sellerId).order("sales_count", { ascending: false }), 20);
+      if (collected.length < 30) await fetchSet((q) => q.order("sales_count", { ascending: false }), 30);
+
+      const ids = collected.map((p: any) => p.id);
+      const coverMap: Record<string, string> = {};
+      if (ids.length > 0) {
+        const { data: media } = await supabase.from("product_media").select("product_id, url").in("product_id", ids).eq("is_cover", true);
+        (media || []).forEach((m: any) => { coverMap[m.product_id] = m.url; });
+      }
+      return collected.map((p: any) => ({
+        id: p.id,
+        title: p.title,
+        price: Number(p.price).toLocaleString("pt-AO").replace(/,/g, ".") + " Kz",
+        oldPrice: p.old_price ? Number(p.old_price).toLocaleString("pt-AO").replace(/,/g, ".") + " Kz" : undefined,
+        discount: p.discount_percent ? `-${p.discount_percent}%` : undefined,
+        image: coverMap[p.id] || p.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&h=600&fit=crop",
+        rating: p.rating || undefined,
+        reviews: p.total_reviews || undefined,
+        freeShipping: p.free_shipping || false,
+        badge: p.badge || undefined,
+      }));
+    },
+    enabled: !!isUuid && !!dbProduct,
+  });
+
   if (!product) {
     if (isUuid && loadingProduct) {
       return (
