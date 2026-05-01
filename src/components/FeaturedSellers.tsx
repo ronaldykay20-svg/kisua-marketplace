@@ -122,24 +122,25 @@ const FeaturedSellers = () => {
 
               {/* Products */}
               <div className="bg-card rounded-b-card border border-t-0 border-border p-2.5">
-                <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-                  {sellerProducts.map((p: any) => {
-                    const img = p.cover_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300&h=300&fit=crop";
-                    return (
-                      <div key={p.id} onClick={() => navigate(`/produto/${p.id}`)}
-                        className="flex-shrink-0 w-[100px] sm:w-[130px] md:w-[150px] cursor-pointer hover:opacity-80 transition">
-                        <div className="aspect-square rounded-card overflow-hidden bg-muted border border-border">
-                          <img src={img} alt={p.title} className="w-full h-full object-cover" loading="lazy" />
+                {sellerProducts.length === 0 ? (
+                  <p className="text-[10px] text-muted-foreground py-4 w-full text-center">Sem produtos publicados</p>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2">
+                    {sellerProducts.map((p: any) => {
+                      const img = p.cover_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300&h=300&fit=crop";
+                      return (
+                        <div key={p.id} onClick={() => navigate(`/produto/${p.id}`)}
+                          className="w-full cursor-pointer hover:opacity-80 transition">
+                          <div className="aspect-square rounded-card overflow-hidden bg-muted border border-border">
+                            <img src={img} alt={p.title} className="w-full h-full object-cover" loading="lazy" />
+                          </div>
+                          <p className="text-[10px] font-semibold text-foreground line-clamp-1 mt-1">{p.title}</p>
+                          <p className="text-[11px] font-black text-primary">{Number(p.price).toLocaleString("pt-AO")} Kz</p>
                         </div>
-                        <p className="text-[10px] font-semibold text-foreground line-clamp-1 mt-1">{p.title}</p>
-                        <p className="text-[11px] font-black text-primary">{Number(p.price).toLocaleString("pt-AO")} Kz</p>
-                      </div>
-                    );
-                  })}
-                  {sellerProducts.length === 0 && (
-                    <p className="text-[10px] text-muted-foreground py-4 w-full text-center">Sem produtos publicados</p>
-                  )}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           );

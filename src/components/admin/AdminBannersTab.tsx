@@ -194,9 +194,9 @@ const AdminBannersTab = () => {
             )}
           </div>
 
-          <input placeholder="Título" value={form.title} onChange={e => set("title", e.target.value)}
+          <input placeholder="Título (opcional)" value={form.title} onChange={e => set("title", e.target.value)}
             className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
-          <input placeholder="Subtítulo" value={form.subtitle} onChange={e => set("subtitle", e.target.value)}
+          <input placeholder="Subtítulo (opcional)" value={form.subtitle} onChange={e => set("subtitle", e.target.value)}
             className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
 
           <div className="grid grid-cols-2 gap-2">
