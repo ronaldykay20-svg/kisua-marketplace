@@ -209,6 +209,8 @@ const ProductDetail = () => {
     }
     return out;
   })();
+
+  if (!product) {
     if (isUuid && loadingProduct) {
       return (
         <div className="min-h-screen bg-background flex items-center justify-center">
