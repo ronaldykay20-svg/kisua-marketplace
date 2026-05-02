@@ -345,26 +345,28 @@ const ProductDetail = () => {
             </div>
 
             {/* Sponsored sellers (tablet+ only) */}
-            <div className="hidden md:block mt-4">
-              <p className="text-[10px] text-muted-foreground text-right mb-2">Patrocinado</p>
-              <div className="grid grid-cols-2 gap-3">
-                {sponsoredSellers.map((seller, i) => (
-                  <div key={i} className="bg-card rounded-card border border-border p-3 hover:shadow-md transition cursor-pointer">
-                    <div className="flex items-center gap-2 mb-2">
-                      <img src={seller.image} alt={seller.name} className="w-10 h-10 rounded-full object-cover" />
-                      <div>
-                        <p className="text-xs font-bold text-foreground">{seller.name}</p>
-                        <p className="text-[10px] text-muted-foreground">{seller.category}</p>
+            {sponsoredSellers.length > 0 && (
+              <div className="hidden md:block mt-4">
+                <p className="text-[10px] text-muted-foreground text-right mb-2">Patrocinado</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {sponsoredSellers.map((seller: any) => (
+                    <div key={seller.id} onClick={() => navigate(`/vendedor/${seller.id}`)} className="bg-card rounded-card border border-border p-3 hover:shadow-md transition cursor-pointer">
+                      <div className="flex items-center gap-2 mb-2">
+                        <img src={seller.avatar_url || "https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=100&h=100&fit=crop"} alt={seller.name} className="w-10 h-10 rounded-full object-cover" />
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-foreground truncate">{seller.name}</p>
+                          {seller.total_sales != null && <p className="text-[10px] text-muted-foreground">{seller.total_sales} vendas</p>}
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="text-muted-foreground">{seller.rating ? `⭐ ${seller.rating}` : ""}</span>
+                        <button className="px-2 py-1 rounded-card text-primary border border-primary/20 font-bold hover:bg-primary/5 transition">Ver loja</button>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between text-[10px]">
-                      <span className="text-muted-foreground">⭐ {seller.rating} • {seller.sales}</span>
-                      <button className="px-2 py-1 rounded-card text-primary border border-primary/20 font-bold hover:bg-primary/5 transition">Ver loja</button>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* RIGHT column: info */}
