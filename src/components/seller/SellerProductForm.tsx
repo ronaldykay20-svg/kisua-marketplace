@@ -129,6 +129,7 @@ const getPlaceholder = (type: string) => {
 };
 
 const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariants = [], onSave, onCancel, saving }: Props) => {
+  const { isAdmin } = useUserRole();
   const [form, setForm] = useState<ProductFormData>(() => {
     if (editingProduct) {
       return {
