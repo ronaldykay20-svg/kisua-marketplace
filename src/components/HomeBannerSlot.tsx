@@ -148,11 +148,15 @@ const HomeBannerSlot = ({ slot }: HomeBannerSlotProps) => {
           <a href={href} className="relative row-span-2 block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
             <div className="relative h-full min-h-[320px] md:min-h-[400px]">
               <img src={images[0]} alt={banner.title || "Banner"} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
-              <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
-              <div className={`absolute inset-0 flex flex-col p-3 ${pos.wrapper}`}>
-                {banner.title && <h3 className={`text-sm font-bold leading-tight text-white drop-shadow-lg ${pos.align}`}>{banner.title}</h3>}
-                {banner.cta_text && <span className={`text-[11px] font-semibold text-white/90 drop-shadow-md ${pos.align}`}>{banner.cta_text}</span>}
-              </div>
+              {(banner.title || banner.cta_text) && (
+                <>
+                  <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
+                  <div className={`absolute inset-0 flex flex-col p-3 ${pos.wrapper}`}>
+                    {banner.title && <h3 className={`text-sm font-bold leading-tight text-white drop-shadow-lg ${pos.align}`}>{banner.title}</h3>}
+                    {banner.cta_text && <span className={`text-[11px] font-semibold text-white/90 drop-shadow-md ${pos.align}`}>{banner.cta_text}</span>}
+                  </div>
+                </>
+              )}
             </div>
           </a>
           <div className="flex flex-col gap-2.5">
@@ -160,11 +164,6 @@ const HomeBannerSlot = ({ slot }: HomeBannerSlotProps) => {
               <a key={`${banner.id}-${index}`} href={href} className="relative block flex-1 overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
                 <div className="relative h-full min-h-[155px] md:min-h-[190px]">
                   <img src={images[index] || images[0]} alt={banner.title || "Banner"} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
-                  <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
-                  <div className={`absolute inset-0 flex flex-col p-3 ${pos.wrapper}`}>
-                    {banner.title && <h3 className={`text-xs font-bold leading-tight text-white drop-shadow-lg ${pos.align}`}>{banner.title}</h3>}
-                    {banner.cta_text && <span className={`text-[10px] font-semibold text-white/90 drop-shadow-md ${pos.align}`}>{banner.cta_text}</span>}
-                  </div>
                 </div>
               </a>
             ))}
