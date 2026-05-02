@@ -18,6 +18,7 @@ interface ProductFormData {
   category_id: string;
   free_shipping: boolean;
   badge: string;
+  is_sponsored: boolean;
 }
 
 interface MediaItem {
