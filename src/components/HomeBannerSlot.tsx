@@ -56,14 +56,16 @@ const HomeBannerSlot = ({ slot }: HomeBannerSlotProps) => {
         <a href={href} className="block rounded-card overflow-hidden border border-border">
           <div className={`relative ${banner.format === "hero-full" ? "min-h-[260px] sm:min-h-[360px] md:min-h-[400px]" : "min-h-[220px] sm:min-h-[300px] md:min-h-[360px]"}`}>
             <img src={image} alt={banner.title || "Banner"} className="absolute inset-0 h-full w-full object-cover" />
-            <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
-            <div className={`relative flex h-full flex-col p-5 sm:p-8 ${pos.wrapper} ${banner.format === "hero-full" ? "min-h-[260px] sm:min-h-[360px] md:min-h-[400px]" : "min-h-[220px] sm:min-h-[300px] md:min-h-[360px]"}`}>
-              <div className={`max-w-[72%] space-y-1.5 ${pos.align}`}>
-                {banner.subtitle && <p className="text-xs font-bold text-white/80 drop-shadow-md">{banner.subtitle}</p>}
-                <h2 className="text-xl font-black leading-tight text-white sm:text-3xl whitespace-pre-line drop-shadow-lg">{banner.title || "Banner principal"}</h2>
-                {banner.cta_text && <span className="inline-block pt-1 text-sm font-semibold text-white drop-shadow-md">{banner.cta_text}</span>}
+            {hasText && <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />}
+            {hasText && (
+              <div className={`relative flex h-full flex-col p-5 sm:p-8 ${pos.wrapper} ${banner.format === "hero-full" ? "min-h-[260px] sm:min-h-[360px] md:min-h-[400px]" : "min-h-[220px] sm:min-h-[300px] md:min-h-[360px]"}`}>
+                <div className={`max-w-[72%] space-y-1.5 ${pos.align}`}>
+                  {banner.subtitle && <p className="text-xs font-bold text-white/80 drop-shadow-md">{banner.subtitle}</p>}
+                  {banner.title && <h2 className="text-xl font-black leading-tight text-white sm:text-3xl whitespace-pre-line drop-shadow-lg">{banner.title}</h2>}
+                  {banner.cta_text && <span className="inline-block pt-1 text-sm font-semibold text-white drop-shadow-md">{banner.cta_text}</span>}
+                </div>
               </div>
-            </div>
+            )}
             {images.length > 1 && (
               <div className="absolute bottom-3 right-3 flex gap-1.5">
                 {images.map((_, index) => (
