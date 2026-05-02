@@ -182,13 +182,15 @@ const HomeBannerSlot = ({ slot }: HomeBannerSlotProps) => {
             {images.slice(0, 4).map((item, index) => (
               <a key={`${banner.id}-${index}`} href={href} className="relative block min-h-[200px] sm:min-h-[240px] md:min-h-[280px] overflow-hidden rounded-card border border-border transition-transform duration-300 hover:scale-[1.01]">
                 <img src={item} alt={banner.title || `Banner ${index + 1}`} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
-                <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
-                {index === 0 && (
-                  <div className={`absolute inset-0 flex flex-col p-3 ${pos.wrapper}`}>
-                    {banner.title && <h3 className={`text-xs font-bold leading-tight text-white drop-shadow-lg sm:text-sm ${pos.align}`}>{banner.title}</h3>}
-                    {banner.subtitle && <p className={`text-[10px] text-white/80 drop-shadow-md ${pos.align}`}>{banner.subtitle}</p>}
-                    {banner.cta_text && <span className={`mt-0.5 text-[10px] font-semibold text-white drop-shadow-md ${pos.align}`}>{banner.cta_text}</span>}
-                  </div>
+                {index === 0 && hasText && (
+                  <>
+                    <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
+                    <div className={`absolute inset-0 flex flex-col p-3 ${pos.wrapper}`}>
+                      {banner.title && <h3 className={`text-xs font-bold leading-tight text-white drop-shadow-lg sm:text-sm ${pos.align}`}>{banner.title}</h3>}
+                      {banner.subtitle && <p className={`text-[10px] text-white/80 drop-shadow-md ${pos.align}`}>{banner.subtitle}</p>}
+                      {banner.cta_text && <span className={`mt-0.5 text-[10px] font-semibold text-white drop-shadow-md ${pos.align}`}>{banner.cta_text}</span>}
+                    </div>
+                  </>
                 )}
               </a>
             ))}
@@ -196,12 +198,16 @@ const HomeBannerSlot = ({ slot }: HomeBannerSlotProps) => {
         ) : (
           <a href={href} className="relative block min-h-[240px] sm:min-h-[280px] md:min-h-[320px] overflow-hidden rounded-card border border-border transition-transform duration-300 hover:scale-[1.01]">
             <img src={image} alt={banner.title || "Banner promocional"} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
-            <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
-            <div className={`absolute inset-0 flex flex-col p-4 ${pos.wrapper}`}>
-              {banner.title && <h3 className={`text-sm font-bold leading-tight text-white drop-shadow-lg sm:text-lg ${pos.align}`}>{banner.title}</h3>}
-              {banner.subtitle && <p className={`text-[10px] text-white/80 drop-shadow-md ${pos.align}`}>{banner.subtitle}</p>}
-              {banner.cta_text && <span className={`mt-0.5 text-[10px] font-semibold text-white drop-shadow-md ${pos.align}`}>{banner.cta_text}</span>}
-            </div>
+            {hasText && (
+              <>
+                <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
+                <div className={`absolute inset-0 flex flex-col p-4 ${pos.wrapper}`}>
+                  {banner.title && <h3 className={`text-sm font-bold leading-tight text-white drop-shadow-lg sm:text-lg ${pos.align}`}>{banner.title}</h3>}
+                  {banner.subtitle && <p className={`text-[10px] text-white/80 drop-shadow-md ${pos.align}`}>{banner.subtitle}</p>}
+                  {banner.cta_text && <span className={`mt-0.5 text-[10px] font-semibold text-white drop-shadow-md ${pos.align}`}>{banner.cta_text}</span>}
+                </div>
+              </>
+            )}
           </a>
         )}
       </section>
