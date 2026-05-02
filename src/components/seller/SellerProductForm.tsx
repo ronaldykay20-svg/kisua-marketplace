@@ -3,6 +3,7 @@ import { Save, X, Upload, Trash2, Image as ImageIcon, Film, Plus, Palette, Ruler
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { STORAGE_BUCKETS } from "@/lib/storage";
+import { useUserRole } from "@/hooks/useUserRole";
 
 interface ProductFormData {
   title: string;
