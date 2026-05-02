@@ -289,7 +289,7 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
       discount_percent: form.discount_percent ? parseInt(form.discount_percent) : null,
       stock: parseInt(form.stock) || 1, sku: form.sku || null, condition: form.condition,
       province: form.province || null, city: form.city || null,
-      category_id: form.category_id || null, free_shipping: form.free_shipping, badge: form.badge || null,
+      category_id: form.category_id || null, free_shipping: form.free_shipping, badge: form.badge || null, is_sponsored: form.is_sponsored,
     };
     onSave(payload, media, variants);
   };
