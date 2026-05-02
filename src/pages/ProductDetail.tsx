@@ -171,6 +171,45 @@ const ProductDetail = () => {
     enabled: !!isUuid && !!dbProduct,
   });
 
+  // ── Sponsored products from DB (admin-marked) ──
+  const { data: sponsoredProducts = [] } = useQuery({
+    queryKey: ["sponsored_products", id],
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("products")
+        .select("id, title, price, old_price, discount_percent, image_url, free_shipping, badge, rating, total_reviews, sellers(id, name, avatar_url, rating, total_sales)")
+        .eq("is_active", true)
+        .eq("is_sponsored", true)
+        .neq("id", id!)
+        .limit(6);
+      const list = data || [];
+      const ids = list.map((p: any) => p.id);
+      const coverMap: Record<string, string> = {};
+      if (ids.length > 0) {
+        const { data: media } = await supabase.from("product_media").select("product_id, url").in("product_id", ids).eq("is_cover", true);
+        (media || []).forEach((m: any) => { coverMap[m.product_id] = m.url; });
+      }
+      return list.map((p: any) => ({
+        ...p,
+        image: coverMap[p.id] || p.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop",
+        priceFormatted: Number(p.price).toLocaleString("pt-AO").replace(/,/g, ".") + " Kz",
+      }));
+    },
+    enabled: !!isUuid,
+  });
+
+  // Unique sponsored sellers from sponsored products
+  const sponsoredSellers = (() => {
+    const seen = new Set<string>();
+    const out: any[] = [];
+    for (const p of sponsoredProducts as any[]) {
+      const s = p.sellers;
+      if (s && !seen.has(s.id)) { seen.add(s.id); out.push(s); }
+      if (out.length >= 2) break;
+    }
+    return out;
+  })();
+
   if (!product) {
     if (isUuid && loadingProduct) {
       return (
@@ -232,20 +271,7 @@ const ProductDetail = () => {
   const moreToExplore = relatedDb.slice(10, 20);
   const alsoLike = relatedDb.length > 5 ? relatedDb.slice(5, 15) : relatedDb.slice(0, 10);
 
-
-  const staticReviews = [
-    { name: "Maria S.", rating: 5, date: "15 Mar 2026", text: "Produto excelente! Chegou rápido e bem embalado. Recomendo a todos.", helpful: 12, notHelpful: 1 },
-    { name: "João P.", rating: 4, date: "10 Mar 2026", text: "Muito bom, qualidade acima do esperado. Só demorou um pouco na entrega.", helpful: 8, notHelpful: 2 },
-    { name: "Ana L.", rating: 5, date: "5 Mar 2026", text: "Adorei! Exactamente como na descrição. Vendedor de confiança.", helpful: 5, notHelpful: 0 },
-  ];
-
   const popularityBadge = product.reviews && product.reviews > 200 ? `Em ${Math.floor(product.reviews / 5)}+ carrinhos` : null;
-
-  // Sponsored sellers
-  const sponsoredSellers = [
-    { name: "TechZone Angola", category: "Electrónica", rating: 4.9, sales: "2.340 vendas", image: "https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=100&h=100&fit=crop" },
-    { name: "ModaAO Store", category: "Moda & Vestuário", rating: 4.8, sales: "1.890 vendas", image: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=100&h=100&fit=crop" },
-  ];
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -321,26 +347,28 @@ const ProductDetail = () => {
             </div>
 
             {/* Sponsored sellers (tablet+ only) */}
-            <div className="hidden md:block mt-4">
-              <p className="text-[10px] text-muted-foreground text-right mb-2">Patrocinado</p>
-              <div className="grid grid-cols-2 gap-3">
-                {sponsoredSellers.map((seller, i) => (
-                  <div key={i} className="bg-card rounded-card border border-border p-3 hover:shadow-md transition cursor-pointer">
-                    <div className="flex items-center gap-2 mb-2">
-                      <img src={seller.image} alt={seller.name} className="w-10 h-10 rounded-full object-cover" />
-                      <div>
-                        <p className="text-xs font-bold text-foreground">{seller.name}</p>
-                        <p className="text-[10px] text-muted-foreground">{seller.category}</p>
+            {sponsoredSellers.length > 0 && (
+              <div className="hidden md:block mt-4">
+                <p className="text-[10px] text-muted-foreground text-right mb-2">Patrocinado</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {sponsoredSellers.map((seller: any) => (
+                    <div key={seller.id} onClick={() => navigate(`/vendedor/${seller.id}`)} className="bg-card rounded-card border border-border p-3 hover:shadow-md transition cursor-pointer">
+                      <div className="flex items-center gap-2 mb-2">
+                        <img src={seller.avatar_url || "https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=100&h=100&fit=crop"} alt={seller.name} className="w-10 h-10 rounded-full object-cover" />
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-foreground truncate">{seller.name}</p>
+                          {seller.total_sales != null && <p className="text-[10px] text-muted-foreground">{seller.total_sales} vendas</p>}
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="text-muted-foreground">{seller.rating ? `⭐ ${seller.rating}` : ""}</span>
+                        <button className="px-2 py-1 rounded-card text-primary border border-primary/20 font-bold hover:bg-primary/5 transition">Ver loja</button>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between text-[10px]">
-                      <span className="text-muted-foreground">⭐ {seller.rating} • {seller.sales}</span>
-                      <button className="px-2 py-1 rounded-card text-primary border border-primary/20 font-bold hover:bg-primary/5 transition">Ver loja</button>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* RIGHT column: info */}
@@ -530,44 +558,46 @@ const ProductDetail = () => {
             </div>
 
             {/* Sponsored sellers (mobile only) */}
-            <div className="md:hidden bg-card mt-2 p-4">
-              <p className="text-[10px] text-muted-foreground text-right mb-2">Patrocinado</p>
-              {sponsoredSellers.map((seller, i) => (
-                <div key={i} className={`flex items-center gap-3 py-3 ${i !== sponsoredSellers.length - 1 ? "border-b border-border" : ""}`}>
-                  <img src={seller.image} alt={seller.name} className="w-10 h-10 rounded-full object-cover" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-foreground">{seller.name}</p>
-                    <p className="text-[10px] text-muted-foreground">{seller.category} • ⭐ {seller.rating}</p>
+            {sponsoredSellers.length > 0 && (
+              <div className="md:hidden bg-card mt-2 p-4">
+                <p className="text-[10px] text-muted-foreground text-right mb-2">Patrocinado</p>
+                {sponsoredSellers.map((seller: any, i: number) => (
+                  <div key={seller.id} onClick={() => navigate(`/vendedor/${seller.id}`)} className={`flex items-center gap-3 py-3 cursor-pointer ${i !== sponsoredSellers.length - 1 ? "border-b border-border" : ""}`}>
+                    <img src={seller.avatar_url || "https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=100&h=100&fit=crop"} alt={seller.name} className="w-10 h-10 rounded-full object-cover" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-foreground truncate">{seller.name}</p>
+                      <p className="text-[10px] text-muted-foreground">{seller.rating ? `⭐ ${seller.rating}` : ""}{seller.total_sales != null ? ` • ${seller.total_sales} vendas` : ""}</p>
+                    </div>
+                    <button className="px-3 py-1.5 rounded-card text-[10px] font-bold text-primary border border-primary/20 hover:bg-primary/5 transition flex-shrink-0">Ver loja</button>
                   </div>
-                  <button className="px-3 py-1.5 rounded-card text-[10px] font-bold text-primary border border-primary/20 hover:bg-primary/5 transition flex-shrink-0">Ver loja</button>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
 
             {/* Sponsored product */}
-            <div className="bg-card mt-2 p-4 md:rounded-card md:border md:border-border">
-              <p className="text-[10px] text-muted-foreground text-right mb-2">Patrocinado</p>
-              {(() => {
-                const sponsored = allProducts.find(p => p.id !== product.id && p.freeShipping);
-                if (!sponsored) return null;
-                return (
-                  <div onClick={() => navigate(`/produto/${sponsored.id}`)} className="flex items-center gap-3 p-3 border border-border rounded-card cursor-pointer hover:bg-muted/50 transition">
-                    <img src={sponsored.image} alt={sponsored.title} className="w-20 h-20 rounded-card object-cover" />
+            {sponsoredProducts.length > 0 && (() => {
+              const sp: any = (sponsoredProducts as any[]).find((p: any) => p.id !== product.id);
+              if (!sp) return null;
+              return (
+                <div className="bg-card mt-2 p-4 md:rounded-card md:border md:border-border">
+                  <p className="text-[10px] text-muted-foreground text-right mb-2">Patrocinado</p>
+                  <div onClick={() => navigate(`/produto/${sp.id}`)} className="flex items-center gap-3 p-3 border border-border rounded-card cursor-pointer hover:bg-muted/50 transition">
+                    <img src={sp.image} alt={sp.title} className="w-20 h-20 rounded-card object-cover" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-black text-foreground">{sponsored.price}</p>
-                      <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{sponsored.title}</p>
-                      <button className="mt-2 px-4 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-bold">Adicionar ao carrinho</button>
+                      <p className="text-sm font-black text-foreground">{sp.priceFormatted}</p>
+                      <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{sp.title}</p>
+                      <button className="mt-2 px-4 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-bold">Ver produto</button>
                     </div>
                   </div>
-                );
-              })()}
-            </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       </div>
 
       {/* Reviews section */}
-      <ProductReviewsSection productId={id || ""} product={product} dbReviews={dbReviews} staticReviews={staticReviews} userOrders={userOrders} />
+      <ProductReviewsSection productId={id || ""} product={product} dbReviews={dbReviews} userOrders={userOrders} />
 
       {/* Carousels */}
       <div className="mt-2 bg-card p-4 md:container md:mx-auto md:rounded-card md:border md:border-border md:my-4">
@@ -610,7 +640,7 @@ const ProductDetail = () => {
 };
 
 // ── Product Reviews Section with Replies + Review Form ──
-const ProductReviewsSection = ({ productId, product, dbReviews, staticReviews, userOrders }: { productId: string; product: any; dbReviews: any[]; staticReviews: any[]; userOrders: any[] }) => {
+const ProductReviewsSection = ({ productId, product, dbReviews, userOrders }: { productId: string; product: any; dbReviews: any[]; userOrders: any[] }) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
@@ -781,24 +811,10 @@ const ProductReviewsSection = ({ productId, product, dbReviews, staticReviews, u
           ))}
         </div>
       ) : (
-        <div className="md:grid md:grid-cols-3 md:gap-4 space-y-4 md:space-y-0">
-          {staticReviews.map((review: any, i: number) => (
-            <div key={i} className="border-t md:border-t-0 md:border md:border-border md:rounded-card md:p-3 border-border pt-3">
-              <div className="flex items-center gap-0.5 mb-1">
-                {Array.from({ length: 5 }).map((_, j) => (
-                  <Star key={j} className={`w-3 h-3 ${j < review.rating ? "text-secondary fill-secondary" : "text-border"}`} />
-                ))}
-              </div>
-              <p className="text-xs text-foreground leading-relaxed mt-1">{review.text}</p>
-              <div className="flex items-center justify-between mt-2">
-                <span className="text-[10px] text-muted-foreground">{review.name} — {review.date}</span>
-                <div className="flex items-center gap-3">
-                  <button className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"><ThumbsUp className="w-3 h-3" /> ({review.helpful})</button>
-                  <button className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"><ThumbsDown className="w-3 h-3" /> ({review.notHelpful})</button>
-                </div>
-              </div>
-            </div>
-          ))}
+        <div className="text-center py-8 border-t border-border">
+          <MessageCircle className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
+          <p className="text-sm font-semibold text-foreground">Ainda sem avaliações</p>
+          <p className="text-xs text-muted-foreground mt-1">Seja o primeiro a avaliar este produto após a compra.</p>
         </div>
       )}
     </div>

@@ -3,6 +3,7 @@ import { Save, X, Upload, Trash2, Image as ImageIcon, Film, Plus, Palette, Ruler
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { STORAGE_BUCKETS } from "@/lib/storage";
+import { useUserRole } from "@/hooks/useUserRole";
 
 interface ProductFormData {
   title: string;
@@ -18,6 +19,7 @@ interface ProductFormData {
   category_id: string;
   free_shipping: boolean;
   badge: string;
+  is_sponsored: boolean;
 }
 
 interface MediaItem {
@@ -57,7 +59,7 @@ const createEmptyVariant = (parentId?: string | null): VariantItem => ({
 const emptyForm: ProductFormData = {
   title: "", description: "", price: "", old_price: "", discount_percent: "",
   stock: "1", sku: "", condition: "new", province: "", city: "",
-  category_id: "", free_shipping: false, badge: "",
+  category_id: "", free_shipping: false, badge: "", is_sponsored: false,
 };
 
 interface Props {
@@ -127,6 +129,7 @@ const getPlaceholder = (type: string) => {
 };
 
 const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariants = [], onSave, onCancel, saving }: Props) => {
+  const { isAdmin } = useUserRole();
   const [form, setForm] = useState<ProductFormData>(() => {
     if (editingProduct) {
       return {
@@ -136,7 +139,7 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
         stock: String(editingProduct.stock ?? 1), sku: editingProduct.sku || "",
         condition: editingProduct.condition || "new", province: editingProduct.province || "",
         city: editingProduct.city || "", category_id: editingProduct.category_id || "",
-        free_shipping: editingProduct.free_shipping || false, badge: editingProduct.badge || "",
+        free_shipping: editingProduct.free_shipping || false, badge: editingProduct.badge || "", is_sponsored: editingProduct.is_sponsored || false,
       };
     }
     return emptyForm;
@@ -288,7 +291,7 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
       discount_percent: form.discount_percent ? parseInt(form.discount_percent) : null,
       stock: parseInt(form.stock) || 1, sku: form.sku || null, condition: form.condition,
       province: form.province || null, city: form.city || null,
-      category_id: form.category_id || null, free_shipping: form.free_shipping, badge: form.badge || null,
+      category_id: form.category_id || null, free_shipping: form.free_shipping, badge: form.badge || null, is_sponsored: form.is_sponsored,
     };
     onSave(payload, media, variants);
   };
@@ -584,6 +587,14 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
           <input type="checkbox" checked={form.free_shipping} onChange={e => set("free_shipping", e.target.checked)} className="rounded" />
           Frete grátis
         </label>
+
+        {isAdmin && (
+          <label className="flex items-center gap-2 text-sm text-foreground p-2 rounded-lg border border-amber-500/30 bg-amber-500/5">
+            <input type="checkbox" checked={form.is_sponsored} onChange={e => set("is_sponsored", e.target.checked)} className="rounded" />
+            <span className="font-semibold">⭐ Patrocinado</span>
+            <span className="text-xs text-muted-foreground">— aparecerá nas secções "Patrocinado" das páginas de produto</span>
+          </label>
+        )}
 
         {/* Submit */}
         <button onClick={handleSubmit} disabled={!form.title || !form.price || saving || stockExceeded}
