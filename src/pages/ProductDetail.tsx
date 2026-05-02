@@ -171,7 +171,44 @@ const ProductDetail = () => {
     enabled: !!isUuid && !!dbProduct,
   });
 
-  if (!product) {
+  // ── Sponsored products from DB (admin-marked) ──
+  const { data: sponsoredProducts = [] } = useQuery({
+    queryKey: ["sponsored_products", id],
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("products")
+        .select("id, title, price, old_price, discount_percent, image_url, free_shipping, badge, rating, total_reviews, sellers(id, name, avatar_url, rating, total_sales)")
+        .eq("is_active", true)
+        .eq("is_sponsored", true)
+        .neq("id", id!)
+        .limit(6);
+      const list = data || [];
+      const ids = list.map((p: any) => p.id);
+      const coverMap: Record<string, string> = {};
+      if (ids.length > 0) {
+        const { data: media } = await supabase.from("product_media").select("product_id, url").in("product_id", ids).eq("is_cover", true);
+        (media || []).forEach((m: any) => { coverMap[m.product_id] = m.url; });
+      }
+      return list.map((p: any) => ({
+        ...p,
+        image: coverMap[p.id] || p.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop",
+        priceFormatted: Number(p.price).toLocaleString("pt-AO").replace(/,/g, ".") + " Kz",
+      }));
+    },
+    enabled: !!isUuid,
+  });
+
+  // Unique sponsored sellers from sponsored products
+  const sponsoredSellers = (() => {
+    const seen = new Set<string>();
+    const out: any[] = [];
+    for (const p of sponsoredProducts as any[]) {
+      const s = p.sellers;
+      if (s && !seen.has(s.id)) { seen.add(s.id); out.push(s); }
+      if (out.length >= 2) break;
+    }
+    return out;
+  })();
     if (isUuid && loadingProduct) {
       return (
         <div className="min-h-screen bg-background flex items-center justify-center">
