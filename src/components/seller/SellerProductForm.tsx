@@ -588,6 +588,14 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
           Frete grátis
         </label>
 
+        {isAdmin && (
+          <label className="flex items-center gap-2 text-sm text-foreground p-2 rounded-lg border border-amber-500/30 bg-amber-500/5">
+            <input type="checkbox" checked={form.is_sponsored} onChange={e => set("is_sponsored", e.target.checked)} className="rounded" />
+            <span className="font-semibold">⭐ Patrocinado</span>
+            <span className="text-xs text-muted-foreground">— aparecerá nas secções "Patrocinado" das páginas de produto</span>
+          </label>
+        )}
+
         {/* Submit */}
         <button onClick={handleSubmit} disabled={!form.title || !form.price || saving || stockExceeded}
           className="w-full py-2.5 bg-primary text-primary-foreground text-sm font-bold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2">
