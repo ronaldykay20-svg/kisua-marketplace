@@ -58,7 +58,7 @@ const createEmptyVariant = (parentId?: string | null): VariantItem => ({
 const emptyForm: ProductFormData = {
   title: "", description: "", price: "", old_price: "", discount_percent: "",
   stock: "1", sku: "", condition: "new", province: "", city: "",
-  category_id: "", free_shipping: false, badge: "",
+  category_id: "", free_shipping: false, badge: "", is_sponsored: false,
 };
 
 interface Props {
