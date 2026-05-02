@@ -811,24 +811,10 @@ const ProductReviewsSection = ({ productId, product, dbReviews, userOrders }: { 
           ))}
         </div>
       ) : (
-        <div className="md:grid md:grid-cols-3 md:gap-4 space-y-4 md:space-y-0">
-          {staticReviews.map((review: any, i: number) => (
-            <div key={i} className="border-t md:border-t-0 md:border md:border-border md:rounded-card md:p-3 border-border pt-3">
-              <div className="flex items-center gap-0.5 mb-1">
-                {Array.from({ length: 5 }).map((_, j) => (
-                  <Star key={j} className={`w-3 h-3 ${j < review.rating ? "text-secondary fill-secondary" : "text-border"}`} />
-                ))}
-              </div>
-              <p className="text-xs text-foreground leading-relaxed mt-1">{review.text}</p>
-              <div className="flex items-center justify-between mt-2">
-                <span className="text-[10px] text-muted-foreground">{review.name} — {review.date}</span>
-                <div className="flex items-center gap-3">
-                  <button className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"><ThumbsUp className="w-3 h-3" /> ({review.helpful})</button>
-                  <button className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"><ThumbsDown className="w-3 h-3" /> ({review.notHelpful})</button>
-                </div>
-              </div>
-            </div>
-          ))}
+        <div className="text-center py-8 border-t border-border">
+          <MessageCircle className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
+          <p className="text-sm font-semibold text-foreground">Ainda sem avaliações</p>
+          <p className="text-xs text-muted-foreground mt-1">Seja o primeiro a avaliar este produto após a compra.</p>
         </div>
       )}
     </div>
