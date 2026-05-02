@@ -556,44 +556,46 @@ const ProductDetail = () => {
             </div>
 
             {/* Sponsored sellers (mobile only) */}
-            <div className="md:hidden bg-card mt-2 p-4">
-              <p className="text-[10px] text-muted-foreground text-right mb-2">Patrocinado</p>
-              {sponsoredSellers.map((seller, i) => (
-                <div key={i} className={`flex items-center gap-3 py-3 ${i !== sponsoredSellers.length - 1 ? "border-b border-border" : ""}`}>
-                  <img src={seller.image} alt={seller.name} className="w-10 h-10 rounded-full object-cover" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-foreground">{seller.name}</p>
-                    <p className="text-[10px] text-muted-foreground">{seller.category} • ⭐ {seller.rating}</p>
+            {sponsoredSellers.length > 0 && (
+              <div className="md:hidden bg-card mt-2 p-4">
+                <p className="text-[10px] text-muted-foreground text-right mb-2">Patrocinado</p>
+                {sponsoredSellers.map((seller: any, i: number) => (
+                  <div key={seller.id} onClick={() => navigate(`/vendedor/${seller.id}`)} className={`flex items-center gap-3 py-3 cursor-pointer ${i !== sponsoredSellers.length - 1 ? "border-b border-border" : ""}`}>
+                    <img src={seller.avatar_url || "https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=100&h=100&fit=crop"} alt={seller.name} className="w-10 h-10 rounded-full object-cover" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-foreground truncate">{seller.name}</p>
+                      <p className="text-[10px] text-muted-foreground">{seller.rating ? `⭐ ${seller.rating}` : ""}{seller.total_sales != null ? ` • ${seller.total_sales} vendas` : ""}</p>
+                    </div>
+                    <button className="px-3 py-1.5 rounded-card text-[10px] font-bold text-primary border border-primary/20 hover:bg-primary/5 transition flex-shrink-0">Ver loja</button>
                   </div>
-                  <button className="px-3 py-1.5 rounded-card text-[10px] font-bold text-primary border border-primary/20 hover:bg-primary/5 transition flex-shrink-0">Ver loja</button>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
 
             {/* Sponsored product */}
-            <div className="bg-card mt-2 p-4 md:rounded-card md:border md:border-border">
-              <p className="text-[10px] text-muted-foreground text-right mb-2">Patrocinado</p>
-              {(() => {
-                const sponsored = allProducts.find(p => p.id !== product.id && p.freeShipping);
-                if (!sponsored) return null;
-                return (
-                  <div onClick={() => navigate(`/produto/${sponsored.id}`)} className="flex items-center gap-3 p-3 border border-border rounded-card cursor-pointer hover:bg-muted/50 transition">
-                    <img src={sponsored.image} alt={sponsored.title} className="w-20 h-20 rounded-card object-cover" />
+            {sponsoredProducts.length > 0 && (() => {
+              const sp: any = (sponsoredProducts as any[]).find((p: any) => p.id !== product.id);
+              if (!sp) return null;
+              return (
+                <div className="bg-card mt-2 p-4 md:rounded-card md:border md:border-border">
+                  <p className="text-[10px] text-muted-foreground text-right mb-2">Patrocinado</p>
+                  <div onClick={() => navigate(`/produto/${sp.id}`)} className="flex items-center gap-3 p-3 border border-border rounded-card cursor-pointer hover:bg-muted/50 transition">
+                    <img src={sp.image} alt={sp.title} className="w-20 h-20 rounded-card object-cover" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-black text-foreground">{sponsored.price}</p>
-                      <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{sponsored.title}</p>
-                      <button className="mt-2 px-4 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-bold">Adicionar ao carrinho</button>
+                      <p className="text-sm font-black text-foreground">{sp.priceFormatted}</p>
+                      <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{sp.title}</p>
+                      <button className="mt-2 px-4 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-bold">Ver produto</button>
                     </div>
                   </div>
-                );
-              })()}
-            </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       </div>
 
       {/* Reviews section */}
-      <ProductReviewsSection productId={id || ""} product={product} dbReviews={dbReviews} staticReviews={staticReviews} userOrders={userOrders} />
+      <ProductReviewsSection productId={id || ""} product={product} dbReviews={dbReviews} userOrders={userOrders} />
 
       {/* Carousels */}
       <div className="mt-2 bg-card p-4 md:container md:mx-auto md:rounded-card md:border md:border-border md:my-4">
