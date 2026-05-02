@@ -137,7 +137,7 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
         stock: String(editingProduct.stock ?? 1), sku: editingProduct.sku || "",
         condition: editingProduct.condition || "new", province: editingProduct.province || "",
         city: editingProduct.city || "", category_id: editingProduct.category_id || "",
-        free_shipping: editingProduct.free_shipping || false, badge: editingProduct.badge || "",
+        free_shipping: editingProduct.free_shipping || false, badge: editingProduct.badge || "", is_sponsored: editingProduct.is_sponsored || false,
       };
     }
     return emptyForm;
