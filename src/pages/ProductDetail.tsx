@@ -232,20 +232,7 @@ const ProductDetail = () => {
   const moreToExplore = relatedDb.slice(10, 20);
   const alsoLike = relatedDb.length > 5 ? relatedDb.slice(5, 15) : relatedDb.slice(0, 10);
 
-
-  const staticReviews = [
-    { name: "Maria S.", rating: 5, date: "15 Mar 2026", text: "Produto excelente! Chegou rápido e bem embalado. Recomendo a todos.", helpful: 12, notHelpful: 1 },
-    { name: "João P.", rating: 4, date: "10 Mar 2026", text: "Muito bom, qualidade acima do esperado. Só demorou um pouco na entrega.", helpful: 8, notHelpful: 2 },
-    { name: "Ana L.", rating: 5, date: "5 Mar 2026", text: "Adorei! Exactamente como na descrição. Vendedor de confiança.", helpful: 5, notHelpful: 0 },
-  ];
-
   const popularityBadge = product.reviews && product.reviews > 200 ? `Em ${Math.floor(product.reviews / 5)}+ carrinhos` : null;
-
-  // Sponsored sellers
-  const sponsoredSellers = [
-    { name: "TechZone Angola", category: "Electrónica", rating: 4.9, sales: "2.340 vendas", image: "https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=100&h=100&fit=crop" },
-    { name: "ModaAO Store", category: "Moda & Vestuário", rating: 4.8, sales: "1.890 vendas", image: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=100&h=100&fit=crop" },
-  ];
 
   return (
     <div className="min-h-screen bg-background pb-20">
