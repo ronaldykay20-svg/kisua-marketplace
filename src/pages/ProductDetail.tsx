@@ -638,7 +638,7 @@ const ProductDetail = () => {
 };
 
 // ── Product Reviews Section with Replies + Review Form ──
-const ProductReviewsSection = ({ productId, product, dbReviews, staticReviews, userOrders }: { productId: string; product: any; dbReviews: any[]; staticReviews: any[]; userOrders: any[] }) => {
+const ProductReviewsSection = ({ productId, product, dbReviews, userOrders }: { productId: string; product: any; dbReviews: any[]; userOrders: any[] }) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
