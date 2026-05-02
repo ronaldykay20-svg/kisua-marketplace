@@ -47,6 +47,7 @@ const HomeBannerSlot = ({ slot }: HomeBannerSlotProps) => {
   const image = images[currentImage] || images[0];
   const href = banner.cta_link || "#";
   const pos = getPos(banner.text_position);
+  const hasText = !!(banner.title || banner.subtitle || banner.cta_text);
 
   // ── Hero ──
   if (banner.format === "hero" || banner.format === "hero-full") {
