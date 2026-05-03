@@ -647,13 +647,29 @@ const ProductReviewsSection = ({ productId, product, dbReviews, userOrders }: { 
   const [replyText, setReplyText] = useState("");
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState("");
+  const [reviewImage, setReviewImage] = useState<string>("");
+  const [uploadingImg, setUploadingImg] = useState(false);
   const [showReviewForm, setShowReviewForm] = useState(false);
 
   const reviews = dbReviews.length > 0 ? dbReviews : null;
 
-  // Check if user already reviewed this product
   const alreadyReviewed = reviews?.some((r: any) => r.user_id === user?.id);
   const canReview = user && userOrders.length > 0 && !alreadyReviewed;
+
+  const uploadReviewImage = async (file: File) => {
+    setUploadingImg(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const path = `reviews/${user!.id}/${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from("products").upload(path, file);
+      if (error) throw error;
+      const { data } = supabase.storage.from("products").getPublicUrl(path);
+      setReviewImage(data.publicUrl);
+    } catch (e: any) {
+      console.error("Upload review image error:", e.message);
+    }
+    setUploadingImg(false);
+  };
 
   const submitReview = useMutation({
     mutationFn: async () => {
@@ -663,6 +679,7 @@ const ProductReviewsSection = ({ productId, product, dbReviews, userOrders }: { 
         order_id: userOrders[0]?.id,
         rating: reviewRating,
         comment: reviewComment || null,
+        image_url: reviewImage || null,
       });
       if (error) throw error;
     },
@@ -671,6 +688,7 @@ const ProductReviewsSection = ({ productId, product, dbReviews, userOrders }: { 
       queryClient.invalidateQueries({ queryKey: ["product", productId] });
       setReviewComment("");
       setReviewRating(5);
+      setReviewImage("");
       setShowReviewForm(false);
     },
   });
