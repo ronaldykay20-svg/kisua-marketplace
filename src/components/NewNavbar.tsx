@@ -36,7 +36,7 @@ const NewNavbar = () => {
       <nav className="sticky top-0 z-50 bg-primary shadow-md">
         {/* Top row: logo + search + icons */}
         <div className="container mx-auto px-3">
-          <div className="flex items-center gap-3 h-12">
+          <div className="flex items-center gap-3 h-14">
             <button className="text-primary-foreground md:hidden" onClick={() => setMenuOpen(!menuOpen)}>
               <Menu className="w-5 h-5" />
             </button>

@@ -1,21 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { useBanners } from "@/hooks/useBanners";
+import BannerCategoryProducts from "./BannerCategoryProducts";
 
 interface HomeBannerSlotProps {
   slot: number;
 }
 
-/** Map text_position to Tailwind classes */
 const positionClasses: Record<string, { wrapper: string; align: string }> = {
   "top-left": { wrapper: "justify-start items-start", align: "text-left" },
   "top-right": { wrapper: "justify-start items-end", align: "text-right" },
   "bottom-left": { wrapper: "justify-end items-start", align: "text-left" },
   "bottom-right": { wrapper: "justify-end items-end", align: "text-right" },
 };
-
 const getPos = (p?: string) => positionClasses[p || "bottom-left"] || positionClasses["bottom-left"];
-
-/** Gradient direction based on text position */
 const gradientDir = (p?: string) => {
   if (p === "top-left") return "bg-gradient-to-br from-black/80 via-black/30 to-transparent";
   if (p === "top-right") return "bg-gradient-to-bl from-black/80 via-black/30 to-transparent";
@@ -33,9 +30,7 @@ const HomeBannerSlot = ({ slot }: HomeBannerSlotProps) => {
   );
 
   const [currentImage, setCurrentImage] = useState(0);
-
   useEffect(() => { setCurrentImage(0); }, [banner?.id]);
-
   useEffect(() => {
     if (!banner || !["hero", "hero-full"].includes(banner.format) || images.length <= 1) return;
     const timer = window.setInterval(() => setCurrentImage((v) => (v + 1) % images.length), 5000);
@@ -46,19 +41,28 @@ const HomeBannerSlot = ({ slot }: HomeBannerSlotProps) => {
 
   const image = images[currentImage] || images[0];
   const href = banner.cta_link || "#";
+  const linkFor = (i: number) => banner.extra_links?.[i] || banner.cta_link || "#";
   const pos = getPos(banner.text_position);
   const hasText = !!(banner.title || banner.subtitle || banner.cta_text);
 
+  // Wrapper que adiciona o carrossel de produtos abaixo se vinculado a categoria
+  const withCategoryProducts = (children: React.ReactNode) => (
+    <>
+      {children}
+      {banner.category_id && <BannerCategoryProducts categoryId={banner.category_id} />}
+    </>
+  );
+
   // ── Hero ──
   if (banner.format === "hero" || banner.format === "hero-full") {
-    return (
+    return withCategoryProducts(
       <section className="container mx-auto px-3 pt-3">
         <a href={href} className="block rounded-card overflow-hidden border border-border">
-          <div className={`relative ${banner.format === "hero-full" ? "min-h-[260px] sm:min-h-[360px] md:min-h-[400px]" : "min-h-[220px] sm:min-h-[300px] md:min-h-[360px]"}`}>
+          <div className={`relative ${banner.format === "hero-full" ? "min-h-[260px] sm:min-h-[320px] md:min-h-[380px]" : "min-h-[200px] sm:min-h-[280px] md:min-h-[340px]"}`}>
             <img src={image} alt={banner.title || "Banner"} className="absolute inset-0 h-full w-full object-cover" />
             {hasText && <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />}
             {hasText && (
-              <div className={`relative flex h-full flex-col p-5 sm:p-8 ${pos.wrapper} ${banner.format === "hero-full" ? "min-h-[260px] sm:min-h-[360px] md:min-h-[400px]" : "min-h-[220px] sm:min-h-[300px] md:min-h-[360px]"}`}>
+              <div className={`relative flex h-full flex-col p-5 sm:p-8 ${pos.wrapper} ${banner.format === "hero-full" ? "min-h-[260px] sm:min-h-[320px] md:min-h-[380px]" : "min-h-[200px] sm:min-h-[280px] md:min-h-[340px]"}`}>
                 <div className={`max-w-[72%] space-y-1.5 ${pos.align}`}>
                   {banner.subtitle && <p className="text-xs font-bold text-white/80 drop-shadow-md">{banner.subtitle}</p>}
                   {banner.title && <h2 className="text-xl font-black leading-tight text-white sm:text-3xl whitespace-pre-line drop-shadow-lg">{banner.title}</h2>}
@@ -81,10 +85,10 @@ const HomeBannerSlot = ({ slot }: HomeBannerSlotProps) => {
 
   // ── Wide / Publicidade ──
   if (banner.format === "wide" || banner.format === "wide-slim") {
-    return (
+    return withCategoryProducts(
       <section className="container mx-auto px-3 pt-3">
         <a href={href} className="block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
-          <div className={banner.format === "wide-slim" ? "aspect-[4/1]" : "aspect-[21/9] sm:aspect-[24/8] md:aspect-[21/7]"}>
+          <div className={banner.format === "wide-slim" ? "aspect-[4/1]" : "aspect-[21/9] sm:aspect-[16/6] md:aspect-[16/5]"}>
             <img src={image} alt={banner.title || "Banner"} className="h-full w-full object-cover" loading="lazy" />
           </div>
         </a>
@@ -93,14 +97,14 @@ const HomeBannerSlot = ({ slot }: HomeBannerSlotProps) => {
     );
   }
 
-  // ── Duo ──
+  // ── Duo (cada imagem com link próprio) ──
   if (banner.format === "duo-square") {
-    return (
+    return withCategoryProducts(
       <section className="container mx-auto px-3 pt-3">
         <div className="grid grid-cols-2 gap-2.5">
           {[0, 1].map((index) => (
-            <a key={`${banner.id}-${index}`} href={href} className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
-              <img src={images[index] || images[0]} alt={banner.title || "Banner"} className="aspect-square sm:aspect-[4/3] w-full object-cover" loading="lazy" />
+            <a key={`${banner.id}-${index}`} href={linkFor(index)} className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
+              <img src={images[index] || images[0]} alt={banner.title || "Banner"} className="aspect-square sm:aspect-[5/4] w-full object-cover" loading="lazy" />
               {index === 0 && banner.title && (
                 <>
                   <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
@@ -119,12 +123,12 @@ const HomeBannerSlot = ({ slot }: HomeBannerSlotProps) => {
 
   // ── Trio ──
   if (banner.format === "trio-banner") {
-    return (
+    return withCategoryProducts(
       <section className="container mx-auto px-3 pt-3">
         <div className="grid grid-cols-3 gap-2.5">
           {[0, 1, 2].map((index) => (
-            <a key={`${banner.id}-${index}`} href={href} className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
-              <img src={images[index] || images[0]} alt={banner.title || "Banner"} className="aspect-[4/3] sm:aspect-[3/2] w-full object-cover" loading="lazy" />
+            <a key={`${banner.id}-${index}`} href={linkFor(index)} className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
+              <img src={images[index] || images[0]} alt={banner.title || "Banner"} className="aspect-[4/3] sm:aspect-[5/4] w-full object-cover" loading="lazy" />
               {index === 0 && banner.title && (
                 <>
                   <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
@@ -142,11 +146,11 @@ const HomeBannerSlot = ({ slot }: HomeBannerSlotProps) => {
 
   // ── Mosaic ──
   if (banner.format === "mosaic") {
-    return (
+    return withCategoryProducts(
       <section className="container mx-auto px-3 pt-3">
         <div className="grid grid-cols-2 gap-2.5" style={{ minHeight: 320 }}>
-          <a href={href} className="relative row-span-2 block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
-            <div className="relative h-full min-h-[320px] md:min-h-[400px]">
+          <a href={linkFor(0)} className="relative row-span-2 block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
+            <div className="relative h-full min-h-[320px] md:min-h-[380px]">
               <img src={images[0]} alt={banner.title || "Banner"} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
               {(banner.title || banner.cta_text) && (
                 <>
@@ -161,8 +165,8 @@ const HomeBannerSlot = ({ slot }: HomeBannerSlotProps) => {
           </a>
           <div className="flex flex-col gap-2.5">
             {[1, 2].map((index) => (
-              <a key={`${banner.id}-${index}`} href={href} className="relative block flex-1 overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
-                <div className="relative h-full min-h-[155px] md:min-h-[190px]">
+              <a key={`${banner.id}-${index}`} href={linkFor(index)} className="relative block flex-1 overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
+                <div className="relative h-full min-h-[155px] md:min-h-[185px]">
                   <img src={images[index] || images[0]} alt={banner.title || "Banner"} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
                 </div>
               </a>
@@ -175,12 +179,12 @@ const HomeBannerSlot = ({ slot }: HomeBannerSlotProps) => {
 
   // ── Promo ──
   if (banner.format === "promo") {
-    return (
+    return withCategoryProducts(
       <section className="container mx-auto px-3 pt-3">
         {images.length >= 4 ? (
           <div className="grid grid-cols-2 gap-2.5">
             {images.slice(0, 4).map((item, index) => (
-              <a key={`${banner.id}-${index}`} href={href} className="relative block min-h-[200px] sm:min-h-[240px] md:min-h-[280px] overflow-hidden rounded-card border border-border transition-transform duration-300 hover:scale-[1.01]">
+              <a key={`${banner.id}-${index}`} href={linkFor(index)} className="relative block min-h-[180px] sm:min-h-[220px] md:min-h-[260px] overflow-hidden rounded-card border border-border transition-transform duration-300 hover:scale-[1.01]">
                 <img src={item} alt={banner.title || `Banner ${index + 1}`} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
                 {index === 0 && hasText && (
                   <>
@@ -196,7 +200,7 @@ const HomeBannerSlot = ({ slot }: HomeBannerSlotProps) => {
             ))}
           </div>
         ) : (
-          <a href={href} className="relative block min-h-[240px] sm:min-h-[280px] md:min-h-[320px] overflow-hidden rounded-card border border-border transition-transform duration-300 hover:scale-[1.01]">
+          <a href={href} className="relative block min-h-[220px] sm:min-h-[260px] md:min-h-[300px] overflow-hidden rounded-card border border-border transition-transform duration-300 hover:scale-[1.01]">
             <img src={image} alt={banner.title || "Banner promocional"} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
             {hasText && (
               <>
@@ -216,7 +220,7 @@ const HomeBannerSlot = ({ slot }: HomeBannerSlotProps) => {
 
   // ── Square ──
   if (banner.format === "square" || banner.format === "square-rounded") {
-    return (
+    return withCategoryProducts(
       <section className="container mx-auto px-3 pt-3">
         <a href={href} className={`block overflow-hidden border border-border transition-shadow hover:shadow-md ${banner.format === "square-rounded" ? "mx-auto max-w-[220px] rounded-full" : "rounded-card"}`}>
           <img src={image} alt={banner.title || "Banner"} className="aspect-square w-full object-cover" loading="lazy" />
@@ -227,7 +231,7 @@ const HomeBannerSlot = ({ slot }: HomeBannerSlotProps) => {
 
   // ── Vertical / Story ──
   if (banner.format === "vertical" || banner.format === "story-card") {
-    return (
+    return withCategoryProducts(
       <section className="container mx-auto px-3 pt-3">
         <a href={href} className="mx-auto block max-w-[220px] overflow-hidden rounded-2xl border border-border transition-shadow hover:shadow-md">
           <img src={image} alt={banner.title || "Banner"} className="aspect-[9/16] w-full object-cover" loading="lazy" />
@@ -243,7 +247,7 @@ const HomeBannerSlot = ({ slot }: HomeBannerSlotProps) => {
 
   // ── Tall / Natural (respects image's natural aspect ratio — no crop) ──
   if (banner.format === "tall" || banner.format === "natural") {
-    return (
+    return withCategoryProducts(
       <section className="container mx-auto px-3 pt-3">
         <a href={href} className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
           <img src={image} alt={banner.title || "Banner"} className="w-full h-auto object-contain" loading="lazy" />
@@ -265,10 +269,10 @@ const HomeBannerSlot = ({ slot }: HomeBannerSlotProps) => {
   }
 
   // ── Fallback ──
-  return (
+  return withCategoryProducts(
     <section className="container mx-auto px-3 pt-3">
       <a href={href} className="block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
-        <img src={image} alt={banner.title || "Banner"} className="aspect-[21/9] md:aspect-[21/7] w-full object-cover" loading="lazy" />
+        <img src={image} alt={banner.title || "Banner"} className="aspect-[21/9] sm:aspect-[16/6] md:aspect-[16/5] w-full object-cover" loading="lazy" />
       </a>
     </section>
   );

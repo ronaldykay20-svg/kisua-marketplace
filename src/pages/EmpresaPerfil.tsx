@@ -177,7 +177,6 @@ const EmpresaPerfil = () => {
           <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" /> {followersCount} seguidores</span>
           <span className="flex items-center gap-1"><Eye className="w-3.5 h-3.5" /> {company.visits_count || 0} visitas</span>
           <span className="flex items-center gap-1"><Package className="w-3.5 h-3.5" /> {products.length} produtos</span>
-          <span className="flex items-center gap-1"><ShoppingBag className="w-3.5 h-3.5" /> {companySales} vendas</span>
         </div>
 
         <div className="flex items-center gap-2 mt-3">

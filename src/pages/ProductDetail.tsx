@@ -647,13 +647,29 @@ const ProductReviewsSection = ({ productId, product, dbReviews, userOrders }: { 
   const [replyText, setReplyText] = useState("");
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState("");
+  const [reviewImage, setReviewImage] = useState<string>("");
+  const [uploadingImg, setUploadingImg] = useState(false);
   const [showReviewForm, setShowReviewForm] = useState(false);
 
   const reviews = dbReviews.length > 0 ? dbReviews : null;
 
-  // Check if user already reviewed this product
   const alreadyReviewed = reviews?.some((r: any) => r.user_id === user?.id);
   const canReview = user && userOrders.length > 0 && !alreadyReviewed;
+
+  const uploadReviewImage = async (file: File) => {
+    setUploadingImg(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const path = `reviews/${user!.id}/${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from("products").upload(path, file);
+      if (error) throw error;
+      const { data } = supabase.storage.from("products").getPublicUrl(path);
+      setReviewImage(data.publicUrl);
+    } catch (e: any) {
+      console.error("Upload review image error:", e.message);
+    }
+    setUploadingImg(false);
+  };
 
   const submitReview = useMutation({
     mutationFn: async () => {
@@ -663,6 +679,7 @@ const ProductReviewsSection = ({ productId, product, dbReviews, userOrders }: { 
         order_id: userOrders[0]?.id,
         rating: reviewRating,
         comment: reviewComment || null,
+        image_url: reviewImage || null,
       });
       if (error) throw error;
     },
@@ -671,6 +688,7 @@ const ProductReviewsSection = ({ productId, product, dbReviews, userOrders }: { 
       queryClient.invalidateQueries({ queryKey: ["product", productId] });
       setReviewComment("");
       setReviewRating(5);
+      setReviewImage("");
       setShowReviewForm(false);
     },
   });
@@ -734,6 +752,20 @@ const ProductReviewsSection = ({ productId, product, dbReviews, userOrders }: { 
             rows={3}
             className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground resize-none"
           />
+          <div className="mt-3">
+            {reviewImage ? (
+              <div className="relative w-24 h-24 rounded-lg overflow-hidden border border-border">
+                <img src={reviewImage} alt="Anexo" className="w-full h-full object-cover" />
+                <button onClick={() => setReviewImage("")} className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs">×</button>
+              </div>
+            ) : (
+              <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted border border-border text-xs font-bold cursor-pointer hover:bg-accent">
+                {uploadingImg ? "A enviar..." : "📷 Adicionar foto"}
+                <input type="file" accept="image/*" disabled={uploadingImg} className="hidden"
+                  onChange={e => e.target.files?.[0] && uploadReviewImage(e.target.files[0])} />
+              </label>
+            )}
+          </div>
           <div className="flex justify-end gap-2 mt-3">
             <button onClick={() => setShowReviewForm(false)} className="px-4 py-2 rounded-full text-xs font-bold text-muted-foreground hover:text-foreground">
               Cancelar
@@ -773,6 +805,11 @@ const ProductReviewsSection = ({ productId, product, dbReviews, userOrders }: { 
                 </div>
               </div>
               {review.comment && <p className="text-xs text-foreground leading-relaxed mt-1">{review.comment}</p>}
+              {review.image_url && (
+                <a href={review.image_url} target="_blank" rel="noopener noreferrer" className="block mt-2">
+                  <img src={review.image_url} alt="Foto da avaliação" className="max-h-40 rounded-lg border border-border object-cover" />
+                </a>
+              )}
 
               {/* Replies */}
               {review.replies?.length > 0 && (
