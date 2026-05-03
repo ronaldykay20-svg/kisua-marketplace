@@ -14,6 +14,8 @@ export interface Banner {
   sort_order: number;
   is_active: boolean;
   text_position?: string;
+  extra_links?: string[];
+  category_id?: string | null;
 }
 
 export const useBanners = (format?: string) => {
