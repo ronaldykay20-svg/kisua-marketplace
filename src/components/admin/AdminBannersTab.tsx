@@ -214,10 +214,45 @@ const AdminBannersTab = () => {
             className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
 
           <div className="grid grid-cols-2 gap-2">
-            <input placeholder="Texto do botão" value={form.cta_text} onChange={e => set("cta_text", e.target.value)}
+            <input placeholder="Texto do botão (opcional)" value={form.cta_text} onChange={e => set("cta_text", e.target.value)}
               className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
-            <input placeholder="Link" value={form.cta_link} onChange={e => set("cta_link", e.target.value)}
+            <input placeholder="Link principal (1ª imagem)" value={form.cta_link} onChange={e => set("cta_link", e.target.value)}
               className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
+          </div>
+
+          {/* Links individuais por imagem (apenas se há mais de 1 imagem) */}
+          {form.images.length > 1 && (
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-muted-foreground block">Link de cada imagem (opcional)</label>
+              {form.images.map((_img, i) => (
+                <input
+                  key={i}
+                  placeholder={`Link da imagem ${i + 1} (interno ou externo)`}
+                  value={form.extra_links[i] || ""}
+                  onChange={e => {
+                    const next = [...form.extra_links];
+                    next[i] = e.target.value;
+                    set("extra_links", next);
+                  }}
+                  className="w-full px-3 py-1.5 rounded-lg bg-muted border border-border text-xs text-foreground"
+                />
+              ))}
+              <p className="text-[10px] text-muted-foreground">Se vazio, usa o link principal acima.</p>
+            </div>
+          )}
+
+          {/* Categoria vinculada (opcional) — se definido, mostra produtos abaixo do banner na home */}
+          <div>
+            <label className="text-[11px] font-bold text-muted-foreground mb-1 block">
+              Vincular a categoria (opcional — exibe produtos da categoria abaixo do banner)
+            </label>
+            <select value={form.category_id} onChange={e => set("category_id", e.target.value)}
+              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground">
+              <option value="">— Sem categoria vinculada —</option>
+              {categories.map((c: any) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
