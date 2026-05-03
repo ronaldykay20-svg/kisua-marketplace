@@ -21,18 +21,20 @@ interface BannerForm {
   cta_text: string;
   cta_link: string;
   images: string[];
+  extra_links: string[];
   format: string;
   bg_color: string;
   sort_order: string;
   text_position: string;
+  category_id: string;
 }
 
 const DEFAULT_HOME_SLOT = String(HOME_BANNER_SLOTS[0]?.value ?? 1);
 
 const empty: BannerForm = {
   title: "", subtitle: "", cta_text: "Compre agora", cta_link: "#",
-  images: [], format: "hero", bg_color: "#F0F9FF", sort_order: DEFAULT_HOME_SLOT,
-  text_position: "bottom-left",
+  images: [], extra_links: [], format: "hero", bg_color: "#F0F9FF", sort_order: DEFAULT_HOME_SLOT,
+  text_position: "bottom-left", category_id: "",
 };
 
 const AdminBannersTab = () => {
@@ -52,6 +54,14 @@ const AdminBannersTab = () => {
     },
   });
 
+  const { data: categories = [] } = useQuery({
+    queryKey: ["admin_categories_select"],
+    queryFn: async () => {
+      const { data } = await supabase.from("categories").select("id, name").eq("is_active", true).order("name");
+      return data || [];
+    },
+  });
+
   const saveBanner = useMutation({
     mutationFn: async () => {
       if (form.images.length === 0) throw new Error("Adicione pelo menos uma imagem");
@@ -67,11 +77,13 @@ const AdminBannersTab = () => {
         cta_link: form.cta_link || "#",
         image_url: form.images[0],
         extra_images: form.images.length > 1 ? form.images.slice(1) : [],
+        extra_links: form.extra_links.slice(0, form.images.length),
         format: form.format,
         bg_color: form.bg_color || "#F0F9FF",
         sort_order: selectedSlot,
         is_active: true,
         text_position: form.text_position || "bottom-left",
+        category_id: form.category_id || null,
       };
       if (editing) {
         const { error } = await supabase.from("banners").update(payload).eq("id", editing.id);
@@ -125,10 +137,12 @@ const AdminBannersTab = () => {
       cta_text: b.cta_text || "Compre agora",
       cta_link: b.cta_link || "#",
       images: allImages,
+      extra_links: b.extra_links || [],
       format: b.format || "hero",
       bg_color: b.bg_color || "#F0F9FF",
       sort_order: String(b.sort_order || HOME_BANNER_SLOTS[0]?.value || 1),
       text_position: b.text_position || "bottom-left",
+      category_id: b.category_id || "",
     });
     setShowForm(true);
   };
