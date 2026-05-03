@@ -752,6 +752,20 @@ const ProductReviewsSection = ({ productId, product, dbReviews, userOrders }: { 
             rows={3}
             className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground resize-none"
           />
+          <div className="mt-3">
+            {reviewImage ? (
+              <div className="relative w-24 h-24 rounded-lg overflow-hidden border border-border">
+                <img src={reviewImage} alt="Anexo" className="w-full h-full object-cover" />
+                <button onClick={() => setReviewImage("")} className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs">×</button>
+              </div>
+            ) : (
+              <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted border border-border text-xs font-bold cursor-pointer hover:bg-accent">
+                {uploadingImg ? "A enviar..." : "📷 Adicionar foto"}
+                <input type="file" accept="image/*" disabled={uploadingImg} className="hidden"
+                  onChange={e => e.target.files?.[0] && uploadReviewImage(e.target.files[0])} />
+              </label>
+            )}
+          </div>
           <div className="flex justify-end gap-2 mt-3">
             <button onClick={() => setShowReviewForm(false)} className="px-4 py-2 rounded-full text-xs font-bold text-muted-foreground hover:text-foreground">
               Cancelar
