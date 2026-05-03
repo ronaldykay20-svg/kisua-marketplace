@@ -805,6 +805,11 @@ const ProductReviewsSection = ({ productId, product, dbReviews, userOrders }: { 
                 </div>
               </div>
               {review.comment && <p className="text-xs text-foreground leading-relaxed mt-1">{review.comment}</p>}
+              {review.image_url && (
+                <a href={review.image_url} target="_blank" rel="noopener noreferrer" className="block mt-2">
+                  <img src={review.image_url} alt="Foto da avaliação" className="max-h-40 rounded-lg border border-border object-cover" />
+                </a>
+              )}
 
               {/* Replies */}
               {review.replies?.length > 0 && (
