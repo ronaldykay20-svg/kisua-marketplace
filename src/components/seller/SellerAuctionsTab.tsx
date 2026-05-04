@@ -80,7 +80,7 @@ const SellerAuctionsTab = ({ sellerId }: Props) => {
           <textarea className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm h-16" placeholder="Descrição" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
           <div>
             <label className="text-[11px] font-bold text-muted-foreground">Imagem</label>
-            <BannerImageUploader value={form.image_url} onChange={(url: string) => setForm({ ...form, image_url: url })} />
+            <BannerImageUploader images={form.image_url ? [form.image_url] : []} onChange={(imgs) => setForm({ ...form, image_url: imgs[imgs.length - 1] || "" })} maxImages={1} />
           </div>
           <select className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
             <option>Electrónicos</option><option>Imóveis</option><option>Veículos</option><option>Luxo & Relógios</option><option>Outro</option>
