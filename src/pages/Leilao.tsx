@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { Gavel, Monitor, Home, Car, Watch, Clock, Trophy, CheckCircle2, Users, Shield, ChevronRight, Loader2, X } from "lucide-react";
+import { Gavel, Monitor, Home, Car, Watch, Clock, Trophy, CheckCircle2, Users, Shield, Loader2, X, Upload, Copy } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -50,46 +50,27 @@ const CardTimer = ({ ends_at }: { ends_at: string }) => {
   );
 };
 
+// ── Modal Step 1: escolher valor ─────────────────────────────────────────────
 const BidModal = ({
   auction,
   onClose,
   onConfirm,
-  isPending,
 }: {
   auction: any;
   onClose: () => void;
   onConfirm: (amount: number) => void;
-  isPending: boolean;
 }) => {
   const minBid = Number(auction.current_bid) + Number(auction.bid_increment || 1000);
   const [value, setValue] = useState(minBid);
 
-  const handleSubmit = () => {
-    if (value < minBid) {
-      toast.error(`O lance mínimo é ${minBid.toLocaleString("pt-AO")} Kz`);
-      return;
-    }
-    onConfirm(value);
-  };
-
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-      onClick={onClose}
-    >
-      <div
-        className="bg-card border border-border rounded-card p-5 w-[90vw] max-w-sm shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div className="bg-card border border-border rounded-card p-5 w-[90vw] max-w-sm shadow-xl" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-black text-foreground">DAR LANCE</h3>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
-            <X className="w-4 h-4" />
-          </button>
+          <button onClick={onClose}><X className="w-4 h-4 text-muted-foreground" /></button>
         </div>
-
-        <p className="text-xs text-muted-foreground mb-1 line-clamp-1 font-semibold">{auction.title}</p>
-
+        <p className="text-xs text-muted-foreground mb-1 font-semibold line-clamp-1">{auction.title}</p>
         <div className="flex justify-between text-xs text-muted-foreground mb-1 mt-3">
           <span>Lance actual:</span>
           <span className="font-bold text-foreground">{Number(auction.current_bid).toLocaleString("pt-AO")} Kz</span>
@@ -98,33 +79,168 @@ const BidModal = ({
           <span>Lance mínimo:</span>
           <span className="font-bold text-walmart-green">{minBid.toLocaleString("pt-AO")} Kz</span>
         </div>
-
         <label className="text-xs font-bold text-muted-foreground uppercase">O seu lance (Kz)</label>
         <input
           type="number"
           min={minBid}
           step={Number(auction.bid_increment || 1000)}
           value={value}
-          onChange={(e) => setValue(Number(e.target.value))}
+          onChange={e => setValue(Number(e.target.value))}
           className="w-full mt-1 mb-1 px-3 py-2 border border-border rounded-card text-sm font-bold text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-secondary"
         />
         {value < minBid && (
-          <p className="text-[11px] text-destructive mb-2">
-            Valor abaixo do mínimo permitido ({minBid.toLocaleString("pt-AO")} Kz)
-          </p>
+          <p className="text-[11px] text-destructive mb-2">Valor abaixo do mínimo ({minBid.toLocaleString("pt-AO")} Kz)</p>
         )}
-
         <button
-          onClick={handleSubmit}
-          disabled={isPending || value < minBid}
+          onClick={() => value >= minBid && onConfirm(value)}
+          disabled={value < minBid}
           className="w-full mt-3 py-2.5 rounded-card font-bold text-sm text-foreground bg-secondary hover:bg-secondary/80 transition disabled:opacity-50"
         >
-          {isPending ? "Enviando..." : `CONFIRMAR LANCE — ${value.toLocaleString("pt-AO")} Kz`}
+          CONTINUAR — {value.toLocaleString("pt-AO")} Kz
         </button>
       </div>
     </div>
   );
 };
+
+// ── Modal Step 2: enviar comprovante ─────────────────────────────────────────
+const ProofModal = ({
+  auction,
+  amount,
+  onClose,
+  onSuccess,
+}: {
+  auction: any;
+  amount: number;
+  onClose: () => void;
+  onSuccess: () => void;
+}) => {
+  const { user } = useAuth();
+  const [file, setFile] = useState<File | null>(null);
+  const [reference, setReference] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const { data: methods = [] } = useQuery({
+    queryKey: ["auction_payment_methods"],
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("auction_payment_methods")
+        .select("*")
+        .eq("is_active", true)
+        .order("type");
+      return data || [];
+    },
+  });
+
+  const handleSubmit = async () => {
+    if (!file || !user) return;
+    setUploading(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const path = `${user.id}/${Date.now()}.${ext}`;
+      const { error: uploadError } = await (supabase as any).storage
+        .from("bid-proofs")
+        .upload(path, file);
+      if (uploadError) throw uploadError;
+
+      const { error: insertError } = await (supabase as any)
+        .from("auction_bid_proofs")
+        .insert({
+          auction_id: auction.id,
+          user_id: user.id,
+          amount,
+          proof_url: path,
+          reference: reference || null,
+          status: "pending",
+        });
+      if (insertError) throw insertError;
+
+      toast.success("Comprovante enviado! Aguarde validação do administrador.");
+      onSuccess();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div className="bg-card border border-border rounded-card p-5 w-[90vw] max-w-sm shadow-xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-black text-foreground">ENVIAR COMPROVANTE</h3>
+          <button onClick={onClose}><X className="w-4 h-4 text-muted-foreground" /></button>
+        </div>
+
+        <div className="bg-muted/50 rounded-card px-3 py-2 mb-3 text-xs">
+          <p className="text-muted-foreground">Leilão: <span className="font-bold text-foreground">{auction.title}</span></p>
+          <p className="text-muted-foreground mt-0.5">Valor do lance: <span className="font-bold text-walmart-green">{amount.toLocaleString("pt-AO")} Kz</span></p>
+        </div>
+
+        {/* Métodos de pagamento */}
+        {methods.length > 0 && (
+          <div className="mb-4">
+            <p className="text-xs font-black text-muted-foreground uppercase mb-2">Dados para transferência</p>
+            <div className="space-y-2">
+              {methods.map((m: any) => (
+                <div key={m.id} className="bg-muted rounded-card px-3 py-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase">{m.type === "xpress" ? "Xpress" : m.type === "iban" ? "IBAN / TPA" : m.label}</p>
+                      <p className="text-sm font-black text-foreground">{m.value}</p>
+                      {m.holder && <p className="text-[10px] text-muted-foreground">{m.holder}</p>}
+                    </div>
+                    <button
+                      onClick={() => { navigator.clipboard.writeText(m.value); toast.success("Copiado!"); }}
+                      className="p-1.5 rounded-lg bg-secondary/20 text-secondary"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {methods.length === 0 && (
+          <div className="bg-amber-500/10 text-amber-600 text-xs rounded-card px-3 py-2 mb-4">
+            Métodos de pagamento ainda não configurados. Contacte o administrador.
+          </div>
+        )}
+
+        <p className="text-xs font-black text-muted-foreground uppercase mb-2">Comprovante de transferência</p>
+
+        <input
+          type="text"
+          placeholder="Referência da transferência (opcional)"
+          value={reference}
+          onChange={e => setReference(e.target.value)}
+          className="w-full mb-2 px-3 py-2 border border-border rounded-card text-sm text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-secondary"
+        />
+
+        <input ref={fileRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={e => setFile(e.target.files?.[0] || null)} />
+        <button
+          onClick={() => fileRef.current?.click()}
+          className="w-full py-2.5 border-2 border-dashed border-border rounded-card text-xs font-bold text-muted-foreground hover:border-secondary transition mb-2 flex items-center justify-center gap-2"
+        >
+          <Upload className="w-4 h-4" />
+          {file ? file.name : "Seleccionar imagem / PDF"}
+        </button>
+
+        <button
+          onClick={handleSubmit}
+          disabled={!file || uploading}
+          className="w-full mt-2 py-2.5 rounded-card font-bold text-sm text-foreground bg-secondary hover:bg-secondary/80 transition disabled:opacity-50"
+        >
+          {uploading ? "Enviando..." : "ENVIAR COMPROVANTE"}
+        </button>
+      </div>
+    </div>
+  );
+};
+// ─────────────────────────────────────────────────────────────────────────────
 
 const Leilao = () => {
   const navigate = useNavigate();
@@ -133,6 +249,7 @@ const Leilao = () => {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [selectedAuction, setSelectedAuction] = useState<any>(null);
   const [bidTarget, setBidTarget] = useState<any>(null);
+  const [proofTarget, setProofTarget] = useState<{ auction: any; amount: number } | null>(null);
 
   const { data: auctions = [], isLoading } = useQuery({
     queryKey: ["public_auctions"],
@@ -149,17 +266,15 @@ const Leilao = () => {
   const filteredActive = activeCategory ? active.filter((a: any) => a.category === activeCategory) : active;
   const featured = active.find((a: any) => a.is_featured) || active[0] || null;
   const countdown = useCountdown(featured?.ends_at || null);
-
   const displayed = selectedAuction || featured;
 
-  // ── CORRIGIDO: queryKey consistente e refetchInterval como fallback ────────
   const { data: bids = [] } = useQuery({
     queryKey: ["auction_bids", selectedAuction?.id || featured?.id],
     queryFn: async () => {
       const id = selectedAuction?.id || featured?.id;
       if (!id) return [];
       const { data, error } = await (supabase as any).from("auction_bids")
-        .select("id, amount, created_at, profiles:user_id(full_name)")
+        .select("id, amount, created_at, user_id")
         .eq("auction_id", id)
         .order("amount", { ascending: false })
         .limit(10);
@@ -170,43 +285,18 @@ const Leilao = () => {
     refetchInterval: 5000,
   });
 
-  // ── CORRIGIDO: useEffect usa os ids directamente para evitar stale closure ─
   useEffect(() => {
     const id = selectedAuction?.id || featured?.id;
     if (!id) return;
     const channel = (supabase as any)
       .channel(`bids-${id}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "auction_bids", filter: `auction_id=eq.${id}` },
-        () => {
-          qc.invalidateQueries({ queryKey: ["auction_bids", id] });
-          qc.invalidateQueries({ queryKey: ["public_auctions"] });
-        }
-      )
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "auction_bids", filter: `auction_id=eq.${id}` }, () => {
+        qc.invalidateQueries({ queryKey: ["auction_bids", id] });
+        qc.invalidateQueries({ queryKey: ["public_auctions"] });
+      })
       .subscribe();
     return () => { (supabase as any).removeChannel(channel); };
   }, [selectedAuction?.id, featured?.id, qc]);
-  // ─────────────────────────────────────────────────────────────────────────
-
-  const placeBid = useMutation({
-    mutationFn: async ({ auction, amount }: { auction: any; amount: number }) => {
-      if (!user) throw new Error("Faça login para dar lance");
-      const minBid = Number(auction.current_bid) + Number(auction.bid_increment || 1000);
-      if (amount < minBid) throw new Error(`Lance mínimo é ${minBid.toLocaleString("pt-AO")} Kz`);
-      const { error } = await (supabase as any).from("auction_bids")
-        .insert({ auction_id: auction.id, user_id: user.id, amount });
-      if (error) throw error;
-      return amount;
-    },
-    onSuccess: (amount) => {
-      toast.success(`Lance de ${Number(amount).toLocaleString("pt-AO")} Kz registado!`);
-      setBidTarget(null);
-      qc.invalidateQueries({ queryKey: ["public_auctions"] });
-      qc.invalidateQueries({ queryKey: ["auction_bids", selectedAuction?.id || featured?.id] });
-    },
-    onError: (e: any) => toast.error(e.message),
-  });
 
   const openBidModal = (auction: any) => {
     if (!user) { navigate("/auth"); return; }
@@ -217,12 +307,25 @@ const Leilao = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
 
+      {/* Modal Step 1 */}
       {bidTarget && (
         <BidModal
           auction={bidTarget}
           onClose={() => setBidTarget(null)}
-          onConfirm={(amount) => placeBid.mutate({ auction: bidTarget, amount })}
-          isPending={placeBid.isPending}
+          onConfirm={(amount) => {
+            setProofTarget({ auction: bidTarget, amount });
+            setBidTarget(null);
+          }}
+        />
+      )}
+
+      {/* Modal Step 2 */}
+      {proofTarget && (
+        <ProofModal
+          auction={proofTarget.auction}
+          amount={proofTarget.amount}
+          onClose={() => setProofTarget(null)}
+          onSuccess={() => setProofTarget(null)}
         />
       )}
 
@@ -238,9 +341,7 @@ const Leilao = () => {
         </div>
       </section>
 
-      {isLoading && (
-        <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
-      )}
+      {isLoading && <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}
 
       {!isLoading && auctions.length === 0 && (
         <div className="container mx-auto px-3 py-10 text-center">
@@ -294,8 +395,7 @@ const Leilao = () => {
                   </div>
                   <button
                     onClick={() => openBidModal(displayed)}
-                    disabled={placeBid.isPending}
-                    className="w-full mt-4 py-2.5 rounded-card font-bold text-sm text-foreground bg-secondary hover:bg-secondary/80 transition disabled:opacity-50"
+                    className="w-full mt-4 py-2.5 rounded-card font-bold text-sm text-foreground bg-secondary hover:bg-secondary/80 transition"
                   >
                     DAR LANCE
                   </button>
@@ -308,7 +408,7 @@ const Leilao = () => {
                         <div key={b.id} className="flex items-center justify-between text-xs bg-muted/50 rounded-sm px-2 py-1.5">
                           <div className="flex items-center gap-1.5">
                             <CheckCircle2 className="w-3 h-3 text-walmart-green" />
-                            <span className="font-semibold">{b.profiles?.full_name || "Anónimo"}</span>
+                            <span className="font-semibold">{b.user_id?.slice(0, 8) || "Anónimo"}</span>
                           </div>
                           <span className="font-bold">{Number(b.amount).toLocaleString("pt-AO")} Kz</span>
                         </div>
