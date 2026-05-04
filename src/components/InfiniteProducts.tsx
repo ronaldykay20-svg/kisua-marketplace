@@ -2,51 +2,78 @@ import { useEffect, useRef, useCallback } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-import { Star, Truck, Heart, Loader2, Flame, Users } from "lucide-react";
+import { Star, Truck, Heart, Loader2, Flame, Users, ShieldCheck } from "lucide-react";
 
 const PAGE_SIZE = 20;
 
+// Slot roda pelo índice global — cada card mostra algo diferente
+// independentemente do produto
 const getDynamicInfo = (p: any, i: number) => {
-  const options: JSX.Element[] = [];
+  const slot = i % 6;
 
-  if (p.free_shipping)
-    options.push(
-      <span key="ship" className="flex items-center gap-1 text-[10px] font-semibold text-green-600">
-        <Truck className="w-3 h-3" /> Frete grátis
-      </span>
-    );
+  switch (slot) {
+    case 0:
+      return p.free_shipping ? (
+        <span className="flex items-center gap-1 text-[10px] font-semibold text-green-600">
+          <Truck className="w-3 h-3" /> Frete grátis
+        </span>
+      ) : p.sales_count > 0 ? (
+        <span className="text-[10px] text-muted-foreground">{p.sales_count}+ vendidos</span>
+      ) : null;
 
-  if (p.sales_count > 0)
-    options.push(
-      <span key="sales" className="text-[10px] text-muted-foreground">
-        {p.sales_count}+ vendidos
-      </span>
-    );
+    case 1:
+      return p.sales_count > 0 ? (
+        <span className="text-[10px] text-muted-foreground">{p.sales_count}+ vendidos</span>
+      ) : p.free_shipping ? (
+        <span className="flex items-center gap-1 text-[10px] font-semibold text-green-600">
+          <Truck className="w-3 h-3" /> Frete grátis
+        </span>
+      ) : null;
 
-  if (p.rating > 0 && (p.total_reviews || 0) > 50)
-    options.push(
-      <span key="recurrent" className="flex items-center gap-1 text-[10px] text-muted-foreground">
-        <Users className="w-3 h-3" /> Clientes recorrentes com alta taxa
-      </span>
-    );
+    case 2:
+      return (
+        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+          <Users className="w-3 h-3" /> Clientes recorrentes com alta taxa
+        </span>
+      );
 
-  if (p.discount_percent >= 15)
-    options.push(
-      <span key="hot" className="flex items-center gap-1 text-[10px] font-semibold text-orange-500">
-        <Flame className="w-3 h-3" /> Promoção imperdível
-      </span>
-    );
+    case 3:
+      return p.discount_percent > 0 ? (
+        <span className="flex items-center gap-1 text-[10px] font-semibold text-orange-500">
+          <Flame className="w-3 h-3" /> Promoção imperdível
+        </span>
+      ) : p.free_shipping ? (
+        <span className="flex items-center gap-1 text-[10px] font-semibold text-green-600">
+          <Truck className="w-3 h-3" /> Entrega rápida
+        </span>
+      ) : null;
 
-  if (p.free_shipping && p.sales_count > 0)
-    options.push(
-      <span key="fast" className="flex items-center gap-1 text-[10px] font-semibold text-green-600">
-        <Truck className="w-3 h-3" /> Entrega rápida
-      </span>
-    );
+    case 4:
+      return p.free_shipping ? (
+        <span className="flex items-center gap-1 text-[10px] font-semibold text-green-600">
+          <Truck className="w-3 h-3" /> Entrega rápida
+        </span>
+      ) : p.sales_count > 0 ? (
+        <span className="text-[10px] text-muted-foreground">{p.sales_count}+ vendidos</span>
+      ) : null;
 
-  if (options.length === 0) return null;
-  return options[i % options.length];
+    case 5:
+      return (
+        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+          <ShieldCheck className="w-3 h-3" /> Compra 100% segura
+        </span>
+      );
+
+    default:
+      return null;
+  }
 };
+
+// Rating aparece só em 1 de cada 3 cards
+const showRating = (p: any, i: number) => p.rating > 0 && i % 3 !== 1;
+
+// Aspect ratios alternados para efeito masonry
+const RATIOS = ["3/4", "1/1", "4/5", "2/3", "1/1", "3/4"];
 
 const InfiniteProducts = () => {
   const navigate = useNavigate();
@@ -116,37 +143,27 @@ const InfiniteProducts = () => {
 
   if (allProducts.length === 0) return null;
 
-  // Masonry: separar em 2 colunas
-  const col1 = allProducts.filter((_: any, i: number) => i % 2 === 0);
+  // 2 colunas mobile, 3 tablet, 4 desktop
   const col2 = allProducts.filter((_: any, i: number) => i % 2 === 1);
+  const col1 = allProducts.filter((_: any, i: number) => i % 2 === 0);
 
-  // Aspect ratios alternados para dar efeito masonry
-  const ratios = ["3/4", "1/1", "4/3", "2/3", "1/1"];
-
-  const ProductCard = ({ p, i }: { p: any; i: number }) => {
+  const ProductCard = ({ p, globalIndex }: { p: any; globalIndex: number }) => {
     const img = p.cover_url || p.image_url;
-    const ratio = ratios[i % ratios.length];
+    const ratio = RATIOS[globalIndex % RATIOS.length];
 
     return (
       <div
         onClick={() => navigate(`/produto/${p.id}`)}
-        className="bg-card rounded-lg border border-border overflow-hidden cursor-pointer mb-2.5 flex flex-col"
+        className="bg-card rounded-lg border border-border overflow-hidden cursor-pointer flex flex-col mb-2"
       >
-        {/* Imagem com altura variável */}
-        <div className="relative overflow-hidden bg-muted" style={{ aspectRatio: ratio }}>
+        <div className="relative overflow-hidden bg-muted w-full" style={{ aspectRatio: ratio }}>
           {img ? (
-            <img
-              src={img}
-              alt={p.title}
-              className="w-full h-full object-cover"
-              loading="lazy"
-            />
+            <img src={img} alt={p.title} className="w-full h-full object-cover" loading="lazy" />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-[10px] text-muted-foreground">
               Sem foto
             </div>
           )}
-
           {p.discount_percent && (
             <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold text-white bg-red-500">
               -{p.discount_percent}%
@@ -157,7 +174,6 @@ const InfiniteProducts = () => {
               {p.badge}
             </span>
           )}
-
           <button
             onClick={(e) => e.stopPropagation()}
             className="absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full bg-white/80 flex items-center justify-center shadow"
@@ -166,9 +182,7 @@ const InfiniteProducts = () => {
           </button>
         </div>
 
-        {/* Conteúdo */}
         <div className="p-2 flex flex-col gap-1">
-          {/* Badge Tendências + categoria */}
           <div className="flex items-center gap-1 flex-wrap">
             <span className="text-[9px] font-bold text-white bg-violet-500 px-1.5 py-0.5 rounded-sm">
               Tendências
@@ -178,13 +192,11 @@ const InfiniteProducts = () => {
             )}
           </div>
 
-          {/* Título */}
           <h3 className="text-[11px] font-semibold text-foreground line-clamp-2 leading-snug">
             {p.title}
           </h3>
 
-          {/* Rating — aparece só em cards pares */}
-          {p.rating > 0 && i % 2 === 0 && (
+          {showRating(p, globalIndex) && (
             <div className="flex items-center gap-0.5">
               <span className="text-[10px] font-bold">{Number(p.rating).toFixed(1)}</span>
               <Star className="w-2.5 h-2.5 text-yellow-400 fill-yellow-400" />
@@ -194,7 +206,6 @@ const InfiniteProducts = () => {
             </div>
           )}
 
-          {/* Preço */}
           <div className="flex items-baseline gap-1">
             <span className="text-[13px] font-black text-red-500">
               {Number(p.price).toLocaleString("pt-AO")} Kz
@@ -206,8 +217,8 @@ const InfiniteProducts = () => {
             )}
           </div>
 
-          {/* Info dinâmica — muda por card */}
-          {getDynamicInfo(p, i)}
+          {/* Info que roda por slot — nunca igual ao card anterior */}
+          {getDynamicInfo(p, globalIndex)}
         </div>
       </div>
     );
@@ -219,21 +230,29 @@ const InfiniteProducts = () => {
         <h2 className="text-base font-bold text-foreground">Tendências</h2>
       </div>
 
-      {/* Layout masonry — 2 colunas com alturas diferentes */}
-      <div className="flex gap-2">
+      {/* Mobile + tablet: 2 cols / sm: 3 cols via CSS columns */}
+      <div className="hidden sm:block" style={{ columnCount: 3, columnGap: "8px" }}>
+        {allProducts.map((p: any, i: number) => (
+          <div key={p.id} style={{ breakInside: "avoid", marginBottom: "8px" }}>
+            <ProductCard p={p} globalIndex={i} />
+          </div>
+        ))}
+      </div>
+
+      {/* Mobile: 2 colunas lado a lado */}
+      <div className="flex gap-2 sm:hidden">
         <div className="flex-1">
-          {col1.map((p: any, i: number) => (
-            <ProductCard key={`${p.id}-L`} p={p} i={i * 2} />
+          {col1.map((p: any, colI: number) => (
+            <ProductCard key={p.id} p={p} globalIndex={colI * 2} />
           ))}
         </div>
-        <div className="flex-1 mt-4">
-          {col2.map((p: any, i: number) => (
-            <ProductCard key={`${p.id}-R`} p={p} i={i * 2 + 1} />
+        <div className="flex-1">
+          {col2.map((p: any, colI: number) => (
+            <ProductCard key={p.id} p={p} globalIndex={colI * 2 + 1} />
           ))}
         </div>
       </div>
 
-      {/* Trigger scroll infinito */}
       <div ref={observerRef} className="py-6 flex justify-center">
         {isFetchingNextPage && <Loader2 className="w-5 h-5 animate-spin text-primary" />}
         {!hasNextPage && allProducts.length > 0 && (
