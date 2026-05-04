@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Shield, Users, Search, Plus, Trash2, Crown, Building2, Store, CheckCircle, XCircle, ShieldCheck, UserCheck, UsersRound, FolderTree, ImageIcon, Camera, ShoppingBag, Settings, Star } from "lucide-react";
+import { Shield, Users, Search, Plus, Trash2, Crown, Building2, Store, CheckCircle, XCircle, ShieldCheck, UserCheck, UsersRound, FolderTree, ImageIcon, Camera, ShoppingBag, Settings, Star, Gavel, Upload, Eye } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,7 +21,7 @@ const roleBadge: Record<string, { label: string; color: string; icon: any }> = {
   user: { label: "Utilizador", color: "bg-primary/10 text-primary border-primary/20", icon: Users },
 };
 
-type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos" | "encomendas" | "categorias" | "banners" | "definicoes";
+type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos" | "encomendas" | "categorias" | "banners" | "definicoes" | "leiloes";
 
 const AdminPanel = () => {
   const { user } = useAuth();
@@ -31,6 +31,7 @@ const AdminPanel = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [membersModal, setMembersModal] = useState<{ id: string; name: string } | null>(null);
+  const [proofModal, setProofModal] = useState<any>(null);
 
   // ── Roles ──
   const { data: allRoles = [], isLoading } = useQuery({
@@ -173,6 +174,59 @@ const AdminPanel = () => {
     onError: (e: any) => toast.error(e.message),
   });
 
+  // ── NOVO: Comprovantes de Leilão ──
+  const { data: proofs = [] } = useQuery({
+    queryKey: ["admin_bid_proofs"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("auction_bid_proofs")
+        .select("*, profiles:user_id(full_name), auctions:auction_id(title)")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: isAdmin && tab === "leiloes",
+    refetchInterval: 10000,
+  });
+
+  const reviewProof = useMutation({
+    mutationFn: async ({ id, status, auctionId, userId, amount, note }: { id: string; status: string; auctionId: string; userId: string; amount: number; note?: string }) => {
+      const { error } = await (supabase as any)
+        .from("auction_bid_proofs")
+        .update({ status, admin_note: note || null, reviewed_by: user!.id, reviewed_at: new Date().toISOString() })
+        .eq("id", id);
+      if (error) throw error;
+
+      if (status === "approved") {
+        const { error: bidError } = await (supabase as any)
+          .from("auction_bids")
+          .insert({ auction_id: auctionId, user_id: userId, amount });
+        if (bidError) throw bidError;
+
+        const { error: auctionError } = await (supabase as any)
+          .from("auctions")
+          .update({ current_bid: amount })
+          .eq("id", auctionId)
+          .lt("current_bid", amount);
+        if (auctionError) throw auctionError;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin_bid_proofs"] });
+      queryClient.invalidateQueries({ queryKey: ["public_auctions"] });
+      queryClient.invalidateQueries({ queryKey: ["auction_bids"] });
+      setProofModal(null);
+      toast.success("Comprovante processado!");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const getProofUrl = async (path: string) => {
+    const { data } = await (supabase as any).storage.from("bid-proofs").createSignedUrl(path, 60);
+    return data?.signedUrl;
+  };
+  // ─────────────────────────────────────────────────────────────────────────
+
   const grouped = allRoles.reduce((acc: any, r: any) => { acc[r.role] = acc[r.role] || []; acc[r.role].push(r); return acc; }, {});
 
   const tabs: { key: Tab; label: string; icon: any }[] = [
@@ -184,6 +238,7 @@ const AdminPanel = () => {
     { key: "encomendas", label: "Encomendas", icon: ShoppingBag },
     { key: "banners", label: "Banners", icon: ImageIcon },
     { key: "pedidos", label: "Candidaturas", icon: UserCheck },
+    { key: "leiloes", label: "Leilões", icon: Gavel },
     { key: "definicoes", label: "Definições", icon: Settings },
   ];
 
@@ -381,6 +436,79 @@ const AdminPanel = () => {
           </div>
         )}
 
+        {/* ═══ NOVO: LEILÕES TAB — Comprovantes ═══ */}
+        {tab === "leiloes" && (
+          <div className="space-y-2">
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              {[
+                { label: "Pendentes", status: "pending", color: "bg-amber-500/10 text-amber-500 border-amber-500/20" },
+                { label: "Aprovados", status: "approved", color: "bg-green-500/10 text-green-500 border-green-500/20" },
+                { label: "Rejeitados", status: "rejected", color: "bg-red-500/10 text-red-500 border-red-500/20" },
+              ].map(s => (
+                <div key={s.status} className={`rounded-xl border p-3 text-center ${s.color}`}>
+                  <p className="text-lg font-bold">{proofs.filter((p: any) => p.status === s.status).length}</p>
+                  <p className="text-[10px]">{s.label}</p>
+                </div>
+              ))}
+            </div>
+
+            {proofs.length === 0 && (
+              <p className="text-center py-6 text-sm text-muted-foreground">Nenhum comprovante submetido.</p>
+            )}
+
+            {proofs.map((p: any) => (
+              <div key={p.id} className="bg-card rounded-xl border border-border p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <p className="text-sm font-bold text-foreground">{p.profiles?.full_name || "Anónimo"}</p>
+                    <p className="text-[10px] text-muted-foreground">{p.auctions?.title || "—"}</p>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${p.status === "pending" ? "bg-amber-500/10 text-amber-500" : p.status === "approved" ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"}`}>
+                    {p.status === "pending" ? "Pendente" : p.status === "approved" ? "Aprovado" : "Rejeitado"}
+                  </span>
+                </div>
+
+                <div className="flex justify-between text-xs text-muted-foreground mb-2">
+                  <span>Lance: <span className="font-bold text-foreground">{Number(p.amount).toLocaleString("pt-AO")} Kz</span></span>
+                  {p.reference && <span>Ref: {p.reference}</span>}
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={async () => {
+                      const url = await getProofUrl(p.proof_url);
+                      setProofModal({ ...p, signedUrl: url });
+                    }}
+                    className="flex-1 py-1.5 bg-muted text-foreground text-xs font-bold rounded-lg flex items-center justify-center gap-1"
+                  >
+                    <Eye className="w-3.5 h-3.5" /> Ver Comprovante
+                  </button>
+                  {p.status === "pending" && (
+                    <>
+                      <button
+                        onClick={() => reviewProof.mutate({ id: p.id, status: "approved", auctionId: p.auction_id, userId: p.user_id, amount: p.amount })}
+                        className="flex-1 py-1.5 bg-green-500/10 text-green-500 text-xs font-bold rounded-lg flex items-center justify-center gap-1"
+                      >
+                        <CheckCircle className="w-3.5 h-3.5" /> Aprovar
+                      </button>
+                      <button
+                        onClick={() => reviewProof.mutate({ id: p.id, status: "rejected", auctionId: p.auction_id, userId: p.user_id, amount: p.amount })}
+                        className="flex-1 py-1.5 bg-red-500/10 text-red-500 text-xs font-bold rounded-lg flex items-center justify-center gap-1"
+                      >
+                        <XCircle className="w-3.5 h-3.5" /> Rejeitar
+                      </button>
+                    </>
+                  )}
+                </div>
+
+                {p.admin_note && (
+                  <p className="text-[10px] text-muted-foreground mt-2 bg-muted rounded px-2 py-1">Nota: {p.admin_note}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
         {isLoading && tab === "cargos" && (
           <div className="flex justify-center py-8">
             <div className="w-6 h-6 border-4 border-primary border-t-transparent rounded-full animate-spin" />
@@ -396,6 +524,25 @@ const AdminPanel = () => {
           companyName={membersModal.name}
           onClose={() => setMembersModal(null)}
         />
+      )}
+
+      {/* ── NOVO: Modal de visualização do comprovante ── */}
+      {proofModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={() => setProofModal(null)}>
+          <div className="bg-card border border-border rounded-xl p-4 w-[92vw] max-w-sm shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-sm font-black text-foreground mb-3">Comprovante de Transferência</h3>
+            <div className="text-xs text-muted-foreground space-y-1 mb-3">
+              <p>Utilizador: <span className="font-bold text-foreground">{proofModal.profiles?.full_name || "—"}</span></p>
+              <p>Leilão: <span className="font-bold text-foreground">{proofModal.auctions?.title || "—"}</span></p>
+              <p>Valor: <span className="font-bold text-foreground">{Number(proofModal.amount).toLocaleString("pt-AO")} Kz</span></p>
+              {proofModal.reference && <p>Referência: <span className="font-bold text-foreground">{proofModal.reference}</span></p>}
+            </div>
+            {proofModal.signedUrl && (
+              <img src={proofModal.signedUrl} alt="Comprovante" className="w-full rounded-lg mb-3 max-h-64 object-contain bg-muted" />
+            )}
+            <button onClick={() => setProofModal(null)} className="w-full py-2 bg-muted text-foreground text-xs font-bold rounded-lg">Fechar</button>
+          </div>
+        </div>
       )}
     </div>
   );
