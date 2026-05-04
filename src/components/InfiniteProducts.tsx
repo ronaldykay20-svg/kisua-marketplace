@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
@@ -69,14 +69,6 @@ const InfiniteProducts = () => {
 
   const allProducts = data?.pages.flat() || [];
 
-  const cardColors = [
-    "border-l-primary/30",
-    "border-l-secondary/30",
-    "border-l-accent/30",
-    "border-l-destructive/30",
-    "border-l-walmart-orange/30",
-  ];
-
   if (isLoading) {
     return (
       <div className="flex justify-center py-10">
@@ -89,82 +81,121 @@ const InfiniteProducts = () => {
 
   return (
     <section className="container mx-auto px-3 pt-4 pb-4">
-      <div className="text-center mb-4">
-        <h2 className="text-base font-bold text-foreground">Descubra mais produtos</h2>
-        <p className="text-[11px] text-muted-foreground">Deslize para explorar milhares de ofertas</p>
+      <div className="mb-4">
+        <h2 className="text-base font-bold text-foreground">Tendências</h2>
       </div>
 
-      {/* Estilo Shein — 2 cols mobile, cards compactos com descrição e botão Explorar */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
         {allProducts.map((p: any, i: number) => {
-          const img = p.cover_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop";
+          const img = p.cover_url || p.image_url;
 
           return (
             <div
               key={`${p.id}-${i}`}
               onClick={() => navigate(`/produto/${p.id}`)}
-              className="bg-card rounded-card border border-border overflow-hidden cursor-pointer group hover:shadow-md transition-all flex flex-col"
+              className="bg-card rounded-2xl border border-border overflow-hidden cursor-pointer flex flex-col"
             >
-              <div className="relative aspect-square overflow-hidden bg-muted">
-                <img
-                  src={img}
-                  alt={p.title}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  loading="lazy"
-                />
+              {/* Imagem */}
+              <div className="relative overflow-hidden bg-muted" style={{ aspectRatio: "1/1" }}>
+                {img ? (
+                  <img
+                    src={img}
+                    alt={p.title}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-[10px] text-muted-foreground">
+                    Sem foto
+                  </div>
+                )}
+
+                {/* Badge desconto */}
                 {p.discount_percent && (
-                  <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded-sm text-[9px] font-bold text-primary-foreground bg-walmart-red">
+                  <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md text-[10px] font-bold text-white bg-red-500">
                     -{p.discount_percent}%
                   </span>
                 )}
+
+                {/* Badge tipo (NOVO, LIMITED, etc) */}
                 {p.badge && (
-                  <span className="absolute top-1 right-1 px-1.5 py-0.5 rounded-sm text-[9px] font-bold text-primary-foreground"
-                    style={{ background: "var(--promo-gradient)" }}>
+                  <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md text-[10px] font-bold text-white bg-orange-500">
                     {p.badge}
                   </span>
                 )}
+
+                {/* Botão coração */}
+                <button
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute bottom-2 right-2 w-7 h-7 rounded-full bg-white/80 flex items-center justify-center shadow"
+                >
+                  <Heart className="w-3.5 h-3.5 text-gray-500" />
+                </button>
               </div>
 
-              <div className="p-1.5 flex flex-col flex-1 gap-0.5">
-                <h3 className="text-[11px] font-semibold text-foreground line-clamp-1 leading-tight">{p.title}</h3>
-                {p.description && (
-                  <p className="text-[9px] text-muted-foreground line-clamp-2 leading-snug">{p.description}</p>
+              {/* Info */}
+              <div className="p-2.5 flex flex-col gap-1 flex-1">
+
+                {/* Badge "Tendências" + categoria */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[9px] font-bold text-white bg-violet-500 px-1.5 py-0.5 rounded-sm">
+                    Tendências
+                  </span>
+                  {p.category && (
+                    <span className="text-[9px] font-semibold text-violet-600">
+                      {p.category}
+                    </span>
+                  )}
+                </div>
+
+                {/* Título */}
+                <h3 className="text-[12px] font-semibold text-foreground line-clamp-2 leading-snug">
+                  {p.title}
+                </h3>
+
+                {/* Rating */}
+                {p.rating > 0 && (
+                  <div className="flex items-center gap-1">
+                    <span className="text-[11px] font-bold text-foreground">{Number(p.rating).toFixed(1)}</span>
+                    <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
+                    <span className="text-[10px] text-muted-foreground">
+                      ({p.total_reviews > 999 ? "1000+" : p.total_reviews || 0})
+                    </span>
+                  </div>
                 )}
-                <div className="flex items-baseline gap-1 mt-0.5">
-                  <span className="text-xs font-black text-walmart-red">{Number(p.price).toLocaleString("pt-AO")} Kz</span>
+
+                {/* Preço */}
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-[14px] font-black text-red-500">
+                    {Number(p.price).toLocaleString("pt-AO")} Kz
+                  </span>
                   {p.old_price && (
-                    <span className="text-[9px] text-muted-foreground line-through">{Number(p.old_price).toLocaleString("pt-AO")}</span>
+                    <span className="text-[10px] text-muted-foreground line-through">
+                      {Number(p.old_price).toLocaleString("pt-AO")} Kz
+                    </span>
                   )}
                 </div>
-                <div className="flex items-center justify-between gap-1">
-                  {p.rating > 0 ? (
-                    <div className="flex items-center gap-0.5">
-                      <Star className="w-2.5 h-2.5 text-secondary fill-secondary" />
-                      <span className="text-[9px] text-muted-foreground">{Number(p.rating).toFixed(1)} ({p.total_reviews || 0})</span>
-                    </div>
-                  ) : <span />}
-                  {p.sales_count > 0 && (
-                    <span className="text-[9px] text-muted-foreground">{p.sales_count}+ vendidos</span>
-                  )}
-                </div>
+
+                {/* Frete grátis */}
                 {p.free_shipping && (
-                  <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-accent">
-                    <Truck className="w-2.5 h-2.5" /> Frete grátis
+                  <span className="flex items-center gap-1 text-[10px] font-semibold text-green-600">
+                    <Truck className="w-3 h-3" /> Frete grátis
                   </span>
                 )}
-                <button
-                  onClick={(e) => { e.stopPropagation(); navigate(`/produto/${p.id}`); }}
-                  className="mt-1 w-full py-1 rounded-md bg-primary text-primary-foreground text-[10px] font-bold hover:brightness-110 transition"
-                >
-                  Explorar
-                </button>
+
+                {/* Vendidos */}
+                {p.sales_count > 0 && (
+                  <span className="text-[10px] text-muted-foreground">
+                    {p.sales_count}+ vendidos
+                  </span>
+                )}
               </div>
             </div>
           );
         })}
       </div>
 
-      {/* Infinite scroll trigger */}
+      {/* Trigger scroll infinito */}
       <div ref={observerRef} className="py-6 flex justify-center">
         {isFetchingNextPage && <Loader2 className="w-5 h-5 animate-spin text-primary" />}
         {!hasNextPage && allProducts.length > 0 && (
