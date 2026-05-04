@@ -3,7 +3,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Gavel, Monitor, Home, Car, Watch, Clock, Trophy, CheckCircle2, Users, Shield, Loader2, X, Upload, Copy } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -60,8 +60,32 @@ const BidModal = ({
   onClose: () => void;
   onConfirm: (amount: number) => void;
 }) => {
-  const minBid = Number(auction.current_bid) + Number(auction.bid_increment || 1000);
+  const normalMin = Number(auction.current_bid) + Number(auction.bid_increment || 1000);
+
+  const { data: highestPending } = useQuery({
+    queryKey: ["highest_pending", auction.id],
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("auction_bid_proofs")
+        .select("amount")
+        .eq("auction_id", auction.id)
+        .eq("status", "pending")
+        .order("amount", { ascending: false })
+        .limit(1);
+      return data?.[0] || null;
+    },
+  });
+
+  const pendingAmount = highestPending ? Number(highestPending.amount) : 0;
+  const pendingMin = pendingAmount > 0 ? Math.ceil(pendingAmount * 1.03) : 0;
+  const minBid = Math.max(normalMin, pendingMin);
+  const hasPending = pendingAmount > 0;
+
   const [value, setValue] = useState(minBid);
+
+  useEffect(() => {
+    setValue(minBid);
+  }, [minBid]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
@@ -71,14 +95,30 @@ const BidModal = ({
           <button onClick={onClose}><X className="w-4 h-4 text-muted-foreground" /></button>
         </div>
         <p className="text-xs text-muted-foreground mb-1 font-semibold line-clamp-1">{auction.title}</p>
+
         <div className="flex justify-between text-xs text-muted-foreground mb-1 mt-3">
           <span>Lance actual:</span>
           <span className="font-bold text-foreground">{Number(auction.current_bid).toLocaleString("pt-AO")} Kz</span>
         </div>
-        <div className="flex justify-between text-xs text-muted-foreground mb-3">
-          <span>Lance mínimo:</span>
+
+        {hasPending && (
+          <div className="flex justify-between text-xs text-muted-foreground mb-1">
+            <span>Lance pendente mais alto:</span>
+            <span className="font-bold text-amber-500">{pendingAmount.toLocaleString("pt-AO")} Kz</span>
+          </div>
+        )}
+
+        <div className="flex justify-between text-xs text-muted-foreground mb-1">
+          <span>Lance mínimo obrigatório:</span>
           <span className="font-bold text-walmart-green">{minBid.toLocaleString("pt-AO")} Kz</span>
         </div>
+
+        {hasPending && (
+          <div className="bg-amber-500/10 text-amber-600 text-[11px] rounded-card px-3 py-2 mb-3">
+            Existe um lance pendente de validação. O seu lance tem de superar esse valor em pelo menos 3%.
+          </div>
+        )}
+
         <label className="text-xs font-bold text-muted-foreground uppercase">O seu lance (Kz)</label>
         <input
           type="number"
@@ -89,8 +129,11 @@ const BidModal = ({
           className="w-full mt-1 mb-1 px-3 py-2 border border-border rounded-card text-sm font-bold text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-secondary"
         />
         {value < minBid && (
-          <p className="text-[11px] text-destructive mb-2">Valor abaixo do mínimo ({minBid.toLocaleString("pt-AO")} Kz)</p>
+          <p className="text-[11px] text-destructive mb-2">
+            Valor abaixo do mínimo obrigatório ({minBid.toLocaleString("pt-AO")} Kz)
+          </p>
         )}
+
         <button
           onClick={() => value >= minBid && onConfirm(value)}
           disabled={value < minBid}
@@ -304,6 +347,11 @@ const Leilao = () => {
       .subscribe();
     return () => { (supabase as any).removeChannel(channel); };
   }, [selectedAuction?.id, featured?.id, qc]);
+
+  // Fecha leilões expirados ao carregar
+  useEffect(() => {
+    (supabase as any).rpc("close_expired_auctions");
+  }, []);
 
   const openBidModal = (auction: any) => {
     if (!user) { navigate("/auth"); return; }
