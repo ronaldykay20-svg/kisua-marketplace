@@ -1,16 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Star, CheckCircle, ChevronRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const FeaturedSellerSection = () => {
   const navigate = useNavigate();
 
-  // Get a featured seller (is_featured flag or admin-highlighted)
   const { data: seller } = useQuery({
     queryKey: ["featured_seller_home"],
     queryFn: async () => {
-      // Check site_settings for a manually featured seller
       const { data: setting } = await supabase
         .from("site_settings")
         .select("value")
@@ -20,7 +18,6 @@ const FeaturedSellerSection = () => {
       let sellerId = setting?.value;
 
       if (!sellerId) {
-        // Fallback: pick verified seller with most sales
         const { data: topSeller } = await supabase
           .from("sellers")
           .select("id")
@@ -44,7 +41,6 @@ const FeaturedSellerSection = () => {
     },
   });
 
-  // Get seller's products
   const { data: products = [] } = useQuery({
     queryKey: ["featured_seller_products", seller?.id],
     queryFn: async () => {
@@ -57,7 +53,6 @@ const FeaturedSellerSection = () => {
         .limit(6);
       if (error) throw error;
 
-      // Get covers
       const ids = (data || []).map((p: any) => p.id);
       let coverMap: Record<string, string> = {};
       if (ids.length > 0) {
@@ -76,81 +71,77 @@ const FeaturedSellerSection = () => {
 
   if (!seller || products.length === 0) return null;
 
-  const isCompany = seller.type === "company";
-
   return (
-    <section className="container mx-auto px-4 py-5">
-      {/* Header with seller info */}
+    <section className="container mx-auto px-4 py-4">
+
+      {/* Banner da loja */}
+      {seller.banner_url && (
+        <div
+          className="w-full rounded-xl overflow-hidden mb-4 cursor-pointer"
+          style={{ aspectRatio: "16/7" }}
+          onClick={() => navigate(`/vendedor/${seller.id}`)}
+        >
+          <img
+            src={seller.banner_url}
+            alt={seller.name}
+            className="w-full h-full object-cover"
+          />
+        </div>
+      )}
+
+      {/* Título com linha — "Produtos da loja" */}
       <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <div
-            className="w-10 h-10 rounded-full overflow-hidden bg-muted border-2 border-primary flex-shrink-0 cursor-pointer"
-            onClick={() => navigate(`/vendedor/${seller.id}`)}
-          >
-            {seller.logo_url ? (
-              <img src={seller.logo_url} alt={seller.name} className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-sm font-bold text-primary">
-                {seller.name.charAt(0)}
-              </div>
-            )}
-          </div>
-          <div>
-            <div className="flex items-center gap-1">
-              <h2
-                className="text-sm font-bold text-foreground cursor-pointer hover:text-primary transition"
-                onClick={() => navigate(`/vendedor/${seller.id}`)}
-              >
-                {seller.name}
-              </h2>
-              {seller.is_verified && <CheckCircle className="w-3.5 h-3.5 text-primary" />}
-            </div>
-            <p className="text-[10px] text-muted-foreground">
-              {isCompany ? "Empresa" : "Vendedor"} em destaque
-            </p>
-          </div>
+        <div className="flex items-center gap-3 flex-1">
+          <span className="text-sm font-bold text-foreground whitespace-nowrap">
+            Produtos da loja
+          </span>
+          <div className="flex-1 h-px bg-border" />
         </div>
         <button
           onClick={() => navigate(`/vendedor/${seller.id}`)}
-          className="text-xs font-semibold text-primary flex items-center gap-0.5"
+          className="flex items-center gap-0.5 text-sm font-semibold text-primary ml-3 whitespace-nowrap"
         >
-          Ver tudo <ChevronRight className="w-3 h-3" />
+          Veja agora <ChevronRight className="w-4 h-4" />
         </button>
       </div>
 
-      {/* Products carousel */}
-      <div className="flex gap-2.5 overflow-x-auto scrollbar-hide pb-2">
-        {products.map((p: any) => {
-          const image = p.cover_url || p.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300&h=300&fit=crop";
+      {/* Grid 3 colunas */}
+      <div className="grid grid-cols-3 gap-2">
+        {products.slice(0, 6).map((p: any) => {
+          const image = p.cover_url || p.image_url;
           return (
             <div
               key={p.id}
               onClick={() => navigate(`/produto/${p.id}`)}
-              className="flex-shrink-0 w-[140px] sm:w-[160px] md:w-[180px] bg-card rounded-card border border-border overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+              className="bg-card rounded-xl border border-border overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
             >
               <div className="aspect-square bg-muted overflow-hidden">
-                <img src={image} alt={p.title} className="w-full h-full object-cover" loading="lazy" />
+                {image ? (
+                  <img
+                    src={image}
+                    alt={p.title}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
+                    Sem foto
+                  </div>
+                )}
               </div>
               <div className="p-2">
-                <h3 className="text-[11px] font-semibold text-foreground line-clamp-2 leading-tight mb-1">{p.title}</h3>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-xs font-black text-foreground">
-                    {Number(p.price).toLocaleString("pt-AO")} Kz
-                  </span>
-                  {p.old_price && (
-                    <span className="text-[9px] text-muted-foreground line-through">
-                      {Number(p.old_price).toLocaleString("pt-AO")} Kz
-                    </span>
-                  )}
-                </div>
-                {p.free_shipping && (
-                  <span className="inline-block mt-0.5 text-[9px] font-bold text-walmart-green">FRETE GRÁTIS</span>
-                )}
+                <h3 className="text-[11px] font-semibold text-foreground line-clamp-2 leading-tight mb-1">
+                  {p.title}
+                </h3>
+                <span className="text-[13px] font-black text-primary">
+                  {Number(p.price).toLocaleString("pt-AO")} Kz
+                </span>
               </div>
             </div>
           );
         })}
       </div>
+
     </section>
   );
 };
