@@ -1,79 +1,99 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { Star, Truck, Heart, Loader2, Flame, Users, ShieldCheck } from "lucide-react";
 
 const PAGE_SIZE = 20;
+const RATIOS = ["3/4", "1/1", "4/5", "2/3", "1/1", "3/4"];
 
-// Slot roda pelo índice global — cada card mostra algo diferente
-// independentemente do produto
-const getDynamicInfo = (p: any, i: number) => {
-  const slot = i % 6;
+// Monta a lista de infos disponíveis para um produto
+const buildInfoList = (p: any): JSX.Element[] => {
+  const list: JSX.Element[] = [];
 
-  switch (slot) {
-    case 0:
-      return p.free_shipping ? (
-        <span className="flex items-center gap-1 text-[10px] font-semibold text-green-600">
-          <Truck className="w-3 h-3" /> Frete grátis
-        </span>
-      ) : p.sales_count > 0 ? (
-        <span className="text-[10px] text-muted-foreground">{p.sales_count}+ vendidos</span>
-      ) : null;
+  if (p.free_shipping)
+    list.push(
+      <span key="ship" className="flex items-center gap-1 text-[10px] font-semibold text-green-600">
+        <Truck className="w-3 h-3" /> Frete grátis
+      </span>
+    );
 
-    case 1:
-      return p.sales_count > 0 ? (
-        <span className="text-[10px] text-muted-foreground">{p.sales_count}+ vendidos</span>
-      ) : p.free_shipping ? (
-        <span className="flex items-center gap-1 text-[10px] font-semibold text-green-600">
-          <Truck className="w-3 h-3" /> Frete grátis
-        </span>
-      ) : null;
+  if (p.sales_count > 0)
+    list.push(
+      <span key="sales" className="text-[10px] text-muted-foreground">
+        {p.sales_count}+ vendidos
+      </span>
+    );
 
-    case 2:
-      return (
-        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-          <Users className="w-3 h-3" /> Clientes recorrentes com alta taxa
-        </span>
-      );
+  if ((p.total_reviews || 0) > 10)
+    list.push(
+      <span key="recurrent" className="flex items-center gap-1 text-[10px] text-muted-foreground">
+        <Users className="w-3 h-3" /> Clientes recorrentes com alta taxa
+      </span>
+    );
 
-    case 3:
-      return p.discount_percent > 0 ? (
-        <span className="flex items-center gap-1 text-[10px] font-semibold text-orange-500">
-          <Flame className="w-3 h-3" /> Promoção imperdível
-        </span>
-      ) : p.free_shipping ? (
-        <span className="flex items-center gap-1 text-[10px] font-semibold text-green-600">
-          <Truck className="w-3 h-3" /> Entrega rápida
-        </span>
-      ) : null;
+  if (p.discount_percent > 0)
+    list.push(
+      <span key="promo" className="flex items-center gap-1 text-[10px] font-semibold text-orange-500">
+        <Flame className="w-3 h-3" /> Promoção imperdível
+      </span>
+    );
 
-    case 4:
-      return p.free_shipping ? (
-        <span className="flex items-center gap-1 text-[10px] font-semibold text-green-600">
-          <Truck className="w-3 h-3" /> Entrega rápida
-        </span>
-      ) : p.sales_count > 0 ? (
-        <span className="text-[10px] text-muted-foreground">{p.sales_count}+ vendidos</span>
-      ) : null;
+  if (p.free_shipping && p.sales_count > 5)
+    list.push(
+      <span key="fast" className="flex items-center gap-1 text-[10px] font-semibold text-green-600">
+        <Truck className="w-3 h-3" /> Entrega rápida
+      </span>
+    );
 
-    case 5:
-      return (
-        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-          <ShieldCheck className="w-3 h-3" /> Compra 100% segura
-        </span>
-      );
+  if (p.rating > 4)
+    list.push(
+      <span key="rated" className="flex items-center gap-1 text-[10px] text-muted-foreground">
+        <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" /> Muito bem avaliado
+      </span>
+    );
 
-    default:
-      return null;
-  }
+  list.push(
+    <span key="secure" className="flex items-center gap-1 text-[10px] text-muted-foreground">
+      <ShieldCheck className="w-3 h-3" /> Compra 100% segura
+    </span>
+  );
+
+  return list;
 };
 
-// Rating aparece só em 1 de cada 3 cards
-const showRating = (p: any, i: number) => p.rating > 0 && i % 3 !== 1;
+// Componente da info rotativa — troca a cada 3s com fade
+const RotatingInfo = ({ p, startOffset }: { p: any; startOffset: number }) => {
+  const infoList = buildInfoList(p);
+  const [idx, setIdx] = useState(startOffset % infoList.length);
+  const [visible, setVisible] = useState(true);
 
-// Aspect ratios alternados para efeito masonry
-const RATIOS = ["3/4", "1/1", "4/5", "2/3", "1/1", "3/4"];
+  useEffect(() => {
+    if (infoList.length <= 1) return;
+    const interval = setInterval(() => {
+      setVisible(false);
+      setTimeout(() => {
+        setIdx((prev) => (prev + 1) % infoList.length);
+        setVisible(true);
+      }, 400);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [infoList.length]);
+
+  if (infoList.length === 0) return null;
+
+  return (
+    <div
+      style={{
+        transition: "opacity 0.4s ease",
+        opacity: visible ? 1 : 0,
+        minHeight: "16px",
+      }}
+    >
+      {infoList[idx]}
+    </div>
+  );
+};
 
 const InfiniteProducts = () => {
   const navigate = useNavigate();
@@ -143,13 +163,13 @@ const InfiniteProducts = () => {
 
   if (allProducts.length === 0) return null;
 
-  // 2 colunas mobile, 3 tablet, 4 desktop
-  const col2 = allProducts.filter((_: any, i: number) => i % 2 === 1);
   const col1 = allProducts.filter((_: any, i: number) => i % 2 === 0);
+  const col2 = allProducts.filter((_: any, i: number) => i % 2 === 1);
 
   const ProductCard = ({ p, globalIndex }: { p: any; globalIndex: number }) => {
     const img = p.cover_url || p.image_url;
     const ratio = RATIOS[globalIndex % RATIOS.length];
+    const showRating = p.rating > 0 && globalIndex % 3 !== 1;
 
     return (
       <div
@@ -196,7 +216,7 @@ const InfiniteProducts = () => {
             {p.title}
           </h3>
 
-          {showRating(p, globalIndex) && (
+          {showRating && (
             <div className="flex items-center gap-0.5">
               <span className="text-[10px] font-bold">{Number(p.rating).toFixed(1)}</span>
               <Star className="w-2.5 h-2.5 text-yellow-400 fill-yellow-400" />
@@ -217,8 +237,8 @@ const InfiniteProducts = () => {
             )}
           </div>
 
-          {/* Info que roda por slot — nunca igual ao card anterior */}
-          {getDynamicInfo(p, globalIndex)}
+          {/* Info rotativa — troca a cada 3s com fade */}
+          <RotatingInfo p={p} startOffset={globalIndex} />
         </div>
       </div>
     );
@@ -230,7 +250,7 @@ const InfiniteProducts = () => {
         <h2 className="text-base font-bold text-foreground">Tendências</h2>
       </div>
 
-      {/* Mobile + tablet: 2 cols / sm: 3 cols via CSS columns */}
+      {/* Tablet: 3 colunas CSS masonry */}
       <div className="hidden sm:block" style={{ columnCount: 3, columnGap: "8px" }}>
         {allProducts.map((p: any, i: number) => (
           <div key={p.id} style={{ breakInside: "avoid", marginBottom: "8px" }}>
@@ -239,7 +259,7 @@ const InfiniteProducts = () => {
         ))}
       </div>
 
-      {/* Mobile: 2 colunas lado a lado */}
+      {/* Mobile: 2 colunas */}
       <div className="flex gap-2 sm:hidden">
         <div className="flex-1">
           {col1.map((p: any, colI: number) => (
