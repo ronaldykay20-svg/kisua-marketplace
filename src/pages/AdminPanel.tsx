@@ -299,6 +299,9 @@ const AdminPanel = () => {
                     </div>
                   </div>
                   <div className="flex gap-1">
+                    <button onClick={() => toggleFeaturedSeller.mutate({ id: s.id, featured: !s.is_featured })} title="Destacar em home" className={`p-2 rounded-lg text-xs ${s.is_featured ? "text-secondary bg-secondary/10" : "text-muted-foreground hover:bg-accent"}`}>
+                      <Star className={`w-4 h-4 ${s.is_featured ? "fill-secondary" : ""}`} />
+                    </button>
                     <button onClick={() => toggleVerifySeller.mutate({ id: s.id, verified: !s.is_verified })} className={`p-2 rounded-lg text-xs ${s.is_verified ? "text-blue-500 hover:bg-blue-500/10" : "text-muted-foreground hover:bg-accent"}`}>
                       <ShieldCheck className="w-4 h-4" />
                     </button>
