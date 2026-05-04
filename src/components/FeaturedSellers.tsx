@@ -12,6 +12,16 @@ const FeaturedSellers = () => {
   const { data: sellers = [] } = useQuery({
     queryKey: ["featured_sellers_home"],
     queryFn: async () => {
+      // Prioriza vendedores destacados pelo admin
+      const { data: featured } = await supabase
+        .from("sellers")
+        .select("*")
+        .eq("is_active", true)
+        .eq("is_featured", true)
+        .order("featured_order", { ascending: true })
+        .limit(20);
+      if (featured && featured.length > 0) return featured;
+
       const { data, error } = await supabase
         .from("sellers")
         .select("*")

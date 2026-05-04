@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Shield, Users, Search, Plus, Trash2, Crown, Building2, Store, CheckCircle, XCircle, ShieldCheck, UserCheck, UsersRound, FolderTree, ImageIcon, Camera, ShoppingBag, Settings } from "lucide-react";
+import { Shield, Users, Search, Plus, Trash2, Crown, Building2, Store, CheckCircle, XCircle, ShieldCheck, UserCheck, UsersRound, FolderTree, ImageIcon, Camera, ShoppingBag, Settings, Star } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
@@ -98,6 +98,15 @@ const AdminPanel = () => {
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_sellers"] }); toast.success("Estado alterado"); },
+  });
+
+  const toggleFeaturedSeller = useMutation({
+    mutationFn: async ({ id, featured }: { id: string; featured: boolean }) => {
+      const { error } = await supabase.from("sellers").update({ is_featured: featured } as any).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_sellers"] }); queryClient.invalidateQueries({ queryKey: ["featured_sellers_home"] }); toast.success("Destaque atualizado"); },
+    onError: (e: any) => toast.error(e.message),
   });
 
   // ── Companies ──
@@ -290,6 +299,9 @@ const AdminPanel = () => {
                     </div>
                   </div>
                   <div className="flex gap-1">
+                    <button onClick={() => toggleFeaturedSeller.mutate({ id: s.id, featured: !s.is_featured })} title="Destacar em home" className={`p-2 rounded-lg text-xs ${s.is_featured ? "text-secondary bg-secondary/10" : "text-muted-foreground hover:bg-accent"}`}>
+                      <Star className={`w-4 h-4 ${s.is_featured ? "fill-secondary" : ""}`} />
+                    </button>
                     <button onClick={() => toggleVerifySeller.mutate({ id: s.id, verified: !s.is_verified })} className={`p-2 rounded-lg text-xs ${s.is_verified ? "text-blue-500 hover:bg-blue-500/10" : "text-muted-foreground hover:bg-accent"}`}>
                       <ShieldCheck className="w-4 h-4" />
                     </button>

@@ -94,16 +94,16 @@ const InfiniteProducts = () => {
         <p className="text-[11px] text-muted-foreground">Deslize para explorar milhares de ofertas</p>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5">
+      {/* Estilo Shein — 2 cols mobile, cards compactos com descrição e botão Explorar */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
         {allProducts.map((p: any, i: number) => {
           const img = p.cover_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop";
-          const colorClass = cardColors[i % cardColors.length];
 
           return (
             <div
               key={`${p.id}-${i}`}
               onClick={() => navigate(`/produto/${p.id}`)}
-              className={`bg-card rounded-card border border-border border-l-4 ${colorClass} overflow-hidden cursor-pointer group hover:shadow-lg transition-all duration-300 flex flex-col`}
+              className="bg-card rounded-card border border-border overflow-hidden cursor-pointer group hover:shadow-md transition-all flex flex-col"
             >
               <div className="relative aspect-square overflow-hidden bg-muted">
                 <img
@@ -113,50 +113,51 @@ const InfiniteProducts = () => {
                   loading="lazy"
                 />
                 {p.discount_percent && (
-                  <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-sm text-[9px] font-bold text-primary-foreground bg-walmart-red">
+                  <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded-sm text-[9px] font-bold text-primary-foreground bg-walmart-red">
                     -{p.discount_percent}%
                   </span>
                 )}
                 {p.badge && (
-                  <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-sm text-[9px] font-bold text-primary-foreground"
+                  <span className="absolute top-1 right-1 px-1.5 py-0.5 rounded-sm text-[9px] font-bold text-primary-foreground"
                     style={{ background: "var(--promo-gradient)" }}>
                     {p.badge}
                   </span>
                 )}
-                <button className="absolute top-1.5 right-1.5 p-1 rounded-full bg-card/80 opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={(e) => { e.stopPropagation(); }}>
-                  <Heart className="w-3.5 h-3.5 text-muted-foreground" />
-                </button>
               </div>
 
-              <div className="p-2 flex flex-col flex-1">
-                <h3 className="text-[11px] font-semibold text-foreground line-clamp-2 leading-tight mb-1.5">{p.title}</h3>
-                <div className="mt-auto">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-sm font-black text-foreground">{Number(p.price).toLocaleString("pt-AO")} Kz</span>
-                  </div>
+              <div className="p-1.5 flex flex-col flex-1 gap-0.5">
+                <h3 className="text-[11px] font-semibold text-foreground line-clamp-1 leading-tight">{p.title}</h3>
+                {p.description && (
+                  <p className="text-[9px] text-muted-foreground line-clamp-2 leading-snug">{p.description}</p>
+                )}
+                <div className="flex items-baseline gap-1 mt-0.5">
+                  <span className="text-xs font-black text-walmart-red">{Number(p.price).toLocaleString("pt-AO")} Kz</span>
                   {p.old_price && (
-                    <span className="text-[10px] text-muted-foreground line-through">{Number(p.old_price).toLocaleString("pt-AO")} Kz</span>
-                  )}
-                  <div className="flex items-center gap-2 mt-1">
-                    {p.rating > 0 && (
-                      <div className="flex items-center gap-0.5">
-                        {Array.from({ length: 5 }).map((_, si) => (
-                          <Star key={si} className={`w-2.5 h-2.5 ${si < Math.floor(p.rating) ? "text-secondary fill-secondary" : "text-border"}`} />
-                        ))}
-                        <span className="text-[9px] text-muted-foreground ml-0.5">({p.total_reviews || 0})</span>
-                      </div>
-                    )}
-                  </div>
-                  {p.free_shipping && (
-                    <span className="inline-flex items-center gap-0.5 mt-1 text-[9px] font-bold text-accent">
-                      <Truck className="w-2.5 h-2.5" /> FRETE GRÁTIS
-                    </span>
-                  )}
-                  {p.sales_count > 0 && (
-                    <p className="text-[9px] text-muted-foreground mt-0.5">🔥 {p.sales_count} vendidos</p>
+                    <span className="text-[9px] text-muted-foreground line-through">{Number(p.old_price).toLocaleString("pt-AO")}</span>
                   )}
                 </div>
+                <div className="flex items-center justify-between gap-1">
+                  {p.rating > 0 ? (
+                    <div className="flex items-center gap-0.5">
+                      <Star className="w-2.5 h-2.5 text-secondary fill-secondary" />
+                      <span className="text-[9px] text-muted-foreground">{Number(p.rating).toFixed(1)} ({p.total_reviews || 0})</span>
+                    </div>
+                  ) : <span />}
+                  {p.sales_count > 0 && (
+                    <span className="text-[9px] text-muted-foreground">{p.sales_count}+ vendidos</span>
+                  )}
+                </div>
+                {p.free_shipping && (
+                  <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-accent">
+                    <Truck className="w-2.5 h-2.5" /> Frete grátis
+                  </span>
+                )}
+                <button
+                  onClick={(e) => { e.stopPropagation(); navigate(`/produto/${p.id}`); }}
+                  className="mt-1 w-full py-1 rounded-md bg-primary text-primary-foreground text-[10px] font-bold hover:brightness-110 transition"
+                >
+                  Explorar
+                </button>
               </div>
             </div>
           );

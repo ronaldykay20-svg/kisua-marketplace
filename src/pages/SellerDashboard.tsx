@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Store, Package, Plus, Edit, Trash2, Eye, EyeOff, ShoppingCart, Settings, Image as ImageIcon, ClipboardList } from "lucide-react";
+import { Store, Package, Plus, Edit, Trash2, Eye, EyeOff, ShoppingCart, Settings, Image as ImageIcon, ClipboardList, Gavel } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
 import { useAuth } from "@/contexts/AuthContext";
@@ -10,8 +10,9 @@ import SellerProductForm from "@/components/seller/SellerProductForm";
 import SellerProfileEditor from "@/components/seller/SellerProfileEditor";
 import SellerOrdersTab from "@/components/seller/SellerOrdersTab";
 import SellerStoriesTab from "@/components/seller/SellerStoriesTab";
+import SellerAuctionsTab from "@/components/seller/SellerAuctionsTab";
 
-type Tab = "produtos" | "pedidos" | "stories" | "perfil";
+type Tab = "produtos" | "pedidos" | "stories" | "leiloes" | "perfil";
 
 const SellerDashboard = () => {
   const { user } = useAuth();
@@ -211,6 +212,7 @@ const SellerDashboard = () => {
             { key: "produtos" as Tab, label: "Produtos", icon: Package },
             { key: "pedidos" as Tab, label: "Pedidos", icon: ClipboardList },
             { key: "stories" as Tab, label: "Stories", icon: Eye },
+            { key: "leiloes" as Tab, label: "Leilões", icon: Gavel },
             { key: "perfil" as Tab, label: "Perfil", icon: Settings },
           ]).map(t => (
             <button key={t.key} onClick={() => setTab(t.key)}
@@ -301,6 +303,9 @@ const SellerDashboard = () => {
 
         {/* ═══ STORIES ═══ */}
         {tab === "stories" && <SellerStoriesTab sellerId={seller.id} />}
+
+        {/* ═══ LEILÕES ═══ */}
+        {tab === "leiloes" && <SellerAuctionsTab sellerId={seller.id} />}
 
         {/* ═══ PERFIL ═══ */}
         {tab === "perfil" && <SellerProfileEditor seller={seller} />}
