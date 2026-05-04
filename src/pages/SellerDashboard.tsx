@@ -212,6 +212,7 @@ const SellerDashboard = () => {
             { key: "produtos" as Tab, label: "Produtos", icon: Package },
             { key: "pedidos" as Tab, label: "Pedidos", icon: ClipboardList },
             { key: "stories" as Tab, label: "Stories", icon: Eye },
+            { key: "leiloes" as Tab, label: "Leilões", icon: Gavel },
             { key: "perfil" as Tab, label: "Perfil", icon: Settings },
           ]).map(t => (
             <button key={t.key} onClick={() => setTab(t.key)}
