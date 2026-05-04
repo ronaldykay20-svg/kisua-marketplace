@@ -1,8 +1,10 @@
-import { Search, Menu, ShoppingCart, User, MapPin, X, ChevronRight, Gavel, Radio, Store, Users, Zap, LogOut } from "lucide-react";
+import { Search, Menu, ShoppingCart, User, MapPin, X, ChevronRight, Gavel, Radio, Store, Users, Zap, LogOut, Bell } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSiteSetting } from "@/hooks/useSiteSettings";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 const categories = [
   { name: "Electrónicos", image: "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=100&h=100&fit=crop" },
@@ -31,10 +33,51 @@ const quickLinks = [
 
 const Navbar = () => {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const navigate = useNavigate();
   const { user, userDisplayName, signOut } = useAuth();
   const { data: logoUrl } = useSiteSetting("site_logo_url");
+  const qc = useQueryClient();
+
+  // ── Notificações ─────────────────────────────────────────────────────────
+  const { data: notifications = [] } = useQuery({
+    queryKey: ["navbar_notifications", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data } = await (supabase as any)
+        .from("notifications")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(20);
+      return data || [];
+    },
+    enabled: !!user,
+    refetchInterval: 30000,
+  });
+
+  const unread = notifications.filter((n: any) => !n.is_read).length;
+
+  const markAllRead = async () => {
+    if (!user) return;
+    await (supabase as any)
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("user_id", user.id)
+      .eq("is_read", false);
+    qc.invalidateQueries({ queryKey: ["navbar_notifications", user.id] });
+  };
+
+  const markOneRead = async (id: string, link_url?: string) => {
+    await (supabase as any)
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("id", id);
+    qc.invalidateQueries({ queryKey: ["navbar_notifications", user?.id] });
+    if (link_url) { navigate(link_url); setNotifOpen(false); }
+  };
+  // ─────────────────────────────────────────────────────────────────────────
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,6 +122,21 @@ const Navbar = () => {
               </form>
             </div>
 
+            {/* ── NOVO: Sino de notificações ── */}
+            {user && (
+              <button
+                className="text-primary-foreground relative flex-shrink-0"
+                onClick={() => { setNotifOpen(!notifOpen); setMenuOpen(false); }}
+              >
+                <Bell className="w-6 h-6" />
+                {unread > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-destructive text-primary-foreground text-[9px] font-bold flex items-center justify-center">
+                    {unread > 9 ? "9+" : unread}
+                  </span>
+                )}
+              </button>
+            )}
+
             <button className="text-primary-foreground relative flex-shrink-0">
               <ShoppingCart className="w-6 h-6" />
               <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-secondary text-secondary-foreground text-[9px] font-bold flex items-center justify-center">0</span>
@@ -112,12 +170,65 @@ const Navbar = () => {
         </div>
       </nav>
 
+      {/* ── NOVO: Painel de notificações ── */}
+      {notifOpen && user && (
+        <div className="fixed inset-0 z-[55]" onClick={() => setNotifOpen(false)}>
+          <div
+            className="absolute right-2 top-[110px] w-[92vw] max-w-sm bg-card border border-border rounded-xl shadow-2xl overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <h3 className="text-sm font-black text-foreground">Notificações</h3>
+              <div className="flex items-center gap-2">
+                {unread > 0 && (
+                  <button onClick={markAllRead} className="text-[10px] font-bold text-primary hover:underline">
+                    Marcar todas como lidas
+                  </button>
+                )}
+                <button onClick={() => setNotifOpen(false)}>
+                  <X className="w-4 h-4 text-muted-foreground" />
+                </button>
+              </div>
+            </div>
+
+            <div className="max-h-[60vh] overflow-y-auto divide-y divide-border">
+              {notifications.length === 0 && (
+                <div className="py-8 text-center">
+                  <Bell className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-xs text-muted-foreground">Sem notificações</p>
+                </div>
+              )}
+              {notifications.map((n: any) => (
+                <button
+                  key={n.id}
+                  onClick={() => markOneRead(n.id, n.link_url)}
+                  className={`w-full text-left px-4 py-3 hover:bg-muted transition ${!n.is_read ? "bg-primary/5" : ""}`}
+                >
+                  <div className="flex items-start gap-2">
+                    {!n.is_read && (
+                      <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0 mt-1.5" />
+                    )}
+                    {n.is_read && <span className="w-2 h-2 flex-shrink-0 mt-1.5" />}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-foreground">{n.title}</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{n.message}</p>
+                      <p className="text-[10px] text-muted-foreground/60 mt-1">
+                        {new Date(n.created_at).toLocaleString("pt-AO", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Shein-style slide-in menu */}
       {menuOpen && (
         <div className="fixed inset-0 z-[60] flex">
           <div className="absolute inset-0 bg-foreground/50" onClick={() => setMenuOpen(false)} />
           <div className="relative w-[85%] max-w-[320px] bg-card h-full overflow-y-auto animate-in slide-in-from-left duration-200 flex flex-col">
-            {/* Menu header */}
             <div className="bg-primary p-4 flex items-center justify-between">
               {user ? (
                 <div className="flex items-center gap-2">
@@ -140,7 +251,6 @@ const Navbar = () => {
               </button>
             </div>
 
-            {/* Quick links */}
             <div className="p-3 border-b border-border">
               <div className="grid grid-cols-5 gap-1">
                 {quickLinks.map(link => (
@@ -156,7 +266,6 @@ const Navbar = () => {
               </div>
             </div>
 
-            {/* Categories with circular images */}
             <div className="flex-1 p-1">
               <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 px-3 pt-2">Categorias</h3>
               <div className="space-y-0.5">
@@ -174,7 +283,6 @@ const Navbar = () => {
               </div>
             </div>
 
-            {/* Footer links */}
             <div className="border-t border-border p-3 space-y-0.5">
               {[
                 { label: "Minha conta", path: "/conta" },
