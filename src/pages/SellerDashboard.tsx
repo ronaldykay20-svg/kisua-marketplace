@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Store, Package, Plus, Edit, Trash2, Eye, EyeOff, ShoppingCart, Settings, Image as ImageIcon, ClipboardList } from "lucide-react";
+import { Store, Package, Plus, Edit, Trash2, Eye, EyeOff, ShoppingCart, Settings, Image as ImageIcon, ClipboardList, Gavel } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import BottomNav from "@/components/BottomNav";
 import { useAuth } from "@/contexts/AuthContext";
@@ -10,8 +10,9 @@ import SellerProductForm from "@/components/seller/SellerProductForm";
 import SellerProfileEditor from "@/components/seller/SellerProfileEditor";
 import SellerOrdersTab from "@/components/seller/SellerOrdersTab";
 import SellerStoriesTab from "@/components/seller/SellerStoriesTab";
+import SellerAuctionsTab from "@/components/seller/SellerAuctionsTab";
 
-type Tab = "produtos" | "pedidos" | "stories" | "perfil";
+type Tab = "produtos" | "pedidos" | "stories" | "leiloes" | "perfil";
 
 const SellerDashboard = () => {
   const { user } = useAuth();
