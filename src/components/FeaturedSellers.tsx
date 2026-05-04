@@ -12,7 +12,6 @@ const FeaturedSellers = () => {
   const { data: sellers = [] } = useQuery({
     queryKey: ["featured_sellers_home"],
     queryFn: async () => {
-      // Prioriza vendedores destacados pelo admin
       const { data: featured } = await supabase
         .from("sellers")
         .select("*")
@@ -33,7 +32,6 @@ const FeaturedSellers = () => {
     },
   });
 
-  // Load products for all fetched sellers
   const sellerIds = sellers.map((s: any) => s.id);
   const { data: allProducts = [] } = useQuery({
     queryKey: ["featured_sellers_products", sellerIds],
@@ -75,6 +73,7 @@ const FeaturedSellers = () => {
 
   return (
     <section className="container mx-auto px-3 pt-4">
+      {/* Cabeçalho da secção */}
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-sm font-bold text-foreground">Lojas em destaque</h2>
         <div className="flex gap-1">
@@ -95,9 +94,10 @@ const FeaturedSellers = () => {
         {sellers.map((seller: any) => {
           const sellerProducts = allProducts.filter((p: any) => p.seller_id === seller.id).slice(0, 3);
           return (
-            <div key={seller.id} className="flex-shrink-0 w-full snap-start">
-              {/* Cover */}
-              <div className="relative rounded-t-card overflow-hidden h-[160px] sm:h-[200px] md:h-[240px] bg-muted">
+            <div key={seller.id} className="flex-shrink-0 w-full snap-start border border-border rounded-2xl overflow-hidden">
+
+              {/* Banner com info do vendedor */}
+              <div className="relative overflow-hidden h-[160px] sm:h-[200px] md:h-[240px] bg-muted">
                 {seller.cover_url ? (
                   <img src={seller.cover_url} alt="" className="w-full h-full object-cover" />
                 ) : (
@@ -105,7 +105,7 @@ const FeaturedSellers = () => {
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                 <div className="absolute bottom-3 left-3 flex items-center gap-2">
-                  <div className="w-10 h-10 rounded-full overflow-hidden bg-card border-2 border-card flex-shrink-0">
+                  <div className="w-10 h-10 rounded-full overflow-hidden bg-card border-2 border-white flex-shrink-0">
                     {seller.logo_url ? (
                       <img src={seller.logo_url} alt="" className="w-full h-full object-cover" />
                     ) : (
@@ -119,39 +119,65 @@ const FeaturedSellers = () => {
                       <span className="text-sm font-bold text-white">{seller.name}</span>
                       {seller.is_verified && <CheckCircle className="w-3.5 h-3.5 text-white" />}
                     </div>
-                    <span className="text-[10px] text-white/70">{seller.type === "company" ? "Empresa" : "Vendedor"}</span>
+                    <span className="text-[10px] text-white/70">
+                      {seller.type === "company" ? "Empresa" : "Vendedor"}
+                    </span>
                   </div>
                 </div>
                 <button
                   onClick={() => navigate(`/vendedor/${seller.id}`)}
-                  className="absolute bottom-3 right-3 px-3 py-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold hover:brightness-110 transition"
+                  className="absolute bottom-3 right-3 px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-[11px] font-bold hover:brightness-110 transition"
                 >
                   Ver loja
                 </button>
               </div>
 
-              {/* Products */}
-              <div className="bg-card rounded-b-card border border-t-0 border-border p-2.5">
+              {/* Título com linha + "Veja agora" */}
+              <div className="flex items-center justify-between px-3 pt-3 pb-2">
+                <div className="flex items-center gap-3 flex-1">
+                  <span className="text-sm font-bold text-foreground whitespace-nowrap">Produtos da loja</span>
+                  <div className="flex-1 h-px bg-border" />
+                </div>
+                <button
+                  onClick={() => navigate(`/vendedor/${seller.id}`)}
+                  className="flex items-center gap-0.5 text-sm font-semibold text-primary ml-3 whitespace-nowrap"
+                >
+                  Veja agora <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Grid de produtos */}
+              <div className="px-3 pb-3">
                 {sellerProducts.length === 0 ? (
                   <p className="text-[10px] text-muted-foreground py-4 w-full text-center">Sem produtos publicados</p>
                 ) : (
                   <div className="grid grid-cols-3 gap-2">
                     {sellerProducts.map((p: any) => {
-                      const img = p.cover_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300&h=300&fit=crop";
+                      const img = p.cover_url || p.image_url;
                       return (
-                        <div key={p.id} onClick={() => navigate(`/produto/${p.id}`)}
-                          className="w-full cursor-pointer hover:opacity-80 transition">
-                          <div className="aspect-square rounded-card overflow-hidden bg-muted border border-border">
-                            <img src={img} alt={p.title} className="w-full h-full object-cover" loading="lazy" />
+                        <div
+                          key={p.id}
+                          onClick={() => navigate(`/produto/${p.id}`)}
+                          className="w-full cursor-pointer hover:opacity-80 transition"
+                        >
+                          <div className="aspect-square rounded-xl overflow-hidden bg-muted border border-border">
+                            {img ? (
+                              <img src={img} alt={p.title} className="w-full h-full object-cover" loading="lazy" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-[10px] text-muted-foreground">
+                                Sem foto
+                              </div>
+                            )}
                           </div>
-                          <p className="text-[10px] font-semibold text-foreground line-clamp-1 mt-1">{p.title}</p>
-                          <p className="text-[11px] font-black text-primary">{Number(p.price).toLocaleString("pt-AO")} Kz</p>
+                          <p className="text-[11px] font-semibold text-foreground line-clamp-1 mt-1">{p.title}</p>
+                          <p className="text-[12px] font-black text-primary">{Number(p.price).toLocaleString("pt-AO")} Kz</p>
                         </div>
                       );
                     })}
                   </div>
                 )}
               </div>
+
             </div>
           );
         })}
