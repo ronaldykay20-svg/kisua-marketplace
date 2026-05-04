@@ -178,7 +178,6 @@ const ProofModal = ({
           <p className="text-muted-foreground mt-0.5">Valor do lance: <span className="font-bold text-walmart-green">{amount.toLocaleString("pt-AO")} Kz</span></p>
         </div>
 
-        {/* Métodos de pagamento */}
         {methods.length > 0 && (
           <div className="mb-4">
             <p className="text-xs font-black text-muted-foreground uppercase mb-2">Dados para transferência</p>
@@ -187,7 +186,9 @@ const ProofModal = ({
                 <div key={m.id} className="bg-muted rounded-card px-3 py-2">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase">{m.type === "xpress" ? "Xpress" : m.type === "iban" ? "IBAN / TPA" : m.label}</p>
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase">
+                        {m.type === "xpress" ? "Xpress" : m.type === "iban" ? "IBAN / TPA" : m.label}
+                      </p>
                       <p className="text-sm font-black text-foreground">{m.value}</p>
                       {m.holder && <p className="text-[10px] text-muted-foreground">{m.holder}</p>}
                     </div>
@@ -220,7 +221,13 @@ const ProofModal = ({
           className="w-full mb-2 px-3 py-2 border border-border rounded-card text-sm text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-secondary"
         />
 
-        <input ref={fileRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={e => setFile(e.target.files?.[0] || null)} />
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*,application/pdf"
+          className="hidden"
+          onChange={e => setFile(e.target.files?.[0] || null)}
+        />
         <button
           onClick={() => fileRef.current?.click()}
           className="w-full py-2.5 border-2 border-dashed border-border rounded-card text-xs font-bold text-muted-foreground hover:border-secondary transition mb-2 flex items-center justify-center gap-2"
@@ -274,7 +281,7 @@ const Leilao = () => {
       const id = selectedAuction?.id || featured?.id;
       if (!id) return [];
       const { data, error } = await (supabase as any).from("auction_bids")
-        .select("id, amount, created_at, user_id")
+        .select("id, amount, created_at, user_id, profiles:user_id(full_name)")
         .eq("auction_id", id)
         .order("amount", { ascending: false })
         .limit(10);
@@ -307,7 +314,6 @@ const Leilao = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      {/* Modal Step 1 */}
       {bidTarget && (
         <BidModal
           auction={bidTarget}
@@ -319,7 +325,6 @@ const Leilao = () => {
         />
       )}
 
-      {/* Modal Step 2 */}
       {proofTarget && (
         <ProofModal
           auction={proofTarget.auction}
@@ -408,7 +413,7 @@ const Leilao = () => {
                         <div key={b.id} className="flex items-center justify-between text-xs bg-muted/50 rounded-sm px-2 py-1.5">
                           <div className="flex items-center gap-1.5">
                             <CheckCircle2 className="w-3 h-3 text-walmart-green" />
-                            <span className="font-semibold">{b.user_id?.slice(0, 8) || "Anónimo"}</span>
+                            <span className="font-semibold">{b.profiles?.full_name || b.user_id?.slice(0, 8) || "Anónimo"}</span>
                           </div>
                           <span className="font-bold">{Number(b.amount).toLocaleString("pt-AO")} Kz</span>
                         </div>
