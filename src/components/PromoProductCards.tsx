@@ -1,10 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-import { Zap, Star, Truck } from "lucide-react";
+import { Zap, Star, Truck, Heart, ArrowRight, ChevronRight, Flame, Trophy } from "lucide-react";
+import { useState, useRef } from "react";
 
 const PromoProductCards = () => {
   const navigate = useNavigate();
+  const [activeIndex, setActiveIndex] = useState(0);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const { data: products = [] } = useQuery({
     queryKey: ["promo_products_home"],
@@ -35,75 +38,184 @@ const PromoProductCards = () => {
 
   if (products.length === 0) return null;
 
-  const colors = [
-    "from-walmart-red/10 to-walmart-orange/5",
-    "from-primary/10 to-primary/5",
-    "from-accent/10 to-accent/5",
-    "from-secondary/10 to-secondary/5",
-    "from-destructive/10 to-destructive/5",
-  ];
+  const handleScroll = () => {
+    if (!scrollRef.current) return;
+    const el = scrollRef.current;
+    const cardWidth = el.offsetWidth;
+    const index = Math.round(el.scrollLeft / cardWidth);
+    setActiveIndex(index);
+  };
 
   return (
     <section className="container mx-auto px-3 pt-4">
-      <div className="flex items-center gap-2 mb-3">
-        <div className="w-7 h-7 rounded-card flex items-center justify-center" style={{ background: "var(--promo-gradient)" }}>
-          <Zap className="w-4 h-4 text-primary-foreground" />
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <div
+            className="w-9 h-9 rounded-xl flex items-center justify-center"
+            style={{ background: "var(--promo-gradient)" }}
+          >
+            <Zap className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-foreground">Promoções imperdíveis</h2>
+            <p className="text-[11px] text-muted-foreground">Os melhores descontos do momento</p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-sm font-bold text-foreground">Promoções imperdíveis</h2>
-          <p className="text-[10px] text-muted-foreground">Os melhores descontos do momento</p>
-        </div>
+        <button
+          onClick={() => navigate("/promocoes")}
+          className="flex items-center gap-1 text-sm font-semibold text-primary"
+        >
+          Ver mais <ChevronRight className="w-4 h-4" />
+        </button>
       </div>
 
-      <div className="flex gap-2.5 overflow-x-auto scrollbar-hide pb-2">
-        {products.map((p: any, i: number) => {
-          const img = p.cover_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop";
-          const colorClass = colors[i % colors.length];
-          return (
-            <div
-              key={p.id}
-              onClick={() => navigate(`/produto/${p.id}`)}
-              className={`flex-shrink-0 w-[calc(50%-5px)] sm:w-[calc(33.333%-7px)] md:w-[calc(25%-8px)] bg-gradient-to-br ${colorClass} rounded-card border border-border overflow-hidden cursor-pointer group hover:shadow-lg transition-all duration-300`}
-            >
-              <div className="relative aspect-square overflow-hidden bg-muted">
-                <img src={img} alt={p.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" loading="lazy" />
-                {p.discount_percent && (
-                  <span className="absolute top-1.5 right-1.5 px-2 py-0.5 rounded-full text-[10px] font-black text-primary-foreground animate-pulse"
-                    style={{ background: "var(--promo-gradient)" }}>
-                    -{p.discount_percent}%
-                  </span>
-                )}
-                {p.badge && (
-                  <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-sm text-[9px] font-bold text-primary-foreground bg-walmart-red">
-                    {p.badge}
-                  </span>
-                )}
-              </div>
-              <div className="p-2.5">
-                <h3 className="text-[11px] font-semibold text-foreground line-clamp-2 leading-tight mb-1.5">{p.title}</h3>
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-sm font-black text-destructive">{Number(p.price).toLocaleString("pt-AO")} Kz</span>
-                </div>
-                {p.old_price && (
-                  <span className="text-[10px] text-muted-foreground line-through">{Number(p.old_price).toLocaleString("pt-AO")} Kz</span>
-                )}
-                <div className="flex items-center gap-2 mt-1">
-                  {p.rating > 0 && (
-                    <div className="flex items-center gap-0.5">
-                      <Star className="w-2.5 h-2.5 text-secondary fill-secondary" />
-                      <span className="text-[9px] text-muted-foreground">{p.rating}</span>
-                    </div>
+      {/* Cards container with outer border */}
+      <div className="border border-border rounded-2xl p-3 bg-background relative">
+        <div
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="flex gap-3 overflow-x-auto scrollbar-hide snap-x snap-mandatory"
+        >
+          {products.map((p: any) => {
+            const img = p.cover_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop";
+
+            return (
+              <div
+                key={p.id}
+                className="flex-shrink-0 w-[calc(100%-8px)] sm:w-[calc(50%-6px)] snap-start flex flex-row gap-3 bg-background rounded-xl overflow-hidden"
+              >
+                {/* Image */}
+                <div className="relative w-[140px] min-w-[140px] aspect-square rounded-xl overflow-hidden bg-muted flex-shrink-0">
+                  <img
+                    src={img}
+                    alt={p.title}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                  {p.badge && (
+                    <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md text-[10px] font-bold text-white bg-red-500">
+                      {p.badge}
+                    </span>
                   )}
-                  {p.free_shipping && (
-                    <span className="flex items-center gap-0.5 text-[9px] font-bold text-accent">
-                      <Truck className="w-2.5 h-2.5" /> Grátis
+                  {p.discount_percent && !p.badge && (
+                    <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md text-[10px] font-bold text-white bg-green-500">
+                      -{p.discount_percent}%
                     </span>
                   )}
                 </div>
+
+                {/* Info */}
+                <div className="flex flex-col justify-between py-1 flex-1 min-w-0">
+                  {/* Badges row */}
+                  <div className="flex flex-wrap gap-1.5 mb-1">
+                    {p.is_trending && (
+                      <span className="flex items-center gap-0.5 text-[10px] font-semibold text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200">
+                        <Flame className="w-3 h-3" /> Em alta
+                      </span>
+                    )}
+                    {p.is_bestseller && (
+                      <span className="flex items-center gap-0.5 text-[10px] font-semibold text-yellow-600 bg-yellow-50 px-2 py-0.5 rounded-full border border-yellow-200">
+                        <Trophy className="w-3 h-3" /> Campeão de vendas
+                      </span>
+                    )}
+                    {p.discount_percent && (p.badge || p.is_trending || p.is_bestseller) && (
+                      <span className="text-[10px] font-bold text-white bg-red-500 px-2 py-0.5 rounded-full">
+                        -{p.discount_percent}%
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Title */}
+                  <h3 className="text-[13px] font-bold text-foreground line-clamp-2 leading-snug mb-0.5">
+                    {p.title}
+                  </h3>
+
+                  {/* Store */}
+                  {p.store_name && (
+                    <p className="text-[11px] text-muted-foreground mb-1 flex items-center gap-1">
+                      Loja: <span className="font-medium text-foreground">{p.store_name}</span>
+                      <span className="text-blue-500">✓</span>
+                    </p>
+                  )}
+
+                  {/* Rating */}
+                  {p.rating > 0 && (
+                    <div className="flex items-center gap-1 mb-1">
+                      <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
+                      <span className="text-[11px] font-semibold text-foreground">{p.rating}</span>
+                      {p.review_count > 0 && (
+                        <span className="text-[10px] text-muted-foreground">({p.review_count})</span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Price row */}
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[15px] font-black text-red-500">
+                      {Number(p.price).toLocaleString("pt-AO")} Kz
+                    </span>
+                    {p.discount_percent && (
+                      <span className="text-[10px] font-bold text-white bg-red-500 px-1.5 py-0.5 rounded-full">
+                        -{p.discount_percent}%
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Old price */}
+                  {p.old_price && (
+                    <span className="text-[11px] text-muted-foreground line-through mb-1">
+                      {Number(p.old_price).toLocaleString("pt-AO")} Kz
+                    </span>
+                  )}
+
+                  {/* Shipping */}
+                  {p.free_shipping && (
+                    <div className="flex items-center gap-2 mb-2 text-[10px]">
+                      <span className="flex items-center gap-1 text-green-600 font-semibold">
+                        <Truck className="w-3 h-3" /> Frete grátis
+                      </span>
+                      <span className="text-muted-foreground">• Entrega rápida</span>
+                    </div>
+                  )}
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-2 mt-auto">
+                    <button
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-8 h-8 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-red-500 transition-colors"
+                    >
+                      <Heart className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => navigate(`/produto/${p.id}`)}
+                      className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-lg border border-primary text-primary text-[12px] font-semibold hover:bg-primary hover:text-white transition-colors"
+                    >
+                      Explorar <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
+
+        {/* Dots indicator */}
+        <div className="flex justify-center gap-1.5 mt-3">
+          {products.map((_: any, i: number) => (
+            <div
+              key={i}
+              className={`h-1.5 rounded-full transition-all duration-300 ${
+                i === activeIndex ? "w-5 bg-primary" : "w-1.5 bg-muted-foreground/30"
+              }`}
+            />
+          ))}
+        </div>
+
+        {/* Swipe hint */}
+        <p className="text-center text-[10px] text-muted-foreground mt-1.5 flex items-center justify-center gap-1">
+          ↔ Arraste para ver mais ofertas
+        </p>
       </div>
     </section>
   );
