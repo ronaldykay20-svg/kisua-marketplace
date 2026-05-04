@@ -50,7 +50,6 @@ const CardTimer = ({ ends_at }: { ends_at: string }) => {
   );
 };
 
-// ── NOVO: Modal de lance ──────────────────────────────────────────────────────
 const BidModal = ({
   auction,
   onClose,
@@ -126,7 +125,6 @@ const BidModal = ({
     </div>
   );
 };
-// ─────────────────────────────────────────────────────────────────────────────
 
 const Leilao = () => {
   const navigate = useNavigate();
@@ -134,10 +132,7 @@ const Leilao = () => {
   const qc = useQueryClient();
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [selectedAuction, setSelectedAuction] = useState<any>(null);
-
-  // ── NOVO: estado do modal ─────────────────────────────────────────────────
-  const [bidTarget, setBidTarget] = useState<any>(null); // leilão alvo do modal
-  // ─────────────────────────────────────────────────────────────────────────
+  const [bidTarget, setBidTarget] = useState<any>(null);
 
   const { data: auctions = [], isLoading } = useQuery({
     queryKey: ["public_auctions"],
@@ -157,40 +152,43 @@ const Leilao = () => {
 
   const displayed = selectedAuction || featured;
 
+  // ── CORRIGIDO: queryKey consistente e refetchInterval como fallback ────────
   const { data: bids = [] } = useQuery({
-    queryKey: ["auction_bids", displayed?.id],
+    queryKey: ["auction_bids", selectedAuction?.id || featured?.id],
     queryFn: async () => {
-      const id = displayed?.id;
+      const id = selectedAuction?.id || featured?.id;
       if (!id) return [];
-      const { data } = await (supabase as any).from("auction_bids")
-        .select("*, profiles:user_id(full_name)")
+      const { data, error } = await (supabase as any).from("auction_bids")
+        .select("id, amount, created_at, profiles:user_id(full_name)")
         .eq("auction_id", id)
         .order("amount", { ascending: false })
         .limit(10);
+      if (error) console.error("Erro bids:", error);
       return data || [];
     },
-    enabled: !!displayed?.id,
+    enabled: !!(selectedAuction?.id || featured?.id),
+    refetchInterval: 5000,
   });
 
-  // ── NOVO: Realtime — actualiza lances automaticamente ─────────────────────
+  // ── CORRIGIDO: useEffect usa os ids directamente para evitar stale closure ─
   useEffect(() => {
-    if (!displayed?.id) return;
+    const id = selectedAuction?.id || featured?.id;
+    if (!id) return;
     const channel = (supabase as any)
-      .channel(`bids-${displayed.id}`)
+      .channel(`bids-${id}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "auction_bids", filter: `auction_id=eq.${displayed.id}` },
+        { event: "INSERT", schema: "public", table: "auction_bids", filter: `auction_id=eq.${id}` },
         () => {
-          qc.invalidateQueries({ queryKey: ["auction_bids", displayed.id] });
+          qc.invalidateQueries({ queryKey: ["auction_bids", id] });
           qc.invalidateQueries({ queryKey: ["public_auctions"] });
         }
       )
       .subscribe();
     return () => { (supabase as any).removeChannel(channel); };
-  }, [displayed?.id, qc]);
+  }, [selectedAuction?.id, featured?.id, qc]);
   // ─────────────────────────────────────────────────────────────────────────
 
-  // ── ALTERADO: mutação agora recebe o valor escolhido pelo utilizador ──────
   const placeBid = useMutation({
     mutationFn: async ({ auction, amount }: { auction: any; amount: number }) => {
       if (!user) throw new Error("Faça login para dar lance");
@@ -205,11 +203,10 @@ const Leilao = () => {
       toast.success(`Lance de ${Number(amount).toLocaleString("pt-AO")} Kz registado!`);
       setBidTarget(null);
       qc.invalidateQueries({ queryKey: ["public_auctions"] });
-      qc.invalidateQueries({ queryKey: ["auction_bids"] });
+      qc.invalidateQueries({ queryKey: ["auction_bids", selectedAuction?.id || featured?.id] });
     },
     onError: (e: any) => toast.error(e.message),
   });
-  // ─────────────────────────────────────────────────────────────────────────
 
   const openBidModal = (auction: any) => {
     if (!user) { navigate("/auth"); return; }
@@ -220,7 +217,6 @@ const Leilao = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      {/* ── NOVO: Modal renderizado globalmente ─────────────────────────── */}
       {bidTarget && (
         <BidModal
           auction={bidTarget}
@@ -229,7 +225,6 @@ const Leilao = () => {
           isPending={placeBid.isPending}
         />
       )}
-      {/* ────────────────────────────────────────────────────────────────── */}
 
       <section className="relative overflow-hidden" style={{ background: "linear-gradient(135deg, hsl(25 40% 12%) 0%, hsl(35 50% 18%) 40%, hsl(25 40% 12%) 100%)" }}>
         <div className="container mx-auto px-4 py-8 md:py-14 text-center relative z-10">
@@ -297,7 +292,6 @@ const Leilao = () => {
                       <span className="font-bold">{(Number(displayed.current_bid) + Number(displayed.bid_increment || 1000)).toLocaleString("pt-AO")} Kz</span>
                     </div>
                   </div>
-                  {/* ── ALTERADO: chama openBidModal em vez de placeBid directamente ── */}
                   <button
                     onClick={() => openBidModal(displayed)}
                     disabled={placeBid.isPending}
@@ -357,7 +351,6 @@ const Leilao = () => {
                   <CardTimer ends_at={a.ends_at} />
                   <p className="text-[10px] text-muted-foreground mt-1">Lance actual:</p>
                   <p className="text-sm font-black text-foreground">{Number(a.current_bid).toLocaleString("pt-AO")} Kz</p>
-                  {/* ── ALTERADO: chama openBidModal ── */}
                   <button
                     onClick={(e) => { e.stopPropagation(); openBidModal(a); }}
                     className="w-full mt-2 py-1.5 rounded-card text-[11px] font-bold bg-secondary text-foreground hover:bg-secondary/80 transition"
