@@ -304,6 +304,9 @@ const SellerDashboard = () => {
         {/* ═══ STORIES ═══ */}
         {tab === "stories" && <SellerStoriesTab sellerId={seller.id} />}
 
+        {/* ═══ LEILÕES ═══ */}
+        {tab === "leiloes" && <SellerAuctionsTab sellerId={seller.id} />}
+
         {/* ═══ PERFIL ═══ */}
         {tab === "perfil" && <SellerProfileEditor seller={seller} />}
       </div>
