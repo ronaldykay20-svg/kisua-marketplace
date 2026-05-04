@@ -100,6 +100,15 @@ const AdminPanel = () => {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_sellers"] }); toast.success("Estado alterado"); },
   });
 
+  const toggleFeaturedSeller = useMutation({
+    mutationFn: async ({ id, featured }: { id: string; featured: boolean }) => {
+      const { error } = await supabase.from("sellers").update({ is_featured: featured } as any).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_sellers"] }); queryClient.invalidateQueries({ queryKey: ["featured_sellers_home"] }); toast.success("Destaque atualizado"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   // ── Companies ──
   const { data: companies = [] } = useQuery({
     queryKey: ["admin_companies"],
