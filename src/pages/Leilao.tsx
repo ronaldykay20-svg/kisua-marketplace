@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { Gavel, Monitor, Home, Car, Watch, Clock, Trophy, CheckCircle2, Users, Shield, ChevronRight, Loader2 } from "lucide-react";
+import { Gavel, Monitor, Home, Car, Watch, Clock, Trophy, CheckCircle2, Users, Shield, ChevronRight, Loader2, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -50,12 +50,94 @@ const CardTimer = ({ ends_at }: { ends_at: string }) => {
   );
 };
 
+// ── NOVO: Modal de lance ──────────────────────────────────────────────────────
+const BidModal = ({
+  auction,
+  onClose,
+  onConfirm,
+  isPending,
+}: {
+  auction: any;
+  onClose: () => void;
+  onConfirm: (amount: number) => void;
+  isPending: boolean;
+}) => {
+  const minBid = Number(auction.current_bid) + Number(auction.bid_increment || 1000);
+  const [value, setValue] = useState(minBid);
+
+  const handleSubmit = () => {
+    if (value < minBid) {
+      toast.error(`O lance mínimo é ${minBid.toLocaleString("pt-AO")} Kz`);
+      return;
+    }
+    onConfirm(value);
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+      onClick={onClose}
+    >
+      <div
+        className="bg-card border border-border rounded-card p-5 w-[90vw] max-w-sm shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-black text-foreground">DAR LANCE</h3>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <p className="text-xs text-muted-foreground mb-1 line-clamp-1 font-semibold">{auction.title}</p>
+
+        <div className="flex justify-between text-xs text-muted-foreground mb-1 mt-3">
+          <span>Lance actual:</span>
+          <span className="font-bold text-foreground">{Number(auction.current_bid).toLocaleString("pt-AO")} Kz</span>
+        </div>
+        <div className="flex justify-between text-xs text-muted-foreground mb-3">
+          <span>Lance mínimo:</span>
+          <span className="font-bold text-walmart-green">{minBid.toLocaleString("pt-AO")} Kz</span>
+        </div>
+
+        <label className="text-xs font-bold text-muted-foreground uppercase">O seu lance (Kz)</label>
+        <input
+          type="number"
+          min={minBid}
+          step={Number(auction.bid_increment || 1000)}
+          value={value}
+          onChange={(e) => setValue(Number(e.target.value))}
+          className="w-full mt-1 mb-1 px-3 py-2 border border-border rounded-card text-sm font-bold text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-secondary"
+        />
+        {value < minBid && (
+          <p className="text-[11px] text-destructive mb-2">
+            Valor abaixo do mínimo permitido ({minBid.toLocaleString("pt-AO")} Kz)
+          </p>
+        )}
+
+        <button
+          onClick={handleSubmit}
+          disabled={isPending || value < minBid}
+          className="w-full mt-3 py-2.5 rounded-card font-bold text-sm text-foreground bg-secondary hover:bg-secondary/80 transition disabled:opacity-50"
+        >
+          {isPending ? "Enviando..." : `CONFIRMAR LANCE — ${value.toLocaleString("pt-AO")} Kz`}
+        </button>
+      </div>
+    </div>
+  );
+};
+// ─────────────────────────────────────────────────────────────────────────────
+
 const Leilao = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const qc = useQueryClient();
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [selectedAuction, setSelectedAuction] = useState<any>(null);
+
+  // ── NOVO: estado do modal ─────────────────────────────────────────────────
+  const [bidTarget, setBidTarget] = useState<any>(null); // leilão alvo do modal
+  // ─────────────────────────────────────────────────────────────────────────
 
   const { data: auctions = [], isLoading } = useQuery({
     queryKey: ["public_auctions"],
@@ -73,10 +155,12 @@ const Leilao = () => {
   const featured = active.find((a: any) => a.is_featured) || active[0] || null;
   const countdown = useCountdown(featured?.ends_at || null);
 
+  const displayed = selectedAuction || featured;
+
   const { data: bids = [] } = useQuery({
-    queryKey: ["auction_bids", selectedAuction?.id || featured?.id],
+    queryKey: ["auction_bids", displayed?.id],
     queryFn: async () => {
-      const id = selectedAuction?.id || featured?.id;
+      const id = displayed?.id;
       if (!id) return [];
       const { data } = await (supabase as any).from("auction_bids")
         .select("*, profiles:user_id(full_name)")
@@ -85,13 +169,33 @@ const Leilao = () => {
         .limit(10);
       return data || [];
     },
-    enabled: !!(selectedAuction?.id || featured?.id),
+    enabled: !!displayed?.id,
   });
 
+  // ── NOVO: Realtime — actualiza lances automaticamente ─────────────────────
+  useEffect(() => {
+    if (!displayed?.id) return;
+    const channel = (supabase as any)
+      .channel(`bids-${displayed.id}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "auction_bids", filter: `auction_id=eq.${displayed.id}` },
+        () => {
+          qc.invalidateQueries({ queryKey: ["auction_bids", displayed.id] });
+          qc.invalidateQueries({ queryKey: ["public_auctions"] });
+        }
+      )
+      .subscribe();
+    return () => { (supabase as any).removeChannel(channel); };
+  }, [displayed?.id, qc]);
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // ── ALTERADO: mutação agora recebe o valor escolhido pelo utilizador ──────
   const placeBid = useMutation({
-    mutationFn: async (auction: any) => {
+    mutationFn: async ({ auction, amount }: { auction: any; amount: number }) => {
       if (!user) throw new Error("Faça login para dar lance");
-      const amount = Number(auction.current_bid) + Number(auction.bid_increment || 1000);
+      const minBid = Number(auction.current_bid) + Number(auction.bid_increment || 1000);
+      if (amount < minBid) throw new Error(`Lance mínimo é ${minBid.toLocaleString("pt-AO")} Kz`);
       const { error } = await (supabase as any).from("auction_bids")
         .insert({ auction_id: auction.id, user_id: user.id, amount });
       if (error) throw error;
@@ -99,17 +203,33 @@ const Leilao = () => {
     },
     onSuccess: (amount) => {
       toast.success(`Lance de ${Number(amount).toLocaleString("pt-AO")} Kz registado!`);
+      setBidTarget(null);
       qc.invalidateQueries({ queryKey: ["public_auctions"] });
       qc.invalidateQueries({ queryKey: ["auction_bids"] });
     },
     onError: (e: any) => toast.error(e.message),
   });
+  // ─────────────────────────────────────────────────────────────────────────
 
-  const displayed = selectedAuction || featured;
+  const openBidModal = (auction: any) => {
+    if (!user) { navigate("/auth"); return; }
+    setBidTarget(auction);
+  };
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
+
+      {/* ── NOVO: Modal renderizado globalmente ─────────────────────────── */}
+      {bidTarget && (
+        <BidModal
+          auction={bidTarget}
+          onClose={() => setBidTarget(null)}
+          onConfirm={(amount) => placeBid.mutate({ auction: bidTarget, amount })}
+          isPending={placeBid.isPending}
+        />
+      )}
+      {/* ────────────────────────────────────────────────────────────────── */}
 
       <section className="relative overflow-hidden" style={{ background: "linear-gradient(135deg, hsl(25 40% 12%) 0%, hsl(35 50% 18%) 40%, hsl(25 40% 12%) 100%)" }}>
         <div className="container mx-auto px-4 py-8 md:py-14 text-center relative z-10">
@@ -177,9 +297,13 @@ const Leilao = () => {
                       <span className="font-bold">{(Number(displayed.current_bid) + Number(displayed.bid_increment || 1000)).toLocaleString("pt-AO")} Kz</span>
                     </div>
                   </div>
-                  <button onClick={() => placeBid.mutate(displayed)} disabled={placeBid.isPending}
-                    className="w-full mt-4 py-2.5 rounded-card font-bold text-sm text-foreground bg-secondary hover:bg-secondary/80 transition disabled:opacity-50">
-                    {placeBid.isPending ? "Enviando..." : "DAR LANCE"}
+                  {/* ── ALTERADO: chama openBidModal em vez de placeBid directamente ── */}
+                  <button
+                    onClick={() => openBidModal(displayed)}
+                    disabled={placeBid.isPending}
+                    className="w-full mt-4 py-2.5 rounded-card font-bold text-sm text-foreground bg-secondary hover:bg-secondary/80 transition disabled:opacity-50"
+                  >
+                    DAR LANCE
                   </button>
 
                   <div className="mt-4">
@@ -233,8 +357,11 @@ const Leilao = () => {
                   <CardTimer ends_at={a.ends_at} />
                   <p className="text-[10px] text-muted-foreground mt-1">Lance actual:</p>
                   <p className="text-sm font-black text-foreground">{Number(a.current_bid).toLocaleString("pt-AO")} Kz</p>
-                  <button onClick={(e) => { e.stopPropagation(); placeBid.mutate(a); }}
-                    className="w-full mt-2 py-1.5 rounded-card text-[11px] font-bold bg-secondary text-foreground hover:bg-secondary/80 transition">
+                  {/* ── ALTERADO: chama openBidModal ── */}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); openBidModal(a); }}
+                    className="w-full mt-2 py-1.5 rounded-card text-[11px] font-bold bg-secondary text-foreground hover:bg-secondary/80 transition"
+                  >
                     DAR LANCE
                   </button>
                 </div>
