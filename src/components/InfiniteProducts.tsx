@@ -1,96 +1,88 @@
-import { useEffect, useRef, useCallback, useState } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useEffect, useRef, useCallback, useState, useMemo } from "react";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-import { Star, Truck, Heart, Loader2, Flame, Users, ShieldCheck } from "lucide-react";
+import { Star, Truck, Heart, Loader2, Flame, Users, ShieldCheck, Tag } from "lucide-react";
 
 const PAGE_SIZE = 20;
 const RATIOS = ["3/4", "1/1", "4/5", "2/3", "1/1", "3/4"];
 
-// Monta a lista de infos disponíveis para um produto
-const buildInfoList = (p: any): JSX.Element[] => {
-  const list: JSX.Element[] = [];
-
-  if (p.free_shipping)
-    list.push(
-      <span key="ship" className="flex items-center gap-1 text-[10px] font-semibold text-green-600">
-        <Truck className="w-3 h-3" /> Frete grátis
-      </span>
-    );
-
-  if (p.sales_count > 0)
-    list.push(
-      <span key="sales" className="text-[10px] text-muted-foreground">
-        {p.sales_count}+ vendidos
-      </span>
-    );
-
-  if ((p.total_reviews || 0) > 10)
-    list.push(
-      <span key="recurrent" className="flex items-center gap-1 text-[10px] text-muted-foreground">
-        <Users className="w-3 h-3" /> Clientes recorrentes com alta taxa
-      </span>
-    );
-
-  if (p.discount_percent > 0)
-    list.push(
-      <span key="promo" className="flex items-center gap-1 text-[10px] font-semibold text-orange-500">
-        <Flame className="w-3 h-3" /> Promoção imperdível
-      </span>
-    );
-
-  if (p.free_shipping && p.sales_count > 5)
-    list.push(
-      <span key="fast" className="flex items-center gap-1 text-[10px] font-semibold text-green-600">
-        <Truck className="w-3 h-3" /> Entrega rápida
-      </span>
-    );
-
-  if (p.rating > 4)
-    list.push(
-      <span key="rated" className="flex items-center gap-1 text-[10px] text-muted-foreground">
-        <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" /> Muito bem avaliado
-      </span>
-    );
-
-  list.push(
-    <span key="secure" className="flex items-center gap-1 text-[10px] text-muted-foreground">
-      <ShieldCheck className="w-3 h-3" /> Compra 100% segura
+// Pill colorido por tipo de info
+const InfoPill = ({ type, children }: { type: string; children: React.ReactNode }) => {
+  const styles: Record<string, string> = {
+    shipping:   "bg-green-100 text-green-700",
+    sales:      "bg-blue-100 text-blue-700",
+    recurrent:  "bg-purple-100 text-purple-700",
+    promo:      "bg-orange-100 text-orange-600",
+    fast:       "bg-teal-100 text-teal-700",
+    rated:      "bg-yellow-100 text-yellow-700",
+    secure:     "bg-gray-100 text-gray-600",
+    category:   "bg-indigo-100 text-indigo-600",
+    trending:   "bg-rose-100 text-rose-600",
+  };
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold ${styles[type] || styles.secure}`}>
+      {children}
     </span>
   );
+};
+
+// Monta infos disponíveis para este produto
+const buildInfoList = (p: any, isTrending: boolean) => {
+  const list: { type: string; el: JSX.Element }[] = [];
+
+  if (isTrending)
+    list.push({ type: "trending", el: <InfoPill type="trending"><Flame className="w-2.5 h-2.5" /> Tendência na categoria</InfoPill> });
+
+  if (p.category)
+    list.push({ type: "category", el: <InfoPill type="category"><Tag className="w-2.5 h-2.5" /> {p.category}</InfoPill> });
+
+  if (p.free_shipping)
+    list.push({ type: "shipping", el: <InfoPill type="shipping"><Truck className="w-2.5 h-2.5" /> Frete grátis</InfoPill> });
+
+  if (p.sales_count > 0)
+    list.push({ type: "sales", el: <InfoPill type="sales"><Users className="w-2.5 h-2.5" /> {p.sales_count}+ vendidos</InfoPill> });
+
+  if ((p.total_reviews || 0) > 10)
+    list.push({ type: "recurrent", el: <InfoPill type="recurrent"><Users className="w-2.5 h-2.5" /> Clientes recorrentes</InfoPill> });
+
+  if (p.discount_percent > 0)
+    list.push({ type: "promo", el: <InfoPill type="promo"><Flame className="w-2.5 h-2.5" /> -{p.discount_percent}% de desconto</InfoPill> });
+
+  if (p.free_shipping && (p.sales_count || 0) > 5)
+    list.push({ type: "fast", el: <InfoPill type="fast"><Truck className="w-2.5 h-2.5" /> Entrega rápida</InfoPill> });
+
+  if (p.rating >= 4)
+    list.push({ type: "rated", el: <InfoPill type="rated"><Star className="w-2.5 h-2.5 fill-yellow-500 text-yellow-500" /> {Number(p.rating).toFixed(1)} — Muito bem avaliado</InfoPill> });
+
+  list.push({ type: "secure", el: <InfoPill type="secure"><ShieldCheck className="w-2.5 h-2.5" /> Compra segura</InfoPill> });
 
   return list;
 };
 
-// Componente da info rotativa — troca a cada 3s com fade
-const RotatingInfo = ({ p, startOffset }: { p: any; startOffset: number }) => {
-  const infoList = buildInfoList(p);
-  const [idx, setIdx] = useState(startOffset % infoList.length);
+// Componente rotativo — cada card tem intervalo aleatório próprio
+const RotatingInfo = ({ p, isTrending, seed }: { p: any; isTrending: boolean; seed: number }) => {
+  const infoList = useMemo(() => buildInfoList(p, isTrending), [p.id, isTrending]);
+  const [idx, setIdx] = useState(seed % infoList.length);
   const [visible, setVisible] = useState(true);
+  // Intervalo único por card: entre 5s e 12s
+  const interval = useMemo(() => 5000 + (seed % 8) * 1000, [seed]);
 
   useEffect(() => {
     if (infoList.length <= 1) return;
-    const interval = setInterval(() => {
+    const timer = setInterval(() => {
       setVisible(false);
       setTimeout(() => {
         setIdx((prev) => (prev + 1) % infoList.length);
         setVisible(true);
-      }, 400);
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [infoList.length]);
-
-  if (infoList.length === 0) return null;
+      }, 500);
+    }, interval);
+    return () => clearInterval(timer);
+  }, [infoList.length, interval]);
 
   return (
-    <div
-      style={{
-        transition: "opacity 0.4s ease",
-        opacity: visible ? 1 : 0,
-        minHeight: "16px",
-      }}
-    >
-      {infoList[idx]}
+    <div style={{ transition: "opacity 0.5s ease", opacity: visible ? 1 : 0, minHeight: "20px" }}>
+      {infoList[idx]?.el}
     </div>
   );
 };
@@ -105,12 +97,11 @@ const InfiniteProducts = () => {
       queryFn: async ({ pageParam = 0 }) => {
         const from = pageParam * PAGE_SIZE;
         const to = from + PAGE_SIZE - 1;
-
         const { data, error } = await supabase
           .from("products")
           .select("*")
           .eq("is_active", true)
-          .order("created_at", { ascending: false })
+          .order("sales_count", { ascending: false })
           .range(from, to);
         if (error) throw error;
 
@@ -124,7 +115,6 @@ const InfiniteProducts = () => {
             .eq("is_cover", true);
           (media || []).forEach((m: any) => { coverMap[m.product_id] = m.url; });
         }
-
         return (data || []).map((p: any) => ({ ...p, cover_url: coverMap[p.id] }));
       },
       getNextPageParam: (lastPage, allPages) => {
@@ -134,11 +124,33 @@ const InfiniteProducts = () => {
       initialPageParam: 0,
     });
 
+  // Top vendido por categoria para determinar "tendência"
+  const { data: trendingIds = new Set<string>() } = useQuery({
+    queryKey: ["trending_ids"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("products")
+        .select("id, category, sales_count")
+        .eq("is_active", true)
+        .order("sales_count", { ascending: false })
+        .limit(100);
+      if (!data) return new Set<string>();
+      // Top 1 por categoria
+      const seen = new Set<string>();
+      const top = new Set<string>();
+      for (const p of data) {
+        if (p.category && !seen.has(p.category)) {
+          seen.add(p.category);
+          top.add(p.id);
+        }
+      }
+      return top;
+    },
+  });
+
   const handleObserver = useCallback(
     (entries: IntersectionObserverEntry[]) => {
-      if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
-        fetchNextPage();
-      }
+      if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) fetchNextPage();
     },
     [hasNextPage, isFetchingNextPage, fetchNextPage]
   );
@@ -153,14 +165,7 @@ const InfiniteProducts = () => {
 
   const allProducts = data?.pages.flat() || [];
 
-  if (isLoading) {
-    return (
-      <div className="flex justify-center py-10">
-        <Loader2 className="w-6 h-6 animate-spin text-primary" />
-      </div>
-    );
-  }
-
+  if (isLoading) return <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
   if (allProducts.length === 0) return null;
 
   const col1 = allProducts.filter((_: any, i: number) => i % 2 === 0);
@@ -169,21 +174,20 @@ const InfiniteProducts = () => {
   const ProductCard = ({ p, globalIndex }: { p: any; globalIndex: number }) => {
     const img = p.cover_url || p.image_url;
     const ratio = RATIOS[globalIndex % RATIOS.length];
-    const showRating = p.rating > 0 && globalIndex % 3 !== 1;
+    const isTrending = trendingIds.has(p.id);
+    const showRating = p.rating > 0;
 
     return (
       <div
         onClick={() => navigate(`/produto/${p.id}`)}
         className="bg-card rounded-lg border border-border overflow-hidden cursor-pointer flex flex-col mb-2"
       >
+        {/* Imagem */}
         <div className="relative overflow-hidden bg-muted w-full" style={{ aspectRatio: ratio }}>
-          {img ? (
-            <img src={img} alt={p.title} className="w-full h-full object-cover" loading="lazy" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-[10px] text-muted-foreground">
-              Sem foto
-            </div>
-          )}
+          {img
+            ? <img src={img} alt={p.title} className="w-full h-full object-cover" loading="lazy" />
+            : <div className="w-full h-full flex items-center justify-center text-[10px] text-muted-foreground">Sem foto</div>
+          }
           {p.discount_percent && (
             <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold text-white bg-red-500">
               -{p.discount_percent}%
@@ -202,30 +206,30 @@ const InfiniteProducts = () => {
           </button>
         </div>
 
-        <div className="p-2 flex flex-col gap-1">
-          <div className="flex items-center gap-1 flex-wrap">
-            <span className="text-[9px] font-bold text-white bg-violet-500 px-1.5 py-0.5 rounded-sm">
-              Tendências
-            </span>
-            {p.category && (
-              <span className="text-[9px] font-semibold text-violet-500">{p.category}</span>
-            )}
-          </div>
-
+        {/* Conteúdo */}
+        <div className="p-2 flex flex-col gap-1.5">
+          {/* Título */}
           <h3 className="text-[11px] font-semibold text-foreground line-clamp-2 leading-snug">
             {p.title}
           </h3>
 
-          {showRating && (
-            <div className="flex items-center gap-0.5">
-              <span className="text-[10px] font-bold">{Number(p.rating).toFixed(1)}</span>
-              <Star className="w-2.5 h-2.5 text-yellow-400 fill-yellow-400" />
-              <span className="text-[9px] text-muted-foreground">
-                ({(p.total_reviews || 0) > 999 ? "1000+" : p.total_reviews || 0})
-              </span>
-            </div>
-          )}
+          {/* Rating + vendidos — sempre visíveis se existirem */}
+          <div className="flex items-center justify-between gap-1">
+            {showRating && (
+              <div className="flex items-center gap-0.5">
+                <Star className="w-2.5 h-2.5 text-yellow-400 fill-yellow-400" />
+                <span className="text-[10px] font-bold text-foreground">{Number(p.rating).toFixed(1)}</span>
+                <span className="text-[9px] text-muted-foreground">
+                  ({(p.total_reviews || 0) > 999 ? "1000+" : p.total_reviews || 0})
+                </span>
+              </div>
+            )}
+            {p.sales_count > 0 && (
+              <span className="text-[9px] text-muted-foreground ml-auto">{p.sales_count}+ vendidos</span>
+            )}
+          </div>
 
+          {/* Preço */}
           <div className="flex items-baseline gap-1">
             <span className="text-[13px] font-black text-red-500">
               {Number(p.price).toLocaleString("pt-AO")} Kz
@@ -237,8 +241,8 @@ const InfiniteProducts = () => {
             )}
           </div>
 
-          {/* Info rotativa — troca a cada 3s com fade */}
-          <RotatingInfo p={p} startOffset={globalIndex} />
+          {/* Info rotativa com pill colorido — cada card no seu tempo */}
+          <RotatingInfo p={p} isTrending={isTrending} seed={globalIndex} />
         </div>
       </div>
     );
@@ -247,7 +251,7 @@ const InfiniteProducts = () => {
   return (
     <section className="container mx-auto px-3 pt-4 pb-4">
       <div className="mb-3">
-        <h2 className="text-base font-bold text-foreground">Tendências</h2>
+        <h2 className="text-base font-bold text-foreground">Para si</h2>
       </div>
 
       {/* Tablet: 3 colunas CSS masonry */}
