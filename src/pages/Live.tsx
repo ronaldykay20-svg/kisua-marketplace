@@ -7,6 +7,12 @@ import { useQuery } from "@tanstack/react-query";
 
 const APP_ID = "0503d343fd7e416fb8b594e53470cc1e";
 
+declare global {
+  interface Window {
+    AgoraRTC: any;
+  }
+}
+
 const BADGE_COLORS: Record<string, string> = {
   admin: "🔴",
   seller: "🟠",
@@ -68,7 +74,6 @@ const Live = () => {
       .limit(50)
       .then(({ data }) => setMessages(data || []));
 
-    // Realtime chat
     const channel = supabase
       .channel(`live_chat:${session.id}`)
       .on("postgres_changes", {
@@ -81,7 +86,6 @@ const Live = () => {
       })
       .subscribe();
 
-    // Realtime viewer count
     const viewerChannel = supabase
       .channel(`live_viewers:${session.id}`)
       .on("postgres_changes", {
@@ -116,8 +120,10 @@ const Live = () => {
     }, { onConflict: "session_id,user_id" });
 
     return () => {
-      supabase.from("live_viewers").update({ left_at: new Date().toISOString() })
-        .eq("session_id", session.id).eq("user_id", user.id);
+      supabase.from("live_viewers")
+        .update({ left_at: new Date().toISOString() })
+        .eq("session_id", session.id)
+        .eq("user_id", user.id);
     };
   }, [session?.id, user]);
 
@@ -131,25 +137,33 @@ const Live = () => {
     return () => clearInterval(tick);
   }, [session?.started_at]);
 
-  // Iniciar Agora
+  // Iniciar Agora via window.AgoraRTC (CDN)
   useEffect(() => {
     if (!session?.channel_name) return;
+    if (!window.AgoraRTC) {
+      setAgoraError("SDK de vídeo não carregado. Recarrega a página.");
+      return;
+    }
 
     const initAgora = async () => {
       try {
-        const AgoraRTC = (await import("agora-rtc-sdk-ng")).default;
-        const client = AgoraRTC.createClient({ mode: "live", codec: "vp8" });
+        const client = window.AgoraRTC.createClient({ mode: "live", codec: "vp8" });
         client.setClientRole("audience");
         agoraClientRef.current = client;
 
         // Pedir token à Edge Function
-        const { data: fnData } = await supabase.functions.invoke("agora-token", {
+        const { data: fnData, error: fnError } = await supabase.functions.invoke("agora-token", {
           body: { channel: session.channel_name, uid: 0, role: 2 },
         });
 
+        if (fnError || !fnData?.token) {
+          setAgoraError("Erro ao obter token de acesso.");
+          return;
+        }
+
         await client.join(APP_ID, session.channel_name, fnData.token, null);
 
-        client.on("user-published", async (remoteUser: any, mediaType: any) => {
+        client.on("user-published", async (remoteUser: any, mediaType: string) => {
           await client.subscribe(remoteUser, mediaType);
           if (mediaType === "video") {
             const videoContainer = document.getElementById("agora-video");
@@ -158,8 +172,16 @@ const Live = () => {
           if (mediaType === "audio") remoteUser.audioTrack.play();
         });
 
+        client.on("user-unpublished", (remoteUser: any, mediaType: string) => {
+          if (mediaType === "video") {
+            const videoContainer = document.getElementById("agora-video");
+            if (videoContainer) videoContainer.innerHTML = "";
+          }
+        });
+
         setJoined(true);
       } catch (e: any) {
+        console.error("Agora error:", e);
         setAgoraError("Não foi possível ligar ao stream.");
       }
     };
@@ -168,10 +190,12 @@ const Live = () => {
 
     return () => {
       agoraClientRef.current?.leave();
+      agoraClientRef.current = null;
+      setJoined(false);
     };
   }, [session?.channel_name]);
 
-  // Scroll chat para baixo
+  // Scroll chat
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -200,7 +224,6 @@ const Live = () => {
   return (
     <div className="min-h-screen bg-background">
 
-      {/* Hero Live Section */}
       <section className="relative overflow-hidden" style={{ background: "linear-gradient(135deg, hsl(30 50% 10%) 0%, hsl(35 60% 18%) 40%, hsl(25 40% 12%) 100%)" }}>
         <div className="absolute inset-0 opacity-30" style={{ backgroundImage: "radial-gradient(circle at 20% 20%, hsl(45 100% 60% / 0.4) 0%, transparent 40%)" }} />
 
@@ -216,7 +239,6 @@ const Live = () => {
 
           {session ? (
             <>
-              {/* Stats */}
               <div className="flex items-center justify-between mb-4 text-primary-foreground/90 text-xs">
                 <div className="flex items-center gap-1">
                   <Users className="w-3.5 h-3.5" />
@@ -234,7 +256,7 @@ const Live = () => {
               </div>
 
               <div className="md:grid md:grid-cols-5 md:gap-4">
-                {/* Vídeo Agora */}
+                {/* Vídeo */}
                 <div className="md:col-span-3 relative rounded-xl overflow-hidden mb-3 md:mb-0 bg-black aspect-video flex items-center justify-center">
                   <div id="agora-video" className="w-full h-full" />
                   {!joined && !agoraError && (
@@ -244,8 +266,8 @@ const Live = () => {
                     </div>
                   )}
                   {agoraError && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-white text-sm">{agoraError}</span>
+                    <div className="absolute inset-0 flex items-center justify-center px-4">
+                      <span className="text-white text-sm text-center">{agoraError}</span>
                     </div>
                   )}
                   {session.thumbnail_url && !joined && (
@@ -257,7 +279,7 @@ const Live = () => {
                   </div>
                 </div>
 
-                {/* Chat realtime */}
+                {/* Chat */}
                 <div className="md:col-span-2 bg-card/90 backdrop-blur-sm rounded-xl border border-border overflow-hidden flex flex-col" style={{ maxHeight: "350px" }}>
                   <div className="flex items-center justify-between px-3 py-2.5 border-b border-border">
                     <div className="flex items-center gap-1.5">
