@@ -55,12 +55,9 @@ const Ranking = () => {
 
   return (
     <div className="min-h-screen bg-background pb-14 md:pb-0">
-      <div className="bg-primary">
-        <div className="container mx-auto px-4 h-14 flex items-center justify-between">
-          <button onClick={() => navigate(-1)} className="text-primary-foreground"><ArrowLeft className="w-5 h-5" /></button>
-          <h1 className="text-lg font-black text-primary-foreground tracking-tight">RANKING</h1>
-          <button onClick={() => navigate("/carrinho")} className="text-primary-foreground"><ShoppingCart className="w-5 h-5" /></button>
-        </div>
+      <div className="container mx-auto px-4 pt-3 flex items-center gap-3">
+        <button onClick={() => navigate(-1)} className="text-foreground"><ArrowLeft className="w-5 h-5" /></button>
+        <h1 className="text-lg font-black text-foreground tracking-tight">RANKING</h1>
       </div>
 
       <div className="bg-card border-b border-border sticky top-0 z-30">
