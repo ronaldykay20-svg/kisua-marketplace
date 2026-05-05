@@ -84,11 +84,11 @@ const PedidoDetalhe = () => {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background pb-14 md:pb-0">
-        <Navbar />
+        
         <div className="container mx-auto px-3 py-8 text-center">
           <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full mx-auto" />
         </div>
-        <BottomNav />
+        
       </div>
     );
   }
@@ -96,11 +96,11 @@ const PedidoDetalhe = () => {
   if (!order) {
     return (
       <div className="min-h-screen bg-background pb-14 md:pb-0">
-        <Navbar />
+        
         <div className="container mx-auto px-3 py-8 text-center">
           <p className="text-muted-foreground">Pedido não encontrado</p>
         </div>
-        <BottomNav />
+        
       </div>
     );
   }
@@ -236,7 +236,7 @@ const PedidoDetalhe = () => {
           </div>
         </div>
       </div>
-      <BottomNav />
+      
     </div>
   );
 };
