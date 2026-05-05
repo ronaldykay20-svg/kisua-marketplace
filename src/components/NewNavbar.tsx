@@ -196,22 +196,41 @@ const NewNavbar = () => {
 const CategoriesBar = ({ categories }: { categories: any[] }) => {
   const navigate = useNavigate();
   if (categories.length === 0) return null;
+  // Mostra as primeiras 4 categorias + "Ver todas"
+  const visible = categories.slice(0, 4);
   return (
-    <div className="bg-card border-b border-border">
-      <div className="container mx-auto px-3">
-        <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide py-1.5">
-          {categories.map((cat: any) => (
+    <div style={{ background: "linear-gradient(180deg,#d6ad79 0%,#f5e6d0 100%)" }}>
+      <div className="container mx-auto px-3 pb-3 pt-1">
+        <div className="grid grid-cols-5 gap-2">
+          {visible.map((cat: any) => (
             <button
               key={cat.id}
               onClick={() => navigate(`/categoria/${encodeURIComponent(cat.name)}`)}
-              className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium text-foreground hover:bg-muted transition-colors whitespace-nowrap"
+              className="flex flex-col items-center gap-1 bg-white rounded-2xl p-2 shadow-sm hover:shadow-md transition"
             >
-              {cat.image_url && (
-                <img src={cat.image_url} alt="" className="w-4 h-4 rounded-full object-cover" />
-              )}
-              {cat.name}
+              <div className="w-full aspect-square rounded-xl bg-white flex items-center justify-center overflow-hidden">
+                {cat.image_url ? (
+                  <img src={cat.image_url} alt={cat.name} className="w-full h-full object-contain p-1" />
+                ) : (
+                  <div className="w-full h-full bg-muted rounded-lg flex items-center justify-center text-base font-bold text-muted-foreground">
+                    {cat.name.charAt(0)}
+                  </div>
+                )}
+              </div>
+              <span className="text-[11px] font-semibold text-foreground text-center truncate w-full">{cat.name}</span>
             </button>
           ))}
+          <button
+            onClick={() => navigate("/categorias")}
+            className="flex flex-col items-center gap-1 bg-white rounded-2xl p-2 shadow-sm hover:shadow-md transition"
+          >
+            <div className="w-full aspect-square rounded-xl bg-white flex items-center justify-center">
+              <div className="grid grid-cols-2 gap-1">
+                {[0,1,2,3].map(i => <div key={i} className="w-2.5 h-2.5 rounded-sm bg-[#c8a97e]" />)}
+              </div>
+            </div>
+            <span className="text-[11px] font-semibold text-foreground text-center">Ver todas</span>
+          </button>
         </div>
       </div>
     </div>
