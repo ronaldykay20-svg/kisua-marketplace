@@ -4,7 +4,7 @@ import { ArrowLeft, Package, Clock, CheckCircle, Truck, MapPin, CreditCard, Mess
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
-import Navbar from "@/components/Navbar";
+
 import BottomNav from "@/components/BottomNav";
 
 const statusSteps = [
