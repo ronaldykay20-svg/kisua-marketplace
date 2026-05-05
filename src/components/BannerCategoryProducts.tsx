@@ -138,8 +138,7 @@ const BannerCategoryProducts = ({ categoryId }: Props) => {
               <div
                 key={p.id}
                 onClick={() => navigate(`/produto/${p.id}`)}
-                // Ligeiramente menor no mobile: 47% em vez de 50%
-                className="snap-start flex-shrink-0 w-[47%] sm:w-[calc(33.333%-6px)] md:w-[calc(25%-6px)] lg:w-[calc(20%-7px)] bg-card rounded-xl border border-border overflow-hidden cursor-pointer hover:shadow-md transition flex flex-col"
+                className="snap-start flex-shrink-0 w-[calc(50%-4px)] sm:w-[calc(33.333%-6px)] md:w-[calc(25%-6px)] lg:w-[calc(20%-7px)] bg-card rounded-md border border-border overflow-hidden cursor-pointer hover:shadow-md transition flex flex-col"
               >
                 {/* Imagem */}
                 <div className="relative aspect-square overflow-hidden bg-muted">
