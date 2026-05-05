@@ -1,4 +1,4 @@
-import { Search, ShoppingCart, User, Bell, Menu, X, ChevronRight, Gavel, Radio, Store, Users, Zap, LogOut, Heart } from "lucide-react";
+import { Search, ShoppingCart, User, Bell, Menu, X, ChevronRight, Gavel, Radio, Store, Users, Zap, LogOut, Heart, Mic } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -7,11 +7,11 @@ import { useCategories } from "@/hooks/useSupabaseData";
 import { useCart } from "@/hooks/useSupabaseData";
 
 const quickLinks = [
-  { label: "Leilão", path: "/leilao", icon: Gavel, color: "text-walmart-orange" },
-  { label: "Live", path: "/live", icon: Radio, color: "text-destructive" },
-  { label: "Promoções", path: "/promocoes", icon: Zap, color: "text-walmart-orange" },
+  { label: "Leilão", path: "/leilao", icon: Gavel, color: "text-orange-500" },
+  { label: "Live", path: "/live", icon: Radio, color: "text-red-500" },
+  { label: "Promoções", path: "/promocoes", icon: Zap, color: "text-orange-500" },
   { label: "Empresas", path: "/empresas", icon: Store, color: "text-primary" },
-  { label: "Vendedores", path: "/vendedores", icon: Users, color: "text-accent" },
+  { label: "Vendedores", path: "/vendedores", icon: Users, color: "text-primary" },
 ];
 
 const NewNavbar = () => {
@@ -20,6 +20,7 @@ const NewNavbar = () => {
   const navigate = useNavigate();
   const { user, userDisplayName, signOut } = useAuth();
   const { data: logoUrl } = useSiteSetting("site_logo_url");
+  const { data: siteName } = useSiteSetting("site_name");
   const { data: categories = [] } = useCategories();
   const { data: cartItems = [] } = useCart();
 
@@ -31,95 +32,104 @@ const NewNavbar = () => {
     }
   };
 
+  const displayName = siteName || "AngoExpress";
+  // Separa primeira letra do resto para estilo bicolor
+  const firstName = displayName.charAt(0);
+  const restName = displayName.slice(1);
+
   return (
     <>
-      <nav className="sticky top-0 z-50 bg-primary shadow-md">
-        {/* Top row: logo + search + icons */}
+      <nav className="sticky top-0 z-50 shadow-sm" style={{ backgroundColor: "#c8a97e" }}>
         <div className="container mx-auto px-3">
-          <div className="flex items-center gap-3 h-14">
-            <button className="text-primary-foreground md:hidden" onClick={() => setMenuOpen(!menuOpen)}>
-              <Menu className="w-5 h-5" />
-            </button>
-
-            <a href="/" className="flex items-center gap-1.5 flex-shrink-0">
-              {logoUrl ? (
-                <img src={logoUrl} alt="Logo" className="h-6 object-contain" />
-              ) : (
-                <>
-                  <span className="text-secondary text-xl font-black">✻</span>
-                  <span className="text-base font-black text-primary-foreground tracking-tight hidden sm:block">Kwanza</span>
-                </>
-              )}
-            </a>
-
-            <form onSubmit={handleSearch} className="flex-1 min-w-0 flex">
-              <div className="relative flex w-full">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  placeholder="Pesquisar produtos, lojas..."
-                  className="w-full py-1.5 pl-3 pr-3 rounded-l-full bg-primary-foreground text-foreground text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-secondary"
-                />
-                <button type="submit" className="px-3 bg-secondary rounded-r-full flex items-center justify-center hover:brightness-110 transition flex-shrink-0">
-                  <Search className="w-4 h-4 text-secondary-foreground" />
-                </button>
-              </div>
-            </form>
-
-            <div className="flex items-center gap-1">
-              <button onClick={() => navigate("/favoritos")} className="p-1.5 text-primary-foreground hover:bg-primary-foreground/10 rounded-full transition hidden sm:flex">
-                <Heart className="w-5 h-5" />
+          {/* Linha 1: menu + logo + ícones */}
+          <div className="flex items-center justify-between h-12 gap-3">
+            {/* Esquerda: hamburguer + logo */}
+            <div className="flex items-center gap-2">
+              <button className="text-white md:hidden" onClick={() => setMenuOpen(!menuOpen)}>
+                <Menu className="w-5 h-5" />
               </button>
-              <button onClick={() => navigate("/notificacoes")} className="p-1.5 text-primary-foreground hover:bg-primary-foreground/10 rounded-full transition hidden sm:flex">
+              <a href="/" className="flex items-center gap-1 flex-shrink-0">
+                {logoUrl ? (
+                  <img src={logoUrl} alt="Logo" className="h-7 object-contain" />
+                ) : (
+                  <span className="text-lg font-black tracking-tight">
+                    <span style={{ color: "#fff" }}>{firstName}</span>
+                    <span style={{ color: "#7b3f00" }}>{restName}</span>
+                  </span>
+                )}
+              </a>
+            </div>
+
+            {/* Direita: notificação + carrinho + user */}
+            <div className="flex items-center gap-1">
+              <button onClick={() => navigate("/notificacoes")} className="relative p-1.5 text-white hover:bg-white/10 rounded-full transition">
                 <Bell className="w-5 h-5" />
               </button>
-              <button onClick={() => navigate("/carrinho")} className="p-1.5 text-primary-foreground relative hover:bg-primary-foreground/10 rounded-full transition">
+              <button onClick={() => navigate("/carrinho")} className="relative p-1.5 text-white hover:bg-white/10 rounded-full transition">
                 <ShoppingCart className="w-5 h-5" />
                 {cartItems.length > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-secondary text-secondary-foreground text-[8px] font-bold flex items-center justify-center">
+                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center">
                     {cartItems.length}
                   </span>
                 )}
               </button>
               <button
                 onClick={() => user ? navigate("/conta") : navigate("/auth")}
-                className="p-1.5 text-primary-foreground hover:bg-primary-foreground/10 rounded-full transition hidden sm:flex"
+                className="p-1.5 text-white hover:bg-white/10 rounded-full transition hidden sm:flex"
               >
                 <User className="w-5 h-5" />
               </button>
             </div>
           </div>
+
+          {/* Linha 2: barra de pesquisa */}
+          <div className="pb-2.5">
+            <form onSubmit={handleSearch} className="flex w-full">
+              <div className="relative flex w-full bg-white rounded-full shadow-sm overflow-hidden">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="O que você procura hoje?"
+                  className="w-full py-2 pl-9 pr-10 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none bg-transparent"
+                />
+                <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                  <Mic className="w-4 h-4" />
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       </nav>
 
-      {/* Categories bar - visible on md+ */}
+      {/* Barra de categorias */}
       <CategoriesBar categories={categories} />
 
-      {/* Slide-in mobile menu */}
+      {/* Menu lateral mobile */}
       {menuOpen && (
         <div className="fixed inset-0 z-[60] flex">
           <div className="absolute inset-0 bg-foreground/50" onClick={() => setMenuOpen(false)} />
           <div className="relative w-[85%] max-w-[320px] bg-card h-full overflow-y-auto animate-in slide-in-from-left duration-200 flex flex-col">
-            <div className="bg-primary p-4 flex items-center justify-between">
+            <div className="p-4 flex items-center justify-between" style={{ backgroundColor: "#c8a97e" }}>
               {user ? (
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
-                    <span className="text-secondary-foreground text-sm font-bold">{userDisplayName.charAt(0).toUpperCase()}</span>
+                  <div className="w-8 h-8 rounded-full bg-white/30 flex items-center justify-center">
+                    <span className="text-white text-sm font-bold">{userDisplayName.charAt(0).toUpperCase()}</span>
                   </div>
                   <div>
-                    <span className="text-sm font-bold text-primary-foreground">Olá, {userDisplayName}</span>
-                    <p className="text-[10px] text-primary-foreground/70">{user.email}</p>
+                    <span className="text-sm font-bold text-white">Olá, {userDisplayName}</span>
+                    <p className="text-[10px] text-white/70">{user.email}</p>
                   </div>
                 </div>
               ) : (
                 <button onClick={() => { navigate("/auth"); setMenuOpen(false); }} className="flex items-center gap-2">
-                  <User className="w-6 h-6 text-primary-foreground" />
-                  <span className="text-sm font-bold text-primary-foreground">Olá, faça login</span>
+                  <User className="w-6 h-6 text-white" />
+                  <span className="text-sm font-bold text-white">Olá, faça login</span>
                 </button>
               )}
               <button onClick={() => setMenuOpen(false)}>
-                <X className="w-5 h-5 text-primary-foreground" />
+                <X className="w-5 h-5 text-white" />
               </button>
             </div>
 
@@ -127,7 +137,7 @@ const NewNavbar = () => {
               <div className="grid grid-cols-5 gap-1">
                 {quickLinks.map(link => (
                   <button key={link.label} onClick={() => { navigate(link.path); setMenuOpen(false); }}
-                    className="flex flex-col items-center gap-1.5 py-2.5 rounded-card hover:bg-muted transition-colors">
+                    className="flex flex-col items-center gap-1.5 py-2.5 rounded-lg hover:bg-muted transition-colors">
                     <link.icon className={`w-5 h-5 ${link.color}`} />
                     <span className="text-[9px] font-semibold text-foreground">{link.label}</span>
                   </button>
@@ -161,16 +171,16 @@ const NewNavbar = () => {
                 { label: "Meus pedidos", path: "/pedidos" },
                 { label: "Favoritos", path: "/favoritos" },
                 { label: "Ajuda", path: "/ajuda" },
-                { label: "Vender no Kwanza Market", path: "/vender" },
+                { label: "Vender no Kisua", path: "/vender" },
               ].map(link => (
                 <button key={link.label} onClick={() => { navigate(link.path); setMenuOpen(false); }}
-                  className="w-full text-left px-3 py-2.5 rounded-card text-sm font-medium text-foreground hover:bg-muted transition-colors">
+                  className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium text-foreground hover:bg-muted transition-colors">
                   {link.label}
                 </button>
               ))}
               {user && (
                 <button onClick={async () => { await signOut(); setMenuOpen(false); navigate("/"); }}
-                  className="w-full text-left px-3 py-2.5 rounded-card text-sm font-medium text-destructive hover:bg-destructive/5 transition-colors flex items-center gap-2">
+                  className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium text-destructive hover:bg-destructive/5 transition-colors flex items-center gap-2">
                   <LogOut className="w-4 h-4" /> Sair da conta
                 </button>
               )}
@@ -184,9 +194,7 @@ const NewNavbar = () => {
 
 const CategoriesBar = ({ categories }: { categories: any[] }) => {
   const navigate = useNavigate();
-
   if (categories.length === 0) return null;
-
   return (
     <div className="bg-card border-b border-border">
       <div className="container mx-auto px-3">
