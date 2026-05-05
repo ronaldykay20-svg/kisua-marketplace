@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 
-import BottomNav from "@/components/BottomNav";
+
 
 const statusSteps = [
   { key: "pending", label: "Pendente", icon: Clock },
