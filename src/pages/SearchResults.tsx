@@ -138,29 +138,20 @@ const SearchResults = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="bg-primary">
-        <div className="container mx-auto px-4 h-14 flex items-center gap-2.5">
-          <button onClick={() => navigate(-1)} className="text-primary-foreground flex-shrink-0">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <form onSubmit={handleSearch} className="flex-1 flex">
-            <div className="relative flex-1 flex">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Pesquisar..."
-                className="w-full py-2 pl-3 pr-10 rounded-l-full bg-primary-foreground text-foreground text-sm placeholder:text-muted-foreground focus:outline-none"
-              />
-              <button type="submit" className="px-3.5 bg-secondary rounded-r-full flex items-center justify-center hover:brightness-110 transition flex-shrink-0">
-                <Search className="w-5 h-5 text-secondary-foreground" />
-              </button>
-            </div>
-          </form>
-          <button onClick={() => navigate("/carrinho")} className="text-primary-foreground relative flex-shrink-0">
-            <ShoppingCart className="w-5 h-5" />
-          </button>
-        </div>
+      <div className="container mx-auto px-4 pt-3 flex items-center gap-2.5">
+        <button onClick={() => navigate(-1)} className="text-foreground flex-shrink-0"><ArrowLeft className="w-5 h-5" /></button>
+        <form onSubmit={handleSearch} className="flex-1 flex">
+          <div className="relative flex-1 flex bg-card border border-border rounded-full overflow-hidden">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Pesquisar..."
+              className="w-full py-2 pl-4 pr-10 bg-transparent text-foreground text-sm placeholder:text-muted-foreground focus:outline-none"
+            />
+            <button type="submit" className="px-3.5 flex items-center justify-center text-muted-foreground"><Search className="w-5 h-5" /></button>
+          </div>
+        </form>
       </div>
 
       <div className="container mx-auto px-4 py-4 space-y-4">

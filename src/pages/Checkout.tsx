@@ -111,16 +111,9 @@ const Checkout = () => {
 
   return (
     <div className="min-h-screen bg-background pb-14">
-      {/* Header */}
-      <div className="sticky top-0 z-50 bg-primary">
-        <div className="container mx-auto px-3 h-12 flex items-center gap-3">
-          <button onClick={() => step === "success" ? navigate("/") : navigate(-1)} className="text-primary-foreground">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <span className="text-sm font-bold text-primary-foreground">
-            {step === "success" ? "Pedido confirmado" : "Finalizar compra"}
-          </span>
-        </div>
+      <div className="container mx-auto px-3 pt-3 flex items-center gap-3">
+        <button onClick={() => step === "success" ? navigate("/") : navigate(-1)} className="text-foreground"><ArrowLeft className="w-5 h-5" /></button>
+        <span className="text-base font-bold text-foreground">{step === "success" ? "Pedido confirmado" : "Finalizar compra"}</span>
       </div>
 
       {/* Steps indicator */}

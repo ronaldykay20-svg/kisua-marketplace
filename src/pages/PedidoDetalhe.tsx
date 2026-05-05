@@ -110,7 +110,6 @@ const PedidoDetalhe = () => {
 
   return (
     <div className="min-h-screen bg-background pb-14 md:pb-0">
-      <Navbar />
       <div className="container mx-auto px-3 py-4 max-w-2xl">
         {/* Header */}
         <div className="flex items-center gap-2 mb-4">

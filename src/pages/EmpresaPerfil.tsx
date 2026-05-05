@@ -141,15 +141,10 @@ const EmpresaPerfil = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="bg-primary">
-        <div className="container mx-auto px-4 h-14 flex items-center justify-between">
-          <button onClick={() => navigate(-1)} className="text-primary-foreground"><ArrowLeft className="w-5 h-5" /></button>
-          <h1 className="text-sm font-bold text-primary-foreground truncate max-w-[200px]">{company.name}</h1>
-          <div className="flex items-center gap-3">
-            <button className="text-primary-foreground"><Share2 className="w-5 h-5" /></button>
-            <button className="text-primary-foreground relative"><ShoppingCart className="w-5 h-5" /></button>
-          </div>
-        </div>
+      <div className="container mx-auto px-4 pt-3 flex items-center gap-3">
+        <button onClick={() => navigate(-1)} className="text-foreground"><ArrowLeft className="w-5 h-5" /></button>
+        <h1 className="text-sm font-bold text-foreground truncate flex-1">{company.name}</h1>
+        <button className="text-foreground"><Share2 className="w-5 h-5" /></button>
       </div>
 
       <div className="relative">

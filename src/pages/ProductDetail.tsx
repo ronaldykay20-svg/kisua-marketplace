@@ -275,20 +275,10 @@ const ProductDetail = () => {
 
   return (
     <div className="min-h-screen bg-background pb-20">
-      {/* Header */}
-      <div className="sticky top-0 z-50 bg-primary">
-        <div className="container mx-auto px-3 h-12 flex items-center justify-between">
-          <button onClick={() => navigate(-1)} className="text-primary-foreground">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <span className="text-sm font-bold text-primary-foreground truncate mx-4 flex-1">{product.title}</span>
-          <div className="flex items-center gap-2">
-            <button className="text-primary-foreground"><Share2 className="w-5 h-5" /></button>
-            <button onClick={() => navigate("/carrinho")} className="text-primary-foreground relative">
-              <ShoppingCart className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
+      <div className="container mx-auto px-3 pt-3 flex items-center justify-between gap-3">
+        <button onClick={() => navigate(-1)} className="text-foreground"><ArrowLeft className="w-5 h-5" /></button>
+        <span className="text-sm font-bold text-foreground truncate flex-1">{product.title}</span>
+        <button className="text-foreground"><Share2 className="w-5 h-5" /></button>
       </div>
 
       {/* TABLET+ layout: side by side | MOBILE: stacked */}
