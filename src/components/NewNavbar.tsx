@@ -52,7 +52,7 @@ const NewNavbar = () => {
                 {logoUrl ? (
                   <img src={logoUrl} alt="Logo" className="h-7 object-contain" />
                 ) : (
-                  <span className="text-lg font-black tracking-tight">
+                  <span className="text-2xl font-black tracking-tight leading-none">
                     <span style={{ color: "#fff" }}>{firstName}</span>
                     <span style={{ color: "#7b3f00" }}>{restName}</span>
                   </span>
