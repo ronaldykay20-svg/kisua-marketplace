@@ -4,6 +4,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
+import NewNavbar from "@/components/NewNavbar";
+import BottomNav from "@/components/BottomNav";
 import Index from "./pages/Index.tsx";
 import ProductDetail from "./pages/ProductDetail.tsx";
 import NotFound from "./pages/NotFound.tsx";
@@ -40,50 +42,58 @@ import ProtectedRoute from "./components/ProtectedRoute.tsx";
 
 const queryClient = new QueryClient();
 
+// Layout global — navbar + conteúdo + bottom nav
+const Layout = ({ children }: { children: React.ReactNode }) => (
+  <div className="min-h-screen bg-background pb-14 md:pb-0">
+    <NewNavbar />
+    {children}
+    <BottomNav />
+  </div>
+);
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/produto/:id" element={<ProductDetail />} />
-          <Route path="/ranking" element={<Ranking />} />
-          <Route path="/empresas" element={<Empresas />} />
-          <Route path="/empresa/:id" element={<EmpresaPerfil />} />
-          <Route path="/pesquisa" element={<SearchResults />} />
-          <Route path="/leilao" element={<Leilao />} />
-          <Route path="/live" element={<Live />} />
-          <Route path="/vendedores" element={<Vendedores />} />
-          <Route path="/vendedor/:id" element={<VendedorPerfil />} />
-          <Route path="/categorias" element={<Categorias />} />
-          <Route path="/categoria/:nome" element={<CategoriaDetalhe />} />
-          <Route path="/promocoes" element={<Promocoes />} />
-          <Route path="/conta" element={<ProtectedRoute><MinhaConta /></ProtectedRoute>} />
-          <Route path="/pedidos" element={<ProtectedRoute><Pedidos /></ProtectedRoute>} />
-          <Route path="/pedido/:id" element={<ProtectedRoute><PedidoDetalhe /></ProtectedRoute>} />
-          <Route path="/favoritos" element={<ProtectedRoute><Favoritos /></ProtectedRoute>} />
-          <Route path="/ajuda" element={<Ajuda />} />
-          <Route path="/vender" element={<ProtectedRoute><VenderKwanza /></ProtectedRoute>} />
-          <Route path="/enderecos" element={<ProtectedRoute><Enderecos /></ProtectedRoute>} />
-          <Route path="/pagamentos" element={<ProtectedRoute><Pagamentos /></ProtectedRoute>} />
-          <Route path="/notificacoes" element={<ProtectedRoute><Notificacoes /></ProtectedRoute>} />
-          <Route path="/seguranca" element={<ProtectedRoute><Seguranca /></ProtectedRoute>} />
-          <Route path="/definicoes" element={<ProtectedRoute><Definicoes /></ProtectedRoute>} />
-          <Route path="/auth" element={<Auth />} />
-          <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminPanel /></ProtectedRoute>} />
-          <Route path="/painel-vendedor" element={<ProtectedRoute><SellerDashboard /></ProtectedRoute>} />
-          <Route path="/painel-empresa" element={<ProtectedRoute><CompanyDashboard /></ProtectedRoute>} />
-          <Route path="/painel-moderador" element={<ProtectedRoute requiredRole="moderator"><ModeratorPanel /></ProtectedRoute>} />
-          <Route path="/carrinho" element={<Carrinho />} />
-          <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Layout><Index /></Layout>} />
+            <Route path="/produto/:id" element={<Layout><ProductDetail /></Layout>} />
+            <Route path="/ranking" element={<Layout><Ranking /></Layout>} />
+            <Route path="/empresas" element={<Layout><Empresas /></Layout>} />
+            <Route path="/empresa/:id" element={<Layout><EmpresaPerfil /></Layout>} />
+            <Route path="/pesquisa" element={<Layout><SearchResults /></Layout>} />
+            <Route path="/leilao" element={<Layout><Leilao /></Layout>} />
+            <Route path="/live" element={<Layout><Live /></Layout>} />
+            <Route path="/vendedores" element={<Layout><Vendedores /></Layout>} />
+            <Route path="/vendedor/:id" element={<Layout><VendedorPerfil /></Layout>} />
+            <Route path="/categorias" element={<Layout><Categorias /></Layout>} />
+            <Route path="/categoria/:nome" element={<Layout><CategoriaDetalhe /></Layout>} />
+            <Route path="/promocoes" element={<Layout><Promocoes /></Layout>} />
+            <Route path="/conta" element={<Layout><ProtectedRoute><MinhaConta /></ProtectedRoute></Layout>} />
+            <Route path="/pedidos" element={<Layout><ProtectedRoute><Pedidos /></ProtectedRoute></Layout>} />
+            <Route path="/pedido/:id" element={<Layout><ProtectedRoute><PedidoDetalhe /></ProtectedRoute></Layout>} />
+            <Route path="/favoritos" element={<Layout><ProtectedRoute><Favoritos /></ProtectedRoute></Layout>} />
+            <Route path="/ajuda" element={<Layout><Ajuda /></Layout>} />
+            <Route path="/vender" element={<Layout><ProtectedRoute><VenderKwanza /></ProtectedRoute></Layout>} />
+            <Route path="/enderecos" element={<Layout><ProtectedRoute><Enderecos /></ProtectedRoute></Layout>} />
+            <Route path="/pagamentos" element={<Layout><ProtectedRoute><Pagamentos /></ProtectedRoute></Layout>} />
+            <Route path="/notificacoes" element={<Layout><ProtectedRoute><Notificacoes /></ProtectedRoute></Layout>} />
+            <Route path="/seguranca" element={<Layout><ProtectedRoute><Seguranca /></ProtectedRoute></Layout>} />
+            <Route path="/definicoes" element={<Layout><ProtectedRoute><Definicoes /></ProtectedRoute></Layout>} />
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/admin" element={<Layout><ProtectedRoute requiredRole="admin"><AdminPanel /></ProtectedRoute></Layout>} />
+            <Route path="/painel-vendedor" element={<Layout><ProtectedRoute><SellerDashboard /></ProtectedRoute></Layout>} />
+            <Route path="/painel-empresa" element={<Layout><ProtectedRoute><CompanyDashboard /></ProtectedRoute></Layout>} />
+            <Route path="/painel-moderador" element={<Layout><ProtectedRoute requiredRole="moderator"><ModeratorPanel /></ProtectedRoute></Layout>} />
+            <Route path="/carrinho" element={<Layout><Carrinho /></Layout>} />
+            <Route path="/checkout" element={<Layout><ProtectedRoute><Checkout /></ProtectedRoute></Layout>} />
+            <Route path="*" element={<Layout><NotFound /></Layout>} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
     </AuthProvider>
   </QueryClientProvider>
 );
