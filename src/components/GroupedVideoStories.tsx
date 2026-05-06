@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import {
   Eye, ChevronRight, CheckCircle,
-  Heart, Send, MoreVertical, Sparkles, Shield, Star, Play, Pause,
+  MoreVertical, Sparkles, Shield, Star, Play, Pause,
   User, Video,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -16,12 +16,38 @@ const timeAgo = (dateStr: string) => {
   return `há ${m}m`;
 };
 
+/* ── Hook: devolve o seller_id do utilizador autenticado (se for vendedor) ── */
+const useCurrentSellerId = () => {
+  const [sellerId, setSellerId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      // Tenta encontrar o seller ligado ao user autenticado
+      const { data } = await supabase
+        .from("sellers")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (data) setSellerId(data.id);
+    };
+    load();
+  }, []);
+
+  return sellerId;
+};
+
 /* ── Mini menu do vendedor ── */
 const SellerMenu = ({
+  seller,
+  hasMoreStories,
   onClose,
   onViewProfile,
   onViewMoments,
 }: {
+  seller: any;
+  hasMoreStories: boolean;
   onClose: () => void;
   onViewProfile: () => void;
   onViewMoments: () => void;
@@ -40,15 +66,21 @@ const SellerMenu = ({
         <User className="w-4 h-4" style={{ color: "#c8883a" }} />
         <span className="text-[13px] font-medium">Ver perfil</span>
       </button>
-      <div style={{ height: 1, background: "rgba(255,255,255,0.08)" }} />
-      <button
-        className="w-full flex items-center gap-3 px-4 py-3 text-left"
-        style={{ color: "rgba(255,255,255,0.9)" }}
-        onClick={() => { onViewMoments(); onClose(); }}
-      >
-        <Video className="w-4 h-4" style={{ color: "#c8883a" }} />
-        <span className="text-[13px] font-medium">Ver mais momentos</span>
-      </button>
+
+      {/* "Ver mais momentos" só aparece se o vendedor tiver mais de 1 story */}
+      {hasMoreStories && (
+        <>
+          <div style={{ height: 1, background: "rgba(255,255,255,0.08)" }} />
+          <button
+            className="w-full flex items-center gap-3 px-4 py-3 text-left"
+            style={{ color: "rgba(255,255,255,0.9)" }}
+            onClick={() => { onViewMoments(); onClose(); }}
+          >
+            <Video className="w-4 h-4" style={{ color: "#c8883a" }} />
+            <span className="text-[13px] font-medium">Ver mais momentos</span>
+          </button>
+        </>
+      )}
     </div>
   </>
 );
@@ -56,14 +88,16 @@ const SellerMenu = ({
 /* ── Card individual ── */
 const StoryCard = ({
   group,
+  currentSellerId,
   onProductClick,
   onViewProfile,
   onViewMoments,
 }: {
   group: any;
+  currentSellerId: string | null;
   onProductClick: (id: string) => void;
-  onViewProfile: (sellerId: string) => void;
-  onViewMoments: (sellerId: string) => void;
+  onViewProfile: (seller: any) => void;
+  onViewMoments: (seller: any) => void;
 }) => {
   const firstStory = group.stories[0];
   const seller = group.seller;
@@ -75,16 +109,19 @@ const StoryCard = ({
   const [showMenu, setShowMenu] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  // Só mostra views se for o próprio vendedor que publicou
+  const isOwner = currentSellerId === seller?.id;
+  // "Ver mais momentos" só aparece se tiver mais de 1 story
+  const hasMoreStories = group.stories.length > 1;
+
   const blockContext = (e: React.MouseEvent) => e.preventDefault();
 
   const handlePlay = () => {
-    setPlaying(true);
-    setTimeout(() => {
-      if (videoRef.current) {
-        videoRef.current.currentTime = 0;
-        videoRef.current.play();
-      }
-    }, 30);
+    if (videoRef.current) {
+      videoRef.current.currentTime = 0;
+      videoRef.current.play();
+      setPlaying(true);
+    }
   };
 
   const handlePause = () => {
@@ -125,6 +162,7 @@ const StoryCard = ({
               <polyline points="6 9 12 15 18 9" />
             </svg>
           </button>
+
           {seller?.is_verified && (
             <span
               className="inline-block text-[9px] px-1.5 py-0.5 rounded font-semibold mt-0.5"
@@ -144,9 +182,11 @@ const StoryCard = ({
 
         {showMenu && (
           <SellerMenu
+            seller={seller}
+            hasMoreStories={hasMoreStories}
             onClose={() => setShowMenu(false)}
-            onViewProfile={() => onViewProfile(seller?.id)}
-            onViewMoments={() => onViewMoments(seller?.id)}
+            onViewProfile={() => onViewProfile(seller)}
+            onViewMoments={() => onViewMoments(seller)}
           />
         )}
       </div>
@@ -157,15 +197,7 @@ const StoryCard = ({
         style={{ aspectRatio: "4/5" }}
         onContextMenu={blockContext}
       >
-        {/*
-          ── SOLUÇÃO DA CAPA ──
-          O vídeo está SEMPRE montado e visível.
-          Quando está em pausa, fica no frame 0 (ou no frame onde parou).
-          O botão play sobrepõe-se com opacity quando não está a reproduzir.
-          Assim nunca há fundo preto — o vídeo serve de capa de si mesmo.
-        */}
-
-        {/* Thumbnail estática se existir */}
+        {/* Thumbnail estática se existir (sobreposta ao vídeo quando parado) */}
         {firstStory.thumbnail_url && !playing && (
           <img
             src={firstStory.thumbnail_url}
@@ -174,13 +206,16 @@ const StoryCard = ({
           />
         )}
 
-        {/* Vídeo — sempre presente, serve de poster quando parado */}
+        {/*
+          Vídeo sempre montado com preload="auto".
+          Quando está parado fica no frame actual (não fica preto).
+          O browser mobile mostra o primeiro frame carregado como poster natural.
+        */}
         <video
           ref={videoRef}
-          src={firstStory.image_url}
+          src={`${firstStory.image_url}#t=0.001`}
           className="w-full h-full object-cover"
           playsInline
-          muted={false}
           preload="auto"
           onEnded={() => setPlaying(false)}
           onPause={() => setPlaying(false)}
@@ -190,11 +225,11 @@ const StoryCard = ({
           disablePictureInPicture
         />
 
-        {/* Overlay escuro + botão play quando parado */}
+        {/* Overlay + botão play quando parado */}
         {!playing && (
           <button
             className="absolute inset-0 z-20 flex items-center justify-center"
-            style={{ background: "rgba(0,0,0,0.25)" }}
+            style={{ background: "rgba(0,0,0,0.28)" }}
             onClick={handlePlay}
           >
             <div
@@ -206,7 +241,7 @@ const StoryCard = ({
           </button>
         )}
 
-        {/* Botão pausa durante reprodução */}
+        {/* Botão pausa */}
         {playing && (
           <button
             className="absolute bottom-3 right-3 z-20 w-9 h-9 rounded-full flex items-center justify-center"
@@ -263,16 +298,14 @@ const StoryCard = ({
         </>
       )}
 
-      {/* ── Rodapé ── */}
-      <div className="px-3 py-2.5 flex items-center justify-between" style={{ background: "#2e1608" }}>
-        <span className="flex items-center gap-1 text-[11px]" style={{ color: "rgba(255,255,255,0.55)" }}>
-          <Eye className="w-3.5 h-3.5" /> {firstStory.views_count || 0}
-        </span>
-        <div className="flex items-center gap-4">
-          <Heart className="w-5 h-5" style={{ color: "rgba(255,255,255,0.55)" }} />
-          <Send className="w-5 h-5" style={{ color: "rgba(255,255,255,0.55)" }} />
+      {/* ── Rodapé: só mostra views se for o dono ── */}
+      {isOwner && (
+        <div className="px-3 py-2.5 flex items-center" style={{ background: "#2e1608" }}>
+          <span className="flex items-center gap-1 text-[11px]" style={{ color: "rgba(255,255,255,0.55)" }}>
+            <Eye className="w-3.5 h-3.5" /> {firstStory.views_count || 0} visualizações
+          </span>
         </div>
-      </div>
+      )}
     </div>
   );
 };
@@ -284,6 +317,7 @@ const GroupedVideoStories = () => {
   const queryClient = useQueryClient();
   const [currentPage, setCurrentPage] = useState(0);
   const carouselRef = useRef<HTMLDivElement>(null);
+  const currentSellerId = useCurrentSellerId();
 
   const { data: stories = [] } = useQuery({
     queryKey: ["video_stories_grouped"],
@@ -333,7 +367,21 @@ const GroupedVideoStories = () => {
   const onScroll = () => {
     if (!carouselRef.current) return;
     const { scrollLeft, clientWidth } = carouselRef.current;
-    setCurrentPage(Math.round(scrollLeft / clientWidth));
+    // Calcula página baseado na largura de cada card (responsivo)
+    const cardWidth = carouselRef.current.querySelector("div")?.clientWidth || clientWidth;
+    setCurrentPage(Math.round(scrollLeft / (cardWidth + 16)));
+  };
+
+  // Navega para o perfil correcto conforme o tipo de seller
+  const handleViewProfile = (seller: any) => {
+    if (!seller) return;
+    const route = seller.type === "empresa" ? `/empresa/${seller.id}` : `/vendedor/${seller.id}`;
+    navigate(route);
+  };
+
+  const handleViewMoments = (seller: any) => {
+    if (!seller) return;
+    navigate(`/momentos/${seller.id}`);
   };
 
   if (sellerGroups.length === 0) return null;
@@ -353,18 +401,29 @@ const GroupedVideoStories = () => {
         </span>
       </div>
 
+      {/*
+        Carrossel responsivo:
+        - Mobile  (<640px): 1 card por vez, largura total
+        - Tablet  (640-1024px): 2 cards por vez
+        - Desktop (>1024px): 3 cards por vez
+        Usa CSS custom properties para o tamanho do card via classes Tailwind
+      */}
       <div
         ref={carouselRef}
         onScroll={onScroll}
         className="flex gap-4 overflow-x-auto scrollbar-hide snap-x snap-mandatory"
       >
         {sellerGroups.map((group: any) => (
-          <div key={group.seller?.id} className="snap-start flex-shrink-0 w-full">
+          <div
+            key={group.seller?.id}
+            className="snap-start flex-shrink-0 w-full sm:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)]"
+          >
             <StoryCard
               group={group}
+              currentSellerId={currentSellerId}
               onProductClick={(id) => navigate(`/produto/${id}`)}
-              onViewProfile={(sellerId) => navigate(`/loja/${sellerId}`)}
-              onViewMoments={(sellerId) => navigate(`/momentos/${sellerId}`)}
+              onViewProfile={handleViewProfile}
+              onViewMoments={handleViewMoments}
             />
           </div>
         ))}
