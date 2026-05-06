@@ -58,16 +58,15 @@ const GroupedVideoStories = () => {
   const [currentPage, setCurrentPage] = useState(0);
   const carouselRef = useRef<HTMLDivElement>(null);
 
-  /* ── Query (inalterada) ── */
   const { data: stories = [] } = useQuery({
     queryKey: ["video_stories_grouped"],
     queryFn: async () => {
-      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const now = new Date().toISOString();
       const { data, error } = await supabase
         .from("seller_stories")
         .select("*, sellers(id, name, logo_url, is_verified, type), products(id, title, price, old_price)")
         .eq("is_active", true)
-        .gte("created_at", twentyFourHoursAgo)
+        .or(`expires_at.is.null,expires_at.gte.${now}`)  // ← corrigido: usa expires_at em vez de created_at
         .order("created_at", { ascending: false });
       if (error) throw error;
 
@@ -149,7 +148,11 @@ const GroupedVideoStories = () => {
           {sellerGroups.map((group: any) => {
             const firstStory = group.stories[0];
             const seller = group.seller;
-            const product = firstStory.products;
+
+            // ← corrigido: pega a primeira story que tiver produto vinculado
+            const storyWithProduct = group.stories.find((s: any) => s.products);
+            const product = storyWithProduct?.products;
+            const productCover = storyWithProduct?.product_cover;
 
             return (
               <div
@@ -231,13 +234,13 @@ const GroupedVideoStories = () => {
                       style={{ background: "#3d1f0c" }}
                       onClick={() => navigate(`/produto/${product.id}`)}
                     >
-                      {firstStory.product_cover && (
+                      {productCover && (
                         <div
                           className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0"
                           style={{ background: "rgba(255,255,255,0.08)" }}
                         >
                           <img
-                            src={firstStory.product_cover}
+                            src={productCover}
                             alt=""
                             className="w-full h-full object-cover"
                           />
@@ -314,7 +317,7 @@ const GroupedVideoStories = () => {
         )}
       </section>
 
-      {/* ══════════════════════════ Viewer fullscreen (inalterado) ══════════════════════════ */}
+      {/* ══════════════════════════ Viewer fullscreen ══════════════════════════ */}
       {activeGroup && (
         <div
           className="fixed inset-0 z-50 bg-black flex flex-col"
