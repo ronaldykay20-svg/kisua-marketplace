@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import {
-  Play, Eye, X, ChevronLeft, ChevronRight, CheckCircle,
-  ShoppingCart, Heart, Send, MoreVertical, Sparkles, Shield, Star,
+  Eye, X, ChevronLeft, ChevronRight, CheckCircle,
+  ShoppingCart, Heart, Send, MoreVertical, Sparkles, Shield, Star, Play,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,36 +16,223 @@ const timeAgo = (dateStr: string) => {
   return `há ${m}m`;
 };
 
-/** Capa automática do primeiro frame do vídeo */
-const VideoCover = ({ src, className }: { src: string; className?: string }) => {
-  const [poster, setPoster] = useState<string | null>(null);
+/** Card individual com vídeo inline */
+const StoryCard = ({
+  group,
+  onProductClick,
+}: {
+  group: any;
+  onProductClick: (id: string) => void;
+}) => {
+  const firstStory = group.stories[0];
+  const seller = group.seller;
+  const storyWithProduct = group.stories.find((s: any) => s.products);
+  const product = storyWithProduct?.products;
+  const productCover = storyWithProduct?.product_cover;
+
+  const [playing, setPlaying] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  useEffect(() => {
-    const v = document.createElement("video");
-    v.crossOrigin = "anonymous";
-    v.muted = true;
-    v.preload = "metadata";
-    v.src = src;
-    v.currentTime = 0.1;
-    const onLoaded = () => {
-      try {
-        const canvas = document.createElement("canvas");
-        canvas.width = v.videoWidth || 360;
-        canvas.height = v.videoHeight || 640;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
-          setPoster(canvas.toDataURL("image/jpeg", 0.7));
-        }
-      } catch { /* CORS bloqueado */ }
-    };
-    v.addEventListener("loadeddata", onLoaded, { once: true });
-    return () => v.removeEventListener("loadeddata", onLoaded);
-  }, [src]);
+  const handlePlay = () => {
+    setPlaying(true);
+    setTimeout(() => videoRef.current?.play(), 50);
+  };
 
-  if (poster) return <img src={poster} alt="" className={className} loading="lazy" />;
-  return <video ref={videoRef} src={src} className={className} muted playsInline preload="metadata" />;
+  const handleVideoPause = () => setPlaying(false);
+
+  // Previne menu de contexto (download) no vídeo
+  const blockContext = (e: React.MouseEvent) => e.preventDefault();
+
+  return (
+    <div
+      className="w-full rounded-2xl overflow-hidden flex flex-col"
+      style={{ background: "#2e1608" }}
+    >
+      {/* ── Topo: info do vendedor ── */}
+      <div className="px-3 pt-3 pb-2 flex items-start gap-2">
+        <div
+          className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 border-2"
+          style={{ borderColor: "rgba(255,255,255,0.25)" }}
+        >
+          {seller?.logo_url ? (
+            <img src={seller.logo_url} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-sm font-bold text-white bg-white/20">
+              {seller?.name?.charAt(0)}
+            </div>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1">
+            <span className="text-white text-[13px] font-bold truncate leading-tight">
+              {seller?.name}
+            </span>
+            {seller?.is_verified && (
+              <CheckCircle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "#60a5fa" }} />
+            )}
+          </div>
+          {seller?.is_verified && (
+            <span
+              className="inline-block text-[9px] px-1.5 py-0.5 rounded font-semibold mt-0.5"
+              style={{ background: "#7c4b1e", color: "#fff" }}
+            >
+              Verificado
+            </span>
+          )}
+          <p className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>
+            {timeAgo(firstStory.created_at)}
+          </p>
+        </div>
+        <button className="p-0.5 flex-shrink-0" style={{ color: "rgba(255,255,255,0.5)" }}>
+          <MoreVertical className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* ── Média: vídeo inline ── */}
+      <div
+        className="relative overflow-hidden bg-black"
+        style={{ aspectRatio: "4/5" }}
+        onContextMenu={blockContext}
+      >
+        {/* Thumbnail / poster enquanto não reproduz */}
+        {!playing && (
+          <>
+            {firstStory.thumbnail_url ? (
+              <img
+                src={firstStory.thumbnail_url}
+                alt=""
+                className="w-full h-full object-cover"
+                loading="lazy"
+              />
+            ) : (
+              <video
+                src={firstStory.image_url}
+                className="w-full h-full object-cover"
+                muted
+                playsInline
+                preload="metadata"
+                onContextMenu={blockContext}
+              />
+            )}
+            {/* Botão play central */}
+            <button
+              className="absolute inset-0 flex items-center justify-center"
+              onClick={handlePlay}
+              style={{ background: "rgba(0,0,0,0.25)" }}
+            >
+              <div
+                className="w-14 h-14 rounded-full flex items-center justify-center"
+                style={{ background: "rgba(255,255,255,0.25)", backdropFilter: "blur(4px)" }}
+              >
+                <Play className="w-7 h-7 text-white fill-white ml-1" />
+              </div>
+            </button>
+          </>
+        )}
+
+        {/* Vídeo real — sem controlos nativos, sem download */}
+        <video
+          ref={videoRef}
+          src={firstStory.image_url}
+          className={`w-full h-full object-cover ${playing ? "block" : "hidden"}`}
+          playsInline
+          muted={false}
+          onPause={handleVideoPause}
+          onEnded={handleVideoPause}
+          onContextMenu={blockContext}
+          controlsList="nodownload nofullscreen noremoteplayback"
+          disablePictureInPicture
+          // sem controls — usa barra personalizada abaixo
+        />
+
+        {/* Barra personalizada visível só durante reprodução */}
+        {playing && (
+          <div className="absolute bottom-0 left-0 right-0 flex items-center gap-2 px-3 py-2"
+            style={{ background: "linear-gradient(transparent, rgba(0,0,0,0.6))" }}
+          >
+            <button
+              className="text-white"
+              onClick={() => {
+                videoRef.current?.pause();
+                setPlaying(false);
+              }}
+            >
+              <svg className="w-5 h-5 fill-white" viewBox="0 0 24 24">
+                <rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" />
+              </svg>
+            </button>
+            <div className="flex-1 h-1 rounded-full bg-white/30 overflow-hidden">
+              <div className="h-full bg-white w-0 transition-all" />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Produto ── */}
+      {product && (
+        <>
+          <div
+            className="px-3 py-2.5 flex items-center gap-3 cursor-pointer"
+            style={{ background: "#3d1f0c" }}
+            onClick={() => onProductClick(product.id)}
+          >
+            {productCover && (
+              <div
+                className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0"
+                style={{ background: "rgba(255,255,255,0.08)" }}
+              >
+                <img src={productCover} alt="" className="w-full h-full object-cover" />
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-white text-[12px] font-semibold line-clamp-1 leading-tight">
+                {product.title}
+              </p>
+              <p className="text-[13px] font-black mt-0.5" style={{ color: "#c8883a" }}>
+                {Number(product.price).toLocaleString("pt-AO")} Kz
+              </p>
+            </div>
+            <button
+              className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+              style={{ background: "#5a2d10" }}
+            >
+              <ChevronRight className="w-5 h-5 text-white" />
+            </button>
+          </div>
+
+          {seller?.is_verified && (
+            <div
+              className="px-3 py-2 flex items-center gap-2 flex-wrap"
+              style={{ background: "#3d1f0c", borderTop: "1px solid rgba(255,255,255,0.06)" }}
+            >
+              <span className="flex items-center gap-1 text-[10px]" style={{ color: "rgba(255,255,255,0.6)" }}>
+                <Shield className="w-3 h-3" style={{ color: "#c8883a" }} /> Entrega rápida
+              </span>
+              <span style={{ color: "rgba(255,255,255,0.2)", fontSize: 10 }}>|</span>
+              <span className="flex items-center gap-1 text-[10px]" style={{ color: "rgba(255,255,255,0.6)" }}>
+                <Star className="w-3 h-3 fill-amber-400" style={{ color: "#facc15" }} /> 4.9
+              </span>
+              <span style={{ color: "rgba(255,255,255,0.2)", fontSize: 10 }}>|</span>
+              <span className="flex items-center gap-1 text-[10px]" style={{ color: "rgba(255,255,255,0.6)" }}>
+                <CheckCircle className="w-3 h-3" style={{ color: "#60a5fa" }} /> Parceiro certificado
+              </span>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── Rodapé ── */}
+      <div className="px-3 py-2.5 flex items-center justify-between" style={{ background: "#2e1608" }}>
+        <span className="flex items-center gap-1 text-[11px]" style={{ color: "rgba(255,255,255,0.55)" }}>
+          <Eye className="w-3.5 h-3.5" /> {firstStory.views_count || 0}
+        </span>
+        <div className="flex items-center gap-4">
+          <Heart className="w-5 h-5" style={{ color: "rgba(255,255,255,0.55)" }} />
+          <Send className="w-5 h-5" style={{ color: "rgba(255,255,255,0.55)" }} />
+        </div>
+      </div>
+    </div>
+  );
 };
 
 /* ─────────────────────────────────────────────── */
@@ -53,20 +240,19 @@ const VideoCover = ({ src, className }: { src: string; className?: string }) => 
 const GroupedVideoStories = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [activeGroup, setActiveGroup] = useState<any>(null);
-  const [storyIdx, setStoryIdx] = useState(0);
   const [currentPage, setCurrentPage] = useState(0);
   const carouselRef = useRef<HTMLDivElement>(null);
 
   const { data: stories = [] } = useQuery({
     queryKey: ["video_stories_grouped"],
     queryFn: async () => {
+      // ✅ usa expires_at em vez de filtro fixo de 24h
       const now = new Date().toISOString();
       const { data, error } = await supabase
         .from("seller_stories")
         .select("*, sellers(id, name, logo_url, is_verified, type), products(id, title, price, old_price)")
         .eq("is_active", true)
-        .or(`expires_at.is.null,expires_at.gte.${now}`)  // ← corrigido: usa expires_at em vez de created_at
+        .or(`expires_at.is.null,expires_at.gte.${now}`)
         .order("created_at", { ascending: false });
       if (error) throw error;
 
@@ -103,323 +289,66 @@ const GroupedVideoStories = () => {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["video_stories_grouped"] }),
   });
 
-  const openGroup = (group: any, idx = 0) => {
-    setActiveGroup(group);
-    setStoryIdx(idx);
-    incrementView.mutate(group.stories[idx].id);
-  };
-
-  /* Rastreia página actual pelo scroll */
   const onScroll = () => {
     if (!carouselRef.current) return;
     const { scrollLeft, clientWidth } = carouselRef.current;
-    setCurrentPage(Math.round(scrollLeft / (clientWidth / 2 + 6)));
+    setCurrentPage(Math.round(scrollLeft / clientWidth));
   };
 
   if (sellerGroups.length === 0) return null;
 
-  const totalDots = Math.ceil(sellerGroups.length / 2);
-
-  /* ═══════════════════════════════════════════════ RENDER */
   return (
-    <>
-      <section className="px-4 pt-5 pb-3">
+    <section className="px-4 pt-5 pb-3">
+      {/* ── Cabeçalho ── */}
+      <div className="flex items-center gap-2 mb-4">
+        <Sparkles className="w-4 h-4" style={{ color: "#7c4b1e" }} />
+        <h2 className="text-[15px] font-bold" style={{ color: "#1a0d06" }}>
+          Momento de nossos parceiros
+        </h2>
+        <span
+          className="text-[10px] px-2.5 py-0.5 rounded-full font-bold"
+          style={{ background: "#e8d5be", color: "#7c4b1e" }}
+        >
+          24h
+        </span>
+      </div>
 
-        {/* ── Cabeçalho ── */}
-        <div className="flex items-center gap-2 mb-4">
-          <Sparkles className="w-4 h-4" style={{ color: "#7c4b1e" }} />
-          <h2 className="text-[15px] font-bold" style={{ color: "#1a0d06" }}>
-            Momento de nossos parceiros
-          </h2>
-          <span
-            className="text-[10px] px-2.5 py-0.5 rounded-full font-bold"
-            style={{ background: "#e8d5be", color: "#7c4b1e" }}
+      {/* ── Carrossel fullwidth (1 card por vez) ── */}
+      <div
+        ref={carouselRef}
+        onScroll={onScroll}
+        className="flex gap-4 overflow-x-auto scrollbar-hide snap-x snap-mandatory"
+      >
+        {sellerGroups.map((group: any) => (
+          <div
+            key={group.seller?.id}
+            className="snap-start flex-shrink-0 w-full"
           >
-            24h
-          </span>
-        </div>
-
-        {/* ── Carrossel ── */}
-        <div
-          ref={carouselRef}
-          onScroll={onScroll}
-          className="flex gap-3 overflow-x-auto scrollbar-hide snap-x snap-mandatory"
-        >
-          {sellerGroups.map((group: any) => {
-            const firstStory = group.stories[0];
-            const seller = group.seller;
-
-            // ← corrigido: pega a primeira story que tiver produto vinculado
-            const storyWithProduct = group.stories.find((s: any) => s.products);
-            const product = storyWithProduct?.products;
-            const productCover = storyWithProduct?.product_cover;
-
-            return (
-              <div
-                key={seller?.id}
-                className="snap-start flex-shrink-0 rounded-2xl overflow-hidden flex flex-col"
-                style={{
-                  width: "calc(50% - 6px)",
-                  background: "#2e1608",
-                }}
-              >
-                {/* ── Topo: info do vendedor ── */}
-                <div className="px-2.5 pt-2.5 pb-1.5 flex items-start gap-2">
-                  {/* Avatar */}
-                  <div
-                    className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 border-2"
-                    style={{ borderColor: "rgba(255,255,255,0.25)" }}
-                  >
-                    {seller?.logo_url ? (
-                      <img src={seller.logo_url} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-xs font-bold text-white bg-white/20">
-                        {seller?.name?.charAt(0)}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Nome + badge + tempo */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1">
-                      <span className="text-white text-[11px] font-bold truncate leading-tight">
-                        {seller?.name}
-                      </span>
-                      {seller?.is_verified && (
-                        <CheckCircle className="w-3 h-3 flex-shrink-0" style={{ color: "#60a5fa" }} />
-                      )}
-                    </div>
-                    {seller?.is_verified && (
-                      <span
-                        className="inline-block text-[8px] px-1.5 py-0.5 rounded font-semibold mt-0.5"
-                        style={{ background: "#7c4b1e", color: "#fff" }}
-                      >
-                        Verificado
-                      </span>
-                    )}
-                    <p className="text-[9px] mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>
-                      {timeAgo(firstStory.created_at)}
-                    </p>
-                  </div>
-
-                  {/* 3 pontos */}
-                  <button className="p-0.5 flex-shrink-0" style={{ color: "rgba(255,255,255,0.5)" }}>
-                    <MoreVertical className="w-4 h-4" />
-                  </button>
-                </div>
-
-                {/* ── Vídeo / Imagem ── */}
-                <div
-                  className="relative cursor-pointer overflow-hidden"
-                  style={{ aspectRatio: "3/4" }}
-                  onClick={() => openGroup(group)}
-                >
-                  {firstStory.thumbnail_url ? (
-                    <img
-                      src={firstStory.thumbnail_url}
-                      alt=""
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <VideoCover src={firstStory.image_url} className="w-full h-full object-cover" />
-                  )}
-                </div>
-
-                {/* ── Produto ── */}
-                {product && (
-                  <>
-                    <div
-                      className="px-2.5 py-2 flex items-center gap-2 cursor-pointer"
-                      style={{ background: "#3d1f0c" }}
-                      onClick={() => navigate(`/produto/${product.id}`)}
-                    >
-                      {productCover && (
-                        <div
-                          className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0"
-                          style={{ background: "rgba(255,255,255,0.08)" }}
-                        >
-                          <img
-                            src={productCover}
-                            alt=""
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white text-[10px] font-semibold line-clamp-1 leading-tight">
-                          {product.title}
-                        </p>
-                        <p className="text-[11px] font-black mt-0.5" style={{ color: "#c8883a" }}>
-                          {Number(product.price).toLocaleString("pt-AO")} Kz
-                        </p>
-                      </div>
-                      <button
-                        className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
-                        style={{ background: "#5a2d10" }}
-                      >
-                        <ChevronRight className="w-4 h-4 text-white" />
-                      </button>
-                    </div>
-
-                    {/* Badges extras (vendedores verificados) */}
-                    {seller?.is_verified && (
-                      <div
-                        className="px-2.5 py-1.5 flex items-center gap-1.5 flex-wrap"
-                        style={{ background: "#3d1f0c", borderTop: "1px solid rgba(255,255,255,0.06)" }}
-                      >
-                        <span className="flex items-center gap-0.5 text-[8px]" style={{ color: "rgba(255,255,255,0.6)" }}>
-                          <Shield className="w-2.5 h-2.5" style={{ color: "#c8883a" }} /> Entrega rápida
-                        </span>
-                        <span style={{ color: "rgba(255,255,255,0.2)", fontSize: 8 }}>|</span>
-                        <span className="flex items-center gap-0.5 text-[8px]" style={{ color: "rgba(255,255,255,0.6)" }}>
-                          <Star className="w-2.5 h-2.5 fill-amber-400" style={{ color: "#facc15" }} /> 4.9
-                        </span>
-                        <span style={{ color: "rgba(255,255,255,0.2)", fontSize: 8 }}>|</span>
-                        <span className="flex items-center gap-0.5 text-[8px]" style={{ color: "rgba(255,255,255,0.6)" }}>
-                          <CheckCircle className="w-2.5 h-2.5" style={{ color: "#60a5fa" }} /> Parceiro certificado
-                        </span>
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {/* ── Rodapé: views + coração + partilha ── */}
-                <div className="px-3 py-2 flex items-center justify-between" style={{ background: "#2e1608" }}>
-                  <span className="flex items-center gap-1 text-[10px]" style={{ color: "rgba(255,255,255,0.55)" }}>
-                    <Eye className="w-3 h-3" /> {firstStory.views_count || 0}
-                  </span>
-                  <div className="flex items-center gap-3">
-                    <Heart className="w-4 h-4" style={{ color: "rgba(255,255,255,0.55)" }} />
-                    <Send className="w-4 h-4" style={{ color: "rgba(255,255,255,0.55)" }} />
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* ── Dots de paginação ── */}
-        {totalDots > 1 && (
-          <div className="flex justify-center gap-2 mt-4">
-            {Array.from({ length: totalDots }).map((_, i) => (
-              <div
-                key={i}
-                className="rounded-full transition-all duration-300"
-                style={{
-                  width: i === currentPage ? 8 : 6,
-                  height: i === currentPage ? 8 : 6,
-                  background: i === currentPage ? "#7c4b1e" : "#d1bfae",
-                }}
-              />
-            ))}
+            <StoryCard
+              group={group}
+              onProductClick={(id) => navigate(`/produto/${id}`)}
+            />
           </div>
-        )}
-      </section>
+        ))}
+      </div>
 
-      {/* ══════════════════════════ Viewer fullscreen ══════════════════════════ */}
-      {activeGroup && (
-        <div
-          className="fixed inset-0 z-50 bg-black flex flex-col"
-          onClick={() => setActiveGroup(null)}
-        >
-          {/* Barra de progresso */}
-          <div className="absolute top-2 left-4 right-4 z-50 flex gap-1">
-            {activeGroup.stories.map((_: any, i: number) => (
-              <div key={i} className="flex-1 h-0.5 rounded-full bg-white/30 overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all ${
-                    i <= storyIdx ? "bg-white w-full" : "w-0"
-                  }`}
-                />
-              </div>
-            ))}
-          </div>
-
-          {/* Fechar */}
-          <div className="absolute top-6 right-4 z-50">
-            <button
-              onClick={() => setActiveGroup(null)}
-              className="p-2 rounded-full bg-white/20 text-white"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Info vendedor */}
-          <div className="absolute top-6 left-4 z-50 flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-white bg-muted">
-              {activeGroup.seller?.logo_url ? (
-                <img src={activeGroup.seller.logo_url} alt="" className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-xs font-bold text-white bg-white/20">
-                  {activeGroup.seller?.name?.charAt(0)}
-                </div>
-              )}
-            </div>
-            <p className="text-white text-sm font-bold">{activeGroup.seller?.name}</p>
-          </div>
-
-          {/* Navegar anterior */}
-          {storyIdx > 0 && (
-            <button
-              className="absolute left-2 top-1/2 -translate-y-1/2 z-50 p-2 rounded-full bg-white/20 text-white"
-              onClick={(e) => { e.stopPropagation(); setStoryIdx(storyIdx - 1); }}
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-          )}
-
-          {/* Navegar próximo */}
-          {storyIdx < activeGroup.stories.length - 1 && (
-            <button
-              className="absolute right-2 top-1/2 -translate-y-1/2 z-50 p-2 rounded-full bg-white/20 text-white"
-              onClick={(e) => { e.stopPropagation(); setStoryIdx(storyIdx + 1); }}
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          )}
-
-          <video
-            src={activeGroup.stories[storyIdx]?.image_url}
-            className="w-full h-full object-contain"
-            controls
-            autoPlay
-            onClick={(e) => e.stopPropagation()}
-          />
-
-          {activeGroup.stories[storyIdx]?.products && (
+      {/* ── Dots de paginação ── */}
+      {sellerGroups.length > 1 && (
+        <div className="flex justify-center gap-2 mt-4">
+          {sellerGroups.map((_, i) => (
             <div
-              className="absolute bottom-6 left-4 right-4 bg-card/95 backdrop-blur rounded-xl p-3 flex items-center gap-3 cursor-pointer border border-border"
-              onClick={(e) => {
-                e.stopPropagation();
-                setActiveGroup(null);
-                navigate(`/produto/${activeGroup.stories[storyIdx].products.id}`);
+              key={i}
+              className="rounded-full transition-all duration-300"
+              style={{
+                width: i === currentPage ? 8 : 6,
+                height: i === currentPage ? 8 : 6,
+                background: i === currentPage ? "#7c4b1e" : "#d1bfae",
               }}
-            >
-              <div className="w-12 h-12 rounded-lg overflow-hidden bg-muted flex-shrink-0">
-                <img
-                  src={activeGroup.stories[storyIdx].product_cover || ""}
-                  alt=""
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-bold text-foreground line-clamp-1">
-                  {activeGroup.stories[storyIdx].products.title}
-                </p>
-                <p className="text-sm font-black text-primary">
-                  {Number(activeGroup.stories[storyIdx].products.price).toLocaleString("pt-AO")} Kz
-                </p>
-              </div>
-              <button className="p-2 rounded-lg bg-primary text-primary-foreground flex-shrink-0">
-                <ShoppingCart className="w-4 h-4" />
-              </button>
-            </div>
-          )}
+            />
+          ))}
         </div>
       )}
-    </>
+    </section>
   );
 };
 
