@@ -1,7 +1,5 @@
 import { Bell, ChevronLeft, Package, Tag, Megaphone, ShieldCheck, Check, Trash2, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import Navbar from "@/components/Navbar";
-import BottomNav from "@/components/BottomNav";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -52,20 +50,17 @@ const Notificacoes = () => {
   if (!user) {
     return (
       <div className="min-h-screen bg-background pb-14 md:pb-0">
-        <Navbar />
         <div className="container mx-auto px-3 py-8 text-center">
           <Bell className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
           <p className="text-sm text-muted-foreground">Faça login para ver notificações.</p>
           <button onClick={() => navigate("/auth")} className="mt-3 px-6 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-card">Entrar</button>
         </div>
-        <BottomNav />
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-background pb-14 md:pb-0">
-      <Navbar />
       <div className="container mx-auto px-3 py-4 max-w-lg">
         <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-muted-foreground mb-4">
           <ChevronLeft className="w-4 h-4" /> Voltar
@@ -137,7 +132,6 @@ const Notificacoes = () => {
           })}
         </div>
       </div>
-      <BottomNav />
     </div>
   );
 };

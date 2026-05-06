@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { Package, ChevronRight, Truck, Clock, CheckCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import Navbar from "@/components/Navbar";
-import BottomNav from "@/components/BottomNav";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrders } from "@/hooks/useSupabaseData";
 
@@ -32,14 +30,12 @@ const Pedidos = () => {
   if (!user) {
     return (
       <div className="min-h-screen bg-background pb-14 md:pb-0">
-        <Navbar />
         <div className="container mx-auto px-3 py-8 text-center">
           <Package className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
           <h2 className="text-base font-bold text-foreground mb-1">Faça login para ver pedidos</h2>
           <p className="text-xs text-muted-foreground mb-4">Acompanhe o estado das suas encomendas.</p>
           <button onClick={() => navigate("/auth")} className="px-6 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-card">Entrar</button>
         </div>
-        <BottomNav />
       </div>
     );
   }
@@ -48,7 +44,6 @@ const Pedidos = () => {
 
   return (
     <div className="min-h-screen bg-background pb-14 md:pb-0">
-      <Navbar />
       <div className="container mx-auto px-3 py-4 max-w-2xl">
         <h1 className="text-lg font-bold text-foreground mb-3">Meus Pedidos</h1>
 
@@ -96,7 +91,6 @@ const Pedidos = () => {
           </div>
         )}
       </div>
-      <BottomNav />
     </div>
   );
 };

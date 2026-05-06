@@ -1,6 +1,4 @@
 import { Search, ChevronRight, MessageCircle, Phone, Mail, ShieldCheck, Package, CreditCard, Truck, RotateCcw } from "lucide-react";
-import Navbar from "@/components/Navbar";
-import BottomNav from "@/components/BottomNav";
 
 const topics = [
   { icon: Package, title: "Pedidos e Entregas", desc: "Rastreamento, prazos de entrega" },
@@ -22,7 +20,6 @@ const faqs = [
 const Ajuda = () => {
   return (
     <div className="min-h-screen bg-background pb-14 md:pb-0">
-      <Navbar />
       <div className="container mx-auto px-3 py-4 max-w-2xl">
         <h1 className="text-lg font-bold text-foreground mb-3">Centro de Ajuda</h1>
 
@@ -61,7 +58,6 @@ const Ajuda = () => {
           ))}
         </div>
       </div>
-      <BottomNav />
     </div>
   );
 };

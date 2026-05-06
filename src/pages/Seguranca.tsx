@@ -3,8 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import Navbar from "@/components/Navbar";
-import BottomNav from "@/components/BottomNav";
 import { toast } from "sonner";
 
 const Seguranca = () => {
@@ -31,7 +29,6 @@ const Seguranca = () => {
 
   return (
     <div className="min-h-screen bg-background pb-14 md:pb-0">
-      <Navbar />
       <div className="container mx-auto px-3 py-4 max-w-lg">
         <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-muted-foreground mb-4">
           <ChevronLeft className="w-4 h-4" /> Voltar
@@ -77,7 +74,6 @@ const Seguranca = () => {
           </div>
         )}
       </div>
-      <BottomNav />
     </div>
   );
 };

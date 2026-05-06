@@ -1,7 +1,5 @@
 import { Heart, Star, ShoppingCart, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import Navbar from "@/components/Navbar";
-import BottomNav from "@/components/BottomNav";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFavorites } from "@/hooks/useSupabaseData";
 import { allProducts } from "@/data/products";
@@ -22,21 +20,18 @@ const Favoritos = () => {
   if (!user) {
     return (
       <div className="min-h-screen bg-background pb-14 md:pb-0">
-        <Navbar />
         <div className="container mx-auto px-3 py-8 text-center">
           <Heart className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
           <h2 className="text-base font-bold text-foreground mb-1">Faça login para ver favoritos</h2>
           <p className="text-xs text-muted-foreground mb-4">Guarde os seus produtos preferidos.</p>
           <button onClick={() => navigate("/auth")} className="px-6 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-card">Entrar</button>
         </div>
-        <BottomNav />
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-background pb-14 md:pb-0">
-      <Navbar />
       <div className="container mx-auto px-3 py-4">
         <div className="flex items-center justify-between mb-3">
           <h1 className="text-lg font-bold text-foreground">Favoritos</h1>
@@ -78,7 +73,6 @@ const Favoritos = () => {
           </div>
         )}
       </div>
-      <BottomNav />
     </div>
   );
 };

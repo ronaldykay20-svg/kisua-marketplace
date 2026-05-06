@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Star, MapPin, CheckCircle, ShoppingBag, UserPlus, UserCheck, Eye, Phone, Clock, Loader2, Send, X, Package, Users } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -109,7 +108,6 @@ const VendedorPerfil = () => {
   if (!seller) {
     return (
       <div className="min-h-screen bg-background">
-        <Navbar />
         <div className="container mx-auto px-3 py-20 text-center">
           <p className="text-muted-foreground">Vendedor não encontrado.</p>
         </div>
@@ -125,7 +123,6 @@ const VendedorPerfil = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
 
       <div className="h-32 md:h-44 overflow-hidden relative">
         <img src={coverImg} alt="" className="w-full h-full object-cover" />

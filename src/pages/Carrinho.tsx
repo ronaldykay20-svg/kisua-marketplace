@@ -3,7 +3,6 @@ import { ArrowLeft, Minus, Plus, Trash2, ShoppingCart, Loader2 } from "lucide-re
 import { useCart } from "@/hooks/useSupabaseData";
 import { useUpdateCartItem, useRemoveCartItem } from "@/hooks/useCartActions";
 import { useAuth } from "@/contexts/AuthContext";
-import BottomNav from "@/components/BottomNav";
 
 const formatPrice = (price: number) =>
   price.toLocaleString("pt-AO").replace(/,/g, ".") + " Kz";
@@ -141,7 +140,6 @@ const Carrinho = () => {
           </div>
         </div>
       )}
-      <BottomNav />
     </div>
   );
 };

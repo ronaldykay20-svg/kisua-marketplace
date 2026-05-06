@@ -1,7 +1,5 @@
 import { useState } from "react";
 import { Shield, Package, Store, Search, Eye, EyeOff, ShieldCheck, CheckCircle, XCircle, UserCheck } from "lucide-react";
-import Navbar from "@/components/Navbar";
-import BottomNav from "@/components/BottomNav";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -95,13 +93,11 @@ const ModeratorPanel = () => {
   if (!isModerator && !isAdmin) {
     return (
       <div className="min-h-screen bg-background pb-14 md:pb-0">
-        <Navbar />
         <div className="container mx-auto px-3 py-8 text-center max-w-md">
           <Shield className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
           <h2 className="text-lg font-bold text-foreground mb-2">Acesso restrito</h2>
           <p className="text-sm text-muted-foreground">Precisas de cargo de moderador para aceder.</p>
         </div>
-        <BottomNav />
       </div>
     );
   }
@@ -114,7 +110,6 @@ const ModeratorPanel = () => {
 
   return (
     <div className="min-h-screen bg-background pb-14 md:pb-0">
-      <Navbar />
       <div className="container mx-auto px-3 py-4 max-w-2xl">
         <div className="flex items-center gap-2 mb-4">
           <Shield className="w-6 h-6 text-amber-500" />
@@ -218,7 +213,6 @@ const ModeratorPanel = () => {
           </div>
         )}
       </div>
-      <BottomNav />
     </div>
   );
 };

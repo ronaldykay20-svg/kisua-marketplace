@@ -3,8 +3,6 @@ import { Zap, Star, Flame, Tag, TrendingDown, Heart, ChevronRight } from "lucide
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import Navbar from "@/components/Navbar";
-import BottomNav from "@/components/BottomNav";
 
 const formatPrice = (price: number) =>
   Number(price).toLocaleString("pt-AO").replace(/,/g, ".") + " Kz";
@@ -88,7 +86,6 @@ const Promocoes = () => {
 
   return (
     <div className="min-h-screen bg-background pb-14 md:pb-0">
-      <Navbar />
 
       <div className="bg-gradient-to-r from-destructive via-walmart-red to-walmart-orange px-3 py-5">
         <div className="container mx-auto flex items-center justify-between">
@@ -234,7 +231,6 @@ const Promocoes = () => {
           </>
         )}
       </div>
-      <BottomNav />
     </div>
   );
 };

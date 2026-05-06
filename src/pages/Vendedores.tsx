@@ -1,5 +1,4 @@
 import { useState } from "react";
-import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Search, Star, MapPin, CheckCircle, ChevronRight, Users, ShoppingBag, Eye, Package } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -44,7 +43,6 @@ const Vendedores = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar />
       <section className="bg-primary py-6">
         <div className="container mx-auto px-3 text-center">
           <Users className="w-8 h-8 text-secondary mx-auto mb-2" />
