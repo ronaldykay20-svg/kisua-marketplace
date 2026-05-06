@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Shield, Users, Search, Plus, Trash2, Crown, Building2, Store, CheckCircle, XCircle, ShieldCheck, UserCheck, UsersRound, FolderTree, ImageIcon, ShoppingBag, Settings, Star, Gavel, Upload, Eye, Copy } from "lucide-react";
+import { Shield, Users, Search, Plus, Trash2, Crown, Building2, Store, CheckCircle, XCircle, ShieldCheck, UserCheck, UsersRound, FolderTree, ImageIcon, ShoppingBag, Settings, Star, Gavel, Upload, Eye, Copy, Megaphone } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,6 +11,7 @@ import AdminCategoriesTab from "@/components/admin/AdminCategoriesTab";
 import AdminOrdersTab from "@/components/admin/AdminOrdersTab";
 import AdminSettingsTab from "@/components/admin/AdminSettingsTab";
 import AdminBannersTab from "@/components/admin/AdminBannersTab";
+import AdminAdsTab from "@/components/admin/AdminAdsTab";
 import { toast } from "sonner";
 
 const roleBadge: Record<string, { label: string; color: string; icon: any }> = {
@@ -19,7 +20,7 @@ const roleBadge: Record<string, { label: string; color: string; icon: any }> = {
   user: { label: "Utilizador", color: "bg-primary/10 text-primary border-primary/20", icon: Users },
 };
 
-type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos" | "encomendas" | "categorias" | "banners" | "definicoes" | "leiloes";
+type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos" | "encomendas" | "categorias" | "banners" | "definicoes" | "leiloes" | "publicidade";
 
 // ── Tab Leilões ───────────────────────────────────────────────────────────────
 const AdminLeiloesTab = () => {
@@ -123,7 +124,6 @@ const AdminLeiloesTab = () => {
 
   return (
     <>
-      {/* ── Métodos de Pagamento ── */}
       <div className="bg-card rounded-xl border border-border p-4 mb-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
@@ -181,7 +181,6 @@ const AdminLeiloesTab = () => {
         </div>
       </div>
 
-      {/* ── Comprovantes ── */}
       <div className="grid grid-cols-3 gap-2 mb-4">
         {[
           { label: "Pendentes", status: "pending", color: "bg-amber-500/10 text-amber-500 border-amber-500/20" },
@@ -240,7 +239,6 @@ const AdminLeiloesTab = () => {
         ))}
       </div>
 
-      {/* Modal comprovante */}
       {proofModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={() => setProofModal(null)}>
           <div className="bg-card border border-border rounded-xl p-4 w-[92vw] max-w-sm shadow-xl" onClick={e => e.stopPropagation()}>
@@ -248,7 +246,7 @@ const AdminLeiloesTab = () => {
             <div className="text-xs space-y-1 mb-3">
               <p className="text-muted-foreground">Utilizador: <span className="font-bold text-foreground">{proofModal.profiles?.full_name || "—"}</span></p>
               <p className="text-muted-foreground">Leilão: <span className="font-bold text-foreground">{proofModal.auctions?.title || "—"}</span></p>
-              <p className="text-muted-foreground">Valor: <span className="font-bold text-walmart-green">{Number(proofModal.amount).toLocaleString("pt-AO")} Kz</span></p>
+              <p className="text-muted-foreground">Valor: <span className="font-bold text-green-500">{Number(proofModal.amount).toLocaleString("pt-AO")} Kz</span></p>
               {proofModal.reference && <p className="text-muted-foreground">Ref: <span className="font-bold text-foreground">{proofModal.reference}</span></p>}
             </div>
             {proofModal.signedUrl && (
@@ -261,6 +259,7 @@ const AdminLeiloesTab = () => {
     </>
   );
 };
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 const AdminPanel = () => {
@@ -417,15 +416,16 @@ const AdminPanel = () => {
 
   const tabs: { key: Tab; label: string; icon: any }[] = [
     { key: "utilizadores", label: "Utilizadores", icon: UsersRound },
-    { key: "categorias", label: "Categorias", icon: FolderTree },
-    { key: "cargos", label: "Cargos", icon: Crown },
-    { key: "vendedores", label: "Vendedores", icon: Store },
-    { key: "empresas", label: "Empresas", icon: Building2 },
-    { key: "encomendas", label: "Encomendas", icon: ShoppingBag },
-    { key: "banners", label: "Banners", icon: ImageIcon },
-    { key: "pedidos", label: "Candidaturas", icon: UserCheck },
-    { key: "leiloes", label: "Leilões", icon: Gavel },
-    { key: "definicoes", label: "Definições", icon: Settings },
+    { key: "categorias",   label: "Categorias",   icon: FolderTree },
+    { key: "cargos",       label: "Cargos",        icon: Crown },
+    { key: "vendedores",   label: "Vendedores",    icon: Store },
+    { key: "empresas",     label: "Empresas",      icon: Building2 },
+    { key: "encomendas",   label: "Encomendas",    icon: ShoppingBag },
+    { key: "banners",      label: "Banners",       icon: ImageIcon },
+    { key: "publicidade",  label: "Publicidade",   icon: Megaphone },
+    { key: "pedidos",      label: "Candidaturas",  icon: UserCheck },
+    { key: "leiloes",      label: "Leilões",       icon: Gavel },
+    { key: "definicoes",   label: "Definições",    icon: Settings },
   ];
 
   return (
@@ -445,7 +445,8 @@ const AdminPanel = () => {
         </div>
 
         {tab === "utilizadores" && <AdminUsersTab />}
-        {tab === "categorias" && <AdminCategoriesTab />}
+        {tab === "categorias"   && <AdminCategoriesTab />}
+        {tab === "publicidade"  && <AdminAdsTab />}
 
         {tab === "cargos" && (
           <>
@@ -571,7 +572,7 @@ const AdminPanel = () => {
         )}
 
         {tab === "encomendas" && <AdminOrdersTab />}
-        {tab === "banners" && <AdminBannersTab />}
+        {tab === "banners"    && <AdminBannersTab />}
         {tab === "definicoes" && <AdminSettingsTab />}
 
         {tab === "pedidos" && (
