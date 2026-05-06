@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Eye, ChevronRight, CheckCircle,
   Heart, Send, MoreVertical, Sparkles, Shield, Star, Play, Pause,
@@ -8,7 +8,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 
-/** Helper de tempo relativo */
 const timeAgo = (dateStr: string) => {
   const diff = Date.now() - new Date(dateStr).getTime();
   const h = Math.floor(diff / 3_600_000);
@@ -19,25 +18,22 @@ const timeAgo = (dateStr: string) => {
 
 /* ── Mini menu do vendedor ── */
 const SellerMenu = ({
-  seller,
   onClose,
   onViewProfile,
   onViewMoments,
 }: {
-  seller: any;
   onClose: () => void;
   onViewProfile: () => void;
   onViewMoments: () => void;
 }) => (
   <>
-    {/* Overlay invisível para fechar */}
     <div className="fixed inset-0 z-40" onClick={onClose} />
     <div
       className="absolute top-14 left-3 z-50 rounded-xl overflow-hidden shadow-2xl"
-      style={{ background: "#1a0d06", border: "1px solid rgba(255,255,255,0.12)", minWidth: 180 }}
+      style={{ background: "#1a0d06", border: "1px solid rgba(255,255,255,0.12)", minWidth: 185 }}
     >
       <button
-        className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors"
+        className="w-full flex items-center gap-3 px-4 py-3 text-left"
         style={{ color: "rgba(255,255,255,0.9)" }}
         onClick={() => { onViewProfile(); onClose(); }}
       >
@@ -46,7 +42,7 @@ const SellerMenu = ({
       </button>
       <div style={{ height: 1, background: "rgba(255,255,255,0.08)" }} />
       <button
-        className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors"
+        className="w-full flex items-center gap-3 px-4 py-3 text-left"
         style={{ color: "rgba(255,255,255,0.9)" }}
         onClick={() => { onViewMoments(); onClose(); }}
       >
@@ -75,43 +71,9 @@ const StoryCard = ({
   const product = storyWithProduct?.products;
   const productCover = storyWithProduct?.product_cover;
 
-  const [poster, setPoster] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const thumbRef = useRef<HTMLVideoElement>(null);
-
-  /* ── Captura frame do vídeo para usar como capa ── */
-  useEffect(() => {
-    if (firstStory.thumbnail_url) return; // já tem thumbnail, não precisa
-    const video = thumbRef.current;
-    if (!video) return;
-
-    const capture = () => {
-      try {
-        const canvas = document.createElement("canvas");
-        canvas.width = video.videoWidth || 480;
-        canvas.height = video.videoHeight || 600;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
-          // Valida que não é frame em branco (todos pretos)
-          if (dataUrl.length > 5000) setPoster(dataUrl);
-        }
-      } catch {
-        // CORS bloqueado — deixa o vídeo servir de poster
-      }
-    };
-
-    const onSeeked = () => capture();
-    video.addEventListener("seeked", onSeeked);
-    video.addEventListener("loadeddata", () => {
-      video.currentTime = 0.5; // vai para 0.5s para ter frame com conteúdo
-    });
-
-    return () => video.removeEventListener("seeked", onSeeked);
-  }, [firstStory.thumbnail_url, firstStory.image_url]);
 
   const blockContext = (e: React.MouseEvent) => e.preventDefault();
 
@@ -133,9 +95,8 @@ const StoryCard = ({
   return (
     <div className="w-full rounded-2xl overflow-hidden flex flex-col relative" style={{ background: "#2e1608" }}>
 
-      {/* ── Topo: info do vendedor ── */}
+      {/* ── Topo ── */}
       <div className="px-3 pt-3 pb-2 flex items-start gap-2 relative">
-        {/* Avatar */}
         <div
           className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 border-2"
           style={{ borderColor: "rgba(255,255,255,0.25)" }}
@@ -149,7 +110,6 @@ const StoryCard = ({
           )}
         </div>
 
-        {/* Nome — clicável */}
         <div className="flex-1 min-w-0">
           <button
             className="flex items-center gap-1 text-left"
@@ -161,12 +121,10 @@ const StoryCard = ({
             {seller?.is_verified && (
               <CheckCircle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "#60a5fa" }} />
             )}
-            {/* Pequena seta indicadora */}
             <svg className="w-3 h-3 flex-shrink-0" style={{ color: "rgba(255,255,255,0.4)" }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <polyline points="6 9 12 15 18 9" />
             </svg>
           </button>
-
           {seller?.is_verified && (
             <span
               className="inline-block text-[9px] px-1.5 py-0.5 rounded font-semibold mt-0.5"
@@ -184,10 +142,8 @@ const StoryCard = ({
           <MoreVertical className="w-5 h-5" />
         </button>
 
-        {/* Menu dropdown */}
         {showMenu && (
           <SellerMenu
-            seller={seller}
             onClose={() => setShowMenu(false)}
             onViewProfile={() => onViewProfile(seller?.id)}
             onViewMoments={() => onViewMoments(seller?.id)}
@@ -201,81 +157,59 @@ const StoryCard = ({
         style={{ aspectRatio: "4/5" }}
         onContextMenu={blockContext}
       >
-        {/* Vídeo oculto usado só para capturar o frame de capa */}
-        {!firstStory.thumbnail_url && (
-          <video
-            ref={thumbRef}
-            src={firstStory.image_url}
-            className="absolute opacity-0 pointer-events-none w-0 h-0"
-            muted
-            playsInline
-            preload="metadata"
-            crossOrigin="anonymous"
-            onContextMenu={blockContext}
+        {/*
+          ── SOLUÇÃO DA CAPA ──
+          O vídeo está SEMPRE montado e visível.
+          Quando está em pausa, fica no frame 0 (ou no frame onde parou).
+          O botão play sobrepõe-se com opacity quando não está a reproduzir.
+          Assim nunca há fundo preto — o vídeo serve de capa de si mesmo.
+        */}
+
+        {/* Thumbnail estática se existir */}
+        {firstStory.thumbnail_url && !playing && (
+          <img
+            src={firstStory.thumbnail_url}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover z-10"
           />
         )}
 
-        {/* Estado: parado — mostra capa */}
-        {!playing && (
-          <>
-            {firstStory.thumbnail_url ? (
-              <img
-                src={firstStory.thumbnail_url}
-                alt=""
-                className="w-full h-full object-cover"
-                loading="lazy"
-              />
-            ) : poster ? (
-              <img
-                src={poster}
-                alt=""
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              /* Fallback: mostra vídeo estático no frame 0 enquanto captura */
-              <video
-                src={firstStory.image_url}
-                className="w-full h-full object-cover"
-                muted
-                playsInline
-                preload="metadata"
-                onContextMenu={blockContext}
-              />
-            )}
-
-            {/* Botão play */}
-            <button
-              className="absolute inset-0 flex items-center justify-center"
-              style={{ background: "rgba(0,0,0,0.3)" }}
-              onClick={handlePlay}
-            >
-              <div
-                className="w-16 h-16 rounded-full flex items-center justify-center"
-                style={{ background: "rgba(255,255,255,0.22)", backdropFilter: "blur(6px)" }}
-              >
-                <Play className="w-8 h-8 text-white fill-white ml-1" />
-              </div>
-            </button>
-          </>
-        )}
-
-        {/* Vídeo a reproduzir */}
+        {/* Vídeo — sempre presente, serve de poster quando parado */}
         <video
           ref={videoRef}
           src={firstStory.image_url}
-          className={`w-full h-full object-cover ${playing ? "block" : "hidden"}`}
+          className="w-full h-full object-cover"
           playsInline
+          muted={false}
+          preload="auto"
           onEnded={() => setPlaying(false)}
           onPause={() => setPlaying(false)}
+          onPlay={() => setPlaying(true)}
           onContextMenu={blockContext}
           controlsList="nodownload nofullscreen noremoteplayback"
           disablePictureInPicture
         />
 
-        {/* Botão pausa sobre o vídeo */}
+        {/* Overlay escuro + botão play quando parado */}
+        {!playing && (
+          <button
+            className="absolute inset-0 z-20 flex items-center justify-center"
+            style={{ background: "rgba(0,0,0,0.25)" }}
+            onClick={handlePlay}
+          >
+            <div
+              className="w-16 h-16 rounded-full flex items-center justify-center"
+              style={{ background: "rgba(255,255,255,0.22)", backdropFilter: "blur(6px)" }}
+            >
+              <Play className="w-8 h-8 text-white fill-white ml-1" />
+            </div>
+          </button>
+        )}
+
+        {/* Botão pausa durante reprodução */}
         {playing && (
           <button
-            className="absolute bottom-3 right-3 w-9 h-9 rounded-full flex items-center justify-center"
+            className="absolute bottom-3 right-3 z-20 w-9 h-9 rounded-full flex items-center justify-center"
             style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}
             onClick={handlePause}
           >
@@ -293,25 +227,17 @@ const StoryCard = ({
             onClick={() => onProductClick(product.id)}
           >
             {productCover && (
-              <div
-                className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0"
-                style={{ background: "rgba(255,255,255,0.08)" }}
-              >
+              <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0" style={{ background: "rgba(255,255,255,0.08)" }}>
                 <img src={productCover} alt="" className="w-full h-full object-cover" />
               </div>
             )}
             <div className="flex-1 min-w-0">
-              <p className="text-white text-[12px] font-semibold line-clamp-1 leading-tight">
-                {product.title}
-              </p>
+              <p className="text-white text-[12px] font-semibold line-clamp-1 leading-tight">{product.title}</p>
               <p className="text-[13px] font-black mt-0.5" style={{ color: "#c8883a" }}>
                 {Number(product.price).toLocaleString("pt-AO")} Kz
               </p>
             </div>
-            <button
-              className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-              style={{ background: "#5a2d10" }}
-            >
+            <button className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "#5a2d10" }}>
               <ChevronRight className="w-5 h-5 text-white" />
             </button>
           </div>
@@ -362,7 +288,6 @@ const GroupedVideoStories = () => {
   const { data: stories = [] } = useQuery({
     queryKey: ["video_stories_grouped"],
     queryFn: async () => {
-      // ✅ 24h reais baseadas no created_at
       const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const { data, error } = await supabase
         .from("seller_stories")
@@ -415,7 +340,6 @@ const GroupedVideoStories = () => {
 
   return (
     <section className="px-4 pt-5 pb-3">
-      {/* ── Cabeçalho ── */}
       <div className="flex items-center gap-2 mb-4">
         <Sparkles className="w-4 h-4" style={{ color: "#7c4b1e" }} />
         <h2 className="text-[15px] font-bold" style={{ color: "#1a0d06" }}>
@@ -429,7 +353,6 @@ const GroupedVideoStories = () => {
         </span>
       </div>
 
-      {/* ── Carrossel ── */}
       <div
         ref={carouselRef}
         onScroll={onScroll}
@@ -447,7 +370,6 @@ const GroupedVideoStories = () => {
         ))}
       </div>
 
-      {/* ── Dots de paginação ── */}
       {sellerGroups.length > 1 && (
         <div className="flex justify-center gap-2 mt-4">
           {sellerGroups.map((_, i) => (
