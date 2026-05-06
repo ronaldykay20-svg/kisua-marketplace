@@ -5,8 +5,6 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useFavorites, useOrders } from "@/hooks/useSupabaseData";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
-import Navbar from "@/components/Navbar";
-import BottomNav from "@/components/BottomNav";
 import { toast } from "sonner";
 
 const MinhaConta = () => {
@@ -68,7 +66,6 @@ const MinhaConta = () => {
 
   return (
     <div className="min-h-screen bg-background pb-14 md:pb-0">
-      <Navbar />
       <div className="container mx-auto px-3 py-4 max-w-lg">
         {/* Profile header */}
         <div className="bg-card rounded-lg border border-border p-4 flex items-center gap-3 mb-4">
@@ -134,7 +131,6 @@ const MinhaConta = () => {
           </button>
         )}
       </div>
-      <BottomNav />
     </div>
   );
 };

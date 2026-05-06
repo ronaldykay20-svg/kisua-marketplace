@@ -1,8 +1,6 @@
 import { useState, useRef } from "react";
 import { Building2, Package, Plus, Edit, Trash2, Eye, EyeOff, Users, UserPlus, Save, X, Crown, ShieldCheck, Image as ImageIcon, Camera, Search, ShoppingCart } from "lucide-react";
 import SellerProductForm from "@/components/seller/SellerProductForm";
-import Navbar from "@/components/Navbar";
-import BottomNav from "@/components/BottomNav";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -272,20 +270,17 @@ const CompanyDashboard = () => {
   if (!company) {
     return (
       <div className="min-h-screen bg-background pb-14 md:pb-0">
-        <Navbar />
         <div className="container mx-auto px-3 py-8 text-center max-w-md">
           <Building2 className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
           <h2 className="text-lg font-bold text-foreground mb-2">Sem empresa associada</h2>
           <p className="text-sm text-muted-foreground">A sua conta não pertence a nenhuma empresa. Contacte o administrador.</p>
         </div>
-        <BottomNav />
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-background pb-14 md:pb-0">
-      <Navbar />
       <div className="container mx-auto px-3 py-4 max-w-2xl">
         {/* Header with editable banner/logo */}
         <div className="bg-card rounded-xl border border-border overflow-hidden mb-4">
@@ -518,7 +513,6 @@ const CompanyDashboard = () => {
           </div>
         )}
       </div>
-      <BottomNav />
     </div>
   );
 };

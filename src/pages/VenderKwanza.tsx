@@ -1,6 +1,4 @@
 import { Store, TrendingUp, Shield, Users, ChevronRight, CheckCircle2 } from "lucide-react";
-import Navbar from "@/components/Navbar";
-import BottomNav from "@/components/BottomNav";
 
 const benefits = [
   { icon: Users, title: "Milhões de Clientes", desc: "Alcance compradores em toda Angola" },
@@ -18,7 +16,6 @@ const steps = [
 const VenderKwanza = () => {
   return (
     <div className="min-h-screen bg-background pb-14 md:pb-0">
-      <Navbar />
 
       {/* Hero */}
       <div className="bg-gradient-to-br from-primary to-primary/80 px-3 py-8 text-center">
@@ -67,7 +64,6 @@ const VenderKwanza = () => {
 
         <button className="w-full py-3 bg-primary text-primary-foreground font-bold text-sm rounded-lg">Criar conta de vendedor</button>
       </div>
-      <BottomNav />
     </div>
   );
 };

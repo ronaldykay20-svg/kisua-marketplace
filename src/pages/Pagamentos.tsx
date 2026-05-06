@@ -1,8 +1,6 @@
 import { CreditCard, Plus, Trash2, ChevronLeft, Smartphone } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
-import Navbar from "@/components/Navbar";
-import BottomNav from "@/components/BottomNav";
 import { toast } from "sonner";
 
 interface PayMethod {
@@ -43,7 +41,6 @@ const Pagamentos = () => {
 
   return (
     <div className="min-h-screen bg-background pb-14 md:pb-0">
-      <Navbar />
       <div className="container mx-auto px-3 py-4 max-w-lg">
         <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-muted-foreground mb-4">
           <ChevronLeft className="w-4 h-4" /> Voltar
@@ -98,7 +95,6 @@ const Pagamentos = () => {
           </div>
         )}
       </div>
-      <BottomNav />
     </div>
   );
 };

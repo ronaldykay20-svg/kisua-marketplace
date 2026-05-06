@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { SlidersHorizontal, ChevronDown, ShoppingCart, Star, Loader2, Plus, X } from "lucide-react";
-import Navbar from "@/components/Navbar";
-import BottomNav from "@/components/BottomNav";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { allProducts } from "@/data/products";
 import { useQuery } from "@tanstack/react-query";
@@ -208,7 +206,6 @@ const CategoriaDetalhe = () => {
 
   return (
     <div className="min-h-screen pb-14 md:pb-0" style={{ backgroundColor: `${categoryColor}08` }}>
-      <Navbar />
 
       {/* Cover image banner */}
       {coverImage && (
@@ -293,7 +290,6 @@ const CategoriaDetalhe = () => {
           )}
         </div>
       </div>
-      <BottomNav />
     </div>
   );
 };

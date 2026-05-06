@@ -4,8 +4,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import Navbar from "@/components/Navbar";
-import BottomNav from "@/components/BottomNav";
 import AdminUsersTab from "@/components/admin/AdminUsersTab";
 import AdminCompanyMembersModal from "@/components/admin/AdminCompanyMembersModal";
 import AdminCompanyCard from "@/components/admin/AdminCompanyCard";
@@ -432,7 +430,6 @@ const AdminPanel = () => {
 
   return (
     <div className="min-h-screen bg-background pb-14 md:pb-0">
-      <Navbar />
       <div className="container mx-auto px-3 py-4 max-w-2xl">
         <div className="flex items-center gap-2 mb-4">
           <Shield className="w-6 h-6 text-primary" />
@@ -615,7 +612,6 @@ const AdminPanel = () => {
           </div>
         )}
       </div>
-      <BottomNav />
 
       {membersModal && (
         <AdminCompanyMembersModal

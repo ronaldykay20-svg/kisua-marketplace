@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { Car, Home, Smartphone, ShoppingBag, Briefcase, Dumbbell, BookOpen, Utensils, Wrench, Baby, HeartPulse, Monitor, Gamepad2, Gem, Plane, PawPrint, ChevronRight, Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import Navbar from "@/components/Navbar";
-import BottomNav from "@/components/BottomNav";
 import { useCategories } from "@/hooks/useSupabaseData";
 
 const iconMap: Record<string, any> = {
@@ -51,7 +49,6 @@ const Categorias = () => {
 
   return (
     <div className="min-h-screen bg-background pb-14 md:pb-0">
-      <Navbar />
       <div className="container mx-auto px-3 flex gap-0">
         {/* Left sidebar - category list */}
         <aside className="w-28 md:w-48 flex-shrink-0 border-r border-border bg-card">
@@ -124,7 +121,6 @@ const Categorias = () => {
           )}
         </div>
       </div>
-      <BottomNav />
     </div>
   );
 };

@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Search, Crown, Medal, Award, Star, ChevronLeft, ChevronRight, ShoppingCart, Loader2, Trophy, Store, Package } from "lucide-react";
 import { useSellerRanking, useProductRanking, useCompanyRanking } from "@/hooks/useSalesCount";
-import BottomNav from "@/components/BottomNav";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -184,7 +183,6 @@ const Ranking = () => {
           </>
         )}
       </div>
-      <BottomNav />
     </div>
   );
 };
