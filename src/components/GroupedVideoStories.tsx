@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
-  Eye, X, ChevronLeft, ChevronRight, CheckCircle,
-  ShoppingCart, Heart, Send, MoreVertical, Sparkles, Shield, Star, Play,
+  Eye, ChevronRight, CheckCircle,
+  Heart, Send, MoreVertical, Sparkles, Shield, Star, Play, Pause,
+  User, Video,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,13 +17,57 @@ const timeAgo = (dateStr: string) => {
   return `há ${m}m`;
 };
 
-/** Card individual com vídeo inline */
+/* ── Mini menu do vendedor ── */
+const SellerMenu = ({
+  seller,
+  onClose,
+  onViewProfile,
+  onViewMoments,
+}: {
+  seller: any;
+  onClose: () => void;
+  onViewProfile: () => void;
+  onViewMoments: () => void;
+}) => (
+  <>
+    {/* Overlay invisível para fechar */}
+    <div className="fixed inset-0 z-40" onClick={onClose} />
+    <div
+      className="absolute top-14 left-3 z-50 rounded-xl overflow-hidden shadow-2xl"
+      style={{ background: "#1a0d06", border: "1px solid rgba(255,255,255,0.12)", minWidth: 180 }}
+    >
+      <button
+        className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors"
+        style={{ color: "rgba(255,255,255,0.9)" }}
+        onClick={() => { onViewProfile(); onClose(); }}
+      >
+        <User className="w-4 h-4" style={{ color: "#c8883a" }} />
+        <span className="text-[13px] font-medium">Ver perfil</span>
+      </button>
+      <div style={{ height: 1, background: "rgba(255,255,255,0.08)" }} />
+      <button
+        className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors"
+        style={{ color: "rgba(255,255,255,0.9)" }}
+        onClick={() => { onViewMoments(); onClose(); }}
+      >
+        <Video className="w-4 h-4" style={{ color: "#c8883a" }} />
+        <span className="text-[13px] font-medium">Ver mais momentos</span>
+      </button>
+    </div>
+  </>
+);
+
+/* ── Card individual ── */
 const StoryCard = ({
   group,
   onProductClick,
+  onViewProfile,
+  onViewMoments,
 }: {
   group: any;
   onProductClick: (id: string) => void;
+  onViewProfile: (sellerId: string) => void;
+  onViewMoments: (sellerId: string) => void;
 }) => {
   const firstStory = group.stories[0];
   const seller = group.seller;
@@ -30,26 +75,67 @@ const StoryCard = ({
   const product = storyWithProduct?.products;
   const productCover = storyWithProduct?.product_cover;
 
+  const [poster, setPoster] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const thumbRef = useRef<HTMLVideoElement>(null);
+
+  /* ── Captura frame do vídeo para usar como capa ── */
+  useEffect(() => {
+    if (firstStory.thumbnail_url) return; // já tem thumbnail, não precisa
+    const video = thumbRef.current;
+    if (!video) return;
+
+    const capture = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth || 480;
+        canvas.height = video.videoHeight || 600;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+          // Valida que não é frame em branco (todos pretos)
+          if (dataUrl.length > 5000) setPoster(dataUrl);
+        }
+      } catch {
+        // CORS bloqueado — deixa o vídeo servir de poster
+      }
+    };
+
+    const onSeeked = () => capture();
+    video.addEventListener("seeked", onSeeked);
+    video.addEventListener("loadeddata", () => {
+      video.currentTime = 0.5; // vai para 0.5s para ter frame com conteúdo
+    });
+
+    return () => video.removeEventListener("seeked", onSeeked);
+  }, [firstStory.thumbnail_url, firstStory.image_url]);
+
+  const blockContext = (e: React.MouseEvent) => e.preventDefault();
 
   const handlePlay = () => {
     setPlaying(true);
-    setTimeout(() => videoRef.current?.play(), 50);
+    setTimeout(() => {
+      if (videoRef.current) {
+        videoRef.current.currentTime = 0;
+        videoRef.current.play();
+      }
+    }, 30);
   };
 
-  const handleVideoPause = () => setPlaying(false);
-
-  // Previne menu de contexto (download) no vídeo
-  const blockContext = (e: React.MouseEvent) => e.preventDefault();
+  const handlePause = () => {
+    videoRef.current?.pause();
+    setPlaying(false);
+  };
 
   return (
-    <div
-      className="w-full rounded-2xl overflow-hidden flex flex-col"
-      style={{ background: "#2e1608" }}
-    >
+    <div className="w-full rounded-2xl overflow-hidden flex flex-col relative" style={{ background: "#2e1608" }}>
+
       {/* ── Topo: info do vendedor ── */}
-      <div className="px-3 pt-3 pb-2 flex items-start gap-2">
+      <div className="px-3 pt-3 pb-2 flex items-start gap-2 relative">
+        {/* Avatar */}
         <div
           className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 border-2"
           style={{ borderColor: "rgba(255,255,255,0.25)" }}
@@ -62,15 +148,25 @@ const StoryCard = ({
             </div>
           )}
         </div>
+
+        {/* Nome — clicável */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1">
+          <button
+            className="flex items-center gap-1 text-left"
+            onClick={() => setShowMenu((v) => !v)}
+          >
             <span className="text-white text-[13px] font-bold truncate leading-tight">
               {seller?.name}
             </span>
             {seller?.is_verified && (
               <CheckCircle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "#60a5fa" }} />
             )}
-          </div>
+            {/* Pequena seta indicadora */}
+            <svg className="w-3 h-3 flex-shrink-0" style={{ color: "rgba(255,255,255,0.4)" }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+
           {seller?.is_verified && (
             <span
               className="inline-block text-[9px] px-1.5 py-0.5 rounded font-semibold mt-0.5"
@@ -83,18 +179,43 @@ const StoryCard = ({
             {timeAgo(firstStory.created_at)}
           </p>
         </div>
+
         <button className="p-0.5 flex-shrink-0" style={{ color: "rgba(255,255,255,0.5)" }}>
           <MoreVertical className="w-5 h-5" />
         </button>
+
+        {/* Menu dropdown */}
+        {showMenu && (
+          <SellerMenu
+            seller={seller}
+            onClose={() => setShowMenu(false)}
+            onViewProfile={() => onViewProfile(seller?.id)}
+            onViewMoments={() => onViewMoments(seller?.id)}
+          />
+        )}
       </div>
 
-      {/* ── Média: vídeo inline ── */}
+      {/* ── Área do vídeo ── */}
       <div
         className="relative overflow-hidden bg-black"
         style={{ aspectRatio: "4/5" }}
         onContextMenu={blockContext}
       >
-        {/* Thumbnail / poster enquanto não reproduz */}
+        {/* Vídeo oculto usado só para capturar o frame de capa */}
+        {!firstStory.thumbnail_url && (
+          <video
+            ref={thumbRef}
+            src={firstStory.image_url}
+            className="absolute opacity-0 pointer-events-none w-0 h-0"
+            muted
+            playsInline
+            preload="metadata"
+            crossOrigin="anonymous"
+            onContextMenu={blockContext}
+          />
+        )}
+
+        {/* Estado: parado — mostra capa */}
         {!playing && (
           <>
             {firstStory.thumbnail_url ? (
@@ -104,7 +225,14 @@ const StoryCard = ({
                 className="w-full h-full object-cover"
                 loading="lazy"
               />
+            ) : poster ? (
+              <img
+                src={poster}
+                alt=""
+                className="w-full h-full object-cover"
+              />
             ) : (
+              /* Fallback: mostra vídeo estático no frame 0 enquanto captura */
               <video
                 src={firstStory.image_url}
                 className="w-full h-full object-cover"
@@ -114,57 +242,45 @@ const StoryCard = ({
                 onContextMenu={blockContext}
               />
             )}
-            {/* Botão play central */}
+
+            {/* Botão play */}
             <button
               className="absolute inset-0 flex items-center justify-center"
+              style={{ background: "rgba(0,0,0,0.3)" }}
               onClick={handlePlay}
-              style={{ background: "rgba(0,0,0,0.25)" }}
             >
               <div
-                className="w-14 h-14 rounded-full flex items-center justify-center"
-                style={{ background: "rgba(255,255,255,0.25)", backdropFilter: "blur(4px)" }}
+                className="w-16 h-16 rounded-full flex items-center justify-center"
+                style={{ background: "rgba(255,255,255,0.22)", backdropFilter: "blur(6px)" }}
               >
-                <Play className="w-7 h-7 text-white fill-white ml-1" />
+                <Play className="w-8 h-8 text-white fill-white ml-1" />
               </div>
             </button>
           </>
         )}
 
-        {/* Vídeo real — sem controlos nativos, sem download */}
+        {/* Vídeo a reproduzir */}
         <video
           ref={videoRef}
           src={firstStory.image_url}
           className={`w-full h-full object-cover ${playing ? "block" : "hidden"}`}
           playsInline
-          muted={false}
-          onPause={handleVideoPause}
-          onEnded={handleVideoPause}
+          onEnded={() => setPlaying(false)}
+          onPause={() => setPlaying(false)}
           onContextMenu={blockContext}
           controlsList="nodownload nofullscreen noremoteplayback"
           disablePictureInPicture
-          // sem controls — usa barra personalizada abaixo
         />
 
-        {/* Barra personalizada visível só durante reprodução */}
+        {/* Botão pausa sobre o vídeo */}
         {playing && (
-          <div className="absolute bottom-0 left-0 right-0 flex items-center gap-2 px-3 py-2"
-            style={{ background: "linear-gradient(transparent, rgba(0,0,0,0.6))" }}
+          <button
+            className="absolute bottom-3 right-3 w-9 h-9 rounded-full flex items-center justify-center"
+            style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}
+            onClick={handlePause}
           >
-            <button
-              className="text-white"
-              onClick={() => {
-                videoRef.current?.pause();
-                setPlaying(false);
-              }}
-            >
-              <svg className="w-5 h-5 fill-white" viewBox="0 0 24 24">
-                <rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" />
-              </svg>
-            </button>
-            <div className="flex-1 h-1 rounded-full bg-white/30 overflow-hidden">
-              <div className="h-full bg-white w-0 transition-all" />
-            </div>
-          </div>
+            <Pause className="w-4 h-4 text-white fill-white" />
+          </button>
         )}
       </div>
 
@@ -246,13 +362,13 @@ const GroupedVideoStories = () => {
   const { data: stories = [] } = useQuery({
     queryKey: ["video_stories_grouped"],
     queryFn: async () => {
-      // ✅ usa expires_at em vez de filtro fixo de 24h
-      const now = new Date().toISOString();
+      // ✅ 24h reais baseadas no created_at
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const { data, error } = await supabase
         .from("seller_stories")
         .select("*, sellers(id, name, logo_url, is_verified, type), products(id, title, price, old_price)")
         .eq("is_active", true)
-        .or(`expires_at.is.null,expires_at.gte.${now}`)
+        .gte("created_at", twentyFourHoursAgo)
         .order("created_at", { ascending: false });
       if (error) throw error;
 
@@ -313,20 +429,19 @@ const GroupedVideoStories = () => {
         </span>
       </div>
 
-      {/* ── Carrossel fullwidth (1 card por vez) ── */}
+      {/* ── Carrossel ── */}
       <div
         ref={carouselRef}
         onScroll={onScroll}
         className="flex gap-4 overflow-x-auto scrollbar-hide snap-x snap-mandatory"
       >
         {sellerGroups.map((group: any) => (
-          <div
-            key={group.seller?.id}
-            className="snap-start flex-shrink-0 w-full"
-          >
+          <div key={group.seller?.id} className="snap-start flex-shrink-0 w-full">
             <StoryCard
               group={group}
               onProductClick={(id) => navigate(`/produto/${id}`)}
+              onViewProfile={(sellerId) => navigate(`/loja/${sellerId}`)}
+              onViewMoments={(sellerId) => navigate(`/momentos/${sellerId}`)}
             />
           </div>
         ))}
