@@ -1,10 +1,11 @@
 import { Heart, Star, TrendingUp } from "lucide-react";
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useFavorites } from "@/hooks/useFavorites";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface MobileProductCardProps {
   product: {
-    id: number;
+    id: string | number;
     title: string;
     price: string;
     oldPrice?: string;
@@ -20,18 +21,23 @@ interface MobileProductCardProps {
 
 const MobileProductCard = ({ product, index = 0 }: MobileProductCardProps) => {
   const navigate = useNavigate();
-  const [liked, setLiked] = useState(false);
+  const { user } = useAuth();
+  const { isFavorite, toggleFavorite } = useFavorites();
+  const productId = String(product.id);
+  const liked = isFavorite(productId);
 
   const aspectClass =
-    index % 5 === 0
-      ? "aspect-[3/4]"
-      : index % 5 === 1
-      ? "aspect-square"
-      : index % 5 === 2
-      ? "aspect-[4/5]"
-      : index % 5 === 3
-      ? "aspect-[3/4]"
-      : "aspect-[4/5]";
+    index % 5 === 0 ? "aspect-[3/4]" :
+    index % 5 === 1 ? "aspect-square" :
+    index % 5 === 2 ? "aspect-[4/5]" :
+    index % 5 === 3 ? "aspect-[3/4]" : "aspect-[4/5]";
+
+  const handleFavorite = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user) { navigate("/auth"); return; }
+    await toggleFavorite(productId);
+    if (!liked) navigate("/favoritos");
+  };
 
   return (
     <button
@@ -50,15 +56,14 @@ const MobileProductCard = ({ product, index = 0 }: MobileProductCardProps) => {
           </span>
         )}
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setLiked(!liked);
-          }}
+          onClick={handleFavorite}
           className="absolute bottom-1.5 right-1.5 w-7 h-7 rounded-full bg-card/80 backdrop-blur-sm flex items-center justify-center z-10"
         >
           <Heart
-            className={`w-3.5 h-3.5 ${
-              liked ? "fill-destructive text-destructive" : "text-muted-foreground"
+            className={`w-3.5 h-3.5 transition-colors ${
+              liked
+                ? "fill-[#8B6343] text-[#8B6343]"
+                : "text-muted-foreground"
             }`}
           />
         </button>
