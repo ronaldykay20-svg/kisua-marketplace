@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Footer from "@/components/Footer";
 import { Search, Star, MapPin, CheckCircle, ChevronRight, Users, ShoppingBag, Eye, Package } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -13,33 +13,45 @@ const Vendedores = () => {
   const [activeFilter, setActiveFilter] = useState("Todos");
   const [search, setSearch] = useState("");
   const { data: dbSellers, isLoading } = useSellers({ type: "individual" });
-  const sellerIds = (dbSellers || []).map((s: any) => s.id);
+
+  // ✅ Estabiliza o array para não quebrar a query key do useBulkSellerSales
+  const sellerIds = useMemo(
+    () => (dbSellers || []).map((s: any) => s.id),
+    [dbSellers]
+  );
+
   const { data: salesMap = {} } = useBulkSellerSales(sellerIds);
 
-  const sellers = (dbSellers || []).map((s: any) => ({
-    id: s.id,
-    name: s.name,
-    specialty: s.description || "Vendedor",
-    location: s.province || "Angola",
-    rating: s.rating ?? 0,
-    reviews: s.total_reviews ?? 0,
-    sales: (salesMap as Record<string, number>)[s.id] ?? 0,
-    products: s.products_count ?? 0,
-    visits: s.visits_count ?? 0,
-    followers: s.followers_count ?? 0,
-    verified: s.is_verified,
-    image: s.logo_url || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop",
-    cover: s.cover_url || "https://images.unsplash.com/photo-1556761175-b413da4baf72?w=600&h=200&fit=crop",
-  }));
+  const sellers = useMemo(() =>
+    (dbSellers || []).map((s: any) => ({
+      id: s.id,
+      name: s.name,
+      specialty: s.description || "Vendedor",
+      location: s.province || "Angola",
+      rating: s.rating ?? 0,
+      reviews: s.total_reviews ?? 0,
+      sales: (salesMap as Record<string, number>)[s.id] ?? 0,
+      products: s.products_count ?? 0,
+      visits: s.visits_count ?? 0,
+      followers: s.followers_count ?? 0,
+      verified: s.is_verified,
+      image: s.logo_url || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop",
+      cover: s.cover_url || "https://images.unsplash.com/photo-1556761175-b413da4baf72?w=600&h=200&fit=crop",
+    })),
+    [dbSellers, salesMap]
+  );
 
-  const filtered = sellers.filter((s: any) => {
-    if (search && !s.name.toLowerCase().includes(search.toLowerCase())) return false;
-    if (activeFilter === "Verificados") return s.verified;
-    if (activeFilter === "Mais Vendidos") return s.sales > 500;
-    if (activeFilter === "Melhor Avaliação") return s.rating >= 4.8;
-    if (activeFilter === "Luanda" || activeFilter === "Benguela") return s.location === activeFilter;
-    return true;
-  });
+  const filtered = useMemo(() =>
+    sellers.filter((s: any) => {
+      if (search && !s.name.toLowerCase().includes(search.toLowerCase())) return false;
+      if (activeFilter === "Verificados") return s.verified;
+      if (activeFilter === "Mais Vendidos") return s.sales > 500;
+      if (activeFilter === "Melhor Avaliação") return s.rating >= 4.8;
+      if (activeFilter === "Luanda" || activeFilter === "Benguela") return s.location === activeFilter;
+      return true;
+    }),
+    [sellers, search, activeFilter]
+  );
 
   return (
     <div className="min-h-screen bg-background">
