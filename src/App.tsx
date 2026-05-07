@@ -51,14 +51,6 @@ const Layout = ({ children }: { children: React.ReactNode }) => (
   </div>
 );
 
-// Layout sem navbar — usado na página de pesquisa
-const LayoutSemNavbar = ({ children }: { children: React.ReactNode }) => (
-  <div className="min-h-screen bg-background pb-14 md:pb-0">
-    {children}
-    <BottomNav />
-  </div>
-);
-
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
@@ -72,7 +64,7 @@ const App = () => (
             <Route path="/ranking" element={<Layout><Ranking /></Layout>} />
             <Route path="/empresas" element={<Layout><Empresas /></Layout>} />
             <Route path="/empresa/:id" element={<Layout><EmpresaPerfil /></Layout>} />
-            <Route path="/pesquisa" element={<LayoutSemNavbar><SearchResults /></LayoutSemNavbar>} />
+            <Route path="/pesquisa" element={<Layout><SearchResults /></Layout>} />
             <Route path="/leilao" element={<Layout><Leilao /></Layout>} />
             <Route path="/live" element={<Layout><Live /></Layout>} />
             <Route path="/vendedores" element={<Layout><Vendedores /></Layout>} />
