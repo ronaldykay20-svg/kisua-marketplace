@@ -125,6 +125,9 @@ const Navbar = () => {
   /* ── Detecta se está na página de categorias ── */
   const isCategoriasPage = location.pathname === "/categorias";
 
+  /* ── Detecta se está na página de pesquisa ── */
+  const isPesquisaPage = location.pathname === "/pesquisa";
+
   /* ── Scroll dinâmico ── */
   useEffect(() => {
     let ticking = false;
@@ -343,8 +346,8 @@ const Navbar = () => {
           </div>
 
           {/* ── Linha 2: barra de pesquisa (esconde/mostra) ── */}
-          {/* Na página de categorias a barra nunca aparece (tem a própria) */}
-          {!isCategoriasPage && (
+          {/* Oculta na página de categorias e na página de pesquisa */}
+          {!isCategoriasPage && !isPesquisaPage && (
             <div
               className="overflow-hidden"
               style={{
@@ -398,8 +401,8 @@ const Navbar = () => {
             </div>
           )}
 
-          {/* ── Linha 3: localização (só fora da página de categorias) ── */}
-          {!isCategoriasPage && (
+          {/* ── Linha 3: localização (só fora da página de categorias e de pesquisa) ── */}
+          {!isCategoriasPage && !isPesquisaPage && (
             <div
               className="overflow-hidden"
               style={{
@@ -416,8 +419,8 @@ const Navbar = () => {
             </div>
           )}
 
-          {/* ── Linha 4: categorias com fotos + scroll horizontal (só fora da pág. categorias) ── */}
-          {!isCategoriasPage && (
+          {/* ── Linha 4: categorias com fotos + scroll horizontal (só fora da pág. categorias e pesquisa) ── */}
+          {!isCategoriasPage && !isPesquisaPage && (
             <div
               className="overflow-hidden"
               style={{
