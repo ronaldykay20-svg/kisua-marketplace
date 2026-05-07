@@ -3,22 +3,23 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { Star, Truck, Heart, Loader2, Flame, Users, ShieldCheck, Tag } from "lucide-react";
+import { useFavorites } from "@/hooks/useFavorites";
+import { useAuth } from "@/contexts/AuthContext";
 
 const PAGE_SIZE = 20;
 const RATIOS = ["3/4", "1/1", "4/5", "2/3", "1/1", "3/4"];
 
-// Pill colorido por tipo de info
 const InfoPill = ({ type, children }: { type: string; children: React.ReactNode }) => {
   const styles: Record<string, string> = {
-    shipping:   "bg-green-100 text-green-700",
-    sales:      "bg-blue-100 text-blue-700",
-    recurrent:  "bg-purple-100 text-purple-700",
-    promo:      "bg-orange-100 text-orange-600",
-    fast:       "bg-teal-100 text-teal-700",
-    rated:      "bg-yellow-100 text-yellow-700",
-    secure:     "bg-gray-100 text-gray-600",
-    category:   "bg-indigo-100 text-indigo-600",
-    trending:   "bg-rose-100 text-rose-600",
+    shipping:  "bg-green-100 text-green-700",
+    sales:     "bg-blue-100 text-blue-700",
+    recurrent: "bg-purple-100 text-purple-700",
+    promo:     "bg-orange-100 text-orange-600",
+    fast:      "bg-teal-100 text-teal-700",
+    rated:     "bg-yellow-100 text-yellow-700",
+    secure:    "bg-gray-100 text-gray-600",
+    category:  "bg-indigo-100 text-indigo-600",
+    trending:  "bg-rose-100 text-rose-600",
   };
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold ${styles[type] || styles.secure}`}>
@@ -27,45 +28,32 @@ const InfoPill = ({ type, children }: { type: string; children: React.ReactNode 
   );
 };
 
-// Monta infos disponíveis para este produto
 const buildInfoList = (p: any, isTrending: boolean) => {
   const list: { type: string; el: JSX.Element }[] = [];
-
   if (isTrending)
     list.push({ type: "trending", el: <InfoPill type="trending"><Flame className="w-2.5 h-2.5" /> Tendência na categoria</InfoPill> });
-
   if (p.category)
     list.push({ type: "category", el: <InfoPill type="category"><Tag className="w-2.5 h-2.5" /> {p.category}</InfoPill> });
-
   if (p.free_shipping)
     list.push({ type: "shipping", el: <InfoPill type="shipping"><Truck className="w-2.5 h-2.5" /> Frete grátis</InfoPill> });
-
   if (p.sales_count > 0)
     list.push({ type: "sales", el: <InfoPill type="sales"><Users className="w-2.5 h-2.5" /> {p.sales_count}+ vendidos</InfoPill> });
-
   if ((p.total_reviews || 0) > 10)
     list.push({ type: "recurrent", el: <InfoPill type="recurrent"><Users className="w-2.5 h-2.5" /> Clientes recorrentes</InfoPill> });
-
   if (p.discount_percent > 0)
     list.push({ type: "promo", el: <InfoPill type="promo"><Flame className="w-2.5 h-2.5" /> -{p.discount_percent}% de desconto</InfoPill> });
-
   if (p.free_shipping && (p.sales_count || 0) > 5)
     list.push({ type: "fast", el: <InfoPill type="fast"><Truck className="w-2.5 h-2.5" /> Entrega rápida</InfoPill> });
-
   if (p.rating >= 4)
     list.push({ type: "rated", el: <InfoPill type="rated"><Star className="w-2.5 h-2.5 fill-yellow-500 text-yellow-500" /> {Number(p.rating).toFixed(1)} — Muito bem avaliado</InfoPill> });
-
   list.push({ type: "secure", el: <InfoPill type="secure"><ShieldCheck className="w-2.5 h-2.5" /> Compra segura</InfoPill> });
-
   return list;
 };
 
-// Componente rotativo — cada card tem intervalo aleatório próprio
 const RotatingInfo = ({ p, isTrending, seed }: { p: any; isTrending: boolean; seed: number }) => {
   const infoList = useMemo(() => buildInfoList(p, isTrending), [p.id, isTrending]);
   const [idx, setIdx] = useState(seed % infoList.length);
   const [visible, setVisible] = useState(true);
-  // Intervalo único por card: entre 5s e 12s
   const interval = useMemo(() => 5000 + (seed % 8) * 1000, [seed]);
 
   useEffect(() => {
@@ -89,6 +77,8 @@ const RotatingInfo = ({ p, isTrending, seed }: { p: any; isTrending: boolean; se
 
 const InfiniteProducts = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { isFavorite, toggleFavorite } = useFavorites();
   const observerRef = useRef<HTMLDivElement>(null);
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
@@ -124,7 +114,6 @@ const InfiniteProducts = () => {
       initialPageParam: 0,
     });
 
-  // Top vendido por categoria para determinar "tendência"
   const { data: trendingIds = new Set<string>() } = useQuery({
     queryKey: ["trending_ids"],
     queryFn: async () => {
@@ -135,7 +124,6 @@ const InfiniteProducts = () => {
         .order("sales_count", { ascending: false })
         .limit(100);
       if (!data) return new Set<string>();
-      // Top 1 por categoria
       const seen = new Set<string>();
       const top = new Set<string>();
       for (const p of data) {
@@ -176,13 +164,19 @@ const InfiniteProducts = () => {
     const ratio = RATIOS[globalIndex % RATIOS.length];
     const isTrending = trendingIds.has(p.id);
     const showRating = p.rating > 0;
+    const fav = isFavorite(p.id);
+
+    const handleHeart = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (!user) { navigate("/auth"); return; }
+      toggleFavorite(p.id);
+    };
 
     return (
       <div
         onClick={() => navigate(`/produto/${p.id}`)}
         className="bg-card rounded-lg border border-border overflow-hidden cursor-pointer flex flex-col mb-2"
       >
-        {/* Imagem */}
         <div className="relative overflow-hidden bg-muted w-full" style={{ aspectRatio: ratio }}>
           {img
             ? <img src={img} alt={p.title} className="w-full h-full object-cover" loading="lazy" />
@@ -199,21 +193,15 @@ const InfiniteProducts = () => {
             </span>
           )}
           <button
-            onClick={(e) => e.stopPropagation()}
+            onClick={handleHeart}
             className="absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full bg-white/80 flex items-center justify-center shadow"
           >
-            <Heart className="w-3 h-3 text-gray-500" />
+            <Heart className={`w-3 h-3 transition-colors ${fav ? "fill-[#8B6343] text-[#8B6343]" : "text-gray-500"}`} />
           </button>
         </div>
 
-        {/* Conteúdo */}
         <div className="p-2 flex flex-col gap-1.5">
-          {/* Título */}
-          <h3 className="text-[11px] font-semibold text-foreground line-clamp-2 leading-snug">
-            {p.title}
-          </h3>
-
-          {/* Rating + vendidos — sempre visíveis se existirem */}
+          <h3 className="text-[11px] font-semibold text-foreground line-clamp-2 leading-snug">{p.title}</h3>
           <div className="flex items-center justify-between gap-1">
             {showRating && (
               <div className="flex items-center gap-0.5">
@@ -228,8 +216,6 @@ const InfiniteProducts = () => {
               <span className="text-[9px] text-muted-foreground ml-auto">{p.sales_count}+ vendidos</span>
             )}
           </div>
-
-          {/* Preço */}
           <div className="flex items-baseline gap-1">
             <span className="text-[13px] font-black text-red-500">
               {Number(p.price).toLocaleString("pt-AO")} Kz
@@ -240,8 +226,6 @@ const InfiniteProducts = () => {
               </span>
             )}
           </div>
-
-          {/* Info rotativa com pill colorido — cada card no seu tempo */}
           <RotatingInfo p={p} isTrending={isTrending} seed={globalIndex} />
         </div>
       </div>
@@ -254,7 +238,6 @@ const InfiniteProducts = () => {
         <h2 className="text-base font-bold text-foreground">Para si</h2>
       </div>
 
-      {/* Tablet: 3 colunas CSS masonry */}
       <div className="hidden sm:block" style={{ columnCount: 3, columnGap: "8px" }}>
         {allProducts.map((p: any, i: number) => (
           <div key={p.id} style={{ breakInside: "avoid", marginBottom: "8px" }}>
@@ -263,7 +246,6 @@ const InfiniteProducts = () => {
         ))}
       </div>
 
-      {/* Mobile: 2 colunas */}
       <div className="flex gap-2 sm:hidden">
         <div className="flex-1">
           {col1.map((p: any, colI: number) => (
