@@ -1,10 +1,11 @@
-import { Search, Menu, ShoppingCart, User, MapPin, X, ChevronRight, Gavel, Radio, Store, Users, Zap, LogOut, Bell, Mic } from "lucide-react";
+import { Search, Menu, ShoppingCart, User, MapPin, X, ChevronRight, Gavel, Radio, Store, Users, Zap, LogOut, Bell, Mic, ArrowLeft } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, useParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSiteSetting } from "@/hooks/useSiteSettings";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useCategories } from "@/hooks/useSupabaseData";
 
 /* ── Paleta castanha clara / bege areia ── */
 const categories = [
@@ -26,7 +27,7 @@ const categories = [
   { name: "Animais", image: "https://images.unsplash.com/photo-1450778869180-41d0601e046e?w=100&h=100&fit=crop" },
 ];
 
-/* Cores de destaque por categoria — usadas na página /categorias para navbar transparente */
+/* Cores de destaque por categoria */
 export const categoryAccentColors: Record<string, string> = {
   "Electrónicos": "#1565C0",
   "Veículos": "#B71C1C",
@@ -110,6 +111,7 @@ const Navbar = () => {
   const [notifOpen, setNotifOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchVisible, setSearchVisible] = useState(true);
+  const [categorySearchVisible, setCategorySearchVisible] = useState(false);
 
   const [scrollY, setScrollY] = useState(0);
   const [lastScrollY, setLastScrollY] = useState(0);
@@ -122,11 +124,22 @@ const Navbar = () => {
   const { data: logoUrl } = useSiteSetting("site_logo_url");
   const qc = useQueryClient();
 
-  /* ── Detecta se está na página de categorias ── */
+  /* ── Tipo de página ── */
   const isCategoriasPage = location.pathname === "/categorias";
-
-  /* ── Detecta se está na página de pesquisa ── */
   const isPesquisaPage = location.pathname === "/pesquisa";
+  const isCategoriaDetalhePage = location.pathname.startsWith("/categoria/");
+
+  /* ── Busca info da categoria actual (para foto de fundo) ── */
+  const categoryNameFromUrl = isCategoriaDetalhePage
+    ? decodeURIComponent(location.pathname.replace("/categoria/", ""))
+    : null;
+
+  const { data: dbCategories } = useCategories();
+  const currentCategory = categoryNameFromUrl
+    ? (dbCategories || []).find((c: any) => c.name === categoryNameFromUrl)
+    : null;
+  const categoryBgImage = currentCategory?.cover_image_url || null;
+  const categoryColor = currentCategory?.color || categoryAccentColors[categoryNameFromUrl || ""] || "#3B82F6";
 
   /* ── Scroll dinâmico ── */
   useEffect(() => {
@@ -148,10 +161,11 @@ const Navbar = () => {
     return () => window.removeEventListener("scroll", handler);
   }, [lastScrollY]);
 
-  /* ── Repõe a barra de pesquisa ao mudar de página ── */
+  /* ── Repõe estados ao mudar de página ── */
   useEffect(() => {
     setSearchVisible(true);
     setSearchQuery("");
+    setCategorySearchVisible(false);
   }, [location.pathname]);
 
   /* ── Notificações ── */
@@ -201,19 +215,17 @@ const Navbar = () => {
     if (searchQuery.trim()) {
       navigate(`/pesquisa?q=${encodeURIComponent(searchQuery.trim())}`);
       setSearchQuery("");
-      setSearchVisible(false); // esconde após navegar para pesquisa
+      setSearchVisible(false);
+      setCategorySearchVisible(false);
     }
   };
 
   const handleSearchIconClick = () => {
     if (searchVisible && !searchQuery.trim()) {
-      // Lupa clicada sem texto → esconde a barra
       setSearchVisible(false);
     } else if (!searchVisible) {
-      // Lupa clicada quando barra está escondida → mostra
       setSearchVisible(true);
     } else {
-      // Lupa clicada com texto → submete
       if (searchQuery.trim()) {
         navigate(`/pesquisa?q=${encodeURIComponent(searchQuery.trim())}`);
         setSearchQuery("");
@@ -227,6 +239,7 @@ const Navbar = () => {
     setSearchQuery(text);
     navigate(`/pesquisa?q=${encodeURIComponent(text)}`);
     setSearchVisible(false);
+    setCategorySearchVisible(false);
   });
 
   const handleMicClick = () => {
@@ -243,73 +256,109 @@ const Navbar = () => {
 
   const scrolled = scrollY > 4;
 
-  /* ── Estilo do navbar: transparente na página de categorias ── */
-  const navbarStyle: React.CSSProperties = isCategoriasPage
-    ? {
-        background: "transparent",
-        boxShadow: "none",
-        backdropFilter: "none",
-      }
-    : {
-        background: `linear-gradient(160deg, ${cream} 0%, ${sand} 60%, #C9A87C 100%)`,
-        boxShadow: scrolled
-          ? "0 2px 20px rgba(74,46,10,0.18)"
-          : "0 1px 0 rgba(74,46,10,0.08)",
-        transition: "box-shadow 0.3s ease",
-      };
+  /* ── Estilo do navbar ── */
+  let navbarStyle: React.CSSProperties;
 
-  /* Na página de categorias os ícones/texto ficam brancos para contrastar com qualquer fundo */
-  const iconColor = isCategoriasPage ? "#fff" : brown;
-  const iconBg = isCategoriasPage ? "rgba(255,255,255,0.18)" : brownLight;
-  const iconBorder = isCategoriasPage
+  if (isCategoriaDetalhePage && categoryBgImage) {
+    // Foto da categoria como fundo, com gradiente escuro por cima
+    navbarStyle = {
+      backgroundImage: `linear-gradient(to bottom, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.15) 100%), url(${categoryBgImage})`,
+      backgroundSize: "cover",
+      backgroundPosition: "center top",
+      boxShadow: "none",
+    };
+  } else if (isCategoriasPage || isCategoriaDetalhePage) {
+    navbarStyle = {
+      background: "transparent",
+      boxShadow: "none",
+      backdropFilter: "none",
+    };
+  } else {
+    navbarStyle = {
+      background: `linear-gradient(160deg, ${cream} 0%, ${sand} 60%, #C9A87C 100%)`,
+      boxShadow: scrolled
+        ? "0 2px 20px rgba(74,46,10,0.18)"
+        : "0 1px 0 rgba(74,46,10,0.08)",
+      transition: "box-shadow 0.3s ease",
+    };
+  }
+
+  /* Ícones sempre brancos nas páginas de categoria */
+  const useLightIcons = isCategoriasPage || isCategoriaDetalhePage;
+  const iconColor = useLightIcons ? "#fff" : brown;
+  const iconBg = useLightIcons ? "rgba(255,255,255,0.18)" : brownLight;
+  const iconBorder = useLightIcons
     ? "1px solid rgba(255,255,255,0.3)"
     : "1px solid rgba(74,46,10,0.18)";
 
   return (
     <>
       {/* ══════════════════════════ NAVBAR ══════════════════════════ */}
-      <nav
-        className="sticky top-0 z-50"
-        style={navbarStyle}
-      >
+      <nav className="sticky top-0 z-50" style={navbarStyle}>
         <div className="px-3">
 
-          {/* ── Linha 1: menu + logo + [lupa quando barra escondida] + sino + carrinho ── */}
+          {/* ── Linha 1: botões de acção ── */}
           <div className="flex items-center gap-2.5 h-14">
-            {/* Hambúrguer */}
-            <button
-              className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
-              style={{ background: iconBg, border: iconBorder }}
-              onClick={() => { setMenuOpen(!menuOpen); setNotifOpen(false); }}
-            >
-              <Menu className="w-5 h-5" style={{ color: iconColor }} />
-            </button>
 
-            {/* Logo */}
-            <a href="/" className="flex items-center gap-1 flex-shrink-0">
-              {logoUrl ? (
-                <img src={logoUrl} alt="Logo" className="h-9 object-contain" />
-              ) : (
-                <span
-                  className="text-xl font-black"
-                  style={{ color: isCategoriasPage ? "#fff" : brown }}
-                >
-                  AngoExpress
-                </span>
-              )}
-            </a>
-
-            <div className="flex-1" />
-
-            {/* Botão lupa — aparece APENAS quando a barra de pesquisa está escondida */}
-            {!searchVisible && (
+            {/* Na página de categoria detalhe: botão voltar em vez do hambúrguer */}
+            {isCategoriaDetalhePage ? (
               <button
                 className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
                 style={{ background: iconBg, border: iconBorder }}
-                onClick={() => setSearchVisible(true)}
+                onClick={() => navigate(-1)}
               >
-                <Search className="w-5 h-5" style={{ color: iconColor }} />
+                <ArrowLeft className="w-5 h-5" style={{ color: iconColor }} />
               </button>
+            ) : (
+              <button
+                className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
+                style={{ background: iconBg, border: iconBorder }}
+                onClick={() => { setMenuOpen(!menuOpen); setNotifOpen(false); }}
+              >
+                <Menu className="w-5 h-5" style={{ color: iconColor }} />
+              </button>
+            )}
+
+            {/* Nome da categoria no centro (só na página de categoria detalhe) */}
+            {isCategoriaDetalhePage ? (
+              <span className="flex-1 text-base font-black text-white drop-shadow text-center">
+                {categoryNameFromUrl}
+              </span>
+            ) : (
+              <a href="/" className="flex items-center gap-1 flex-shrink-0">
+                {logoUrl ? (
+                  <img src={logoUrl} alt="Logo" className="h-9 object-contain" />
+                ) : (
+                  <span className="text-xl font-black" style={{ color: useLightIcons ? "#fff" : brown }}>
+                    AngoExpress
+                  </span>
+                )}
+              </a>
+            )}
+
+            <div className="flex-1" />
+
+            {/* Lupa — comportamento diferente consoante a página */}
+            {isCategoriaDetalhePage ? (
+              /* Na categoria: lupa com fundo transparente que abre campo inline */
+              <button
+                className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
+                style={{ background: "transparent", border: iconBorder }}
+                onClick={() => setCategorySearchVisible(v => !v)}
+              >
+                <Search className="w-5 h-5" style={{ color: "#fff" }} />
+              </button>
+            ) : (
+              /* Noutras páginas: lupa só aparece quando barra escondida */
+              !searchVisible && (
+                <button
+                  className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
+                  style={{ background: iconBg, border: iconBorder }}
+                  onClick={() => setSearchVisible(true)}
+                >
+                  <Search className="w-5 h-5" style={{ color: iconColor }} />
+                </button>
+              )
             )}
 
             {/* Sino */}
@@ -345,9 +394,50 @@ const Navbar = () => {
             </button>
           </div>
 
-          {/* ── Linha 2: barra de pesquisa (esconde/mostra) ── */}
-          {/* Oculta na página de categorias e na página de pesquisa */}
-          {!isCategoriasPage && !isPesquisaPage && (
+          {/* ── Barra de pesquisa inline na página de categoria detalhe ── */}
+          {isCategoriaDetalhePage && (
+            <div
+              className="overflow-hidden"
+              style={{
+                maxHeight: categorySearchVisible ? "56px" : "0px",
+                opacity: categorySearchVisible ? 1 : 0,
+                paddingBottom: categorySearchVisible ? "8px" : "0px",
+                transition: "max-height 0.3s ease, opacity 0.25s ease, padding 0.25s ease",
+              }}
+            >
+              <form
+                onSubmit={handleSearch}
+                className="flex items-center rounded-2xl overflow-hidden"
+                style={{ background: "rgba(255,255,255,0.15)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.35)" }}
+              >
+                <Search className="w-4 h-4 ml-3 flex-shrink-0" style={{ color: "#fff" }} />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Buscar produtos, marcas..."
+                  autoFocus
+                  className="flex-1 py-2.5 px-2.5 text-sm bg-transparent focus:outline-none placeholder:text-white/60"
+                  style={{ color: "#fff" }}
+                />
+                <button
+                  type="button"
+                  onClick={handleMicClick}
+                  className="w-11 h-10 flex items-center justify-center flex-shrink-0 rounded-xl m-0.5 transition-all"
+                  style={{
+                    background: listening ? "#E53935" : "rgba(255,255,255,0.2)",
+                    boxShadow: listening ? "0 0 0 4px rgba(229,57,53,0.25)" : "none",
+                    animation: listening ? "pulse 1.2s ease-in-out infinite" : "none",
+                  }}
+                >
+                  <Mic className="w-4 h-4 text-white" />
+                </button>
+              </form>
+            </div>
+          )}
+
+          {/* ── Linha 2: barra de pesquisa (páginas normais, não pesquisa nem categorias) ── */}
+          {!isCategoriasPage && !isPesquisaPage && !isCategoriaDetalhePage && (
             <div
               className="overflow-hidden"
               style={{
@@ -362,15 +452,9 @@ const Navbar = () => {
                 className="flex items-center rounded-2xl overflow-hidden"
                 style={{ background: "#fff", boxShadow: "0 1px 6px rgba(74,46,10,0.12)" }}
               >
-                {/* Lupa clicável dentro da barra */}
-                <button
-                  type="button"
-                  onClick={handleSearchIconClick}
-                  className="ml-3 flex-shrink-0 p-1"
-                >
+                <button type="button" onClick={handleSearchIconClick} className="ml-3 flex-shrink-0 p-1">
                   <Search className="w-4 h-4" style={{ color: sandDark }} />
                 </button>
-
                 <input
                   type="text"
                   value={searchQuery}
@@ -380,8 +464,6 @@ const Navbar = () => {
                   style={{ color: brown }}
                   onFocus={() => setSearchVisible(true)}
                 />
-
-                {/* Botão microfone */}
                 <button
                   type="button"
                   onClick={handleMicClick}
@@ -401,8 +483,8 @@ const Navbar = () => {
             </div>
           )}
 
-          {/* ── Linha 3: localização (só fora da página de categorias e de pesquisa) ── */}
-          {!isCategoriasPage && !isPesquisaPage && (
+          {/* ── Linha 3: localização ── */}
+          {!isCategoriasPage && !isPesquisaPage && !isCategoriaDetalhePage && (
             <div
               className="overflow-hidden"
               style={{
@@ -419,8 +501,8 @@ const Navbar = () => {
             </div>
           )}
 
-          {/* ── Linha 4: categorias com fotos + scroll horizontal (só fora da pág. categorias e pesquisa) ── */}
-          {!isCategoriasPage && !isPesquisaPage && (
+          {/* ── Linha 4: categorias com fotos ── */}
+          {!isCategoriasPage && !isPesquisaPage && !isCategoriaDetalhePage && (
             <div
               className="overflow-hidden"
               style={{
@@ -446,11 +528,7 @@ const Navbar = () => {
                         boxShadow: "0 2px 8px rgba(74,46,10,0.12)",
                       }}
                     >
-                      <img
-                        src={cat.image}
-                        alt={cat.name}
-                        className="w-full h-full object-cover"
-                      />
+                      <img src={cat.image} alt={cat.name} className="w-full h-full object-cover" />
                     </div>
                     <span
                       className="text-[10px] font-semibold text-center leading-tight"
@@ -460,8 +538,6 @@ const Navbar = () => {
                     </span>
                   </button>
                 ))}
-
-                {/* "Ver todas" — sempre fixo no fim */}
                 <button
                   onClick={() => navigate("/categorias")}
                   className="flex flex-col items-center gap-1.5 flex-shrink-0"
@@ -476,10 +552,7 @@ const Navbar = () => {
                   >
                     <span style={{ fontSize: 22, color: sandDark, lineHeight: 1 }}>⊞</span>
                   </div>
-                  <span
-                    className="text-[10px] font-semibold text-center"
-                    style={{ color: brown }}
-                  >
+                  <span className="text-[10px] font-semibold text-center" style={{ color: brown }}>
                     Ver todas
                   </span>
                 </button>
@@ -521,7 +594,6 @@ const Navbar = () => {
                 </button>
               </div>
             </div>
-
             <div className="max-h-[60vh] overflow-y-auto divide-y divide-border">
               {notifications.length === 0 && (
                 <div className="py-8 text-center">
@@ -558,10 +630,7 @@ const Navbar = () => {
       {menuOpen && (
         <div className="fixed inset-0 z-[60] flex">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setMenuOpen(false)} />
-
           <div className="relative w-[85%] max-w-[320px] bg-card h-full overflow-y-auto flex flex-col animate-in slide-in-from-left duration-200">
-
-            {/* Header do menu */}
             <div
               className="flex items-center justify-between p-4"
               style={{ background: `linear-gradient(135deg, ${cream} 0%, ${sand} 100%)` }}
@@ -599,7 +668,6 @@ const Navbar = () => {
               </button>
             </div>
 
-            {/* Quick links */}
             <div className="p-3 border-b border-border">
               <div className="grid grid-cols-5 gap-1">
                 {quickLinks.map(link => (
@@ -617,7 +685,6 @@ const Navbar = () => {
               </div>
             </div>
 
-            {/* Categorias no menu lateral */}
             <div className="flex-1 p-1">
               <p className="text-[10px] font-bold uppercase tracking-wider px-3 pt-3 pb-2" style={{ color: sandDark }}>
                 Categorias
@@ -642,7 +709,6 @@ const Navbar = () => {
               </div>
             </div>
 
-            {/* Links de conta */}
             <div className="border-t border-border p-3 space-y-0.5">
               {[
                 { label: "Minha conta", path: "/conta" },
