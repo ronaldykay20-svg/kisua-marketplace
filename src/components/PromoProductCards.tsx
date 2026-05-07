@@ -3,9 +3,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { Zap, Star, Truck, Heart, ArrowRight, ChevronRight, Flame, Trophy } from "lucide-react";
 import { useState, useRef } from "react";
+import { useFavorites } from "@/hooks/useFavorites";
+import { useAuth } from "@/contexts/AuthContext";
 
 const PromoProductCards = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { isFavorite, toggleFavorite } = useFavorites();
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -46,6 +50,12 @@ const PromoProductCards = () => {
     setActiveIndex(index);
   };
 
+  const handleHeart = (e: React.MouseEvent, productId: string) => {
+    e.stopPropagation();
+    if (!user) { navigate("/auth"); return; }
+    toggleFavorite(productId);
+  };
+
   return (
     <section className="container mx-auto px-3 pt-4">
       <div className="flex items-center justify-between mb-3">
@@ -67,6 +77,7 @@ const PromoProductCards = () => {
         <div ref={scrollRef} onScroll={handleScroll} className="flex gap-3 overflow-x-auto scrollbar-hide snap-x snap-mandatory">
           {products.map((p: any) => {
             const img = p.cover_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop";
+            const fav = isFavorite(p.id);
             return (
               <div key={p.id} className="flex-shrink-0 w-[calc(100%-8px)] sm:w-[calc(50%-6px)] snap-start flex flex-row gap-3 bg-background rounded-xl overflow-hidden">
                 <div className="relative w-[140px] min-w-[140px] aspect-square rounded-xl overflow-hidden bg-muted flex-shrink-0">
@@ -134,8 +145,11 @@ const PromoProductCards = () => {
                   )}
 
                   <div className="flex items-center gap-2 mt-auto">
-                    <button onClick={(e) => e.stopPropagation()} className="w-8 h-8 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:text-red-500 transition-colors">
-                      <Heart className="w-4 h-4" />
+                    <button
+                      onClick={(e) => handleHeart(e, p.id)}
+                      className="w-8 h-8 rounded-lg border border-border flex items-center justify-center transition-colors"
+                    >
+                      <Heart className={`w-4 h-4 transition-colors ${fav ? "fill-[#8B6343] text-[#8B6343]" : "text-muted-foreground"}`} />
                     </button>
                     <button onClick={() => navigate(`/produto/${p.id}`)} className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-lg border border-primary text-primary text-[12px] font-semibold hover:bg-primary hover:text-white transition-colors">
                       Explorar <ArrowRight className="w-3.5 h-3.5" />
