@@ -447,6 +447,10 @@ const AdminPanel = () => {
         {tab === "utilizadores" && <AdminUsersTab />}
         {tab === "categorias"   && <AdminCategoriesTab />}
         {tab === "publicidade"  && <AdminAdsTab />}
+        {tab === "encomendas"   && <AdminOrdersTab />}
+        {tab === "banners"      && <AdminBannersTab />}
+        {tab === "definicoes"   && <AdminSettingsTab />}
+        {tab === "leiloes"      && <AdminLeiloesTab />}
 
         {tab === "cargos" && (
           <>
@@ -571,10 +575,6 @@ const AdminPanel = () => {
           </>
         )}
 
-        {tab === "encomendas" && <AdminOrdersTab />}
-        {tab === "banners"    && <AdminBannersTab />}
-        {tab === "definicoes" && <AdminSettingsTab />}
-
         {tab === "pedidos" && (
           <div className="space-y-2">
             {applications.map((a: any) => (
@@ -604,8 +604,6 @@ const AdminPanel = () => {
             {applications.length === 0 && <p className="text-center py-6 text-sm text-muted-foreground">Nenhuma candidatura de vendedor.</p>}
           </div>
         )}
-
-        {tab === "leiloes" && <AdminLeiloesTab />}
 
         {isLoading && tab === "cargos" && (
           <div className="flex justify-center py-8">
