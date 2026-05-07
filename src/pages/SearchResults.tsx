@@ -82,6 +82,8 @@ const SearchResults = () => {
       reviews: p.total_reviews || undefined,
       freeShipping: p.free_shipping || false,
       badge: p.badge || undefined,
+      description: p.description || undefined,
+      sellerName: p.seller_name || undefined,
     })),
     [dbProducts]
   );
