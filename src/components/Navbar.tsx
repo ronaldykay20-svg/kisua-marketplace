@@ -1,11 +1,10 @@
 import { Search, Menu, ShoppingCart, User, MapPin, X, ChevronRight, Gavel, Radio, Store, Users, Zap, LogOut, Bell, Mic, ArrowLeft } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useNavigate, useLocation, useParams } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSiteSetting } from "@/hooks/useSiteSettings";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useCategories } from "@/hooks/useSupabaseData";
 
 /* ── Paleta castanha clara / bege areia ── */
 const categories = [
@@ -27,7 +26,6 @@ const categories = [
   { name: "Animais", image: "https://images.unsplash.com/photo-1450778869180-41d0601e046e?w=100&h=100&fit=crop" },
 ];
 
-/* Cores de destaque por categoria */
 export const categoryAccentColors: Record<string, string> = {
   "Electrónicos": "#1565C0",
   "Veículos": "#B71C1C",
@@ -55,7 +53,6 @@ const quickLinks = [
   { label: "Vendedores", path: "/vendedores", icon: Users },
 ];
 
-/* ── Carrinho (quantidade) ── */
 const useCartCount = (userId?: string) =>
   useQuery({
     queryKey: ["cart_count", userId],
@@ -71,7 +68,6 @@ const useCartCount = (userId?: string) =>
     refetchInterval: 15000,
   });
 
-/* ── Speech Recognition nativo ── */
 const useSpeechRecognition = (onResult: (text: string) => void) => {
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef<any>(null);
@@ -124,24 +120,14 @@ const Navbar = () => {
   const { data: logoUrl } = useSiteSetting("site_logo_url");
   const qc = useQueryClient();
 
-  /* ── Tipo de página ── */
   const isCategoriasPage = location.pathname === "/categorias";
   const isPesquisaPage = location.pathname === "/pesquisa";
   const isCategoriaDetalhePage = location.pathname.startsWith("/categoria/");
 
-  /* ── Busca info da categoria actual (para foto de fundo) ── */
   const categoryNameFromUrl = isCategoriaDetalhePage
     ? decodeURIComponent(location.pathname.replace("/categoria/", ""))
     : null;
 
-  const { data: dbCategories } = useCategories();
-  const currentCategory = categoryNameFromUrl
-    ? (dbCategories || []).find((c: any) => c.name === categoryNameFromUrl)
-    : null;
-  const categoryBgImage = currentCategory?.cover_image_url || null;
-  const categoryColor = currentCategory?.color || categoryAccentColors[categoryNameFromUrl || ""] || "#3B82F6";
-
-  /* ── Scroll dinâmico ── */
   useEffect(() => {
     let ticking = false;
     const handler = () => {
@@ -161,14 +147,12 @@ const Navbar = () => {
     return () => window.removeEventListener("scroll", handler);
   }, [lastScrollY]);
 
-  /* ── Repõe estados ao mudar de página ── */
   useEffect(() => {
     setSearchVisible(true);
     setSearchQuery("");
     setCategorySearchVisible(false);
   }, [location.pathname]);
 
-  /* ── Notificações ── */
   const { data: notifications = [] } = useQuery({
     queryKey: ["navbar_notifications", user?.id],
     queryFn: async () => {
@@ -206,10 +190,8 @@ const Navbar = () => {
     if (link_url) { navigate(link_url); setNotifOpen(false); }
   };
 
-  /* ── Carrinho ── */
   const { data: cartCount = 0 } = useCartCount(user?.id);
 
-  /* ── Pesquisa ── */
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
@@ -234,7 +216,6 @@ const Navbar = () => {
     }
   };
 
-  /* ── Voz ── */
   const { listening, startListening, stopListening } = useSpeechRecognition((text) => {
     setSearchQuery(text);
     navigate(`/pesquisa?q=${encodeURIComponent(text)}`);
@@ -247,7 +228,6 @@ const Navbar = () => {
     else startListening();
   };
 
-  /* ── Cores base ── */
   const sand = "#D4B896";
   const sandDark = "#B8956A";
   const cream = "#F7F0E6";
@@ -256,18 +236,11 @@ const Navbar = () => {
 
   const scrolled = scrollY > 4;
 
-  /* ── Estilo do navbar ── */
-  let navbarStyle: React.CSSProperties;
+  /* ── Na categoria detalhe: navbar absolutamente transparente, sem fundo ── */
+  const useLightIcons = isCategoriasPage || isCategoriaDetalhePage;
 
-  if (isCategoriaDetalhePage && categoryBgImage) {
-    // Foto da categoria como fundo, com gradiente escuro por cima
-    navbarStyle = {
-      backgroundImage: `linear-gradient(to bottom, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.15) 100%), url(${categoryBgImage})`,
-      backgroundSize: "cover",
-      backgroundPosition: "center top",
-      boxShadow: "none",
-    };
-  } else if (isCategoriasPage || isCategoriaDetalhePage) {
+  let navbarStyle: React.CSSProperties;
+  if (isCategoriasPage || isCategoriaDetalhePage) {
     navbarStyle = {
       background: "transparent",
       boxShadow: "none",
@@ -283,8 +256,6 @@ const Navbar = () => {
     };
   }
 
-  /* Ícones sempre brancos nas páginas de categoria */
-  const useLightIcons = isCategoriasPage || isCategoriaDetalhePage;
   const iconColor = useLightIcons ? "#fff" : brown;
   const iconBg = useLightIcons ? "rgba(255,255,255,0.18)" : brownLight;
   const iconBorder = useLightIcons
@@ -293,14 +264,13 @@ const Navbar = () => {
 
   return (
     <>
-      {/* ══════════════════════════ NAVBAR ══════════════════════════ */}
       <nav className="sticky top-0 z-50" style={navbarStyle}>
         <div className="px-3">
 
-          {/* ── Linha 1: botões de acção ── */}
+          {/* ── Linha 1 ── */}
           <div className="flex items-center gap-2.5 h-14">
 
-            {/* Na página de categoria detalhe: botão voltar em vez do hambúrguer */}
+            {/* Botão esquerdo: voltar na categoria detalhe, hambúrguer nas outras */}
             {isCategoriaDetalhePage ? (
               <button
                 className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
@@ -319,7 +289,7 @@ const Navbar = () => {
               </button>
             )}
 
-            {/* Nome da categoria no centro (só na página de categoria detalhe) */}
+            {/* Centro: nome da categoria ou logo */}
             {isCategoriaDetalhePage ? (
               <span className="flex-1 text-base font-black text-white drop-shadow text-center">
                 {categoryNameFromUrl}
@@ -338,18 +308,16 @@ const Navbar = () => {
 
             <div className="flex-1" />
 
-            {/* Lupa — comportamento diferente consoante a página */}
+            {/* Lupa */}
             {isCategoriaDetalhePage ? (
-              /* Na categoria: lupa com fundo transparente que abre campo inline */
               <button
                 className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
-                style={{ background: "transparent", border: iconBorder }}
+                style={{ background: iconBg, border: iconBorder }}
                 onClick={() => setCategorySearchVisible(v => !v)}
               >
                 <Search className="w-5 h-5" style={{ color: "#fff" }} />
               </button>
             ) : (
-              /* Noutras páginas: lupa só aparece quando barra escondida */
               !searchVisible && (
                 <button
                   className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
@@ -394,7 +362,7 @@ const Navbar = () => {
             </button>
           </div>
 
-          {/* ── Barra de pesquisa inline na página de categoria detalhe ── */}
+          {/* ── Barra de pesquisa flutuante na categoria detalhe ── */}
           {isCategoriaDetalhePage && (
             <div
               className="overflow-hidden"
@@ -408,17 +376,20 @@ const Navbar = () => {
               <form
                 onSubmit={handleSearch}
                 className="flex items-center rounded-2xl overflow-hidden"
-                style={{ background: "rgba(255,255,255,0.15)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.35)" }}
+                style={{
+                  background: "rgba(255,255,255,0.18)",
+                  backdropFilter: "blur(10px)",
+                  border: "1px solid rgba(255,255,255,0.35)",
+                }}
               >
-                <Search className="w-4 h-4 ml-3 flex-shrink-0" style={{ color: "#fff" }} />
+                <Search className="w-4 h-4 ml-3 flex-shrink-0 text-white" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   placeholder="Buscar produtos, marcas..."
                   autoFocus
-                  className="flex-1 py-2.5 px-2.5 text-sm bg-transparent focus:outline-none placeholder:text-white/60"
-                  style={{ color: "#fff" }}
+                  className="flex-1 py-2.5 px-2.5 text-sm bg-transparent focus:outline-none placeholder:text-white/60 text-white"
                 />
                 <button
                   type="button"
@@ -436,7 +407,7 @@ const Navbar = () => {
             </div>
           )}
 
-          {/* ── Linha 2: barra de pesquisa (páginas normais, não pesquisa nem categorias) ── */}
+          {/* ── Barra de pesquisa normal ── */}
           {!isCategoriasPage && !isPesquisaPage && !isCategoriaDetalhePage && (
             <div
               className="overflow-hidden"
@@ -483,7 +454,7 @@ const Navbar = () => {
             </div>
           )}
 
-          {/* ── Linha 3: localização ── */}
+          {/* ── Localização ── */}
           {!isCategoriasPage && !isPesquisaPage && !isCategoriaDetalhePage && (
             <div
               className="overflow-hidden"
@@ -501,7 +472,7 @@ const Navbar = () => {
             </div>
           )}
 
-          {/* ── Linha 4: categorias com fotos ── */}
+          {/* ── Categorias com fotos ── */}
           {!isCategoriasPage && !isPesquisaPage && !isCategoriaDetalhePage && (
             <div
               className="overflow-hidden"
@@ -523,17 +494,11 @@ const Navbar = () => {
                   >
                     <div
                       className="w-14 h-14 rounded-xl overflow-hidden"
-                      style={{
-                        border: `2px solid rgba(74,46,10,0.15)`,
-                        boxShadow: "0 2px 8px rgba(74,46,10,0.12)",
-                      }}
+                      style={{ border: `2px solid rgba(74,46,10,0.15)`, boxShadow: "0 2px 8px rgba(74,46,10,0.12)" }}
                     >
                       <img src={cat.image} alt={cat.name} className="w-full h-full object-cover" />
                     </div>
-                    <span
-                      className="text-[10px] font-semibold text-center leading-tight"
-                      style={{ color: brown, maxWidth: 56 }}
-                    >
+                    <span className="text-[10px] font-semibold text-center leading-tight" style={{ color: brown, maxWidth: 56 }}>
                       {cat.name}
                     </span>
                   </button>
@@ -544,17 +509,11 @@ const Navbar = () => {
                 >
                   <div
                     className="w-14 h-14 rounded-xl flex items-center justify-center"
-                    style={{
-                      background: brownLight,
-                      border: `2px solid rgba(74,46,10,0.18)`,
-                      boxShadow: "0 2px 8px rgba(74,46,10,0.08)",
-                    }}
+                    style={{ background: brownLight, border: `2px solid rgba(74,46,10,0.18)`, boxShadow: "0 2px 8px rgba(74,46,10,0.08)" }}
                   >
                     <span style={{ fontSize: 22, color: sandDark, lineHeight: 1 }}>⊞</span>
                   </div>
-                  <span className="text-[10px] font-semibold text-center" style={{ color: brown }}>
-                    Ver todas
-                  </span>
+                  <span className="text-[10px] font-semibold text-center" style={{ color: brown }}>Ver todas</span>
                 </button>
               </div>
             </div>
@@ -563,7 +522,6 @@ const Navbar = () => {
         </div>
       </nav>
 
-      {/* CSS animação pulse do microfone */}
       <style>{`
         @keyframes pulse {
           0%, 100% { box-shadow: 0 0 0 0 rgba(229,57,53,0.4); }
@@ -571,7 +529,7 @@ const Navbar = () => {
         }
       `}</style>
 
-      {/* ══════════════════════════ PAINEL NOTIFICAÇÕES ══════════════════════════ */}
+      {/* ══ PAINEL NOTIFICAÇÕES ══ */}
       {notifOpen && user && (
         <div className="fixed inset-0 z-[55]" onClick={() => setNotifOpen(false)}>
           <div
@@ -626,7 +584,7 @@ const Navbar = () => {
         </div>
       )}
 
-      {/* ══════════════════════════ MENU LATERAL ══════════════════════════ */}
+      {/* ══ MENU LATERAL ══ */}
       {menuOpen && (
         <div className="fixed inset-0 z-[60] flex">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setMenuOpen(false)} />
@@ -649,21 +607,14 @@ const Navbar = () => {
                   </div>
                 </div>
               ) : (
-                <button
-                  onClick={() => { navigate("/auth"); setMenuOpen(false); }}
-                  className="flex items-center gap-2"
-                >
+                <button onClick={() => { navigate("/auth"); setMenuOpen(false); }} className="flex items-center gap-2">
                   <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: brownLight }}>
                     <User className="w-5 h-5" style={{ color: brown }} />
                   </div>
                   <span className="text-sm font-bold" style={{ color: brown }}>Entrar / Registar</span>
                 </button>
               )}
-              <button
-                onClick={() => setMenuOpen(false)}
-                className="w-8 h-8 rounded-full flex items-center justify-center"
-                style={{ background: brownLight }}
-              >
+              <button onClick={() => setMenuOpen(false)} className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: brownLight }}>
                 <X className="w-4 h-4" style={{ color: brown }} />
               </button>
             </div>
@@ -686,9 +637,7 @@ const Navbar = () => {
             </div>
 
             <div className="flex-1 p-1">
-              <p className="text-[10px] font-bold uppercase tracking-wider px-3 pt-3 pb-2" style={{ color: sandDark }}>
-                Categorias
-              </p>
+              <p className="text-[10px] font-bold uppercase tracking-wider px-3 pt-3 pb-2" style={{ color: sandDark }}>Categorias</p>
               <div className="space-y-0.5">
                 {categories.map(cat => (
                   <button
@@ -696,12 +645,7 @@ const Navbar = () => {
                     onClick={() => { navigate(`/categoria/${encodeURIComponent(cat.name)}`); setMenuOpen(false); }}
                     className="w-full flex items-center gap-3 px-3 py-2 hover:bg-muted rounded-xl transition-colors"
                   >
-                    <img
-                      src={cat.image}
-                      alt={cat.name}
-                      className="w-10 h-10 rounded-full object-cover border-2"
-                      style={{ borderColor: sand }}
-                    />
+                    <img src={cat.image} alt={cat.name} className="w-10 h-10 rounded-full object-cover border-2" style={{ borderColor: sand }} />
                     <span className="text-sm font-medium text-foreground flex-1 text-left">{cat.name}</span>
                     <ChevronRight className="w-4 h-4 text-muted-foreground" />
                   </button>
