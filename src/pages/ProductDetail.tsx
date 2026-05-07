@@ -43,6 +43,20 @@ const ProductDetail = () => {
     enabled: !!isUuid,
   });
 
+  // ── Anúncios de produto ───────────────────────────────────────────────────
+  const { data: productAds = [] } = useQuery({
+    queryKey: ["product_ads_detail"],
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("ads")
+        .select("*")
+        .eq("placement", "product")
+        .eq("is_active", true)
+        .limit(3);
+      return data || [];
+    },
+  });
+
   const staticProduct = allProducts.find(p => p.id === Number(id));
 
   const product = dbProduct ? {
@@ -104,7 +118,6 @@ const ProductDetail = () => {
   const { user } = useAuth();
   const addToCart = useAddToCart();
 
-  // ── Helpers ──────────────────────────────────────────────────────────────
   const getSelectedVariantId = () =>
     Object.values(selectedSubVariants).find(Boolean) ||
     Object.values(selectedVariants).find(Boolean) ||
@@ -116,7 +129,6 @@ const ProductDetail = () => {
     addToCart.mutate({ productId: id!, quantity: qty, variantId: getSelectedVariantId() });
   };
 
-  // ── BUY NOW ──────────────────────────────────────────────────────────────
   const handleBuyNow = () => {
     if (!user) { navigate("/auth"); return; }
     if (!isUuid) { toast.info("Produto de demonstração"); return; }
@@ -267,7 +279,6 @@ const ProductDetail = () => {
   const alsoLike = relatedDb.length > 5 ? relatedDb.slice(5, 15) : relatedDb.slice(0, 10);
   const popularityBadge = product.reviews && product.reviews > 200 ? `Em ${Math.floor(product.reviews / 5)}+ carrinhos` : null;
 
-  // Seller info from dbProduct
   const seller = (product as any).seller;
 
   return (
@@ -331,6 +342,42 @@ const ProductDetail = () => {
                 ))}
               </div>
             </div>
+
+            {/* ── ANÚNCIOS DE PRODUTO (tablet/desktop apenas) ── */}
+            {productAds.length > 0 && (
+              <div className="hidden md:block mt-4 space-y-3">
+                <p className="text-[10px] text-muted-foreground text-right">Publicidade</p>
+                {productAds.map((ad: any) => (
+                  <a
+                    key={ad.id}
+                    href={ad.url || "#"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block rounded-card border border-border overflow-hidden hover:shadow-md hover:border-primary/30 transition-all duration-200 group"
+                  >
+                    {ad.image_url ? (
+                      <div className="relative">
+                        <img
+                          src={ad.image_url}
+                          alt={ad.title}
+                          className="w-full object-cover max-h-36 group-hover:scale-[1.01] transition-transform duration-200"
+                        />
+                        {ad.title && (
+                          <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent px-3 py-2">
+                            <p className="text-white text-xs font-bold truncate">{ad.title}</p>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="bg-muted px-4 py-3 flex items-center justify-between gap-3">
+                        <p className="text-sm font-bold text-foreground truncate">{ad.title}</p>
+                        <span className="text-[10px] font-bold text-primary border border-primary/30 rounded-full px-2 py-0.5 whitespace-nowrap">Ver mais</span>
+                      </div>
+                    )}
+                  </a>
+                ))}
+              </div>
+            )}
 
             {/* Sponsored sellers (tablet+) */}
             {sponsoredSellers.length > 0 && (
@@ -537,7 +584,7 @@ const ProductDetail = () => {
                 </div>
               )}
 
-              {/* ── Qty + CTAs (desktop) ── */}
+              {/* Qty + CTAs (desktop) */}
               <div className="hidden md:block mt-5 space-y-3">
                 <div className="flex items-center gap-3">
                   <div className="flex items-center border border-border rounded-card">
@@ -545,7 +592,6 @@ const ProductDetail = () => {
                     <span className="w-9 text-center text-sm font-bold text-foreground">{qty}</span>
                     <button onClick={() => setQty(qty + 1)} className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:bg-muted transition"><Plus className="w-4 h-4" /></button>
                   </div>
-                  {/* Adicionar ao carrinho */}
                   <button
                     onClick={handleAddToCart}
                     disabled={addToCart.isPending}
@@ -555,7 +601,6 @@ const ProductDetail = () => {
                     Adicionar ao carrinho
                   </button>
                 </div>
-                {/* Comprar agora */}
                 <button
                   onClick={handleBuyNow}
                   disabled={addToCart.isPending}
@@ -668,9 +713,8 @@ const ProductDetail = () => {
         <ProductCarousel>{alsoLike.map(p => <ProductCard key={p.id} product={p} />)}</ProductCarousel>
       </div>
 
-      {/* ── STICKY BOTTOM BAR (mobile only) ── */}
+      {/* STICKY BOTTOM BAR (mobile only) */}
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border px-3 pt-2 pb-4 z-50 md:hidden">
-        {/* Qty row */}
         <div className="flex items-center gap-2 mb-2">
           <span className="text-[10px] text-muted-foreground font-semibold">Qtd:</span>
           <div className="flex items-center border border-border rounded-lg">
@@ -684,7 +728,6 @@ const ProductDetail = () => {
           </div>
           <span className="text-sm font-black text-foreground ml-auto">{activePrice}</span>
         </div>
-        {/* CTA buttons row */}
         <div className="flex gap-2">
           <button
             onClick={handleAddToCart}
