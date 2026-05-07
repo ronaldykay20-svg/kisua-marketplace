@@ -14,9 +14,7 @@ export const useSellerSalesCount = (sellerId: string | undefined) =>
         .eq("seller_id", sellerId!)
         .in("status", ["confirmed", "shipped", "delivered"]);
 
-      // If seller_id column doesn't exist on order_items, fallback to join approach
       if (error) {
-        // Fallback: count via products
         const { data: products } = await supabase
           .from("products")
           .select("id")
@@ -54,14 +52,12 @@ export const useCompanySalesCount = (companyId: string | undefined) =>
   useQuery({
     queryKey: ["company_sales_count", companyId],
     queryFn: async () => {
-      // Get sellers linked to company
       const { data: sellers } = await supabase
         .from("sellers")
         .select("id")
         .eq("company_id", companyId!);
       const sellerIds = (sellers || []).map((s: any) => s.id);
 
-      // Get products from company directly + via sellers
       let productIds: string[] = [];
       const { data: directProducts } = await supabase
         .from("products")
@@ -109,7 +105,6 @@ export const useSellerRanking = () =>
   useQuery({
     queryKey: ["seller_ranking"],
     queryFn: async () => {
-      // Get all active sellers
       const { data: sellers, error } = await supabase
         .from("sellers")
         .select("id, name, slug, logo_url, rating, is_verified, type")
@@ -119,7 +114,6 @@ export const useSellerRanking = () =>
 
       const sellerIds = sellers.map((s: any) => s.id);
 
-      // Get products for these sellers that are NOT linked to a company (avoid mixing with empresa ranking)
       const { data: products } = await supabase
         .from("products")
         .select("id, seller_id")
@@ -134,7 +128,6 @@ export const useSellerRanking = () =>
       const productSellerMap: Record<string, string> = {};
       products.forEach((p: any) => { productSellerMap[p.id] = p.seller_id; });
 
-      // Get confirmed order items
       const { data: items } = await supabase
         .from("order_items")
         .select("id, product_id, order_id")
@@ -153,7 +146,6 @@ export const useSellerRanking = () =>
 
       const confirmedOrderIds = new Set((orders || []).map((o: any) => o.id));
 
-      // Count sales per seller
       const salesMap: Record<string, number> = {};
       items.forEach((item: any) => {
         if (confirmedOrderIds.has(item.order_id)) {
@@ -162,7 +154,6 @@ export const useSellerRanking = () =>
         }
       });
 
-      // Get reviews for rating
       const { data: reviews } = await supabase
         .from("seller_reviews")
         .select("seller_id, rating")
@@ -194,10 +185,15 @@ export const useSellerRanking = () =>
 
 /**
  * Bulk sales counts for multiple sellers (for Vendedores list page).
+ * ✅ Query key serializada como string para evitar comparação por referência em mobile.
  */
-export const useBulkSellerSales = (sellerIds: string[]) =>
-  useQuery({
-    queryKey: ["bulk_seller_sales", sellerIds],
+export const useBulkSellerSales = (sellerIds: string[]) => {
+  // Serializa o array para string ordenada — garante que a query key é estável
+  // independentemente da referência do array ou da ordem de chegada dos IDs.
+  const key = [...sellerIds].sort().join(",");
+
+  return useQuery({
+    queryKey: ["bulk_seller_sales", key],
     queryFn: async () => {
       if (sellerIds.length === 0) return {};
 
@@ -238,8 +234,12 @@ export const useBulkSellerSales = (sellerIds: string[]) =>
 
       return salesMap;
     },
-    enabled: sellerIds.length > 0,
+    // ✅ Só ativa quando há IDs reais — evita query com array vazio
+    enabled: key.length > 0,
+    // ✅ Mantém dados anteriores enquanto re-fetcha — evita flash de zeros
+    placeholderData: (prev: any) => prev,
   });
+};
 
 /**
  * Ranking of products by confirmed sales count.
@@ -248,14 +248,12 @@ export const useProductRanking = () =>
   useQuery({
     queryKey: ["product_ranking"],
     queryFn: async () => {
-      // Get all active products
       const { data: products } = await supabase
         .from("products")
         .select("id, title, price, rating, total_reviews, sales_count, product_media(url, is_cover)")
         .eq("is_active", true);
       if (!products || products.length === 0) return [];
 
-      // Also count from order_items for accuracy
       const productIds = products.map((p: any) => p.id);
       const { data: items } = await supabase
         .from("order_items")
