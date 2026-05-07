@@ -5,7 +5,6 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import ProductCard, { type Product } from "@/components/ProductCard";
 import MobileSearchProductCard from "@/components/MobileSearchProductCard";
-import { useIsMobile } from "@/hooks/use-mobile";
 
 const searchTabs = ["Produtos", "Vendedores", "Empresas"];
 const sortOptions = ["Mais relevantes", "Menor preço", "Maior preço", "Mais vendidos", "Melhor avaliação"];
@@ -28,8 +27,6 @@ const SearchResults = () => {
   const [priceMin, setPriceMin] = useState<string>("");
   const [priceMax, setPriceMax] = useState<string>("");
   const [freeShipping, setFreeShipping] = useState<string>("Todos");
-  const isMobile = useIsMobile();
-
   const effectiveQuery = query.trim();
 
   // ── Products from DB ──
@@ -227,20 +224,21 @@ const SearchResults = () => {
               <div className="text-center py-12">
                 <p className="text-sm text-muted-foreground">Nenhum produto encontrado{effectiveQuery && ` para "${effectiveQuery}"`}.</p>
               </div>
-            ) : isMobile ? (
-              /* Mobile: lista horizontal estilo Made-in-China */
-              <div className="flex flex-col divide-y divide-border">
-                {paginatedProducts.map(p => (
-                  <MobileSearchProductCard key={p.id} product={p} />
-                ))}
-              </div>
             ) : (
-              /* Tablet / Desktop: grid */
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-                {paginatedProducts.map(p => (
-                  <ProductCard key={p.id} product={p} />
-                ))}
-              </div>
+              <>
+                {/* Mobile (<640px): lista vertical um por baixo do outro */}
+                <div className="flex flex-col divide-y divide-border sm:hidden">
+                  {paginatedProducts.map(p => (
+                    <MobileSearchProductCard key={p.id} product={p} />
+                  ))}
+                </div>
+                {/* Tablet / Desktop (>=640px): grid */}
+                <div className="hidden sm:grid sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 px-4 sm:px-0">
+                  {paginatedProducts.map(p => (
+                    <ProductCard key={p.id} product={p} />
+                  ))}
+                </div>
+              </>
             )}
 
             {/* Paginação */}
