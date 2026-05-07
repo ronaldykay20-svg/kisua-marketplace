@@ -1,11 +1,23 @@
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Minus, Plus, Trash2, ShoppingCart, Loader2 } from "lucide-react";
+import { Minus, Plus, Trash2, ShoppingCart, Loader2, MapPin, Tag, ShieldCheck, RotateCcw, Headphones, Star, Heart } from "lucide-react";
 import { useCart } from "@/hooks/useSupabaseData";
 import { useUpdateCartItem, useRemoveCartItem } from "@/hooks/useCartActions";
 import { useAuth } from "@/contexts/AuthContext";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useState } from "react";
+
+const sand       = "#D4B896";
+const sandDark   = "#B8956A";
+const cream      = "#F7F0E6";
+const brown      = "#4A2E0A";
+const brownLight = "rgba(74,46,10,0.10)";
+
+const FREE_SHIPPING_THRESHOLD = 50000;
+const SHIPPING_FEE = 2500;
 
 const formatPrice = (price: number) =>
-  price.toLocaleString("pt-AO").replace(/,/g, ".") + " Kz";
+  price.toLocaleString("pt-AO").replace(/,/g, " ") + " Kz";
 
 const Carrinho = () => {
   const navigate = useNavigate();
@@ -13,14 +25,52 @@ const Carrinho = () => {
   const { data: cartItems = [], isLoading } = useCart();
   const updateItem = useUpdateCartItem();
   const removeItem = useRemoveCartItem();
+  const [coupon, setCoupon] = useState("");
+  const [couponOpen, setCouponOpen] = useState(false);
+  const [favorites, setFavorites] = useState<string[]>([]);
 
+  /* ── Sugestões de produtos ── */
+  const { data: suggestions = [] } = useQuery({
+    queryKey: ["cart_suggestions"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("products")
+        .select("id, title, price, image_url, rating, rating_count")
+        .eq("is_active", true)
+        .order("created_at", { ascending: false })
+        .limit(10);
+      return data || [];
+    },
+  });
+
+  /* ── Totais ── */
+  const subtotal = cartItems.reduce((sum: number, item: any) => {
+    return sum + (item.products?.price || 0) * item.quantity;
+  }, 0);
+
+  const freeShipping = subtotal >= FREE_SHIPPING_THRESHOLD;
+  const shippingCost = freeShipping ? 0 : SHIPPING_FEE;
+  const total = subtotal + shippingCost;
+
+  /* ── progresso para frete grátis ── */
+  const progressPct = Math.min((subtotal / FREE_SHIPPING_THRESHOLD) * 100, 100);
+  const remaining = FREE_SHIPPING_THRESHOLD - subtotal;
+
+  /* ── Não autenticado ── */
   if (!user) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center pb-14">
-        <div className="text-center">
-          <ShoppingCart className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-          <h2 className="text-lg font-bold text-foreground mb-2">Inicie sessão para ver o carrinho</h2>
-          <button onClick={() => navigate("/auth")} className="px-6 py-2 rounded-full bg-primary text-primary-foreground text-sm font-bold">
+      <div className="min-h-screen flex items-center justify-center pb-20" style={{ background: cream }}>
+        <div className="text-center px-8">
+          <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: brownLight }}>
+            <ShoppingCart className="w-9 h-9" style={{ color: sandDark }} />
+          </div>
+          <h2 className="text-lg font-black mb-2" style={{ color: brown }}>Inicie sessão para ver o carrinho</h2>
+          <p className="text-sm mb-5" style={{ color: sandDark }}>Faça login para continuar as suas compras</p>
+          <button
+            onClick={() => navigate("/auth")}
+            className="px-8 py-3 rounded-2xl font-bold text-sm text-white"
+            style={{ background: `linear-gradient(135deg, ${sandDark}, ${brown})` }}
+          >
             Entrar
           </button>
         </div>
@@ -28,75 +78,144 @@ const Carrinho = () => {
     );
   }
 
-  const total = cartItems.reduce((sum: number, item: any) => {
-    const price = item.products?.price || 0;
-    return sum + price * item.quantity;
-  }, 0);
-
   return (
-    <div className="min-h-screen bg-background pb-40 md:pb-20">
-      <div className="container mx-auto px-3 pt-3 flex items-center gap-3">
-        <button onClick={() => navigate(-1)} className="text-foreground"><ArrowLeft className="w-5 h-5" /></button>
-        <span className="text-base font-bold text-foreground">Carrinho ({cartItems.length})</span>
+    <div className="min-h-screen pb-32" style={{ background: "#F2EAE0" }}>
+
+      {/* ── Cabeçalho ── */}
+      <div
+        className="sticky top-0 z-40 px-4 py-3 flex items-center gap-3"
+        style={{ background: "rgba(242,234,224,0.95)", backdropFilter: "blur(10px)", borderBottom: `1px solid ${sand}` }}
+      >
+        <div>
+          <h1 className="text-lg font-black leading-tight" style={{ color: brown }}>Meu carrinho</h1>
+          {cartItems.length > 0 && (
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: brownLight, color: sandDark }}>
+              {cartItems.length} {cartItems.length === 1 ? "item" : "itens"}
+            </span>
+          )}
+        </div>
       </div>
 
-      <div className="container mx-auto px-3 py-4 max-w-2xl">
+      <div className="px-3 py-3 max-w-2xl mx-auto space-y-3">
+
         {isLoading ? (
-          <div className="flex justify-center py-20">
-            <Loader2 className="w-6 h-6 animate-spin text-primary" />
+          <div className="flex justify-center py-24">
+            <Loader2 className="w-7 h-7 animate-spin" style={{ color: sandDark }} />
           </div>
         ) : cartItems.length === 0 ? (
-          <div className="text-center py-20">
-            <ShoppingCart className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-            <h2 className="text-lg font-bold text-foreground mb-2">Carrinho vazio</h2>
-            <p className="text-sm text-muted-foreground mb-4">Adicione produtos para começar</p>
-            <button onClick={() => navigate("/")} className="px-6 py-2 rounded-full bg-primary text-primary-foreground text-sm font-bold">
+          <div className="text-center py-24">
+            <div className="w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-5" style={{ background: brownLight }}>
+              <ShoppingCart className="w-10 h-10" style={{ color: sandDark }} />
+            </div>
+            <h2 className="text-lg font-black mb-2" style={{ color: brown }}>Carrinho vazio</h2>
+            <p className="text-sm mb-5" style={{ color: sandDark }}>Adicione produtos para começar</p>
+            <button
+              onClick={() => navigate("/")}
+              className="px-8 py-3 rounded-2xl font-bold text-sm text-white"
+              style={{ background: `linear-gradient(135deg, ${sandDark}, ${brown})` }}
+            >
               Explorar produtos
             </button>
           </div>
         ) : (
           <>
+            {/* ── Barra frete grátis ── */}
+            <div className="rounded-2xl p-4" style={{ background: "#fff", border: `1px solid ${sand}` }}>
+              {freeShipping ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🚚</span>
+                  <p className="text-sm font-bold" style={{ color: "#2E7D32" }}>
+                    Parabéns! Você ganhou frete grátis para todo o pedido.
+                  </p>
+                  <span className="ml-auto text-xs font-black px-2 py-1 rounded-full text-white" style={{ background: "#2E7D32" }}>
+                    ✓ Frete grátis
+                  </span>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-xs font-semibold mb-2" style={{ color: brown }}>
+                    Falta <span className="font-black">{formatPrice(remaining)}</span> para frete grátis
+                  </p>
+                  <div className="h-2 rounded-full overflow-hidden" style={{ background: brownLight }}>
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{ width: `${progressPct}%`, background: `linear-gradient(90deg, ${sandDark}, ${brown})` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ── Itens ── */}
             <div className="space-y-3">
               {cartItems.map((item: any) => {
                 const product = item.products;
                 if (!product) return null;
-                const coverUrl = product.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=200&h=200&fit=crop";
+                const coverUrl = product.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300&h=300&fit=crop";
                 return (
-                  <div key={item.id} className="bg-card rounded-card border border-border p-3 flex gap-3">
+                  <div
+                    key={item.id}
+                    className="rounded-2xl p-3 flex gap-3"
+                    style={{ background: "#fff", border: `1px solid ${sand}` }}
+                  >
                     <img
                       src={coverUrl}
                       alt={product.title}
-                      className="w-20 h-20 rounded-lg object-cover flex-shrink-0 cursor-pointer"
+                      className="w-24 h-24 rounded-xl object-cover flex-shrink-0 cursor-pointer"
                       onClick={() => navigate(`/produto/${product.id}`)}
                     />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-foreground line-clamp-2">{product.title}</p>
-                      <p className="text-base font-black text-foreground mt-1">{formatPrice(product.price)}</p>
-                      {product.free_shipping && (
-                        <p className="text-[10px] text-primary font-semibold">Frete grátis</p>
+                      <p
+                        className="text-sm font-bold line-clamp-2 cursor-pointer"
+                        style={{ color: brown }}
+                        onClick={() => navigate(`/produto/${product.id}`)}
+                      >
+                        {product.title}
+                      </p>
+                      {product.variant && (
+                        <p className="text-[11px] mt-0.5" style={{ color: sandDark }}>{product.variant}</p>
                       )}
+                      {freeShipping || product.free_shipping ? (
+                        <p className="text-[11px] font-bold mt-0.5" style={{ color: "#2E7D32" }}>Frete grátis</p>
+                      ) : null}
+                      <p className="text-xs mt-1 px-2 py-0.5 rounded-full inline-block" style={{ background: brownLight, color: sandDark }}>
+                        🛡 Vendido e entregue por Ango Express
+                      </p>
+
                       <div className="flex items-center justify-between mt-2">
-                        <div className="flex items-center border border-border rounded-lg">
+                        <p className="text-base font-black" style={{ color: brown }}>
+                          {formatPrice(product.price)}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          {/* Qty control */}
+                          <div className="flex items-center rounded-xl overflow-hidden" style={{ border: `1.5px solid ${sand}` }}>
+                            <button
+                              onClick={() => updateItem.mutate({ id: item.id, quantity: item.quantity - 1 })}
+                              className="w-8 h-8 flex items-center justify-center transition"
+                              style={{ color: sandDark }}
+                            >
+                              <Minus className="w-3 h-3" />
+                            </button>
+                            <span className="w-8 text-center text-sm font-black" style={{ color: brown }}>
+                              {item.quantity}
+                            </span>
+                            <button
+                              onClick={() => updateItem.mutate({ id: item.id, quantity: item.quantity + 1 })}
+                              className="w-8 h-8 flex items-center justify-center transition"
+                              style={{ color: sandDark }}
+                            >
+                              <Plus className="w-3 h-3" />
+                            </button>
+                          </div>
+                          {/* Delete */}
                           <button
-                            onClick={() => updateItem.mutate({ id: item.id, quantity: item.quantity - 1 })}
-                            className="w-7 h-7 flex items-center justify-center text-muted-foreground hover:bg-muted"
+                            onClick={() => removeItem.mutate(item.id)}
+                            className="w-8 h-8 flex items-center justify-center rounded-xl transition"
+                            style={{ background: "rgba(229,57,53,0.08)", color: "#E53935" }}
                           >
-                            <Minus className="w-3 h-3" />
-                          </button>
-                          <span className="w-7 text-center text-xs font-bold text-foreground">{item.quantity}</span>
-                          <button
-                            onClick={() => updateItem.mutate({ id: item.id, quantity: item.quantity + 1 })}
-                            className="w-7 h-7 flex items-center justify-center text-muted-foreground hover:bg-muted"
-                          >
-                            <Plus className="w-3 h-3" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
-                        <button
-                          onClick={() => removeItem.mutate(item.id)}
-                          className="text-muted-foreground hover:text-destructive transition"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
                       </div>
                     </div>
                   </div>
@@ -104,38 +223,179 @@ const Carrinho = () => {
               })}
             </div>
 
-            {/* Summary */}
-            <div className="bg-card rounded-card border border-border p-4 mt-4">
-              <div className="flex justify-between text-sm mb-2">
-                <span className="text-muted-foreground">Subtotal ({cartItems.length} itens)</span>
-                <span className="font-bold text-foreground">{formatPrice(total)}</span>
+            {/* ── Entrega + Cupom ── */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-2xl p-3 flex items-start gap-2" style={{ background: "#fff", border: `1px solid ${sand}` }}>
+                <MapPin className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: sandDark }} />
+                <div>
+                  <p className="text-xs font-bold" style={{ color: brown }}>Previsão de entrega</p>
+                  <p className="text-[11px] mt-0.5" style={{ color: sandDark }}>De 24 a 26 de Maio</p>
+                  <p className="text-[11px]" style={{ color: sandDark }}>Para Luanda, Angola</p>
+                </div>
               </div>
-              <div className="flex justify-between text-sm mb-3">
-                <span className="text-muted-foreground">Frete</span>
-                <span className="font-semibold text-primary">Grátis</span>
+              <button
+                onClick={() => setCouponOpen(v => !v)}
+                className="rounded-2xl p-3 flex items-start gap-2 text-left w-full"
+                style={{ background: "#fff", border: `1px solid ${sand}` }}
+              >
+                <Tag className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: sandDark }} />
+                <div>
+                  <p className="text-xs font-bold" style={{ color: brown }}>Tem um cupom?</p>
+                  <p className="text-[11px] font-semibold mt-0.5" style={{ color: sandDark }}>Adicionar cupom</p>
+                </div>
+              </button>
+            </div>
+
+            {couponOpen && (
+              <div className="rounded-2xl p-3 flex gap-2" style={{ background: "#fff", border: `1px solid ${sand}` }}>
+                <input
+                  type="text"
+                  value={coupon}
+                  onChange={e => setCoupon(e.target.value)}
+                  placeholder="Digite o código do cupom"
+                  className="flex-1 text-sm px-3 py-2 rounded-xl outline-none"
+                  style={{ background: brownLight, color: brown }}
+                />
+                <button
+                  className="px-4 py-2 rounded-xl text-sm font-bold text-white"
+                  style={{ background: `linear-gradient(135deg, ${sandDark}, ${brown})` }}
+                >
+                  Aplicar
+                </button>
               </div>
-              <div className="border-t border-border pt-3 flex justify-between">
-                <span className="text-base font-black text-foreground">Total</span>
-                <span className="text-base font-black text-foreground">{formatPrice(total)}</span>
+            )}
+
+            {/* ── Resumo ── */}
+            <div className="rounded-2xl p-4" style={{ background: "#fff", border: `1px solid ${sand}` }}>
+              <h3 className="text-sm font-black mb-3" style={{ color: brown }}>Resumo do pedido</h3>
+
+              <div className="space-y-2 mb-3">
+                <div className="flex justify-between text-sm">
+                  <span style={{ color: sandDark }}>Subtotal ({cartItems.length} {cartItems.length === 1 ? "item" : "itens"})</span>
+                  <span className="font-bold" style={{ color: brown }}>{formatPrice(subtotal)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span style={{ color: sandDark }}>Frete</span>
+                  {freeShipping ? (
+                    <span className="font-bold" style={{ color: "#2E7D32" }}>Grátis</span>
+                  ) : (
+                    <span className="font-bold" style={{ color: brown }}>{formatPrice(shippingCost)}</span>
+                  )}
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span style={{ color: sandDark }}>Descontos</span>
+                  <span className="font-bold" style={{ color: brown }}>0 Kz</span>
+                </div>
+              </div>
+
+              <div className="border-t pt-3 flex justify-between" style={{ borderColor: sand }}>
+                <span className="text-base font-black" style={{ color: brown }}>Total</span>
+                <span className="text-base font-black" style={{ color: brown }}>{formatPrice(total)}</span>
+              </div>
+
+              {/* Garantias */}
+              <div className="mt-4 space-y-2">
+                {[
+                  { icon: ShieldCheck, label: "Compra 100% segura", sub: "Seus dados protegidos" },
+                  { icon: RotateCcw, label: "Devolução garantida", sub: "Até 7 dias após o recebimento" },
+                  { icon: Headphones, label: "Atendimento 24/7", sub: "Suporte sempre disponível" },
+                ].map(g => (
+                  <div key={g.label} className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: brownLight }}>
+                      <g.icon className="w-4 h-4" style={{ color: sandDark }} />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold" style={{ color: brown }}>{g.label}</p>
+                      <p className="text-[11px]" style={{ color: sandDark }}>{g.sub}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
+
+            {/* ── Sugestões ── */}
+            {suggestions.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-black" style={{ color: brown }}>Você também pode gostar</h3>
+                  <button
+                    onClick={() => navigate("/")}
+                    className="text-xs font-semibold flex items-center gap-0.5"
+                    style={{ color: sandDark }}
+                  >
+                    Ver todas →
+                  </button>
+                </div>
+                <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                  {suggestions.map((p: any) => (
+                    <div
+                      key={p.id}
+                      className="flex-shrink-0 w-36 rounded-2xl overflow-hidden cursor-pointer"
+                      style={{ background: "#fff", border: `1px solid ${sand}` }}
+                      onClick={() => navigate(`/produto/${p.id}`)}
+                    >
+                      <div className="relative">
+                        <img
+                          src={p.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=200&h=200&fit=crop"}
+                          alt={p.title}
+                          className="w-full h-32 object-cover"
+                        />
+                        <button
+                          onClick={e => {
+                            e.stopPropagation();
+                            setFavorites(fav =>
+                              fav.includes(p.id) ? fav.filter(f => f !== p.id) : [...fav, p.id]
+                            );
+                          }}
+                          className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center"
+                          style={{ background: "rgba(255,255,255,0.85)" }}
+                        >
+                          <Heart
+                            className="w-3.5 h-3.5"
+                            style={{ color: favorites.includes(p.id) ? "#E53935" : sandDark, fill: favorites.includes(p.id) ? "#E53935" : "none" }}
+                          />
+                        </button>
+                      </div>
+                      <div className="p-2">
+                        <p className="text-[11px] font-semibold line-clamp-2 leading-tight" style={{ color: brown }}>{p.title}</p>
+                        <p className="text-xs font-black mt-1" style={{ color: brown }}>{formatPrice(p.price)}</p>
+                        {p.rating && (
+                          <div className="flex items-center gap-1 mt-1">
+                            <Star className="w-3 h-3" style={{ color: "#F9A825", fill: "#F9A825" }} />
+                            <span className="text-[10px] font-semibold" style={{ color: sandDark }}>{p.rating} ({p.rating_count})</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
 
-      {/* Fixed bottom CTA */}
+      {/* ── Botão fixo no fundo ── */}
       {cartItems.length > 0 && (
-        <div className="fixed bottom-14 md:bottom-0 left-0 right-0 bg-card border-t border-border p-3 z-50">
-          <div className="container mx-auto max-w-2xl flex items-center justify-between gap-3">
+        <div
+          className="fixed bottom-14 md:bottom-0 left-0 right-0 z-50 px-4 py-3"
+          style={{
+            background: "rgba(242,234,224,0.97)",
+            backdropFilter: "blur(12px)",
+            borderTop: `1px solid ${sand}`,
+          }}
+        >
+          <div className="max-w-2xl mx-auto flex items-center gap-4">
             <div>
-              <p className="text-xs text-muted-foreground">Total</p>
-              <p className="text-lg font-black text-foreground">{formatPrice(total)}</p>
+              <p className="text-[11px]" style={{ color: sandDark }}>Total</p>
+              <p className="text-lg font-black" style={{ color: brown }}>{formatPrice(total)}</p>
             </div>
             <button
               onClick={() => navigate("/checkout")}
-              className="px-8 py-3 rounded-full bg-primary text-primary-foreground font-bold text-sm hover:brightness-110 transition"
+              className="flex-1 py-3.5 rounded-2xl font-black text-sm text-white flex items-center justify-center gap-2"
+              style={{ background: `linear-gradient(135deg, ${sandDark} 0%, ${brown} 100%)` }}
             >
-              Finalizar compra
+              ⚡ Finalizar compra
             </button>
           </div>
         </div>
