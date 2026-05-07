@@ -122,7 +122,7 @@ const ProductDetail = () => {
     if (!isUuid) { toast.info("Produto de demonstração"); return; }
     addToCart.mutate(
       { productId: id!, quantity: qty, variantId: getSelectedVariantId() },
-      { onSuccess: () => navigate("/carrinho") }
+      { onSuccess: () => navigate("/checkout") }
     );
   };
 
