@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, SlidersHorizontal, ChevronDown, Star, CheckCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, Search, SlidersHorizontal, ChevronDown, Star, CheckCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import ProductCard, { type Product } from "@/components/ProductCard";
@@ -16,9 +16,9 @@ const formatPrice = (price: number) =>
 
 const SearchResults = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const query = searchParams.get("q") || "";
-
+  const [searchQuery, setSearchQuery] = useState(query);
   const [activeTab, setActiveTab] = useState("Produtos");
   const [sortBy, setSortBy] = useState("Mais relevantes");
   const [showSort, setShowSort] = useState(false);
@@ -27,6 +27,7 @@ const SearchResults = () => {
   const [priceMin, setPriceMin] = useState<string>("");
   const [priceMax, setPriceMax] = useState<string>("");
   const [freeShipping, setFreeShipping] = useState<string>("Todos");
+
   const effectiveQuery = query.trim();
 
   // ── Products from DB ──
@@ -92,6 +93,12 @@ const SearchResults = () => {
   const totalPages = Math.max(1, Math.ceil(products.length / ITEMS_PER_PAGE));
   const paginatedProducts = products.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    setCurrentPage(1);
+    setSearchParams({ q: searchQuery });
+  };
+
   const renderSellerCard = (s: any) => (
     <div
       key={s.id}
@@ -122,33 +129,39 @@ const SearchResults = () => {
   return (
     <div className="min-h-screen bg-background">
 
-      {/* ── Header: voltar + termo pesquisado ── */}
-      <div className="sticky top-0 z-30 bg-background border-b border-border">
-        <div className="container mx-auto px-4 h-12 flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="text-foreground flex-shrink-0">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div className="flex-1 min-w-0">
-            {effectiveQuery ? (
-              <p className="text-sm font-semibold text-foreground truncate">
-                Resultados para{" "}
-                <span className="text-primary">"{effectiveQuery}"</span>
-              </p>
-            ) : (
-              <p className="text-sm font-semibold text-foreground">Todos os produtos</p>
-            )}
+      {/* ── Header: voltar + barra de pesquisa ── */}
+      <div className="sticky top-0 z-30 bg-background border-b border-border px-4 py-2 flex items-center gap-2.5">
+        <button onClick={() => navigate(-1)} className="text-foreground flex-shrink-0">
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <form onSubmit={handleSearch} className="flex-1 flex">
+          <div className="relative flex-1 flex bg-card border border-border rounded-full overflow-hidden">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Pesquisar..."
+              className="w-full py-2 pl-4 pr-10 bg-transparent text-foreground text-sm placeholder:text-muted-foreground focus:outline-none"
+            />
+            <button type="submit" className="px-3.5 flex items-center justify-center text-muted-foreground">
+              <Search className="w-5 h-5" />
+            </button>
           </div>
-          {/* Contagem */}
-          <span className="flex-shrink-0 text-xs text-muted-foreground">
-            <span className="font-bold text-foreground">{totalCount}</span> result.
-          </span>
-        </div>
+        </form>
       </div>
 
       <div className="container mx-auto px-0 sm:px-4 py-0 sm:py-4 space-y-0 sm:space-y-4">
 
+        {/* Contagem */}
+        <div className="px-4 pt-3 sm:pt-0">
+          <p className="text-sm text-muted-foreground">
+            <span className="text-lg font-black text-foreground">{totalCount}</span> Resultados
+            {effectiveQuery && <> para "<span className="font-bold text-foreground">{effectiveQuery}</span>"</>}
+          </p>
+        </div>
+
         {/* ── Tabs + Ordenar + Filtrar ── */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0 sm:gap-3 px-4 sm:px-0 pt-3 sm:pt-0">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0 sm:gap-3 px-4 sm:px-0">
           <div className="flex items-center gap-1 border-b border-border">
             {searchTabs.map(tab => (
               <button
@@ -196,7 +209,7 @@ const SearchResults = () => {
 
         {/* ── Filtros expandidos ── */}
         {showFilters && (
-          <div className="bg-card border-y sm:rounded-card sm:border border-border p-4 grid grid-cols-2 sm:grid-cols-4 gap-3 mx-0 sm:mx-0">
+          <div className="bg-card border-y sm:rounded-card sm:border border-border p-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div>
               <label className="text-xs font-bold text-foreground mb-1 block">Preço mín.</label>
               <input value={priceMin} onChange={e => { setPriceMin(e.target.value); setCurrentPage(1); }} placeholder="0" className="w-full px-3 py-2 rounded-card border border-border bg-background text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30" />
