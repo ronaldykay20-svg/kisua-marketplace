@@ -26,6 +26,48 @@ const subcategories: Record<string, string[]> = {
   "Animais": ["Cães", "Gatos", "Aves", "Acessórios", "Alimentação"],
 };
 
+/* Imagens de capa por categoria */
+const categoryHeroImages: Record<string, string> = {
+  "Electrónicos": "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=800&h=400&fit=crop",
+  "Veículos": "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=800&h=400&fit=crop",
+  "Imóveis": "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800&h=400&fit=crop",
+  "Moda": "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800&h=400&fit=crop",
+  "Casa & Jardim": "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=800&h=400&fit=crop",
+  "Desporto": "https://images.unsplash.com/photo-1461896836934-bd45ba8a0a42?w=800&h=400&fit=crop",
+  "Bebé & Criança": "https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?w=800&h=400&fit=crop",
+  "Saúde & Beleza": "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=800&h=400&fit=crop",
+  "Informática": "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=800&h=400&fit=crop",
+  "Gaming": "https://images.unsplash.com/photo-1612287230202-1ff1d85d1bdf?w=800&h=400&fit=crop",
+  "Jóias & Relógios": "https://images.unsplash.com/photo-1515562141589-67f0d569b6fc?w=800&h=400&fit=crop",
+  "Viagens": "https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800&h=400&fit=crop",
+  "Alimentação": "https://images.unsplash.com/photo-1506617420156-8e4536971650?w=800&h=400&fit=crop",
+  "Empregos": "https://images.unsplash.com/photo-1521737711867-e3b97375f902?w=800&h=400&fit=crop",
+  "Educação": "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=800&h=400&fit=crop",
+  "Animais": "https://images.unsplash.com/photo-1450778869180-41d0601e046e?w=800&h=400&fit=crop",
+  "Vestuário": "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800&h=400&fit=crop",
+};
+
+/* Subtítulos por categoria */
+const categorySubtitles: Record<string, string> = {
+  "Electrónicos": "Tecnologia de ponta ao seu alcance.",
+  "Veículos": "O veículo ideal para cada jornada.",
+  "Imóveis": "O seu próximo lar está aqui.",
+  "Moda": "Estilo, conforto e moda para todas as ocasiões.",
+  "Vestuário": "Estilo, conforto e moda para todas as ocasiões.",
+  "Casa & Jardim": "Transforme a sua casa num lar.",
+  "Desporto": "Equipamento para cada aventura.",
+  "Bebé & Criança": "Tudo para os mais pequenos.",
+  "Saúde & Beleza": "Cuide de si com os melhores produtos.",
+  "Informática": "Potência e produtividade ao seu dispor.",
+  "Gaming": "Leve o jogo a outro nível.",
+  "Jóias & Relógios": "Elegância que nunca passa de moda.",
+  "Viagens": "Descubra o mundo sem limites.",
+  "Alimentação": "Frescura e sabor em cada produto.",
+  "Empregos": "A sua próxima oportunidade está aqui.",
+  "Educação": "Conhecimento que transforma vidas.",
+  "Animais": "Para os seus companheiros de quatro patas.",
+};
+
 const colorOptions = [
   { name: "Múltiplo", color: "bg-gradient-to-br from-yellow-400 via-pink-500 to-blue-500" },
   { name: "Preto", color: "bg-black" },
@@ -103,6 +145,19 @@ const CategoriaDetalhe = () => {
     setSelectedColors(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]);
   };
 
+  /* Imagem de capa: usa a da categoria do DB se existir, senão fallback pelo nome */
+  const heroImage =
+    category?.image_url ||
+    categoryHeroImages[categoryName] ||
+    "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800&h=400&fit=crop";
+
+  const heroSubtitle =
+    category?.description ||
+    categorySubtitles[categoryName] ||
+    "Os melhores produtos para si.";
+
+  const categoryColor = category?.color || "#3B82F6";
+
   const FiltersPanel = () => (
     <div className="space-y-5">
       {/* Subcategory */}
@@ -153,7 +208,6 @@ const CategoriaDetalhe = () => {
     </div>
   );
 
-  // Product card matching SHEIN style
   const ProductCardShein = ({ product }: { product: any }) => (
     <button onClick={() => navigate(`/produto/${product.id}`)}
       className="w-full text-left bg-card overflow-hidden group">
@@ -161,6 +215,11 @@ const CategoriaDetalhe = () => {
         <img src={product.image} alt={product.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
         {product.discount && (
           <span className="absolute bottom-1.5 right-1.5 w-7 h-7 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center">{product.discount}</span>
+        )}
+        {product.salesCount > 0 && (
+          <div className="absolute bottom-1.5 left-1.5 bg-black/60 text-white text-[9px] font-semibold px-1.5 py-0.5 rounded-full">
+            Comprado {product.salesCount} vezes hoje
+          </div>
         )}
       </div>
       <div className="px-1 py-2">
@@ -171,11 +230,6 @@ const CategoriaDetalhe = () => {
           </div>
         )}
         <h3 className="text-xs font-medium text-foreground line-clamp-1 mb-0.5">{product.title}</h3>
-        {product.salesCount > 0 && (
-          <p className="text-[10px] text-primary font-bold mb-0.5">
-            #{Math.min(product.salesCount, 7)} Mais Vendido
-          </p>
-        )}
         {product.rating > 0 && (
           <div className="flex items-center gap-0.5 mb-0.5">
             {[...Array(5)].map((_, i) => (
@@ -188,9 +242,6 @@ const CategoriaDetalhe = () => {
           {product.oldPrice && <span className="text-[10px] text-muted-foreground line-through">{product.oldPrice}</span>}
           <span className="text-sm font-black text-foreground">{product.priceFormatted}</span>
         </div>
-        {product.salesCount > 100 && (
-          <p className="text-[10px] text-muted-foreground mt-0.5">Mais de {product.salesCount.toLocaleString()} unidades vendidas</p>
-        )}
         <div className="flex items-center justify-between mt-1">
           {product.freeShipping && <span className="text-[9px] text-accent font-semibold">Frete grátis</span>}
           <div className="ml-auto w-7 h-7 rounded border border-border flex items-center justify-center">
@@ -201,21 +252,57 @@ const CategoriaDetalhe = () => {
     </button>
   );
 
-  const categoryColor = category?.color || "#3B82F6";
-
   return (
     <div className="min-h-screen pb-14 md:pb-0" style={{ backgroundColor: `${categoryColor}08` }}>
 
-      {/* Breadcrumb */}
-      <div className="container mx-auto px-3 py-2 flex items-center gap-1 text-xs text-muted-foreground">
-        <button onClick={() => navigate("/")} className="hover:text-primary">Início</button>
-        <span>/</span>
-        <button onClick={() => navigate("/categorias")} className="hover:text-primary">Categorias</button>
-        <span>/</span>
-        <span className="text-foreground font-medium">{categoryName}</span>
+      {/* ══ HERO BANNER ══
+          O Navbar está em position:absolute sobre esta secção,
+          por isso usamos padding-top para compensar a altura do navbar (~56px).
+          A imagem ocupa toda a largura e tem um gradiente escuro na parte inferior
+          para garantir legibilidade do texto branco. */}
+      <div className="relative w-full overflow-hidden" style={{ minHeight: 260 }}>
+        {/* Imagem de fundo */}
+        <img
+          src={heroImage}
+          alt={categoryName}
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ objectPosition: "center top" }}
+        />
+
+        {/* Gradiente sobre a imagem: transparente em cima → escuro em baixo */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(to bottom, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0.55) 60%, rgba(0,0,0,0.80) 100%)",
+          }}
+        />
+
+        {/* Conteúdo textual — empurrado para baixo pelo padding-top do navbar */}
+        <div
+          className="relative z-10 flex flex-col justify-end px-4 pb-5"
+          style={{ paddingTop: 72 /* altura do navbar */ }}
+        >
+          {/* Breadcrumb claro */}
+          <div className="flex items-center gap-1 text-xs text-white/70 mb-3">
+            <button onClick={() => navigate("/")} className="hover:text-white transition-colors">Início</button>
+            <span>/</span>
+            <button onClick={() => navigate("/categorias")} className="hover:text-white transition-colors">Categorias</button>
+            <span>/</span>
+            <span className="text-white font-semibold">{categoryName}</span>
+          </div>
+
+          {/* Título + subtítulo */}
+          <h1 className="text-3xl font-black text-white drop-shadow-lg leading-tight mb-1">
+            {categoryName}
+          </h1>
+          <p className="text-sm text-white/85 drop-shadow max-w-xs">
+            {heroSubtitle}
+          </p>
+        </div>
       </div>
 
-      {/* Sort bar */}
+      {/* Sort bar — fica sticky logo abaixo do hero */}
       <div className="sticky top-14 z-30 border-b" style={{ backgroundColor: `${categoryColor}0A`, borderBottomColor: `${categoryColor}30` }}>
         <div className="container mx-auto px-3 py-2 flex items-center gap-2">
           <div className="relative flex-1">
