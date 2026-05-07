@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Heart, Share2, ShoppingCart, Star, Truck, Shield, MapPin, ChevronRight, Minus, Plus, ThumbsUp, ThumbsDown, ZoomIn, Store, MessageCircle, Send, Loader2, ShieldCheck, BadgeCheck } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { allProducts } from "@/data/products";
 import { useProduct } from "@/hooks/useSupabaseData";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,6 +19,8 @@ const ProductDetail = () => {
   const [selectedImage, setSelectedImage] = useState(0);
   const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
   const [selectedSubVariants, setSelectedSubVariants] = useState<Record<string, string>>({});
+  const [zoomOpen, setZoomOpen] = useState(false);
+  const touchStartX = useRef<number | null>(null);
 
   const isUuid = id && id.length > 10;
   const { data: dbProduct, isLoading: loadingProduct } = useProduct(id || "");
@@ -118,6 +120,58 @@ const ProductDetail = () => {
 
   const { user } = useAuth();
   const addToCart = useAddToCart();
+  const queryClient = useQueryClient();
+
+  // ── Favoritos ─────────────────────────────────────────────────────────────
+  const { data: isFavorited = false } = useQuery({
+    queryKey: ["favorite", id, user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("wishlists")
+        .select("id")
+        .eq("user_id", user!.id)
+        .eq("product_id", id!)
+        .maybeSingle();
+      return !!data;
+    },
+    enabled: !!user && !!isUuid,
+  });
+
+  const toggleFavorite = useMutation({
+    mutationFn: async () => {
+      if (isFavorited) {
+        await supabase.from("wishlists").delete().eq("user_id", user!.id).eq("product_id", id!);
+      } else {
+        await supabase.from("wishlists").insert({ user_id: user!.id, product_id: id! });
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["favorite", id, user?.id] });
+      toast.success(isFavorited ? "Removido dos favoritos" : "Adicionado aos favoritos ❤️");
+    },
+    onError: () => toast.error("Erro ao atualizar favoritos"),
+  });
+
+  const handleFavorite = () => {
+    if (!user) { navigate("/auth"); return; }
+    toggleFavorite.mutate();
+  };
+
+  const handleShare = async () => {
+    const shareData = {
+      title: product?.title || "Produto",
+      text: `Veja este produto no Kwanza Market: ${product?.title}`,
+      url: window.location.href,
+    };
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(window.location.href);
+        toast.success("Link copiado!");
+      }
+    } catch (_) {}
+  };
 
   const getSelectedVariantId = () =>
     Object.values(selectedSubVariants).find(Boolean) ||
@@ -287,7 +341,7 @@ const ProductDetail = () => {
       <div className="container mx-auto px-3 pt-3 flex items-center justify-between gap-3">
         <button onClick={() => navigate(-1)} className="text-foreground"><ArrowLeft className="w-5 h-5" /></button>
         <span className="text-sm font-bold text-foreground truncate flex-1">{product.title}</span>
-        <button className="text-foreground"><Share2 className="w-5 h-5" /></button>
+        <button onClick={handleShare} className="text-foreground"><Share2 className="w-5 h-5" /></button>
       </div>
 
       <div className="md:container md:mx-auto md:px-4 md:py-6">
@@ -316,18 +370,58 @@ const ProductDetail = () => {
 
             {/* Image gallery */}
             <div className="bg-card md:rounded-card md:border md:border-border">
-              <div className="aspect-square relative overflow-hidden md:rounded-t-card md:max-h-[450px]">
+              <div
+                className="aspect-square relative overflow-hidden md:rounded-t-card md:max-h-[450px]"
+                onTouchStart={e => { touchStartX.current = e.touches[0].clientX; }}
+                onTouchEnd={e => {
+                  if (touchStartX.current === null) return;
+                  const diff = touchStartX.current - e.changedTouches[0].clientX;
+                  if (Math.abs(diff) > 40) {
+                    if (diff > 0) setSelectedImage(i => Math.min(i + 1, displayImages.length - 1));
+                    else setSelectedImage(i => Math.max(i - 1, 0));
+                  }
+                  touchStartX.current = null;
+                }}
+              >
                 {displayImages[selectedImage]?.type === "video" ? (
                   <video src={displayImages[selectedImage].url} controls className="w-full h-full object-cover" />
                 ) : (
                   <img src={displayImages[selectedImage]?.url} alt={product.title} className="w-full h-full object-cover" />
                 )}
+
+                {/* Dots indicator */}
+                {displayImages.length > 1 && (
+                  <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
+                    {displayImages.map((_, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setSelectedImage(i)}
+                        className={`rounded-full transition-all ${i === selectedImage ? "w-4 h-1.5 bg-white" : "w-1.5 h-1.5 bg-white/50"}`}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {/* Action buttons */}
                 <div className="absolute right-3 top-1/3 flex flex-col gap-2">
-                  <button className="w-9 h-9 rounded-full bg-card/80 shadow flex items-center justify-center"><Share2 className="w-4 h-4 text-muted-foreground" /></button>
-                  <button onClick={() => setLiked(!liked)} className="w-9 h-9 rounded-full bg-card/80 shadow flex items-center justify-center">
-                    <Heart className={`w-4 h-4 ${liked ? "text-walmart-red fill-walmart-red" : "text-muted-foreground"}`} />
+                  <button
+                    onClick={handleShare}
+                    className="w-9 h-9 rounded-full bg-card/80 shadow flex items-center justify-center"
+                  >
+                    <Share2 className="w-4 h-4 text-muted-foreground" />
                   </button>
-                  <button className="w-9 h-9 rounded-full bg-card/80 shadow flex items-center justify-center"><ZoomIn className="w-4 h-4 text-muted-foreground" /></button>
+                  <button
+                    onClick={handleFavorite}
+                    className="w-9 h-9 rounded-full bg-card/80 shadow flex items-center justify-center"
+                  >
+                    <Heart className={`w-4 h-4 ${isFavorited ? "text-walmart-red fill-walmart-red" : "text-muted-foreground"}`} />
+                  </button>
+                  <button
+                    onClick={() => setZoomOpen(true)}
+                    className="w-9 h-9 rounded-full bg-card/80 shadow flex items-center justify-center"
+                  >
+                    <ZoomIn className="w-4 h-4 text-muted-foreground" />
+                  </button>
                 </div>
               </div>
               <div className="flex gap-2 p-3 overflow-x-auto scrollbar-hide">
@@ -343,6 +437,52 @@ const ProductDetail = () => {
                 ))}
               </div>
             </div>
+
+            {/* Zoom lightbox */}
+            {zoomOpen && (
+              <div
+                className="fixed inset-0 z-50 bg-black/95 flex flex-col"
+                onClick={() => setZoomOpen(false)}
+              >
+                <div className="flex items-center justify-between px-4 py-3">
+                  <button onClick={() => setZoomOpen(false)} className="text-white/70 hover:text-white">
+                    <ArrowLeft className="w-5 h-5" />
+                  </button>
+                  <span className="text-white/60 text-xs">{selectedImage + 1} / {displayImages.length}</span>
+                  <button onClick={handleShare} className="text-white/70 hover:text-white">
+                    <Share2 className="w-5 h-5" />
+                  </button>
+                </div>
+                <div
+                  className="flex-1 flex items-center justify-center px-4"
+                  onClick={e => e.stopPropagation()}
+                  onTouchStart={e => { touchStartX.current = e.touches[0].clientX; }}
+                  onTouchEnd={e => {
+                    if (touchStartX.current === null) return;
+                    const diff = touchStartX.current - e.changedTouches[0].clientX;
+                    if (Math.abs(diff) > 40) {
+                      if (diff > 0) setSelectedImage(i => Math.min(i + 1, displayImages.length - 1));
+                      else setSelectedImage(i => Math.max(i - 1, 0));
+                    }
+                    touchStartX.current = null;
+                  }}
+                >
+                  {displayImages[selectedImage]?.type === "video" ? (
+                    <video src={displayImages[selectedImage].url} controls className="max-w-full max-h-full rounded-lg" />
+                  ) : (
+                    <img src={displayImages[selectedImage]?.url} alt={product.title} className="max-w-full max-h-full object-contain rounded-lg" />
+                  )}
+                </div>
+                {displayImages.length > 1 && (
+                  <div className="flex justify-center gap-2 py-4">
+                    {displayImages.map((_, i) => (
+                      <button key={i} onClick={e => { e.stopPropagation(); setSelectedImage(i); }}
+                        className={`rounded-full transition-all ${i === selectedImage ? "w-5 h-2 bg-white" : "w-2 h-2 bg-white/40"}`} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* ── ANÚNCIOS DE PRODUTO (tablet/desktop apenas) ── */}
             {productAds.length > 0 && (
