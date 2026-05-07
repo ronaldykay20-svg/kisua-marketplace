@@ -1,8 +1,10 @@
-import { Star } from "lucide-react";
+import { Heart, Star } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useFavorites } from "@/hooks/useFavorites";
+import { useAuth } from "@/contexts/AuthContext";
 
 export interface Product {
-  id: number;
+  id: string | number;
   title: string;
   price: string;
   oldPrice?: string;
@@ -20,6 +22,17 @@ interface ProductCardProps {
 
 const ProductCard = ({ product }: ProductCardProps) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { isFavorite, toggleFavorite } = useFavorites();
+  const productId = String(product.id);
+  const liked = isFavorite(productId);
+
+  const handleFavorite = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user) { navigate("/auth"); return; }
+    await toggleFavorite(productId);
+    if (!liked) navigate("/favoritos");
+  };
 
   return (
     <div
@@ -34,8 +47,15 @@ const ProductCard = ({ product }: ProductCardProps) => {
           loading="lazy"
         />
         {product.badge && (
-          <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-sm text-[9px] font-bold text-primary-foreground"
-            style={{ background: product.badge === "HOT" ? "var(--promo-gradient)" : "hsl(var(--walmart-green))" }}>
+          <span
+            className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-sm text-[9px] font-bold text-primary-foreground"
+            style={{
+              background:
+                product.badge === "HOT"
+                  ? "var(--promo-gradient)"
+                  : "hsl(var(--walmart-green))",
+            }}
+          >
             {product.badge}
           </span>
         )}
@@ -44,26 +64,53 @@ const ProductCard = ({ product }: ProductCardProps) => {
             {product.discount}
           </span>
         )}
+        <button
+          onClick={handleFavorite}
+          className="absolute bottom-1.5 right-1.5 w-7 h-7 rounded-full bg-card/80 backdrop-blur-sm flex items-center justify-center z-10"
+        >
+          <Heart
+            className={`w-3.5 h-3.5 transition-colors ${
+              liked
+                ? "fill-[#8B6343] text-[#8B6343]"
+                : "text-muted-foreground"
+            }`}
+          />
+        </button>
       </div>
       <div className="p-2.5 flex flex-col flex-1">
-        <h3 className="text-xs font-semibold text-foreground line-clamp-2 leading-tight mb-1.5">{product.title}</h3>
+        <h3 className="text-xs font-semibold text-foreground line-clamp-2 leading-tight mb-1.5">
+          {product.title}
+        </h3>
         <div className="mt-auto">
           <div className="flex items-baseline gap-1.5">
             <span className="text-sm font-black text-foreground">{product.price}</span>
             {product.oldPrice && (
-              <span className="text-[10px] text-muted-foreground line-through">{product.oldPrice}</span>
+              <span className="text-[10px] text-muted-foreground line-through">
+                {product.oldPrice}
+              </span>
             )}
           </div>
           {product.rating && (
             <div className="flex items-center gap-0.5 mt-1">
               {Array.from({ length: 5 }).map((_, i) => (
-                <Star key={i} className={`w-2.5 h-2.5 ${i < Math.floor(product.rating!) ? "text-secondary fill-secondary" : "text-border"}`} />
+                <Star
+                  key={i}
+                  className={`w-2.5 h-2.5 ${
+                    i < Math.floor(product.rating!)
+                      ? "text-secondary fill-secondary"
+                      : "text-border"
+                  }`}
+                />
               ))}
-              <span className="text-[9px] text-muted-foreground ml-0.5">({product.reviews})</span>
+              <span className="text-[9px] text-muted-foreground ml-0.5">
+                ({product.reviews})
+              </span>
             </div>
           )}
           {product.freeShipping && (
-            <span className="inline-block mt-1 text-[9px] font-bold text-walmart-green">FRETE GRÁTIS</span>
+            <span className="inline-block mt-1 text-[9px] font-bold text-walmart-green">
+              FRETE GRÁTIS
+            </span>
           )}
         </div>
       </div>
