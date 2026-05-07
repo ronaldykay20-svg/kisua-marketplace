@@ -49,9 +49,10 @@ const ProductDetail = () => {
     queryFn: async () => {
       const { data } = await (supabase as any)
         .from("ads")
-        .select("*")
-        .eq("placement", "product")
+        .select("id, title, media_url, media_type, destination_url")
+        .eq("type", "banner")
         .eq("is_active", true)
+        .order("created_at", { ascending: false })
         .limit(3);
       return data || [];
     },
@@ -347,35 +348,50 @@ const ProductDetail = () => {
             {productAds.length > 0 && (
               <div className="hidden md:block mt-4 space-y-3">
                 <p className="text-[10px] text-muted-foreground text-right">Publicidade</p>
-                {productAds.map((ad: any) => (
-                  <a
-                    key={ad.id}
-                    href={ad.url || "#"}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block rounded-card border border-border overflow-hidden hover:shadow-md hover:border-primary/30 transition-all duration-200 group"
-                  >
-                    {ad.image_url ? (
-                      <div className="relative">
-                        <img
-                          src={ad.image_url}
-                          alt={ad.title}
-                          className="w-full object-cover max-h-36 group-hover:scale-[1.01] transition-transform duration-200"
-                        />
-                        {ad.title && (
-                          <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent px-3 py-2">
-                            <p className="text-white text-xs font-bold truncate">{ad.title}</p>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="bg-muted px-4 py-3 flex items-center justify-between gap-3">
-                        <p className="text-sm font-bold text-foreground truncate">{ad.title}</p>
-                        <span className="text-[10px] font-bold text-primary border border-primary/30 rounded-full px-2 py-0.5 whitespace-nowrap">Ver mais</span>
-                      </div>
-                    )}
-                  </a>
-                ))}
+                {productAds.map((ad: any) => {
+                  const isVideo = ad.media_type === "video";
+                  const inner = (
+                    <div className="rounded-card border border-border overflow-hidden hover:shadow-md hover:border-primary/30 transition-all duration-200 group">
+                      {ad.media_url ? (
+                        <div className="relative">
+                          {isVideo ? (
+                            <video
+                              src={ad.media_url}
+                              className="w-full object-cover max-h-36"
+                              autoPlay muted loop playsInline
+                            />
+                          ) : (
+                            <img
+                              src={ad.media_url}
+                              alt={ad.title || "Anúncio"}
+                              className="w-full object-cover max-h-36 group-hover:scale-[1.01] transition-transform duration-200"
+                            />
+                          )}
+                          {ad.title && (
+                            <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent px-3 py-2">
+                              <p className="text-white text-xs font-bold truncate">{ad.title}</p>
+                            </div>
+                          )}
+                          <span className="absolute top-2 right-2 text-[9px] font-bold text-white/80 bg-black/40 px-1.5 py-0.5 rounded-full backdrop-blur-sm">
+                            Patrocinado
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="bg-muted px-4 py-3 flex items-center justify-between gap-3">
+                          <p className="text-sm font-bold text-foreground truncate">{ad.title}</p>
+                          <span className="text-[10px] font-bold text-primary border border-primary/30 rounded-full px-2 py-0.5 whitespace-nowrap">Ver mais</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                  return ad.destination_url ? (
+                    <a key={ad.id} href={ad.destination_url} target="_blank" rel="noopener noreferrer" className="block">
+                      {inner}
+                    </a>
+                  ) : (
+                    <div key={ad.id}>{inner}</div>
+                  );
+                })}
               </div>
             )}
 
