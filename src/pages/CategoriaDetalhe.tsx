@@ -253,28 +253,36 @@ const CategoriaDetalhe = () => {
   );
 
   return (
-    <div className="min-h-screen pb-14 md:pb-0" style={{ backgroundColor: `${categoryColor}08` }}>
+    <div className="min-h-screen pb-14 md:pb-0" style={{ backgroundColor: "#F5F5F5" }}>
 
       {/* ══ HERO BANNER ══
           O Navbar está em position:absolute sobre esta secção,
           por isso usamos padding-top para compensar a altura do navbar (~56px).
           A imagem ocupa toda a largura e tem um gradiente escuro na parte inferior
           para garantir legibilidade do texto branco. */}
-      <div className="relative w-full overflow-hidden" style={{ minHeight: 260 }}>
-        {/* Imagem de fundo */}
+      <div className="relative w-full overflow-hidden" style={{ minHeight: 280 }}>
+        {/* Fundo: gradiente diagonal castanho/bege (identidade) → cor da categoria */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background: `linear-gradient(135deg, #C9A87C 0%, #D4B896 30%, ${categoryColor}BB 70%, ${categoryColor} 100%)`,
+          }}
+        />
+
+        {/* Imagem misturada com blend mode sobre o gradiente */}
         <img
           src={heroImage}
           alt={categoryName}
           className="absolute inset-0 w-full h-full object-cover"
-          style={{ objectPosition: "center top" }}
+          style={{ objectPosition: "center top", mixBlendMode: "multiply", opacity: 0.55 }}
         />
 
-        {/* Gradiente sobre a imagem: transparente em cima → escuro em baixo */}
+        {/* Gradiente na parte inferior para legibilidade do texto */}
         <div
           className="absolute inset-0"
           style={{
             background:
-              "linear-gradient(to bottom, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0.55) 60%, rgba(0,0,0,0.80) 100%)",
+              "linear-gradient(to bottom, transparent 0%, transparent 40%, rgba(0,0,0,0.30) 75%, rgba(0,0,0,0.55) 100%)",
           }}
         />
 
@@ -303,7 +311,7 @@ const CategoriaDetalhe = () => {
       </div>
 
       {/* Sort bar — fica sticky logo abaixo do hero */}
-      <div className="sticky top-14 z-30 border-b" style={{ backgroundColor: `${categoryColor}0A`, borderBottomColor: `${categoryColor}30` }}>
+      <div className="sticky top-14 z-30 border-b" style={{ backgroundColor: "#FFFFFF", borderBottomColor: "#E5E5E5" }}>
         <div className="container mx-auto px-3 py-2 flex items-center gap-2">
           <div className="relative flex-1">
             <button onClick={() => setShowSort(!showSort)} className="flex items-center gap-1 text-xs font-medium text-foreground">
