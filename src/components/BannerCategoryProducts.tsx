@@ -1,14 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { useRef, useState, useEffect, useMemo } from "react";
-import { ChevronLeft, ChevronRight, Star, Truck, Heart, Flame, Users, ShieldCheck, Tag } from "lucide-react";
+import { ChevronLeft, ChevronRight, Star, Truck, Heart, Flame, Users, ShieldCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useFavorites } from "@/hooks/useFavorites";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Props {
   categoryId: string;
 }
 
-// Pill colorido
 const InfoPill = ({ type, children }: { type: string; children: React.ReactNode }) => {
   const styles: Record<string, string> = {
     shipping:  "bg-green-100 text-green-700",
@@ -27,38 +28,26 @@ const InfoPill = ({ type, children }: { type: string; children: React.ReactNode 
   );
 };
 
-// Monta infos disponíveis para o produto
 const buildInfoList = (p: any) => {
   const list: { type: string; el: JSX.Element }[] = [];
-
   if (p.sales_count > 50)
     list.push({ type: "trending", el: <InfoPill type="trending"><Flame className="w-2.5 h-2.5" /> Tendência</InfoPill> });
-
   if (p.free_shipping)
     list.push({ type: "shipping", el: <InfoPill type="shipping"><Truck className="w-2.5 h-2.5" /> Frete grátis</InfoPill> });
-
   if (p.sales_count > 0)
     list.push({ type: "sales", el: <InfoPill type="sales"><Users className="w-2.5 h-2.5" /> {p.sales_count}+ vendidos</InfoPill> });
-
   if ((p.total_reviews || 0) > 10)
     list.push({ type: "recurrent", el: <InfoPill type="recurrent"><Users className="w-2.5 h-2.5" /> Clientes recorrentes</InfoPill> });
-
   if (p.discount_percent > 0)
     list.push({ type: "promo", el: <InfoPill type="promo"><Flame className="w-2.5 h-2.5" /> -{p.discount_percent}% hoje</InfoPill> });
-
   if (p.rating >= 4)
     list.push({ type: "rated", el: <InfoPill type="rated"><Star className="w-2.5 h-2.5 fill-yellow-500 text-yellow-500" /> Muito bem avaliado</InfoPill> });
-
   if (p.free_shipping && (p.sales_count || 0) > 5)
     list.push({ type: "fast", el: <InfoPill type="fast"><Truck className="w-2.5 h-2.5" /> Entrega rápida</InfoPill> });
-
-  // Sempre tem pelo menos 1
   list.push({ type: "secure", el: <InfoPill type="secure"><ShieldCheck className="w-2.5 h-2.5" /> Compra segura</InfoPill> });
-
   return list;
 };
 
-// Info animada por card — cada um no seu tempo
 const RotatingPill = ({ p, seed }: { p: any; seed: number }) => {
   const infoList = useMemo(() => buildInfoList(p), [p.id]);
   const [idx, setIdx] = useState(seed % infoList.length);
@@ -86,6 +75,8 @@ const RotatingPill = ({ p, seed }: { p: any; seed: number }) => {
 
 const BannerCategoryProducts = ({ categoryId }: Props) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { isFavorite, toggleFavorite } = useFavorites();
   const ref = useRef<HTMLDivElement>(null);
   const [activeDot, setActiveDot] = useState(0);
 
@@ -123,6 +114,12 @@ const BannerCategoryProducts = ({ categoryId }: Props) => {
     setActiveDot(Math.min(Math.round(el.scrollLeft / groupWidth), totalGroups - 1));
   };
 
+  const handleHeart = (e: React.MouseEvent, productId: string) => {
+    e.stopPropagation();
+    if (!user) { navigate("/auth"); return; }
+    toggleFavorite(productId);
+  };
+
   return (
     <section className="container mx-auto px-3 mt-2">
       <div className="relative">
@@ -133,6 +130,7 @@ const BannerCategoryProducts = ({ categoryId }: Props) => {
         >
           {products.map((p: any, i: number) => {
             const cover = p.product_media?.find((m: any) => m.is_cover)?.url || p.product_media?.[0]?.url;
+            const fav = isFavorite(p.id);
 
             return (
               <div
@@ -140,7 +138,6 @@ const BannerCategoryProducts = ({ categoryId }: Props) => {
                 onClick={() => navigate(`/produto/${p.id}`)}
                 className="snap-start flex-shrink-0 w-[calc(50%-4px)] sm:w-[calc(33.333%-6px)] md:w-[calc(25%-6px)] lg:w-[calc(20%-7px)] bg-card rounded-md border border-border overflow-hidden cursor-pointer hover:shadow-md transition flex flex-col"
               >
-                {/* Imagem */}
                 <div className="relative aspect-square overflow-hidden bg-muted">
                   {cover ? (
                     <img src={cover} alt={p.title} className="w-full h-full object-cover" loading="lazy" />
@@ -158,21 +155,16 @@ const BannerCategoryProducts = ({ categoryId }: Props) => {
                     </span>
                   )}
                   <button
-                    onClick={(e) => e.stopPropagation()}
+                    onClick={(e) => handleHeart(e, p.id)}
                     className="absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full bg-white/80 flex items-center justify-center shadow"
                   >
-                    <Heart className="w-3 h-3 text-gray-400" />
+                    <Heart className={`w-3 h-3 transition-colors ${fav ? "fill-[#8B6343] text-[#8B6343]" : "text-gray-400"}`} />
                   </button>
                 </div>
 
-                {/* Info */}
                 <div className="p-1.5 flex flex-col gap-1 flex-1">
-                  {/* Título */}
-                  <p className="text-[11px] font-semibold text-foreground line-clamp-2 leading-snug">
-                    {p.title}
-                  </p>
+                  <p className="text-[11px] font-semibold text-foreground line-clamp-2 leading-snug">{p.title}</p>
 
-                  {/* Rating — se existir */}
                   {p.rating > 0 && (
                     <div className="flex items-center gap-0.5">
                       <Star className="w-2.5 h-2.5 text-yellow-400 fill-yellow-400" />
@@ -185,10 +177,8 @@ const BannerCategoryProducts = ({ categoryId }: Props) => {
                     </div>
                   )}
 
-                  {/* Pill animado — preenche o espaço com info real */}
                   <RotatingPill p={p} seed={i} />
 
-                  {/* Preço */}
                   <div className="flex items-baseline gap-1 mt-auto pt-0.5">
                     <span className="text-[12px] font-black text-red-500">
                       {Number(p.price).toLocaleString("pt-AO")} Kz
@@ -205,7 +195,6 @@ const BannerCategoryProducts = ({ categoryId }: Props) => {
           })}
         </div>
 
-        {/* Setas mobile */}
         {products.length > 2 && (
           <>
             <button onClick={() => scroll("left")}
@@ -219,7 +208,6 @@ const BannerCategoryProducts = ({ categoryId }: Props) => {
           </>
         )}
 
-        {/* Setas tablet/desktop */}
         <button onClick={() => scroll("left")}
           className="hidden sm:flex absolute -left-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-card/90 border border-border items-center justify-center shadow-sm hover:bg-card z-10">
           <ChevronLeft className="w-4 h-4" />
@@ -230,7 +218,6 @@ const BannerCategoryProducts = ({ categoryId }: Props) => {
         </button>
       </div>
 
-      {/* Dots — mobile, só se > 2 produtos */}
       {products.length > 2 && (
         <div className="flex justify-center gap-1.5 mt-2 sm:hidden">
           {Array.from({ length: totalGroups }).map((_, i) => (
