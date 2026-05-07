@@ -1,16 +1,14 @@
 import { useState, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Search, SlidersHorizontal, ChevronDown, Star, CheckCircle, ShoppingCart, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, SlidersHorizontal, ChevronDown, Star, CheckCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import ProductCard, { type Product } from "@/components/ProductCard";
-import MobileProductCard from "@/components/MobileProductCard";
+import MobileSearchProductCard from "@/components/MobileSearchProductCard";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 const searchTabs = ["Produtos", "Vendedores", "Empresas"];
 const sortOptions = ["Mais relevantes", "Menor preço", "Maior preço", "Mais vendidos", "Melhor avaliação"];
-
-const trendingSearches = ["iPhone", "Samsung", "AirPods", "PlayStation", "Smart TV"];
 
 const ITEMS_PER_PAGE = 12;
 
@@ -19,9 +17,9 @@ const formatPrice = (price: number) =>
 
 const SearchResults = () => {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const query = searchParams.get("q") || "";
-  const [searchQuery, setSearchQuery] = useState(query);
+
   const [activeTab, setActiveTab] = useState("Produtos");
   const [sortBy, setSortBy] = useState("Mais relevantes");
   const [showSort, setShowSort] = useState(false);
@@ -97,18 +95,6 @@ const SearchResults = () => {
   const totalPages = Math.max(1, Math.ceil(products.length / ITEMS_PER_PAGE));
   const paginatedProducts = products.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    setCurrentPage(1);
-    setSearchParams({ q: searchQuery });
-  };
-
-  const setTrending = (term: string) => {
-    setSearchQuery(term);
-    setCurrentPage(1);
-    setSearchParams({ q: term });
-  };
-
   const renderSellerCard = (s: any) => (
     <div
       key={s.id}
@@ -138,31 +124,34 @@ const SearchResults = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 pt-3 flex items-center gap-2.5">
-        <button onClick={() => navigate(-1)} className="text-foreground flex-shrink-0"><ArrowLeft className="w-5 h-5" /></button>
-        <form onSubmit={handleSearch} className="flex-1 flex">
-          <div className="relative flex-1 flex bg-card border border-border rounded-full overflow-hidden">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Pesquisar..."
-              className="w-full py-2 pl-4 pr-10 bg-transparent text-foreground text-sm placeholder:text-muted-foreground focus:outline-none"
-            />
-            <button type="submit" className="px-3.5 flex items-center justify-center text-muted-foreground"><Search className="w-5 h-5" /></button>
+
+      {/* ── Header: voltar + termo pesquisado ── */}
+      <div className="sticky top-0 z-30 bg-background border-b border-border">
+        <div className="container mx-auto px-4 h-12 flex items-center gap-3">
+          <button onClick={() => navigate(-1)} className="text-foreground flex-shrink-0">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div className="flex-1 min-w-0">
+            {effectiveQuery ? (
+              <p className="text-sm font-semibold text-foreground truncate">
+                Resultados para{" "}
+                <span className="text-primary">"{effectiveQuery}"</span>
+              </p>
+            ) : (
+              <p className="text-sm font-semibold text-foreground">Todos os produtos</p>
+            )}
           </div>
-        </form>
+          {/* Contagem */}
+          <span className="flex-shrink-0 text-xs text-muted-foreground">
+            <span className="font-bold text-foreground">{totalCount}</span> result.
+          </span>
+        </div>
       </div>
 
-      <div className="container mx-auto px-4 py-4 space-y-4">
-        <div>
-          <p className="text-sm text-muted-foreground">
-            <span className="text-lg font-black text-foreground">{totalCount}</span> Resultados
-            {effectiveQuery && <> para "<span className="font-bold text-foreground">{effectiveQuery}</span>"</>}
-          </p>
-        </div>
+      <div className="container mx-auto px-0 sm:px-4 py-0 sm:py-4 space-y-0 sm:space-y-4">
 
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        {/* ── Tabs + Ordenar + Filtrar ── */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0 sm:gap-3 px-4 sm:px-0 pt-3 sm:pt-0">
           <div className="flex items-center gap-1 border-b border-border">
             {searchTabs.map(tab => (
               <button
@@ -177,7 +166,7 @@ const SearchResults = () => {
             ))}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 py-2 sm:py-0">
             <button
               onClick={() => setShowFilters(!showFilters)}
               className="flex items-center gap-1.5 px-3 py-2 rounded-card border border-border text-xs font-semibold text-foreground hover:bg-muted transition"
@@ -208,8 +197,9 @@ const SearchResults = () => {
           </div>
         </div>
 
+        {/* ── Filtros expandidos ── */}
         {showFilters && (
-          <div className="bg-card rounded-card border border-border p-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="bg-card border-y sm:rounded-card sm:border border-border p-4 grid grid-cols-2 sm:grid-cols-4 gap-3 mx-0 sm:mx-0">
             <div>
               <label className="text-xs font-bold text-foreground mb-1 block">Preço mín.</label>
               <input value={priceMin} onChange={e => { setPriceMin(e.target.value); setCurrentPage(1); }} placeholder="0" className="w-full px-3 py-2 rounded-card border border-border bg-background text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30" />
@@ -228,6 +218,7 @@ const SearchResults = () => {
           </div>
         )}
 
+        {/* ── Aba: Produtos ── */}
         {activeTab === "Produtos" && (
           <>
             {loadingProducts ? (
@@ -237,21 +228,24 @@ const SearchResults = () => {
                 <p className="text-sm text-muted-foreground">Nenhum produto encontrado{effectiveQuery && ` para "${effectiveQuery}"`}.</p>
               </div>
             ) : isMobile ? (
-              <div className="columns-2 gap-1.5 space-y-1.5">
-                {paginatedProducts.map((p, i) => (
-                  <MobileProductCard key={p.id} product={p} index={i} />
+              /* Mobile: lista horizontal estilo Made-in-China */
+              <div className="flex flex-col divide-y divide-border">
+                {paginatedProducts.map(p => (
+                  <MobileSearchProductCard key={p.id} product={p} />
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+              /* Tablet / Desktop: grid */
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                 {paginatedProducts.map(p => (
                   <ProductCard key={p.id} product={p} />
                 ))}
               </div>
             )}
 
+            {/* Paginação */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-center gap-1.5 mt-4 flex-wrap">
+              <div className="flex items-center justify-center gap-1.5 mt-4 pb-6 flex-wrap px-4">
                 <span className="text-xs text-muted-foreground mr-2">Página {currentPage} de {totalPages}</span>
                 <button onClick={() => setCurrentPage(Math.max(1, currentPage - 1))} disabled={currentPage === 1} className="w-8 h-8 rounded-card border border-border flex items-center justify-center text-muted-foreground hover:bg-muted disabled:opacity-40 transition">
                   <ChevronLeft className="w-4 h-4" />
@@ -269,38 +263,32 @@ const SearchResults = () => {
           </>
         )}
 
+        {/* ── Aba: Empresas ── */}
         {activeTab === "Empresas" && (
-          loadingSellers ? <p className="text-center text-sm text-muted-foreground py-8">A carregar...</p> :
-          empresas.length === 0 ? (
-            <div className="text-center py-12"><p className="text-sm text-muted-foreground">Nenhuma empresa encontrada.</p></div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{empresas.map(renderSellerCard)}</div>
-          )
-        )}
-
-        {activeTab === "Vendedores" && (
-          loadingSellers ? <p className="text-center text-sm text-muted-foreground py-8">A carregar...</p> :
-          vendedores.length === 0 ? (
-            <div className="text-center py-12"><p className="text-sm text-muted-foreground">Nenhum vendedor encontrado.</p></div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{vendedores.map(renderSellerCard)}</div>
-          )
-        )}
-
-        <div className="bg-card rounded-card border border-border p-4">
-          <h3 className="text-sm font-bold text-foreground mb-2 uppercase tracking-tight">Mais Pesquisados</h3>
-          <div className="space-y-1">
-            {trendingSearches.map(term => (
-              <button
-                key={term}
-                onClick={() => setTrending(term)}
-                className="w-full flex items-center justify-between px-2 py-2 rounded-card hover:bg-muted transition text-xs text-foreground"
-              >
-                {term} <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
-              </button>
-            ))}
+          <div className="px-4 sm:px-0 pb-6">
+            {loadingSellers ? (
+              <p className="text-center text-sm text-muted-foreground py-8">A carregar...</p>
+            ) : empresas.length === 0 ? (
+              <div className="text-center py-12"><p className="text-sm text-muted-foreground">Nenhuma empresa encontrada.</p></div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{empresas.map(renderSellerCard)}</div>
+            )}
           </div>
-        </div>
+        )}
+
+        {/* ── Aba: Vendedores ── */}
+        {activeTab === "Vendedores" && (
+          <div className="px-4 sm:px-0 pb-6">
+            {loadingSellers ? (
+              <p className="text-center text-sm text-muted-foreground py-8">A carregar...</p>
+            ) : vendedores.length === 0 ? (
+              <div className="text-center py-12"><p className="text-sm text-muted-foreground">Nenhum vendedor encontrado.</p></div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{vendedores.map(renderSellerCard)}</div>
+            )}
+          </div>
+        )}
+
       </div>
     </div>
   );
