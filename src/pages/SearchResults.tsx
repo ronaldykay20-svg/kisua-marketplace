@@ -226,14 +226,14 @@ const SearchResults = () => {
               </div>
             ) : (
               <>
-                {/* Mobile (<640px): lista vertical um por baixo do outro */}
+                {/* Mobile (<640px): 1 card por linha, um por baixo do outro */}
                 <div className="flex flex-col divide-y divide-border sm:hidden">
                   {paginatedProducts.map(p => (
                     <MobileSearchProductCard key={p.id} product={p} />
                   ))}
                 </div>
-                {/* Tablet / Desktop (>=640px): grid */}
-                <div className="hidden sm:grid sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 px-4 sm:px-0">
+                {/* Tablet (640px–1024px): 2 colunas | Desktop (>=1024px): 4-5 colunas */}
+                <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3 px-4 sm:px-0">
                   {paginatedProducts.map(p => (
                     <ProductCard key={p.id} product={p} />
                   ))}
