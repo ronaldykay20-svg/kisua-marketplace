@@ -14,6 +14,15 @@ const ITEMS_PER_PAGE = 12;
 const formatPrice = (price: number) =>
   Number(price).toLocaleString("pt-AO").replace(/,/g, ".") + " Kz";
 
+/** Retorna true se a data de criação é inferior ou igual a 7 dias atrás */
+const isNewProduct = (createdAt: string | null | undefined): boolean => {
+  if (!createdAt) return false;
+  const created = new Date(createdAt).getTime();
+  const now = Date.now();
+  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+  return now - created <= sevenDaysMs;
+};
+
 const SearchResults = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -81,7 +90,8 @@ const SearchResults = () => {
       rating: p.rating || undefined,
       reviews: p.total_reviews || undefined,
       freeShipping: p.free_shipping || false,
-      badge: p.badge || undefined,
+      // Badge "NOVO" apenas se publicado há ≤ 7 dias; caso contrário usa badge definido no produto
+      badge: isNewProduct(p.created_at) ? "NOVO" : (p.badge || undefined),
       description: p.description || undefined,
       sellerName: p.seller_name || undefined,
     })),
@@ -241,14 +251,18 @@ const SearchResults = () => {
               </div>
             ) : (
               <>
-                {/* Mobile (<640px): 1 card por linha, um por baixo do outro */}
+                {/* Mobile (<640px): 1 card por linha, layout horizontal */}
                 <div className="flex flex-col divide-y divide-border sm:hidden">
                   {paginatedProducts.map(p => (
                     <MobileSearchProductCard key={p.id} product={p} />
                   ))}
                 </div>
-                {/* Tablet (640px–1024px): 2 colunas | Desktop (>=1024px): 4-5 colunas */}
-                <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3 px-4 sm:px-0">
+
+                {/*
+                  Tablet (640px–1023px): 5 colunas — igual ao design da imagem
+                  Desktop (>=1024px): 4-5 colunas conforme largura
+                */}
+                <div className="hidden sm:grid sm:grid-cols-5 lg:grid-cols-4 xl:grid-cols-5 gap-3 px-4 sm:px-0">
                   {paginatedProducts.map(p => (
                     <ProductCard key={p.id} product={p} />
                   ))}
