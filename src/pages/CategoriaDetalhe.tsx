@@ -2,10 +2,17 @@ import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { SlidersHorizontal, ChevronDown, ShoppingCart, Star, Loader2, Plus, X } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { allProducts } from "@/data/products";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCategories } from "@/hooks/useSupabaseData";
+
+/* ── Paleta castanha ── */
+const sand     = "#D4B896";
+const sandDark = "#B8956A";
+const cream    = "#F7F0E6";
+const brown    = "#4A2E0A";
+const brownLight = "rgba(74,46,10,0.10)";
+const brownMid   = "rgba(74,46,10,0.18)";
 
 const subcategories: Record<string, string[]> = {
   "Electrónicos": ["Smartphones", "Tablets", "Computadores", "Áudio", "TV & Vídeo", "Câmeras", "Acessórios"],
@@ -26,7 +33,6 @@ const subcategories: Record<string, string[]> = {
   "Animais": ["Cães", "Gatos", "Aves", "Acessórios", "Alimentação"],
 };
 
-/* Imagens de capa por categoria */
 const categoryHeroImages: Record<string, string> = {
   "Electrónicos": "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=800&h=400&fit=crop",
   "Veículos": "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=800&h=400&fit=crop",
@@ -47,7 +53,6 @@ const categoryHeroImages: Record<string, string> = {
   "Vestuário": "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800&h=400&fit=crop",
 };
 
-/* Subtítulos por categoria */
 const categorySubtitles: Record<string, string> = {
   "Electrónicos": "Tecnologia de ponta ao seu alcance.",
   "Veículos": "O veículo ideal para cada jornada.",
@@ -71,7 +76,7 @@ const categorySubtitles: Record<string, string> = {
 const colorOptions = [
   { name: "Múltiplo", color: "bg-gradient-to-br from-yellow-400 via-pink-500 to-blue-500" },
   { name: "Preto", color: "bg-black" },
-  { name: "Branco", color: "bg-white border border-border" },
+  { name: "Branco", color: "bg-white border border-gray-300" },
   { name: "Rosa", color: "bg-pink-400" },
   { name: "Azul", color: "bg-blue-500" },
   { name: "Cinza", color: "bg-gray-400" },
@@ -135,7 +140,6 @@ const CategoriaDetalhe = () => {
       freeShipping: p.free_shipping,
       badge: p.badge,
       salesCount: p.sales_count || 0,
-      sellerName: "",
     };
   });
 
@@ -145,7 +149,7 @@ const CategoriaDetalhe = () => {
     setSelectedColors(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]);
   };
 
-  /* Imagem de capa: usa a da categoria do DB se existir, senão fallback pelo nome */
+  /* Banner: usa a imagem real da categoria — sem mistura de cor por cima */
   const heroImage =
     category?.image_url ||
     categoryHeroImages[categoryName] ||
@@ -156,50 +160,71 @@ const CategoriaDetalhe = () => {
     categorySubtitles[categoryName] ||
     "Os melhores produtos para si.";
 
-  const categoryColor = category?.color || "#3B82F6";
-
+  /* ── Painel de filtros (sidebar e drawer) ── */
   const FiltersPanel = () => (
-    <div className="space-y-5">
-      {/* Subcategory */}
+    <div className="space-y-6">
+
+      {/* Subcategoria */}
       <div>
-        <h3 className="text-sm font-bold text-foreground mb-2">Categoria</h3>
-        <div className="space-y-1">
+        <h3 className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: sandDark }}>
+          Categoria
+        </h3>
+        <div className="space-y-0.5">
           {subs.map(sub => (
-            <button key={sub} onClick={() => setSelectedSub(selectedSub === sub ? null : sub)}
-              className="flex items-center justify-between w-full text-left px-1 py-1.5 text-xs text-foreground hover:text-primary">
+            <button
+              key={sub}
+              onClick={() => setSelectedSub(selectedSub === sub ? null : sub)}
+              className="flex items-center justify-between w-full text-left px-2 py-1.5 rounded-lg transition-colors"
+              style={{
+                background: selectedSub === sub ? brownLight : "transparent",
+              }}
+            >
               <div className="flex items-center gap-2">
-                <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${selectedSub === sub ? "border-primary" : "border-muted-foreground"}`}>
-                  {selectedSub === sub && <div className="w-2 h-2 rounded-full bg-primary" />}
+                <div
+                  className="w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0"
+                  style={{ borderColor: selectedSub === sub ? sandDark : "#ccc" }}
+                >
+                  {selectedSub === sub && (
+                    <div className="w-2 h-2 rounded-full" style={{ background: sandDark }} />
+                  )}
                 </div>
-                {sub}
+                <span className="text-xs" style={{ color: selectedSub === sub ? brown : "#555" }}>{sub}</span>
               </div>
-              <Plus className="w-3 h-3 text-muted-foreground" />
+              <Plus className="w-3 h-3" style={{ color: sandDark }} />
             </button>
           ))}
         </div>
       </div>
 
-      {/* Colors */}
+      {/* Cor */}
       <div>
-        <h3 className="text-sm font-bold text-foreground mb-2">Cor</h3>
-        <div className="grid grid-cols-2 gap-2">
+        <h3 className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: sandDark }}>Cor</h3>
+        <div className="grid grid-cols-2 gap-1.5">
           {colorOptions.map(c => (
-            <button key={c.name} onClick={() => toggleColor(c.name)}
-              className={`flex items-center gap-2 text-xs ${selectedColors.includes(c.name) ? "font-bold text-primary" : "text-foreground"}`}>
-              <div className={`w-5 h-5 rounded-full ${c.color} flex-shrink-0`} />
+            <button
+              key={c.name}
+              onClick={() => toggleColor(c.name)}
+              className="flex items-center gap-2 px-1.5 py-1 rounded-lg transition-colors text-xs"
+              style={{
+                background: selectedColors.includes(c.name) ? brownLight : "transparent",
+                color: selectedColors.includes(c.name) ? brown : "#555",
+                fontWeight: selectedColors.includes(c.name) ? 700 : 400,
+              }}
+            >
+              <div className={`w-4 h-4 rounded-full ${c.color} flex-shrink-0`} />
               {c.name}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Price */}
+      {/* Preço */}
       <div>
-        <h3 className="text-sm font-bold text-foreground mb-2">Preço</h3>
-        <div className="space-y-1">
+        <h3 className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: sandDark }}>Preço</h3>
+        <div className="space-y-0.5">
           {["Até 10.000 Kz", "10.000 - 50.000 Kz", "50.000 - 200.000 Kz", "200.000+"].map(p => (
-            <button key={p} className="flex items-center gap-2 w-full text-left px-1 py-1.5 text-xs text-foreground hover:text-primary">
-              <div className="w-4 h-4 rounded border border-muted-foreground" />
+            <button key={p} className="flex items-center gap-2 w-full text-left px-2 py-1.5 rounded-lg hover:bg-amber-50 text-xs transition-colors" style={{ color: "#555" }}>
+              <div className="w-4 h-4 rounded border-2 flex-shrink-0" style={{ borderColor: "#ccc" }} />
               {p}
             </button>
           ))}
@@ -208,44 +233,110 @@ const CategoriaDetalhe = () => {
     </div>
   );
 
-  const ProductCardShein = ({ product }: { product: any }) => (
-    <button onClick={() => navigate(`/produto/${product.id}`)}
-      className="w-full text-left bg-card overflow-hidden group">
-      <div className="relative aspect-[3/4] overflow-hidden bg-muted">
-        <img src={product.image} alt={product.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
+  /* ── Card de produto ── */
+  const ProductCard = ({ product }: { product: any }) => (
+    <button
+      onClick={() => navigate(`/produto/${product.id}`)}
+      className="w-full text-left overflow-hidden group"
+      style={{
+        background: "#fff",
+        borderRadius: 14,
+        border: `1.5px solid ${brownMid}`,
+        boxShadow: "0 2px 10px rgba(74,46,10,0.08)",
+      }}
+    >
+      {/* Imagem */}
+      <div className="relative aspect-[3/4] overflow-hidden" style={{ borderRadius: "12px 12px 0 0", background: cream }}>
+        <img
+          src={product.image}
+          alt={product.title}
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          loading="lazy"
+        />
+
+        {/* Badge desconto */}
         {product.discount && (
-          <span className="absolute bottom-1.5 right-1.5 w-7 h-7 rounded-full bg-primary text-primary-foreground text-[9px] font-bold flex items-center justify-center">{product.discount}</span>
+          <span
+            className="absolute top-2 left-2 text-[10px] font-black px-2 py-0.5 rounded-full"
+            style={{ background: "#E53935", color: "#fff" }}
+          >
+            {product.discount}
+          </span>
         )}
+
+        {/* Comprado X vezes */}
         {product.salesCount > 0 && (
-          <div className="absolute bottom-1.5 left-1.5 bg-black/60 text-white text-[9px] font-semibold px-1.5 py-0.5 rounded-full">
+          <div
+            className="absolute bottom-2 left-2 right-2 text-[9px] font-semibold px-2 py-1 rounded-full text-center"
+            style={{ background: "rgba(74,46,10,0.65)", color: "#fff" }}
+          >
             Comprado {product.salesCount} vezes hoje
           </div>
         )}
       </div>
-      <div className="px-1 py-2">
-        {product.badge && (
-          <div className="flex items-center gap-1 mb-0.5">
-            <span className="text-[9px] font-bold bg-primary/10 text-primary px-1 py-0.5 rounded">Local</span>
-            {product.discount && <span className="text-[9px] font-bold bg-destructive/10 text-destructive px-1 py-0.5 rounded">{product.discount}</span>}
-          </div>
-        )}
-        <h3 className="text-xs font-medium text-foreground line-clamp-1 mb-0.5">{product.title}</h3>
+
+      {/* Info */}
+      <div className="px-2.5 pt-2 pb-2.5">
+        {/* Título */}
+        <h3
+          className="text-xs font-semibold line-clamp-2 leading-snug mb-1"
+          style={{ color: brown }}
+        >
+          {product.title}
+        </h3>
+
+        {/* Estrelas */}
         {product.rating > 0 && (
-          <div className="flex items-center gap-0.5 mb-0.5">
+          <div className="flex items-center gap-0.5 mb-1">
             {[...Array(5)].map((_, i) => (
-              <Star key={i} className={`w-2.5 h-2.5 ${i < product.rating ? "fill-secondary text-secondary" : "text-muted-foreground/30"}`} />
+              <Star
+                key={i}
+                className="w-2.5 h-2.5"
+                style={{
+                  fill: i < product.rating ? sandDark : "transparent",
+                  color: i < product.rating ? sandDark : "#ccc",
+                }}
+              />
             ))}
-            {product.reviews > 0 && <span className="text-[9px] text-muted-foreground ml-0.5">({product.reviews})</span>}
+            {product.reviews > 0 && (
+              <span className="text-[9px] ml-0.5" style={{ color: sandDark }}>
+                ({product.reviews})
+              </span>
+            )}
           </div>
         )}
-        <div className="flex items-baseline gap-1">
-          {product.oldPrice && <span className="text-[10px] text-muted-foreground line-through">{product.oldPrice}</span>}
-          <span className="text-sm font-black text-foreground">{product.priceFormatted}</span>
+
+        {/* Preços */}
+        <div className="flex items-baseline gap-1 mb-1.5">
+          {product.oldPrice && (
+            <span className="text-[10px] line-through" style={{ color: "#aaa" }}>
+              {product.oldPrice}
+            </span>
+          )}
+          <span className="text-sm font-black" style={{ color: brown }}>
+            {product.priceFormatted}
+          </span>
         </div>
-        <div className="flex items-center justify-between mt-1">
-          {product.freeShipping && <span className="text-[9px] text-accent font-semibold">Frete grátis</span>}
-          <div className="ml-auto w-7 h-7 rounded border border-border flex items-center justify-center">
-            <ShoppingCart className="w-3.5 h-3.5 text-muted-foreground" />
+
+        {/* Rodapé: frete + botão carrinho */}
+        <div className="flex items-center justify-between">
+          {product.freeShipping ? (
+            <span className="text-[9px] font-bold" style={{ color: sandDark }}>
+              Frete grátis
+            </span>
+          ) : (
+            <span />
+          )}
+
+          {/* Botão adicionar ao carrinho */}
+          <div
+            className="flex items-center justify-center w-8 h-8 rounded-xl transition-all active:scale-95"
+            style={{
+              background: `linear-gradient(135deg, ${sandDark}, ${sand})`,
+              boxShadow: "0 2px 8px rgba(74,46,10,0.25)",
+            }}
+          >
+            <ShoppingCart className="w-3.5 h-3.5" style={{ color: "#fff" }} />
           </div>
         </div>
       </div>
@@ -253,54 +344,46 @@ const CategoriaDetalhe = () => {
   );
 
   return (
-    <div className="min-h-screen pb-14 md:pb-0" style={{ backgroundColor: "#F5F5F5" }}>
+    /* position:relative para que o Navbar absolute se posicione em relação a este div */
+    <div className="relative min-h-screen pb-14 md:pb-0" style={{ backgroundColor: "#F5F5F5" }}>
 
       {/* ══ HERO BANNER ══
-          O Navbar está em position:absolute sobre esta secção,
-          por isso usamos padding-top para compensar a altura do navbar (~56px).
-          A imagem ocupa toda a largura e tem um gradiente escuro na parte inferior
-          para garantir legibilidade do texto branco. */}
-      <div className="relative w-full overflow-hidden" style={{ minHeight: 280 }}>
-        {/* Fundo: gradiente diagonal castanho/bege (identidade) → cor da categoria */}
-        <div
-          className="absolute inset-0"
-          style={{
-            background: `linear-gradient(135deg, #C9A87C 0%, #D4B896 30%, ${categoryColor}BB 70%, ${categoryColor} 100%)`,
-          }}
-        />
+          Navbar está em position:absolute sobre este bloco.
+          A imagem ocupa desde o topo absoluto (y=0).
+          paddingTop compensa a altura do navbar (56px) para o texto não ficar atrás dos ícones. */}
+      <div className="relative w-full overflow-hidden" style={{ minHeight: 300 }}>
 
-        {/* Imagem misturada com blend mode sobre o gradiente */}
+        {/* Imagem da categoria — ocupa tudo desde o topo */}
         <img
           src={heroImage}
           alt={categoryName}
           className="absolute inset-0 w-full h-full object-cover"
-          style={{ objectPosition: "center top", mixBlendMode: "multiply", opacity: 0.55 }}
+          style={{ objectPosition: "center top" }}
         />
 
-        {/* Gradiente na parte inferior para legibilidade do texto */}
+        {/* Gradiente escuro apenas na parte inferior para legibilidade */}
         <div
           className="absolute inset-0"
           style={{
             background:
-              "linear-gradient(to bottom, transparent 0%, transparent 40%, rgba(0,0,0,0.30) 75%, rgba(0,0,0,0.55) 100%)",
+              "linear-gradient(to bottom, rgba(0,0,0,0.10) 0%, transparent 35%, rgba(0,0,0,0.25) 65%, rgba(0,0,0,0.60) 100%)",
           }}
         />
 
-        {/* Conteúdo textual — empurrado para baixo pelo padding-top do navbar */}
+        {/* Texto — padding-top = altura do navbar */}
         <div
           className="relative z-10 flex flex-col justify-end px-4 pb-5"
-          style={{ paddingTop: 72 /* altura do navbar */ }}
+          style={{ paddingTop: 68 }}
         >
-          {/* Breadcrumb claro */}
-          <div className="flex items-center gap-1 text-xs text-white/70 mb-3">
+          {/* Breadcrumb */}
+          <div className="flex items-center gap-1 text-[11px] text-white/70 mb-2.5">
             <button onClick={() => navigate("/")} className="hover:text-white transition-colors">Início</button>
             <span>/</span>
             <button onClick={() => navigate("/categorias")} className="hover:text-white transition-colors">Categorias</button>
             <span>/</span>
-            <span className="text-white font-semibold">{categoryName}</span>
+            <span className="text-white font-bold">{categoryName}</span>
           </div>
 
-          {/* Título + subtítulo */}
           <h1 className="text-3xl font-black text-white drop-shadow-lg leading-tight mb-1">
             {categoryName}
           </h1>
@@ -310,63 +393,116 @@ const CategoriaDetalhe = () => {
         </div>
       </div>
 
-      {/* Sort bar — fica sticky logo abaixo do hero */}
-      <div className="sticky top-14 z-30 border-b" style={{ backgroundColor: "#FFFFFF", borderBottomColor: "#E5E5E5" }}>
+      {/* ══ BARRA DE ORDENAÇÃO ══ */}
+      <div
+        className="sticky top-14 z-30 border-b"
+        style={{ backgroundColor: "#fff", borderBottomColor: brownMid }}
+      >
         <div className="container mx-auto px-3 py-2 flex items-center gap-2">
           <div className="relative flex-1">
-            <button onClick={() => setShowSort(!showSort)} className="flex items-center gap-1 text-xs font-medium text-foreground">
-              Ordenar por <span className="text-primary font-bold">{sortBy}</span> <ChevronDown className="w-3 h-3" />
+            <button
+              onClick={() => setShowSort(!showSort)}
+              className="flex items-center gap-1 text-xs font-medium"
+              style={{ color: brown }}
+            >
+              Ordenar por{" "}
+              <span className="font-black" style={{ color: sandDark }}>{sortBy}</span>
+              <ChevronDown className="w-3 h-3" style={{ color: sandDark }} />
             </button>
             {showSort && (
-              <div className="absolute top-full left-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-40 min-w-[160px]">
+              <div
+                className="absolute top-full left-0 mt-1 rounded-xl shadow-lg z-40 min-w-[170px] overflow-hidden"
+                style={{ background: "#fff", border: `1.5px solid ${brownMid}` }}
+              >
                 {sortOptions.map(opt => (
-                  <button key={opt} onClick={() => { setSortBy(opt); setShowSort(false); }}
-                    className={`block w-full text-left px-3 py-2 text-xs hover:bg-muted ${opt === sortBy ? "text-primary font-bold" : "text-foreground"}`}>
+                  <button
+                    key={opt}
+                    onClick={() => { setSortBy(opt); setShowSort(false); }}
+                    className="block w-full text-left px-3 py-2 text-xs transition-colors hover:bg-amber-50"
+                    style={{
+                      color: opt === sortBy ? sandDark : brown,
+                      fontWeight: opt === sortBy ? 800 : 400,
+                      background: opt === sortBy ? brownLight : "transparent",
+                    }}
+                  >
                     {opt}
                   </button>
                 ))}
               </div>
             )}
           </div>
+
           {isMobile && (
-            <button onClick={() => setShowMobileFilters(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-border text-xs font-medium text-foreground">
-              <SlidersHorizontal className="w-3.5 h-3.5" /> Filtro
+            <button
+              onClick={() => setShowMobileFilters(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-colors"
+              style={{
+                background: brownLight,
+                border: `1.5px solid ${brownMid}`,
+                color: brown,
+              }}
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" style={{ color: sandDark }} />
+              Filtro
             </button>
           )}
         </div>
       </div>
 
-      {/* Mobile filter drawer */}
+      {/* ══ DRAWER DE FILTROS (mobile) ══ */}
       {isMobile && showMobileFilters && (
-        <div className="fixed inset-0 z-50 bg-black/50" onClick={() => setShowMobileFilters(false)}>
-          <div className="absolute left-0 top-0 bottom-0 w-72 bg-card overflow-y-auto p-4" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" onClick={() => setShowMobileFilters(false)}>
+          <div
+            className="absolute left-0 top-0 bottom-0 w-72 overflow-y-auto p-4"
+            style={{ background: cream }}
+            onClick={e => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold text-foreground">Filtro</h2>
-              <button onClick={() => setShowMobileFilters(false)}><X className="w-5 h-5 text-muted-foreground" /></button>
+              <h2 className="text-sm font-black" style={{ color: brown }}>Filtros</h2>
+              <button
+                onClick={() => setShowMobileFilters(false)}
+                className="w-7 h-7 rounded-full flex items-center justify-center"
+                style={{ background: brownLight }}
+              >
+                <X className="w-4 h-4" style={{ color: brown }} />
+              </button>
             </div>
             <FiltersPanel />
           </div>
         </div>
       )}
 
+      {/* ══ LAYOUT PRINCIPAL ══ */}
       <div className="container mx-auto px-3 flex gap-4">
-        {/* Desktop sidebar filters */}
+
+        {/* Sidebar de filtros (desktop) */}
         {!isMobile && (
-          <aside className="w-56 flex-shrink-0 py-3">
+          <aside
+            className="w-56 flex-shrink-0 py-4 px-3 mt-4 rounded-2xl self-start sticky top-[88px]"
+            style={{
+              background: cream,
+              border: `1.5px solid ${brownMid}`,
+              boxShadow: "0 2px 10px rgba(74,46,10,0.07)",
+            }}
+          >
             <FiltersPanel />
           </aside>
         )}
 
-        {/* Products grid */}
+        {/* Grid de produtos */}
         <div className="flex-1 py-3">
           {isLoading ? (
-            <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+            <div className="flex justify-center py-12">
+              <Loader2 className="w-6 h-6 animate-spin" style={{ color: sandDark }} />
+            </div>
           ) : (
             <>
-              <p className="text-xs text-muted-foreground mb-3">{products.length} resultados em "{categoryName}"</p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+              <p className="text-xs mb-3 font-medium" style={{ color: sandDark }}>
+                {products.length} resultados em "{categoryName}"
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                 {products.map((p: any) => (
-                  <ProductCardShein key={p.id} product={p} />
+                  <ProductCard key={p.id} product={p} />
                 ))}
               </div>
             </>
