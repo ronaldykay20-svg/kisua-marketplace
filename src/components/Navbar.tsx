@@ -5,9 +5,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSiteSetting } from "@/hooks/useSiteSettings";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useCategories } from "@/hooks/useSupabaseData";
 
 /* ── Paleta castanha clara / bege areia ── */
-const categories = [
+const staticCategories = [
   { name: "Electrónicos", image: "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=100&h=100&fit=crop" },
   { name: "Veículos", image: "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=100&h=100&fit=crop" },
   { name: "Imóveis", image: "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=100&h=100&fit=crop" },
@@ -119,6 +120,15 @@ const Navbar = () => {
   const { user, userDisplayName, signOut } = useAuth();
   const { data: logoUrl } = useSiteSetting("site_logo_url");
   const qc = useQueryClient();
+
+  // ── Categorias do Supabase com fallback estático ──
+  const { data: dbCategories } = useCategories();
+  const categories = dbCategories && dbCategories.length > 0
+    ? dbCategories.map((c: any) => ({
+        name: c.name,
+        image: c.image_url || staticCategories.find((s) => s.name === c.name)?.image || "",
+      }))
+    : staticCategories;
 
   const isCategoriasPage = location.pathname === "/categorias";
   const isPesquisaPage = location.pathname === "/pesquisa";
@@ -261,7 +271,6 @@ const Navbar = () => {
     ? "1px solid rgba(255,255,255,0.3)"
     : "1px solid rgba(74,46,10,0.18)";
 
-  // ── CHAVE DA CORREÇÃO: absolute na página de categoria detalhe ──
   const navPositionClass = isCategoriaDetalhePage
     ? "absolute top-0 left-0 right-0 w-full z-50"
     : "sticky top-0 z-50";
@@ -485,7 +494,7 @@ const Navbar = () => {
                 className="pb-3 overflow-x-auto scrollbar-hide"
                 style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}
               >
-                {categories.map(cat => (
+                {categories.map((cat: any) => (
                   <button
                     key={cat.name}
                     onClick={() => navigate(`/categoria/${encodeURIComponent(cat.name)}`)}
@@ -638,7 +647,7 @@ const Navbar = () => {
             <div className="flex-1 p-1">
               <p className="text-[10px] font-bold uppercase tracking-wider px-3 pt-3 pb-2" style={{ color: sandDark }}>Categorias</p>
               <div className="space-y-0.5">
-                {categories.map(cat => (
+                {categories.map((cat: any) => (
                   <button
                     key={cat.name}
                     onClick={() => { navigate(`/categoria/${encodeURIComponent(cat.name)}`); setMenuOpen(false); }}
