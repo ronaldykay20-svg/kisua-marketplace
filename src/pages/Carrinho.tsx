@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Minus, Plus, Trash2, ShoppingCart, Loader2, MapPin, Tag, ShieldCheck, RotateCcw, Headphones, Star, Heart } from "lucide-react";
+import { Minus, Plus, Trash2, ShoppingCart, Loader2, MapPin, Tag, ShieldCheck, RotateCcw, Headphones, Star, Heart, ImageOff } from "lucide-react";
 import { useCart } from "@/hooks/useSupabaseData";
 import { useUpdateCartItem, useRemoveCartItem } from "@/hooks/useCartActions";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,6 +19,17 @@ const SHIPPING_FEE = 2500;
 const formatPrice = (price: number) =>
   price.toLocaleString("pt-AO").replace(/,/g, " ") + " Kz";
 
+/* ── Placeholder neutro quando não há imagem real ── */
+const ImagePlaceholder = ({ className = "w-24 h-24" }: { className?: string }) => (
+  <div
+    className={`${className} rounded-xl flex flex-col items-center justify-center flex-shrink-0`}
+    style={{ background: brownLight, border: `1.5px dashed ${sand}` }}
+  >
+    <ImageOff className="w-5 h-5 mb-1" style={{ color: sandDark }} />
+    <span className="text-[9px] font-medium" style={{ color: sandDark }}>Sem foto</span>
+  </div>
+);
+
 const Carrinho = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -29,30 +40,64 @@ const Carrinho = () => {
   const [couponOpen, setCouponOpen] = useState(false);
   const [favorites, setFavorites] = useState<string[]>([]);
 
-  /* ── Sugestões de produtos ── */
+  /* ── IDs de categorias dos produtos no carrinho ── */
+  const categoryIds: string[] = Array.from(
+    new Set(
+      (cartItems as any[])
+        .map((item: any) => item.products?.category_id)
+        .filter(Boolean)
+    )
+  );
+
+  const cartProductIds = (cartItems as any[]).map((i: any) => i.products?.id).filter(Boolean);
+
+  /* ── Sugestões pelas mesmas categorias ── */
   const { data: suggestions = [] } = useQuery({
-    queryKey: ["cart_suggestions"],
+    queryKey: ["cart_suggestions", categoryIds.join(",")],
     queryFn: async () => {
-      const { data } = await supabase
+      if (categoryIds.length === 0) return [];
+
+      const { data, error } = await supabase
         .from("products")
-        .select("id, title, price, image_url, rating, rating_count")
+        .select("id, title, price, image_url, rating, total_reviews, category_id")
         .eq("is_active", true)
+        .in("category_id", categoryIds)
         .order("created_at", { ascending: false })
-        .limit(10);
-      return data || [];
+        .limit(20);
+
+      if (error) return [];
+
+      /* Excluir produtos já no carrinho */
+      const filtered = (data || []).filter((p: any) => !cartProductIds.includes(p.id));
+
+      /* Buscar cover real de product_media */
+      const ids = filtered.map((p: any) => p.id);
+      if (ids.length === 0) return filtered.map((p: any) => ({ ...p, cover_url: null }));
+
+      const { data: mediaData } = await supabase
+        .from("product_media")
+        .select("product_id, url")
+        .in("product_id", ids)
+        .eq("is_cover", true);
+
+      const coverMap: Record<string, string> = {};
+      (mediaData || []).forEach((m: any) => { coverMap[m.product_id] = m.url; });
+
+      return filtered.map((p: any) => ({
+        ...p,
+        cover_url: coverMap[p.id] || null,
+      }));
     },
+    enabled: categoryIds.length > 0,
   });
 
   /* ── Totais ── */
-  const subtotal = cartItems.reduce((sum: number, item: any) => {
-    return sum + (item.products?.price || 0) * item.quantity;
-  }, 0);
+  const subtotal = (cartItems as any[]).reduce((sum: number, item: any) =>
+    sum + (item.products?.price || 0) * item.quantity, 0);
 
   const freeShipping = subtotal >= FREE_SHIPPING_THRESHOLD;
   const shippingCost = freeShipping ? 0 : SHIPPING_FEE;
   const total = subtotal + shippingCost;
-
-  /* ── progresso para frete grátis ── */
   const progressPct = Math.min((subtotal / FREE_SHIPPING_THRESHOLD) * 100, 100);
   const remaining = FREE_SHIPPING_THRESHOLD - subtotal;
 
@@ -84,13 +129,20 @@ const Carrinho = () => {
       {/* ── Cabeçalho ── */}
       <div
         className="sticky top-0 z-40 px-4 py-3 flex items-center gap-3"
-        style={{ background: "rgba(242,234,224,0.95)", backdropFilter: "blur(10px)", borderBottom: `1px solid ${sand}` }}
+        style={{
+          background: "rgba(242,234,224,0.97)",
+          backdropFilter: "blur(10px)",
+          borderBottom: `1px solid ${sand}`,
+        }}
       >
         <div>
           <h1 className="text-lg font-black leading-tight" style={{ color: brown }}>Meu carrinho</h1>
-          {cartItems.length > 0 && (
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: brownLight, color: sandDark }}>
-              {cartItems.length} {cartItems.length === 1 ? "item" : "itens"}
+          {(cartItems as any[]).length > 0 && (
+            <span
+              className="text-xs font-semibold px-2 py-0.5 rounded-full"
+              style={{ background: brownLight, color: sandDark }}
+            >
+              {(cartItems as any[]).length} {(cartItems as any[]).length === 1 ? "item" : "itens"}
             </span>
           )}
         </div>
@@ -102,7 +154,7 @@ const Carrinho = () => {
           <div className="flex justify-center py-24">
             <Loader2 className="w-7 h-7 animate-spin" style={{ color: sandDark }} />
           </div>
-        ) : cartItems.length === 0 ? (
+        ) : (cartItems as any[]).length === 0 ? (
           <div className="text-center py-24">
             <div className="w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-5" style={{ background: brownLight }}>
               <ShoppingCart className="w-10 h-10" style={{ color: sandDark }} />
@@ -122,17 +174,17 @@ const Carrinho = () => {
             {/* ── Barra frete grátis ── */}
             <div className="rounded-2xl p-4" style={{ background: "#fff", border: `1px solid ${sand}` }}>
               {freeShipping ? (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-lg">🚚</span>
-                  <p className="text-sm font-bold" style={{ color: "#2E7D32" }}>
+                  <p className="text-sm font-bold flex-1" style={{ color: "#2E7D32" }}>
                     Parabéns! Você ganhou frete grátis para todo o pedido.
                   </p>
-                  <span className="ml-auto text-xs font-black px-2 py-1 rounded-full text-white" style={{ background: "#2E7D32" }}>
+                  <span className="text-xs font-black px-2 py-1 rounded-full text-white" style={{ background: "#2E7D32" }}>
                     ✓ Frete grátis
                   </span>
                 </div>
               ) : (
-                <div>
+                <>
                   <p className="text-xs font-semibold mb-2" style={{ color: brown }}>
                     Falta <span className="font-black">{formatPrice(remaining)}</span> para frete grátis
                   </p>
@@ -142,28 +194,39 @@ const Carrinho = () => {
                       style={{ width: `${progressPct}%`, background: `linear-gradient(90deg, ${sandDark}, ${brown})` }}
                     />
                   </div>
-                </div>
+                </>
               )}
             </div>
 
             {/* ── Itens ── */}
             <div className="space-y-3">
-              {cartItems.map((item: any) => {
+              {(cartItems as any[]).map((item: any) => {
                 const product = item.products;
                 if (!product) return null;
-                const coverUrl = product.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300&h=300&fit=crop";
+
+                /* Somente imagem real — sem URL externa de fallback */
+                const coverUrl: string | null = product.cover_url || product.image_url || null;
+
                 return (
                   <div
                     key={item.id}
                     className="rounded-2xl p-3 flex gap-3"
                     style={{ background: "#fff", border: `1px solid ${sand}` }}
                   >
-                    <img
-                      src={coverUrl}
-                      alt={product.title}
-                      className="w-24 h-24 rounded-xl object-cover flex-shrink-0 cursor-pointer"
-                      onClick={() => navigate(`/produto/${product.id}`)}
-                    />
+                    {coverUrl ? (
+                      <img
+                        src={coverUrl}
+                        alt={product.title}
+                        className="w-24 h-24 rounded-xl object-cover flex-shrink-0 cursor-pointer"
+                        onClick={() => navigate(`/produto/${product.id}`)}
+                        onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                      />
+                    ) : (
+                      <div className="cursor-pointer" onClick={() => navigate(`/produto/${product.id}`)}>
+                        <ImagePlaceholder className="w-24 h-24" />
+                      </div>
+                    )}
+
                     <div className="flex-1 min-w-0">
                       <p
                         className="text-sm font-bold line-clamp-2 cursor-pointer"
@@ -172,13 +235,12 @@ const Carrinho = () => {
                       >
                         {product.title}
                       </p>
-                      {product.variant && (
-                        <p className="text-[11px] mt-0.5" style={{ color: sandDark }}>{product.variant}</p>
-                      )}
-                      {freeShipping || product.free_shipping ? (
+
+                      {(freeShipping || product.free_shipping) && (
                         <p className="text-[11px] font-bold mt-0.5" style={{ color: "#2E7D32" }}>Frete grátis</p>
-                      ) : null}
-                      <p className="text-xs mt-1 px-2 py-0.5 rounded-full inline-block" style={{ background: brownLight, color: sandDark }}>
+                      )}
+
+                      <p className="text-[11px] mt-1 px-2 py-0.5 rounded-full inline-block" style={{ background: brownLight, color: sandDark }}>
                         🛡 Vendido e entregue por Ango Express
                       </p>
 
@@ -187,11 +249,10 @@ const Carrinho = () => {
                           {formatPrice(product.price)}
                         </p>
                         <div className="flex items-center gap-2">
-                          {/* Qty control */}
                           <div className="flex items-center rounded-xl overflow-hidden" style={{ border: `1.5px solid ${sand}` }}>
                             <button
                               onClick={() => updateItem.mutate({ id: item.id, quantity: item.quantity - 1 })}
-                              className="w-8 h-8 flex items-center justify-center transition"
+                              className="w-8 h-8 flex items-center justify-center"
                               style={{ color: sandDark }}
                             >
                               <Minus className="w-3 h-3" />
@@ -201,16 +262,15 @@ const Carrinho = () => {
                             </span>
                             <button
                               onClick={() => updateItem.mutate({ id: item.id, quantity: item.quantity + 1 })}
-                              className="w-8 h-8 flex items-center justify-center transition"
+                              className="w-8 h-8 flex items-center justify-center"
                               style={{ color: sandDark }}
                             >
                               <Plus className="w-3 h-3" />
                             </button>
                           </div>
-                          {/* Delete */}
                           <button
                             onClick={() => removeItem.mutate(item.id)}
-                            className="w-8 h-8 flex items-center justify-center rounded-xl transition"
+                            className="w-8 h-8 flex items-center justify-center rounded-xl"
                             style={{ background: "rgba(229,57,53,0.08)", color: "#E53935" }}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -265,13 +325,14 @@ const Carrinho = () => {
               </div>
             )}
 
-            {/* ── Resumo ── */}
+            {/* ── Resumo do pedido ── */}
             <div className="rounded-2xl p-4" style={{ background: "#fff", border: `1px solid ${sand}` }}>
               <h3 className="text-sm font-black mb-3" style={{ color: brown }}>Resumo do pedido</h3>
-
               <div className="space-y-2 mb-3">
                 <div className="flex justify-between text-sm">
-                  <span style={{ color: sandDark }}>Subtotal ({cartItems.length} {cartItems.length === 1 ? "item" : "itens"})</span>
+                  <span style={{ color: sandDark }}>
+                    Subtotal ({(cartItems as any[]).length} {(cartItems as any[]).length === 1 ? "item" : "itens"})
+                  </span>
                   <span className="font-bold" style={{ color: brown }}>{formatPrice(subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
@@ -287,18 +348,17 @@ const Carrinho = () => {
                   <span className="font-bold" style={{ color: brown }}>0 Kz</span>
                 </div>
               </div>
-
               <div className="border-t pt-3 flex justify-between" style={{ borderColor: sand }}>
                 <span className="text-base font-black" style={{ color: brown }}>Total</span>
                 <span className="text-base font-black" style={{ color: brown }}>{formatPrice(total)}</span>
               </div>
 
               {/* Garantias */}
-              <div className="mt-4 space-y-2">
+              <div className="mt-4 space-y-2.5">
                 {[
-                  { icon: ShieldCheck, label: "Compra 100% segura", sub: "Seus dados protegidos" },
-                  { icon: RotateCcw, label: "Devolução garantida", sub: "Até 7 dias após o recebimento" },
-                  { icon: Headphones, label: "Atendimento 24/7", sub: "Suporte sempre disponível" },
+                  { icon: ShieldCheck, label: "Compra 100% segura",   sub: "Seus dados protegidos" },
+                  { icon: RotateCcw,   label: "Devolução garantida",   sub: "Até 7 dias após o recebimento" },
+                  { icon: Headphones,  label: "Atendimento 24/7",      sub: "Suporte sempre disponível" },
                 ].map(g => (
                   <div key={g.label} className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: brownLight }}>
@@ -313,61 +373,86 @@ const Carrinho = () => {
               </div>
             </div>
 
-            {/* ── Sugestões ── */}
+            {/* ── Sugestões por categoria ── */}
             {suggestions.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-black" style={{ color: brown }}>Você também pode gostar</h3>
-                  <button
-                    onClick={() => navigate("/")}
-                    className="text-xs font-semibold flex items-center gap-0.5"
-                    style={{ color: sandDark }}
-                  >
+                  <button onClick={() => navigate("/")} className="text-xs font-semibold" style={{ color: sandDark }}>
                     Ver todas →
                   </button>
                 </div>
                 <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-                  {suggestions.map((p: any) => (
-                    <div
-                      key={p.id}
-                      className="flex-shrink-0 w-36 rounded-2xl overflow-hidden cursor-pointer"
-                      style={{ background: "#fff", border: `1px solid ${sand}` }}
-                      onClick={() => navigate(`/produto/${p.id}`)}
-                    >
-                      <div className="relative">
-                        <img
-                          src={p.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=200&h=200&fit=crop"}
-                          alt={p.title}
-                          className="w-full h-32 object-cover"
-                        />
-                        <button
-                          onClick={e => {
-                            e.stopPropagation();
-                            setFavorites(fav =>
-                              fav.includes(p.id) ? fav.filter(f => f !== p.id) : [...fav, p.id]
-                            );
-                          }}
-                          className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center"
-                          style={{ background: "rgba(255,255,255,0.85)" }}
-                        >
-                          <Heart
-                            className="w-3.5 h-3.5"
-                            style={{ color: favorites.includes(p.id) ? "#E53935" : sandDark, fill: favorites.includes(p.id) ? "#E53935" : "none" }}
-                          />
-                        </button>
+                  {suggestions.map((p: any) => {
+                    const imgUrl: string | null = p.cover_url || p.image_url || null;
+                    const isFav = favorites.includes(p.id);
+                    return (
+                      <div
+                        key={p.id}
+                        className="flex-shrink-0 w-36 rounded-2xl overflow-hidden cursor-pointer"
+                        style={{ background: "#fff", border: `1px solid ${sand}` }}
+                        onClick={() => navigate(`/produto/${p.id}`)}
+                      >
+                        <div className="relative">
+                          {imgUrl ? (
+                            <img
+                              src={imgUrl}
+                              alt={p.title}
+                              className="w-full h-32 object-cover"
+                              onError={e => {
+                                const el = e.currentTarget as HTMLImageElement;
+                                el.style.display = "none";
+                                const wrap = el.parentElement;
+                                if (wrap) {
+                                  wrap.style.height = "128px";
+                                  wrap.style.background = brownLight;
+                                  wrap.style.display = "flex";
+                                  wrap.style.alignItems = "center";
+                                  wrap.style.justifyContent = "center";
+                                }
+                              }}
+                            />
+                          ) : (
+                            <div className="w-full h-32 flex flex-col items-center justify-center" style={{ background: brownLight }}>
+                              <ImageOff className="w-6 h-6 mb-1" style={{ color: sandDark }} />
+                              <span className="text-[9px]" style={{ color: sandDark }}>Sem foto</span>
+                            </div>
+                          )}
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              setFavorites(fav =>
+                                fav.includes(p.id) ? fav.filter(f => f !== p.id) : [...fav, p.id]
+                              );
+                            }}
+                            className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center"
+                            style={{ background: "rgba(255,255,255,0.88)" }}
+                          >
+                            <Heart
+                              className="w-3.5 h-3.5"
+                              style={{ color: isFav ? "#E53935" : sandDark, fill: isFav ? "#E53935" : "none" }}
+                            />
+                          </button>
+                        </div>
+                        <div className="p-2">
+                          <p className="text-[11px] font-semibold line-clamp-2 leading-tight" style={{ color: brown }}>
+                            {p.title}
+                          </p>
+                          <p className="text-xs font-black mt-1" style={{ color: brown }}>
+                            {formatPrice(p.price)}
+                          </p>
+                          {p.rating && (
+                            <div className="flex items-center gap-1 mt-1">
+                              <Star className="w-3 h-3" style={{ color: "#F9A825", fill: "#F9A825" }} />
+                              <span className="text-[10px] font-semibold" style={{ color: sandDark }}>
+                                {p.rating} ({p.total_reviews ?? 0})
+                              </span>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div className="p-2">
-                        <p className="text-[11px] font-semibold line-clamp-2 leading-tight" style={{ color: brown }}>{p.title}</p>
-                        <p className="text-xs font-black mt-1" style={{ color: brown }}>{formatPrice(p.price)}</p>
-                        {p.rating && (
-                          <div className="flex items-center gap-1 mt-1">
-                            <Star className="w-3 h-3" style={{ color: "#F9A825", fill: "#F9A825" }} />
-                            <span className="text-[10px] font-semibold" style={{ color: sandDark }}>{p.rating} ({p.rating_count})</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -376,7 +461,7 @@ const Carrinho = () => {
       </div>
 
       {/* ── Botão fixo no fundo ── */}
-      {cartItems.length > 0 && (
+      {(cartItems as any[]).length > 0 && (
         <div
           className="fixed bottom-14 md:bottom-0 left-0 right-0 z-50 px-4 py-3"
           style={{
