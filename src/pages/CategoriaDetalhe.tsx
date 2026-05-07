@@ -202,21 +202,9 @@ const CategoriaDetalhe = () => {
   );
 
   const categoryColor = category?.color || "#3B82F6";
-  const coverImage = category?.cover_image_url;
 
   return (
     <div className="min-h-screen pb-14 md:pb-0" style={{ backgroundColor: `${categoryColor}08` }}>
-
-      {/* Cover image banner */}
-      {coverImage && (
-        <div className="relative w-full h-32 md:h-48 overflow-hidden">
-          <img src={coverImage} alt={categoryName} className="w-full h-full object-cover" />
-          <div className="absolute inset-0" style={{ background: `linear-gradient(to bottom, ${categoryColor}40, ${categoryColor}CC)` }} />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <h1 className="text-xl md:text-3xl font-black text-white drop-shadow-lg">{categoryName}</h1>
-          </div>
-        </div>
-      )}
 
       {/* Breadcrumb */}
       <div className="container mx-auto px-3 py-2 flex items-center gap-1 text-xs text-muted-foreground">
@@ -228,7 +216,7 @@ const CategoriaDetalhe = () => {
       </div>
 
       {/* Sort bar */}
-      <div className="sticky top-[7.5rem] z-30 border-b" style={{ backgroundColor: `${categoryColor}0A`, borderBottomColor: `${categoryColor}30` }}>
+      <div className="sticky top-14 z-30 border-b" style={{ backgroundColor: `${categoryColor}0A`, borderBottomColor: `${categoryColor}30` }}>
         <div className="container mx-auto px-3 py-2 flex items-center gap-2">
           <div className="relative flex-1">
             <button onClick={() => setShowSort(!showSort)} className="flex items-center gap-1 text-xs font-medium text-foreground">
