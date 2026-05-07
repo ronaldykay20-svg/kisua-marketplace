@@ -204,21 +204,69 @@ const ZoomLightbox = ({
   );
 };
 
+// ─── AvatarWithFallback ───────────────────────────────────────────────────────
+// Mostra imagem se carrega, senão mostra ícone. Evita o problema de style toggle.
+const AvatarWithFallback = ({
+  src,
+  name,
+  isCompany,
+}: {
+  src: string | null;
+  name: string;
+  isCompany: boolean;
+}) => {
+  const [imgOk, setImgOk] = useState<boolean | null>(src ? null : false);
+
+  if (src && imgOk !== false) {
+    return (
+      <img
+        src={src}
+        alt={name}
+        className="w-12 h-12 rounded-full object-cover border-2 border-border bg-muted"
+        onLoad={() => setImgOk(true)}
+        onError={() => setImgOk(false)}
+      />
+    );
+  }
+  return (
+    <div className="w-12 h-12 rounded-full bg-primary/10 border-2 border-border flex items-center justify-center">
+      {isCompany
+        ? <Building2 className="w-5 h-5 text-primary" />
+        : <Store className="w-5 h-5 text-primary" />}
+    </div>
+  );
+};
+
 // ─── SellerCard ───────────────────────────────────────────────────────────────
 const SellerCard = ({
   seller,
   onNavigate,
+  isLoading = false,
 }: {
   seller: any;
   onNavigate: () => void;
+  isLoading?: boolean;
 }) => {
-  if (!seller) return null;
+  if (isLoading || (!seller && (isLoading === false))) {
+    // skeleton enquanto carrega
+    if (isLoading) return (
+      <div className="bg-card mt-0.5 md:mt-0 md:mb-3 px-4 py-3 md:rounded-card md:border md:border-border flex items-center gap-3 animate-pulse">
+        <div className="w-12 h-12 rounded-full bg-muted flex-shrink-0" />
+        <div className="flex-1 space-y-2">
+          <div className="h-3 bg-muted rounded w-32" />
+          <div className="h-2.5 bg-muted rounded w-20" />
+        </div>
+      </div>
+    );
+    if (!seller) return null;
+  }
 
   // suporta sellers (avatar_url) e companies (logo_url / cover_url)
-  const avatar =
+  // Todos os campos possíveis de avatar/logo nas tabelas sellers e companies
+  const avatar: string | null =
     seller.avatar_url ||
     seller.logo_url ||
-    (seller.cover_url && !seller.cover_url.includes("unsplash") ? seller.cover_url : null) ||
+    seller.cover_url ||
     null;
 
   const isCompany = seller.__type === "company";
@@ -239,29 +287,11 @@ const SellerCard = ({
     >
       {/* Avatar */}
       <div className="relative flex-shrink-0">
-        {avatar ? (
-          <img
-            src={avatar}
-            alt={seller.name}
-            className="w-12 h-12 rounded-full object-cover border-2 border-border bg-muted"
-            onError={e => {
-              const el = e.currentTarget;
-              el.style.display = "none";
-              el.nextElementSibling?.removeAttribute("style");
-            }}
-          />
-        ) : null}
-        {/* Fallback icon – shown when no avatar or img fails */}
-        <div
-          className="w-12 h-12 rounded-full bg-primary/10 border-2 border-border
-                     flex items-center justify-center"
-          style={avatar ? { display: "none" } : {}}
-        >
-          {isCompany
-            ? <Building2 className="w-5 h-5 text-primary" />
-            : <Store className="w-5 h-5 text-primary" />}
-        </div>
-        {/* Verified badge */}
+        <AvatarWithFallback
+          src={avatar}
+          name={seller.name}
+          isCompany={isCompany}
+        />
         {seller.is_verified && (
           <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-card flex items-center justify-center">
             <ShieldCheck className="w-3.5 h-3.5 text-blue-500" />
@@ -366,10 +396,14 @@ const ProductDetail = () => {
   });
 
   // ── Publicador: vendedor ou empresa ───────────────────────────────────────
-  const rawSellerId  = (dbProduct as any)?.seller_id;
-  const rawCompanyId = (dbProduct as any)?.company_id;
+  // seller_id pode vir direto no produto ou via join sellers.id
+  const rawSellerId  =
+    (dbProduct as any)?.seller_id ||
+    (dbProduct as any)?.sellers?.id ||
+    null;
+  const rawCompanyId = (dbProduct as any)?.company_id || null;
 
-  const { data: sellerFull } = useQuery({
+  const { data: sellerFull, isLoading: loadingSeller } = useQuery({
     queryKey: ["seller_full", rawSellerId],
     queryFn: async () => {
       const { data } = await supabase
@@ -381,7 +415,7 @@ const ProductDetail = () => {
     enabled: !!rawSellerId,
   });
 
-  const { data: companyFull } = useQuery({
+  const { data: companyFull, isLoading: loadingCompany } = useQuery({
     queryKey: ["company_full", rawCompanyId],
     queryFn: async () => {
       const { data } = await (supabase as any)
@@ -393,11 +427,9 @@ const ProductDetail = () => {
     enabled: !!rawCompanyId,
   });
 
-  // fallback para o join rápido que o useProduct já traz
-  const publisher: any =
-    sellerFull ||
-    companyFull ||
-    ((dbProduct as any)?.sellers ? { ...(dbProduct as any).sellers, __type: "seller" } : null);
+  const loadingPublisher = (!!rawSellerId && loadingSeller) || (!!rawCompanyId && loadingCompany);
+  // Nunca usar fallback sem avatar — esperar a query dedicada
+  const publisher: any = sellerFull || companyFull || null;
 
   const handlePublisherNavigate = () => {
     if (!publisher) return;
@@ -898,7 +930,7 @@ const ProductDetail = () => {
             </div>
 
             {/* ── Publicador ── */}
-            <SellerCard seller={publisher} onNavigate={handlePublisherNavigate} />
+            <SellerCard seller={publisher} onNavigate={handlePublisherNavigate} isLoading={loadingPublisher} />
 
             {/* Price */}
             <div className="bg-card mt-0.5 md:mt-0 p-4 md:rounded-card md:border md:border-border">
