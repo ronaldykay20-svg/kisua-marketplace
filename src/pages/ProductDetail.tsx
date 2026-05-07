@@ -263,9 +263,10 @@ const SellerCard = ({
 
   // suporta sellers (avatar_url) e companies (logo_url / cover_url)
   // Todos os campos possíveis de avatar/logo nas tabelas sellers e companies
+  // logo_url é o campo principal em sellers (igual ao GroupedVideoStories)
   const avatar: string | null =
-    seller.avatar_url ||
     seller.logo_url ||
+    seller.avatar_url ||
     seller.cover_url ||
     null;
 
@@ -408,7 +409,7 @@ const ProductDetail = () => {
     queryFn: async () => {
       const { data } = await supabase
         .from("sellers")
-        .select("id, name, avatar_url, is_verified, province, rating, total_sales, type, user_id")
+        .select("id, name, logo_url, avatar_url, is_verified, province, rating, total_sales, type, user_id")
         .eq("id", rawSellerId!).maybeSingle();
       return data ? { ...data, __type: "seller" } : null;
     },
