@@ -51,6 +51,15 @@ const emptyForm = {
   display_order: 0,
 };
 
+// ── Calcula computed_status no cliente ────────────────────────────────────────
+const computeStatus = (a: any): string => {
+  if (!a.is_active) return "paused";
+  const today = new Date().toISOString().split("T")[0];
+  if (a.end_date && a.end_date < today) return "expired";
+  if (a.start_date && a.start_date > today) return "scheduled";
+  return "active";
+};
+
 // ── Mini Carrossel de Preview ─────────────────────────────────────────────────
 const AdsCarouselPreview = ({ ads }: { ads: any[] }) => {
   const [idx, setIdx] = useState(0);
@@ -78,7 +87,6 @@ const AdsCarouselPreview = ({ ads }: { ads: any[] }) => {
 
   return (
     <div className="bg-card rounded-xl border border-border overflow-hidden mb-4">
-      {/* Label */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-border">
         <div className="flex items-center gap-1.5">
           <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
@@ -92,7 +100,6 @@ const AdsCarouselPreview = ({ ads }: { ads: any[] }) => {
         </div>
       </div>
 
-      {/* Slide */}
       <div className="relative aspect-[16/7] bg-muted overflow-hidden">
         {ad.type === "video" && ad.media_url ? (
           <video src={ad.media_url} autoPlay muted loop className="w-full h-full object-cover" />
@@ -107,8 +114,6 @@ const AdsCarouselPreview = ({ ads }: { ads: any[] }) => {
             <TypeIcon className="w-10 h-10 opacity-40" />
           </div>
         )}
-
-        {/* Overlay info */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
         <div className="absolute bottom-0 left-0 right-0 p-3">
           <div className="flex items-center gap-1.5 mb-1">
@@ -124,8 +129,6 @@ const AdsCarouselPreview = ({ ads }: { ads: any[] }) => {
           <p className="text-white text-sm font-bold leading-tight line-clamp-1">{ad.title}</p>
           {ad.description && <p className="text-white/70 text-[10px] line-clamp-1 mt-0.5">{ad.description}</p>}
         </div>
-
-        {/* Nav arrows */}
         {ads.length > 1 && (
           <>
             <button onClick={() => setIdx(i => (i - 1 + ads.length) % ads.length)}
@@ -139,8 +142,6 @@ const AdsCarouselPreview = ({ ads }: { ads: any[] }) => {
           </>
         )}
       </div>
-
-      {/* Dots */}
       {ads.length > 1 && (
         <div className="flex justify-center gap-1 py-2">
           {ads.map((_, i) => (
@@ -164,15 +165,12 @@ const AdCard = ({
   return (
     <div className={`bg-card rounded-xl border border-border overflow-hidden ${ad.computed_status === "expired" ? "opacity-50" : ""}`}>
       <div className="flex gap-3 p-3">
-        {/* Thumbnail */}
         <div className={`w-14 h-14 rounded-lg flex-shrink-0 overflow-hidden border border-border ${typeInfo?.color || "bg-muted"}`}>
           {thumb
             ? <img src={thumb} alt="" className="w-full h-full object-cover" />
             : <div className="w-full h-full flex items-center justify-center"><TypeIcon className="w-6 h-6 opacity-60" /></div>
           }
         </div>
-
-        {/* Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-1">
             <p className="text-sm font-bold text-foreground truncate">{ad.title}</p>
@@ -180,7 +178,6 @@ const AdCard = ({
               {STATUS_LABEL[ad.computed_status] || ad.computed_status}
             </span>
           </div>
-
           <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
             <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${typeInfo?.color}`}>
               {typeInfo?.label}
@@ -190,7 +187,6 @@ const AdCard = ({
               {ad.days_paid}d • {new Date(ad.start_date).toLocaleDateString("pt-AO")} → {ad.end_date ? new Date(ad.end_date).toLocaleDateString("pt-AO") : "—"}
             </span>
           </div>
-
           <div className="flex items-center gap-1 mt-1">
             <Banknote className="w-3 h-3 text-green-500" />
             <span className="text-[10px] font-bold text-green-500">
@@ -200,8 +196,6 @@ const AdCard = ({
           </div>
         </div>
       </div>
-
-      {/* Actions */}
       <div className="flex border-t border-border">
         <button onClick={onToggle}
           className={`flex-1 py-2 text-[10px] font-bold flex items-center justify-center gap-1 transition
@@ -238,10 +232,17 @@ const AdminAdsTab = () => {
     queryKey: ["admin_advertisements"],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
-        .from("ads_admin_view")
-        .select("*");
+        .from("advertisements")
+        .select("*, sellers(name, avatar_url), companies(name)")
+        .order("created_at", { ascending: false });
       if (error) throw error;
-      return data || [];
+      return (data || []).map((a: any) => ({
+        ...a,
+        seller_name: a.sellers?.name,
+        seller_avatar: a.sellers?.avatar_url,
+        company_name: a.companies?.name,
+        computed_status: computeStatus(a),
+      }));
     },
   });
 
@@ -380,18 +381,14 @@ const AdminAdsTab = () => {
   };
 
   // ── Stats ────────────────────────────────────────────────────────────────
-  const activeAds   = ads.filter((a: any) => a.computed_status === "active");
-  const expiredAds  = ads.filter((a: any) => a.computed_status === "expired");
+  const activeAds    = ads.filter((a: any) => a.computed_status === "active");
   const totalRevenue = ads.reduce((s: number, a: any) => s + (a.total_paid || 0), 0);
-
-  const filtered = filterType === "all" ? ads : ads.filter((a: any) => a.type === filterType);
-
-  const typeInfo = AD_TYPES.find(t => t.value === form.type);
-  const totalCost = PRICE_PER_DAY * form.days_paid;
+  const filtered     = filterType === "all" ? ads : ads.filter((a: any) => a.type === filterType);
+  const totalCost    = PRICE_PER_DAY * form.days_paid;
 
   return (
     <div>
-      {/* ── Stats ── */}
+      {/* Stats */}
       <div className="grid grid-cols-3 gap-2 mb-4">
         <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-3 text-center">
           <p className="text-lg font-bold text-green-500">{activeAds.length}</p>
@@ -407,10 +404,10 @@ const AdminAdsTab = () => {
         </div>
       </div>
 
-      {/* ── Carrossel preview ── */}
+      {/* Carrossel preview */}
       <AdsCarouselPreview ads={activeAds} />
 
-      {/* ── Botão novo ── */}
+      {/* Botão novo */}
       <button
         onClick={() => { setEditingId(null); setForm({ ...emptyForm }); setShowForm(!showForm); }}
         className="w-full mb-3 py-2.5 bg-primary text-primary-foreground text-xs font-bold rounded-lg flex items-center justify-center gap-1"
@@ -418,7 +415,7 @@ const AdminAdsTab = () => {
         <Plus className="w-4 h-4" /> {showForm && !editingId ? "Cancelar" : "Novo Anúncio"}
       </button>
 
-      {/* ── Formulário ── */}
+      {/* Formulário */}
       {showForm && (
         <div className="bg-card rounded-xl border border-border p-4 mb-4 space-y-3">
           <div className="flex items-center justify-between">
@@ -471,7 +468,7 @@ const AdminAdsTab = () => {
             />
           </div>
 
-          {/* Media (imagem ou vídeo) */}
+          {/* Media */}
           {(form.type === "image" || form.type === "video") && (
             <div>
               <label className="text-[11px] font-bold text-muted-foreground mb-1 block">
@@ -570,7 +567,6 @@ const AdminAdsTab = () => {
                   className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground" />
               </div>
             </div>
-            {/* Cálculo automático */}
             <div className="flex items-center justify-between bg-background rounded-lg px-3 py-2 border border-border">
               <div className="text-xs text-muted-foreground">
                 {form.days_paid} dia{form.days_paid > 1 ? "s" : ""} × {PRICE_PER_DAY.toLocaleString("pt-AO")} Kz
@@ -608,7 +604,7 @@ const AdminAdsTab = () => {
         </div>
       )}
 
-      {/* ── Filtros por tipo ── */}
+      {/* Filtros */}
       <div className="flex gap-1 mb-3 overflow-x-auto no-scrollbar">
         <button onClick={() => setFilterType("all")}
           className={`px-3 py-1.5 text-[10px] font-bold rounded-lg border whitespace-nowrap ${filterType === "all" ? "bg-primary text-primary-foreground border-primary" : "bg-card text-foreground border-border"}`}>
@@ -626,7 +622,7 @@ const AdminAdsTab = () => {
         })}
       </div>
 
-      {/* ── Lista ── */}
+      {/* Lista */}
       {isLoading ? (
         <div className="flex justify-center py-8">
           <Loader2 className="w-6 h-6 animate-spin text-primary" />
