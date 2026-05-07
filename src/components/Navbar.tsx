@@ -1,33 +1,38 @@
 import { Search, Menu, ShoppingCart, User, MapPin, X, ChevronRight, Gavel, Radio, Store, Users, Zap, LogOut, Bell, Mic } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSiteSetting } from "@/hooks/useSiteSettings";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-/* ── Paleta dourada ── */
-// bg principal:  #C8922A  (âmbar dourado)
-// bg escuro:     #A67520
-// accent claro:  #F5E6C8  (creme)
-// texto escuro:  #3D1F00
+/* ── Paleta castanha clara / bege areia ── */
+// bg principal:  #D4B896  (castanho muito claro / areia)
+// bg escuro:     #B8956A  (castanho médio)
+// accent:        #F7F0E6  (creme quase branco)
+// texto escuro:  #4A2E0A  (castanho escuro)
+// borda suave:   rgba(74,46,10,0.15)
 
 const categories = [
   { name: "Electrónicos", image: "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=100&h=100&fit=crop" },
   { name: "Veículos", image: "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=100&h=100&fit=crop" },
   { name: "Imóveis", image: "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=100&h=100&fit=crop" },
-  { name: "Moda", image: "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=100&h=100&fit=crop" },
+  { name: "Vestuário", image: "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=100&h=100&fit=crop" },
   { name: "Casa & Jardim", image: "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=100&h=100&fit=crop" },
   { name: "Desporto", image: "https://images.unsplash.com/photo-1461896836934-bd45ba8a0a42?w=100&h=100&fit=crop" },
   { name: "Bebé & Criança", image: "https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?w=100&h=100&fit=crop" },
   { name: "Saúde & Beleza", image: "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=100&h=100&fit=crop" },
   { name: "Informática", image: "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=100&h=100&fit=crop" },
   { name: "Gaming", image: "https://images.unsplash.com/photo-1612287230202-1ff1d85d1bdf?w=100&h=100&fit=crop" },
-  { name: "Jóias & Relógios", image: "https://images.unsplash.com/photo-1515562141589-67f0d569b6fc?w=100&h=100&fit=crop" },
+  { name: "Jóias", image: "https://images.unsplash.com/photo-1515562141589-67f0d569b6fc?w=100&h=100&fit=crop" },
   { name: "Alimentação", image: "https://images.unsplash.com/photo-1506617420156-8e4536971650?w=100&h=100&fit=crop" },
   { name: "Educação", image: "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=100&h=100&fit=crop" },
   { name: "Animais", image: "https://images.unsplash.com/photo-1450778869180-41d0601e046e?w=100&h=100&fit=crop" },
 ];
+
+// Apenas as primeiras 5 são exibidas no header (com foto)
+const headerCategories = categories.slice(0, 4);
+const VIEW_ALL = { name: "Ver todas", image: "" };
 
 const quickLinks = [
   { label: "Leilão", path: "/leilao", icon: Gavel },
@@ -35,16 +40,6 @@ const quickLinks = [
   { label: "Promoções", path: "/promocoes", icon: Zap },
   { label: "Empresas", path: "/empresas", icon: Store },
   { label: "Vendedores", path: "/vendedores", icon: Users },
-];
-
-const pills = [
-  { label: "Receba rápido", path: "/categorias" },
-  { label: "Promoções", path: "/promocoes" },
-  { label: "Frete grátis", path: "/categorias" },
-  { label: "Novidades", path: "/categorias" },
-  { label: "Electrónicos", path: "/categoria/Electrónicos" },
-  { label: "Moda", path: "/categoria/Moda" },
-  { label: "Casa", path: "/categoria/Casa & Jardim" },
 ];
 
 /* ── Carrinho (quantidade) ── */
@@ -63,23 +58,81 @@ const useCartCount = (userId?: string) =>
     refetchInterval: 15000,
   });
 
+/* ── Speech Recognition nativo ── */
+const useSpeechRecognition = (onResult: (text: string) => void) => {
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  const startListening = useCallback(() => {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("O seu dispositivo não suporta pesquisa por voz.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognitionRef.current = recognition;
+    recognition.lang = "pt-AO"; // Português Angola; fallback: pt-PT
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => setListening(true);
+    recognition.onend = () => setListening(false);
+    recognition.onerror = () => setListening(false);
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      onResult(transcript);
+    };
+
+    recognition.start();
+  }, [onResult]);
+
+  const stopListening = useCallback(() => {
+    recognitionRef.current?.stop();
+    setListening(false);
+  }, []);
+
+  return { listening, startListening, stopListening };
+};
+
 const Navbar = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [scrolled, setScrolled] = useState(false);
+
+  // Scroll tracking para colapsar categorias
+  const [scrollY, setScrollY] = useState(0);
+  const [lastScrollY, setLastScrollY] = useState(0);
+  const [showCategories, setShowCategories] = useState(true);
+  const [showLocation, setShowLocation] = useState(true);
+
   const navigate = useNavigate();
-  const location = useLocation();
   const { user, userDisplayName, signOut } = useAuth();
   const { data: logoUrl } = useSiteSetting("site_logo_url");
   const qc = useQueryClient();
 
-  /* ── scroll shadow ── */
+  /* ── Scroll dinâmico ── */
   useEffect(() => {
-    const handler = () => setScrolled(window.scrollY > 4);
+    let ticking = false;
+    const handler = () => {
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          const current = window.scrollY;
+          setScrollY(current);
+          // Esconde categorias quando rola para baixo mais de 60px
+          setShowCategories(current < 60);
+          // Esconde localização quando rola mais de 30px
+          setShowLocation(current < 30);
+          setLastScrollY(current);
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
     window.addEventListener("scroll", handler, { passive: true });
     return () => window.removeEventListener("scroll", handler);
-  }, []);
+  }, [lastScrollY]);
 
   /* ── Notificações ── */
   const { data: notifications = [] } = useQuery({
@@ -122,6 +175,7 @@ const Navbar = () => {
   /* ── Carrinho ── */
   const { data: cartCount = 0 } = useCartCount(user?.id);
 
+  /* ── Pesquisa ── */
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
@@ -130,31 +184,46 @@ const Navbar = () => {
     }
   };
 
+  /* ── Voz (nativo) ── */
+  const { listening, startListening, stopListening } = useSpeechRecognition((text) => {
+    setSearchQuery(text);
+    // Pesquisa automaticamente após reconhecimento
+    navigate(`/pesquisa?q=${encodeURIComponent(text)}`);
+  });
+
+  const handleMicClick = () => {
+    if (listening) stopListening();
+    else startListening();
+  };
+
   /* ── Cores ── */
-  const gold = "#C8922A";
-  const goldDark = "#A67520";
-  const cream = "#F5E6C8";
-  const brown = "#3D1F00";
+  const sand = "#D4B896";       // castanho muito claro / areia
+  const sandDark = "#B8956A";   // castanho médio
+  const cream = "#F7F0E6";      // creme quase branco
+  const brown = "#4A2E0A";      // castanho escuro
+  const brownLight = "rgba(74,46,10,0.12)";
+
+  const scrolled = scrollY > 4;
 
   return (
     <>
       {/* ══════════════════════════ NAVBAR ══════════════════════════ */}
       <nav
-        className="sticky top-0 z-50 transition-shadow duration-300"
+        className="sticky top-0 z-50"
         style={{
-          background: `linear-gradient(135deg, ${gold} 0%, #D4A035 50%, ${gold} 100%)`,
-          boxShadow: scrolled ? "0 2px 16px rgba(0,0,0,0.18)" : "none",
+          background: `linear-gradient(160deg, ${cream} 0%, ${sand} 60%, #C9A87C 100%)`,
+          boxShadow: scrolled ? "0 2px 20px rgba(74,46,10,0.18)" : "0 1px 0 rgba(74,46,10,0.08)",
+          transition: "box-shadow 0.3s ease",
         }}
       >
-        <div className="container mx-auto px-3">
+        <div className="px-3">
 
           {/* ── Linha 1: menu + logo + sino + carrinho ── */}
           <div className="flex items-center gap-2.5 h-14">
-
             {/* Hambúrguer */}
             <button
-              className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
-              style={{ background: "rgba(255,255,255,0.18)" }}
+              className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
+              style={{ background: brownLight, border: `1px solid rgba(74,46,10,0.18)` }}
               onClick={() => { setMenuOpen(!menuOpen); setNotifOpen(false); }}
             >
               <Menu className="w-5 h-5" style={{ color: brown }} />
@@ -163,28 +232,24 @@ const Navbar = () => {
             {/* Logo */}
             <a href="/" className="flex items-center gap-1 flex-shrink-0">
               {logoUrl ? (
-                <img src={logoUrl} alt="Logo" className="h-9 object-contain drop-shadow" />
+                <img src={logoUrl} alt="Logo" className="h-9 object-contain" />
               ) : (
                 <span className="text-xl font-black" style={{ color: brown }}>AngoExpress</span>
               )}
             </a>
 
-            {/* Espaçador */}
             <div className="flex-1" />
 
             {/* Sino */}
             {user && (
               <button
-                className="relative flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-colors"
-                style={{ background: "rgba(255,255,255,0.18)" }}
+                className="relative flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
+                style={{ background: brownLight, border: `1px solid rgba(74,46,10,0.18)` }}
                 onClick={() => { setNotifOpen(!notifOpen); setMenuOpen(false); }}
               >
                 <Bell className="w-5 h-5" style={{ color: brown }} />
                 {unread > 0 && (
-                  <span
-                    className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full text-white text-[9px] font-black flex items-center justify-center px-1"
-                    style={{ background: "#E53935" }}
-                  >
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full text-white text-[9px] font-black flex items-center justify-center px-1" style={{ background: "#E53935" }}>
                     {unread > 9 ? "9+" : unread}
                   </span>
                 )}
@@ -193,24 +258,23 @@ const Navbar = () => {
 
             {/* Carrinho */}
             <button
-              className="relative flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-colors"
-              style={{ background: "rgba(255,255,255,0.18)" }}
+              className="relative flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
+              style={{ background: brownLight, border: `1px solid rgba(74,46,10,0.18)` }}
               onClick={() => navigate("/carrinho")}
             >
               <ShoppingCart className="w-5 h-5" style={{ color: brown }} />
-              <span
-                className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full text-white text-[9px] font-black flex items-center justify-center px-1"
-                style={{ background: "#E53935" }}
-              >
-                {cartCount > 9 ? "9+" : cartCount}
-              </span>
+              {cartCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full text-white text-[9px] font-black flex items-center justify-center px-1" style={{ background: "#E53935" }}>
+                  {cartCount > 9 ? "9+" : cartCount}
+                </span>
+              )}
             </button>
           </div>
 
           {/* ── Linha 2: barra de pesquisa ── */}
           <div className="pb-2">
-            <form onSubmit={handleSearch} className="flex items-center rounded-2xl overflow-hidden shadow-sm" style={{ background: "#fff" }}>
-              <Search className="w-4 h-4 ml-3 flex-shrink-0" style={{ color: "#aaa" }} />
+            <form onSubmit={handleSearch} className="flex items-center rounded-2xl overflow-hidden" style={{ background: "#fff", boxShadow: "0 1px 6px rgba(74,46,10,0.12)" }}>
+              <Search className="w-4 h-4 ml-3 flex-shrink-0" style={{ color: sandDark }} />
               <input
                 type="text"
                 value={searchQuery}
@@ -219,51 +283,101 @@ const Navbar = () => {
                 className="flex-1 py-2.5 px-2.5 text-sm bg-transparent focus:outline-none"
                 style={{ color: brown }}
               />
+              {/* Botão microfone — chama API nativa do browser/celular */}
               <button
-                type="submit"
-                className="w-10 h-10 flex items-center justify-center flex-shrink-0 rounded-xl m-1"
-                style={{ background: gold }}
+                type="button"
+                onClick={handleMicClick}
+                className="w-11 h-10 flex items-center justify-center flex-shrink-0 rounded-xl m-0.5 transition-all"
+                style={{
+                  background: listening
+                    ? "#E53935"
+                    : `linear-gradient(135deg, ${sandDark}, ${sand})`,
+                  boxShadow: listening ? "0 0 0 4px rgba(229,57,53,0.25)" : "none",
+                  animation: listening ? "pulse 1.2s ease-in-out infinite" : "none",
+                }}
+                title={listening ? "A ouvir... clique para parar" : "Pesquisar por voz"}
               >
-                <Mic className="w-4 h-4" style={{ color: "#fff" }} />
+                <Mic className="w-4 h-4 text-white" />
               </button>
             </form>
           </div>
 
-          {/* ── Linha 3: localização ── */}
-          <div className="flex items-center gap-1.5 pb-2" style={{ color: brown }}>
-            <MapPin className="w-3.5 h-3.5 flex-shrink-0" style={{ color: goldDark }} />
-            <span className="text-xs">Retirada ou entrega?</span>
-            <span className="text-xs font-bold ml-auto">Luanda, Angola</span>
+          {/* ── Linha 3: localização (colapsa ao rolar) ── */}
+          <div
+            className="overflow-hidden"
+            style={{
+              maxHeight: showLocation ? "32px" : "0px",
+              opacity: showLocation ? 1 : 0,
+              transition: "max-height 0.3s ease, opacity 0.25s ease",
+            }}
+          >
+            <div className="flex items-center gap-1.5 pb-2" style={{ color: brown }}>
+              <MapPin className="w-3.5 h-3.5 flex-shrink-0" style={{ color: sandDark }} />
+              <span className="text-xs">Retirada ou entrega?</span>
+              <span className="text-xs font-bold ml-auto">Luanda, Angola</span>
+            </div>
           </div>
 
-          {/* ── Linha 4: pills de categoria ── */}
-          <div className="flex items-center gap-2 pb-2.5 overflow-x-auto scrollbar-hide">
-            {/* Botão grelha */}
-            <button
-              className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center border"
-              style={{ background: "rgba(255,255,255,0.25)", borderColor: "rgba(255,255,255,0.4)" }}
-              onClick={() => setMenuOpen(true)}
-            >
-              <span style={{ color: brown, fontSize: 16, lineHeight: 1 }}>⊞</span>
-            </button>
+          {/* ── Linha 4: categorias com FOTOS (colapsa ao rolar) ── */}
+          <div
+            className="overflow-hidden"
+            style={{
+              maxHeight: showCategories ? "88px" : "0px",
+              opacity: showCategories ? 1 : 0,
+              transition: "max-height 0.35s ease, opacity 0.25s ease",
+            }}
+          >
+            <div className="flex items-start gap-3 pb-3 overflow-x-auto scrollbar-hide">
+              {headerCategories.map(cat => (
+                <button
+                  key={cat.name}
+                  onClick={() => navigate(`/categoria/${encodeURIComponent(cat.name)}`)}
+                  className="flex flex-col items-center gap-1.5 flex-shrink-0"
+                >
+                  <div
+                    className="w-14 h-14 rounded-xl overflow-hidden"
+                    style={{
+                      border: `2px solid rgba(74,46,10,0.15)`,
+                      boxShadow: "0 2px 8px rgba(74,46,10,0.12)",
+                    }}
+                  >
+                    <img src={cat.image} alt={cat.name} className="w-full h-full object-cover" />
+                  </div>
+                  <span className="text-[10px] font-semibold text-center leading-tight" style={{ color: brown, maxWidth: 56 }}>
+                    {cat.name}
+                  </span>
+                </button>
+              ))}
 
-            {pills.map(pill => (
+              {/* "Ver todas" */}
               <button
-                key={pill.label}
-                onClick={() => navigate(pill.path)}
-                className="flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap border transition-all"
-                style={{
-                  background: "rgba(255,255,255,0.22)",
-                  borderColor: "rgba(255,255,255,0.45)",
-                  color: brown,
-                }}
+                onClick={() => navigate("/categorias")}
+                className="flex flex-col items-center gap-1.5 flex-shrink-0"
               >
-                {pill.label}
+                <div
+                  className="w-14 h-14 rounded-xl flex items-center justify-center"
+                  style={{
+                    background: brownLight,
+                    border: `2px solid rgba(74,46,10,0.18)`,
+                    boxShadow: "0 2px 8px rgba(74,46,10,0.08)",
+                  }}
+                >
+                  <span style={{ fontSize: 22, color: sandDark, lineHeight: 1 }}>⊞</span>
+                </div>
+                <span className="text-[10px] font-semibold text-center" style={{ color: brown }}>Ver todas</span>
               </button>
-            ))}
+            </div>
           </div>
         </div>
       </nav>
+
+      {/* CSS para animação pulse do microfone */}
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(229,57,53,0.4); }
+          50%       { box-shadow: 0 0 0 8px rgba(229,57,53,0); }
+        }
+      `}</style>
 
       {/* ══════════════════════════ PAINEL NOTIFICAÇÕES ══════════════════════════ */}
       {notifOpen && user && (
@@ -272,16 +386,16 @@ const Navbar = () => {
             className="absolute right-2 top-[118px] w-[92vw] max-w-sm bg-card border border-border rounded-2xl shadow-2xl overflow-hidden"
             onClick={e => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border" style={{ background: gold }}>
-              <h3 className="text-sm font-black" style={{ color: "#fff" }}>Notificações</h3>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border" style={{ background: `linear-gradient(135deg, ${sand}, ${sandDark})` }}>
+              <h3 className="text-sm font-black" style={{ color: brown }}>Notificações</h3>
               <div className="flex items-center gap-2">
                 {unread > 0 && (
-                  <button onClick={markAllRead} className="text-[10px] font-bold text-white/80 hover:text-white underline">
+                  <button onClick={markAllRead} className="text-[10px] font-bold underline" style={{ color: brown }}>
                     Marcar todas como lidas
                   </button>
                 )}
                 <button onClick={() => setNotifOpen(false)}>
-                  <X className="w-4 h-4 text-white" />
+                  <X className="w-4 h-4" style={{ color: brown }} />
                 </button>
               </div>
             </div>
@@ -319,23 +433,26 @@ const Navbar = () => {
       {/* ══════════════════════════ MENU LATERAL ══════════════════════════ */}
       {menuOpen && (
         <div className="fixed inset-0 z-[60] flex">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setMenuOpen(false)} />
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setMenuOpen(false)} />
 
           <div className="relative w-[85%] max-w-[320px] bg-card h-full overflow-y-auto flex flex-col animate-in slide-in-from-left duration-200">
 
             {/* Header do menu */}
-            <div className="flex items-center justify-between p-4" style={{ background: `linear-gradient(135deg, ${gold}, ${goldDark})` }}>
+            <div
+              className="flex items-center justify-between p-4"
+              style={{ background: `linear-gradient(135deg, ${cream} 0%, ${sand} 100%)` }}
+            >
               {user ? (
                 <div className="flex items-center gap-2.5">
                   <div
                     className="w-10 h-10 rounded-full flex items-center justify-center font-black text-base"
-                    style={{ background: "rgba(255,255,255,0.25)", color: "#fff" }}
+                    style={{ background: brownLight, color: brown, border: `2px solid ${sandDark}` }}
                   >
                     {userDisplayName.charAt(0).toUpperCase()}
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-white">Olá, {userDisplayName}</p>
-                    <p className="text-[10px] text-white/70">{user.email}</p>
+                    <p className="text-sm font-bold" style={{ color: brown }}>Olá, {userDisplayName}</p>
+                    <p className="text-[10px]" style={{ color: sandDark }}>{user.email}</p>
                   </div>
                 </div>
               ) : (
@@ -343,14 +460,14 @@ const Navbar = () => {
                   onClick={() => { navigate("/auth"); setMenuOpen(false); }}
                   className="flex items-center gap-2"
                 >
-                  <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center">
-                    <User className="w-5 h-5 text-white" />
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: brownLight }}>
+                    <User className="w-5 h-5" style={{ color: brown }} />
                   </div>
-                  <span className="text-sm font-bold text-white">Entrar / Registar</span>
+                  <span className="text-sm font-bold" style={{ color: brown }}>Entrar / Registar</span>
                 </button>
               )}
-              <button onClick={() => setMenuOpen(false)} className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
-                <X className="w-4 h-4 text-white" />
+              <button onClick={() => setMenuOpen(false)} className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: brownLight }}>
+                <X className="w-4 h-4" style={{ color: brown }} />
               </button>
             </div>
 
@@ -364,7 +481,7 @@ const Navbar = () => {
                     className="flex flex-col items-center gap-1.5 py-2.5 rounded-xl hover:bg-muted transition-colors"
                   >
                     <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: cream }}>
-                      <link.icon className="w-4 h-4" style={{ color: gold }} />
+                      <link.icon className="w-4 h-4" style={{ color: sandDark }} />
                     </div>
                     <span className="text-[9px] font-semibold text-foreground">{link.label}</span>
                   </button>
@@ -374,7 +491,7 @@ const Navbar = () => {
 
             {/* Categorias */}
             <div className="flex-1 p-1">
-              <p className="text-[10px] font-bold uppercase tracking-wider px-3 pt-3 pb-2" style={{ color: gold }}>
+              <p className="text-[10px] font-bold uppercase tracking-wider px-3 pt-3 pb-2" style={{ color: sandDark }}>
                 Categorias
               </p>
               <div className="space-y-0.5">
@@ -384,7 +501,7 @@ const Navbar = () => {
                     onClick={() => { navigate(`/categoria/${encodeURIComponent(cat.name)}`); setMenuOpen(false); }}
                     className="w-full flex items-center gap-3 px-3 py-2 hover:bg-muted rounded-xl transition-colors"
                   >
-                    <img src={cat.image} alt={cat.name} className="w-10 h-10 rounded-full object-cover border-2" style={{ borderColor: cream }} />
+                    <img src={cat.image} alt={cat.name} className="w-10 h-10 rounded-full object-cover border-2" style={{ borderColor: sand }} />
                     <span className="text-sm font-medium text-foreground flex-1 text-left">{cat.name}</span>
                     <ChevronRight className="w-4 h-4 text-muted-foreground" />
                   </button>
