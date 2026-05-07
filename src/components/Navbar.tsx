@@ -236,7 +236,6 @@ const Navbar = () => {
 
   const scrolled = scrollY > 4;
 
-  /* ── Na categoria detalhe: navbar absolutamente transparente, sem fundo ── */
   const useLightIcons = isCategoriasPage || isCategoriaDetalhePage;
 
   let navbarStyle: React.CSSProperties;
@@ -262,15 +261,19 @@ const Navbar = () => {
     ? "1px solid rgba(255,255,255,0.3)"
     : "1px solid rgba(74,46,10,0.18)";
 
+  // ── CHAVE DA CORREÇÃO: absolute na página de categoria detalhe ──
+  const navPositionClass = isCategoriaDetalhePage
+    ? "absolute top-0 left-0 right-0 w-full z-50"
+    : "sticky top-0 z-50";
+
   return (
     <>
-      <nav className="sticky top-0 z-50" style={navbarStyle}>
+      <nav className={navPositionClass} style={navbarStyle}>
         <div className="px-3">
 
           {/* ── Linha 1 ── */}
           <div className="flex items-center gap-2.5 h-14">
 
-            {/* Botão esquerdo: voltar na categoria detalhe, hambúrguer nas outras */}
             {isCategoriaDetalhePage ? (
               <button
                 className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
@@ -289,7 +292,6 @@ const Navbar = () => {
               </button>
             )}
 
-            {/* Centro: nome da categoria ou logo */}
             {isCategoriaDetalhePage ? (
               <span className="flex-1 text-base font-black text-white drop-shadow text-center">
                 {categoryNameFromUrl}
@@ -308,7 +310,6 @@ const Navbar = () => {
 
             <div className="flex-1" />
 
-            {/* Lupa */}
             {isCategoriaDetalhePage ? (
               <button
                 className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
@@ -329,7 +330,6 @@ const Navbar = () => {
               )
             )}
 
-            {/* Sino */}
             {user && (
               <button
                 className="relative flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
@@ -346,7 +346,6 @@ const Navbar = () => {
               </button>
             )}
 
-            {/* Carrinho */}
             <button
               className="relative flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
               style={{ background: iconBg, border: iconBorder }}
