@@ -8,10 +8,10 @@ import { useCategories } from "@/hooks/useSupabaseData";
 import { useAddToCart } from "@/hooks/useCartActions";
 
 /* ── Paleta castanha ── */
-const sand     = "#D4B896";
-const sandDark = "#B8956A";
-const cream    = "#F7F0E6";
-const brown    = "#4A2E0A";
+const sand       = "#D4B896";
+const sandDark   = "#B8956A";
+const cream      = "#F7F0E6";
+const brown      = "#4A2E0A";
 const brownLight = "rgba(74,46,10,0.10)";
 const brownMid   = "rgba(74,46,10,0.18)";
 
@@ -128,7 +128,9 @@ const CategoriaDetalhe = () => {
   });
 
   const products = (dbProducts || []).map((p: any) => {
-    const cover = p.product_media?.find((m: any) => m.is_cover)?.url || p.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&h=600&fit=crop";
+    const cover = p.product_media?.find((m: any) => m.is_cover)?.url
+      || p.image_url
+      || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&h=600&fit=crop";
     return {
       id: p.id,
       title: p.title,
@@ -146,10 +148,8 @@ const CategoriaDetalhe = () => {
   });
 
   const subs = subcategories[categoryName] || ["Todos"];
-
-  const toggleColor = (c: string) => {
+  const toggleColor = (c: string) =>
     setSelectedColors(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]);
-  };
 
   const heroImage =
     category?.image_url ||
@@ -165,9 +165,7 @@ const CategoriaDetalhe = () => {
   const FiltersPanel = () => (
     <div className="space-y-6">
       <div>
-        <h3 className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: sandDark }}>
-          Categoria
-        </h3>
+        <h3 className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: sandDark }}>Categoria</h3>
         <div className="space-y-0.5">
           {subs.map(sub => (
             <button
@@ -177,13 +175,9 @@ const CategoriaDetalhe = () => {
               style={{ background: selectedSub === sub ? brownLight : "transparent" }}
             >
               <div className="flex items-center gap-2">
-                <div
-                  className="w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0"
-                  style={{ borderColor: selectedSub === sub ? sandDark : "#ccc" }}
-                >
-                  {selectedSub === sub && (
-                    <div className="w-2 h-2 rounded-full" style={{ background: sandDark }} />
-                  )}
+                <div className="w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0"
+                  style={{ borderColor: selectedSub === sub ? sandDark : "#ccc" }}>
+                  {selectedSub === sub && <div className="w-2 h-2 rounded-full" style={{ background: sandDark }} />}
                 </div>
                 <span className="text-xs" style={{ color: selectedSub === sub ? brown : "#555" }}>{sub}</span>
               </div>
@@ -192,28 +186,23 @@ const CategoriaDetalhe = () => {
           ))}
         </div>
       </div>
-
       <div>
         <h3 className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: sandDark }}>Cor</h3>
         <div className="grid grid-cols-2 gap-1.5">
           {colorOptions.map(c => (
-            <button
-              key={c.name}
-              onClick={() => toggleColor(c.name)}
+            <button key={c.name} onClick={() => toggleColor(c.name)}
               className="flex items-center gap-2 px-1.5 py-1 rounded-lg transition-colors text-xs"
               style={{
                 background: selectedColors.includes(c.name) ? brownLight : "transparent",
                 color: selectedColors.includes(c.name) ? brown : "#555",
                 fontWeight: selectedColors.includes(c.name) ? 700 : 400,
-              }}
-            >
+              }}>
               <div className={`w-4 h-4 rounded-full ${c.color} flex-shrink-0`} />
               {c.name}
             </button>
           ))}
         </div>
       </div>
-
       <div>
         <h3 className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: sandDark }}>Preço</h3>
         <div className="space-y-0.5">
@@ -232,18 +221,9 @@ const CategoriaDetalhe = () => {
   const ProductCard = ({ product }: { product: any }) => (
     <div
       className="w-full overflow-hidden group"
-      style={{
-        background: "#fff",
-        borderRadius: 14,
-        border: `1.5px solid ${brownMid}`,
-        boxShadow: "0 2px 10px rgba(74,46,10,0.08)",
-      }}
+      style={{ background: "#fff", borderRadius: 14, border: `1.5px solid ${brownMid}`, boxShadow: "0 2px 10px rgba(74,46,10,0.08)" }}
     >
-      {/* Imagem — clicável para detalhe */}
-      <button
-        className="w-full text-left"
-        onClick={() => navigate(`/produto/${product.id}`)}
-      >
+      <button className="w-full text-left" onClick={() => navigate(`/produto/${product.id}`)}>
         <div className="relative aspect-[3/4] overflow-hidden" style={{ borderRadius: "12px 12px 0 0", background: cream }}>
           <img
             src={product.image}
@@ -252,89 +232,53 @@ const CategoriaDetalhe = () => {
             loading="lazy"
           />
           {product.discount && (
-            <span
-              className="absolute top-2 left-2 text-[10px] font-black px-2 py-0.5 rounded-full"
-              style={{ background: "#E53935", color: "#fff" }}
-            >
+            <span className="absolute top-2 left-2 text-[10px] font-black px-2 py-0.5 rounded-full" style={{ background: "#E53935", color: "#fff" }}>
               {product.discount}
             </span>
           )}
           {product.salesCount > 0 && (
-            <div
-              className="absolute bottom-2 left-2 right-2 text-[9px] font-semibold px-2 py-1 rounded-full text-center"
-              style={{ background: "rgba(74,46,10,0.65)", color: "#fff" }}
-            >
+            <div className="absolute bottom-2 left-2 right-2 text-[9px] font-semibold px-2 py-1 rounded-full text-center"
+              style={{ background: "rgba(74,46,10,0.65)", color: "#fff" }}>
               Comprado {product.salesCount} vezes hoje
             </div>
           )}
         </div>
       </button>
 
-      {/* Info */}
       <div className="px-2.5 pt-2 pb-2.5">
         <button className="w-full text-left" onClick={() => navigate(`/produto/${product.id}`)}>
-          <h3 className="text-xs font-semibold line-clamp-2 leading-snug mb-1" style={{ color: brown }}>
-            {product.title}
-          </h3>
-
+          <h3 className="text-xs font-semibold line-clamp-2 leading-snug mb-1" style={{ color: brown }}>{product.title}</h3>
           {product.rating > 0 && (
             <div className="flex items-center gap-0.5 mb-1">
               {[...Array(5)].map((_, i) => (
-                <Star
-                  key={i}
-                  className="w-2.5 h-2.5"
-                  style={{
-                    fill: i < product.rating ? sandDark : "transparent",
-                    color: i < product.rating ? sandDark : "#ccc",
-                  }}
-                />
+                <Star key={i} className="w-2.5 h-2.5"
+                  style={{ fill: i < product.rating ? sandDark : "transparent", color: i < product.rating ? sandDark : "#ccc" }} />
               ))}
-              {product.reviews > 0 && (
-                <span className="text-[9px] ml-0.5" style={{ color: sandDark }}>
-                  ({product.reviews})
-                </span>
-              )}
+              {product.reviews > 0 && <span className="text-[9px] ml-0.5" style={{ color: sandDark }}>({product.reviews})</span>}
             </div>
           )}
-
           <div className="flex items-baseline gap-1 mb-1.5">
-            {product.oldPrice && (
-              <span className="text-[10px] line-through" style={{ color: "#aaa" }}>
-                {product.oldPrice}
-              </span>
-            )}
-            <span className="text-sm font-black" style={{ color: brown }}>
-              {product.priceFormatted}
-            </span>
+            {product.oldPrice && <span className="text-[10px] line-through" style={{ color: "#aaa" }}>{product.oldPrice}</span>}
+            <span className="text-sm font-black" style={{ color: brown }}>{product.priceFormatted}</span>
           </div>
         </button>
 
-        {/* Rodapé: frete + botão carrinho */}
         <div className="flex items-center justify-between">
-          {product.freeShipping ? (
-            <span className="text-[9px] font-bold" style={{ color: sandDark }}>Frete grátis</span>
-          ) : (
-            <span />
-          )}
-
-          {/* Botão adicionar ao carrinho — funcional */}
+          {product.freeShipping
+            ? <span className="text-[9px] font-bold" style={{ color: sandDark }}>Frete grátis</span>
+            : <span />
+          }
+          {/* Botão carrinho funcional */}
           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              addToCart.mutate({ productId: product.id, quantity: 1 });
-            }}
+            onClick={(e) => { e.stopPropagation(); addToCart.mutate({ productId: product.id, quantity: 1 }); }}
             disabled={addToCart.isPending}
             className="flex items-center justify-center w-8 h-8 rounded-xl transition-all active:scale-95 disabled:opacity-60"
-            style={{
-              background: `linear-gradient(135deg, ${sandDark}, ${sand})`,
-              boxShadow: "0 2px 8px rgba(74,46,10,0.25)",
-            }}
+            style={{ background: `linear-gradient(135deg, ${sandDark}, ${sand})`, boxShadow: "0 2px 8px rgba(74,46,10,0.25)" }}
           >
-            {addToCart.isPending ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: "#fff" }} />
-            ) : (
-              <ShoppingCart className="w-3.5 h-3.5" style={{ color: "#fff" }} />
-            )}
+            {addToCart.isPending
+              ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: "#fff" }} />
+              : <ShoppingCart className="w-3.5 h-3.5" style={{ color: "#fff" }} />
+            }
           </button>
         </div>
       </div>
@@ -352,38 +296,59 @@ const CategoriaDetalhe = () => {
           className="absolute inset-0 w-full h-full object-cover"
           style={{ objectPosition: "center top" }}
         />
+
+        {/*
+          Gradiente claro no topo (sob o navbar transparente) e escuro no fundo.
+          O topo fica ligeiramente clareado para os ícones castanhos do navbar serem visíveis.
+        */}
         <div
           className="absolute inset-0"
           style={{
             background:
-              "linear-gradient(to bottom, rgba(0,0,0,0.10) 0%, transparent 35%, rgba(0,0,0,0.25) 65%, rgba(0,0,0,0.60) 100%)",
+              "linear-gradient(to bottom, rgba(242,234,224,0.55) 0%, rgba(242,234,224,0.15) 25%, transparent 45%, rgba(0,0,0,0.15) 70%, rgba(0,0,0,0.45) 100%)",
           }}
         />
+
+        {/* Texto do hero — castanho escuro */}
         <div
           className="relative z-10 flex flex-col justify-end px-4 pb-5"
           style={{ paddingTop: 68 }}
         >
-          <div className="flex items-center gap-1 text-[11px] text-white/70 mb-2.5">
-            <button onClick={() => navigate("/")} className="hover:text-white transition-colors">Início</button>
-            <span>/</span>
-            <button onClick={() => navigate("/categorias")} className="hover:text-white transition-colors">Categorias</button>
-            <span>/</span>
-            <span className="text-white font-bold">{categoryName}</span>
+          {/* Breadcrumb castanho */}
+          <div className="flex items-center gap-1 text-[11px] mb-2.5" style={{ color: brown }}>
+            <button
+              onClick={() => navigate("/")}
+              className="hover:opacity-70 transition-opacity font-medium"
+              style={{ color: brown }}
+            >
+              Início
+            </button>
+            <span style={{ color: sandDark }}>/</span>
+            <button
+              onClick={() => navigate("/categorias")}
+              className="hover:opacity-70 transition-opacity font-medium"
+              style={{ color: brown }}
+            >
+              Categorias
+            </button>
+            <span style={{ color: sandDark }}>/</span>
+            <span className="font-black" style={{ color: brown }}>{categoryName}</span>
           </div>
-          <h1 className="text-3xl font-black text-white drop-shadow-lg leading-tight mb-1">
+
+          {/* Nome da categoria — castanho escuro grande */}
+          <h1 className="text-3xl font-black leading-tight mb-1" style={{ color: brown }}>
             {categoryName}
           </h1>
-          <p className="text-sm text-white/85 drop-shadow max-w-xs">
+
+          {/* Descrição — castanho médio */}
+          <p className="text-sm font-medium max-w-xs" style={{ color: sandDark }}>
             {heroSubtitle}
           </p>
         </div>
       </div>
 
       {/* ══ BARRA DE ORDENAÇÃO ══ */}
-      <div
-        className="sticky top-14 z-30 border-b"
-        style={{ backgroundColor: "#fff", borderBottomColor: brownMid }}
-      >
+      <div className="sticky top-14 z-30 border-b" style={{ backgroundColor: "#fff", borderBottomColor: brownMid }}>
         <div className="container mx-auto px-3 py-2 flex items-center gap-2">
           <div className="relative flex-1">
             <button
@@ -396,37 +361,23 @@ const CategoriaDetalhe = () => {
               <ChevronDown className="w-3 h-3" style={{ color: sandDark }} />
             </button>
             {showSort && (
-              <div
-                className="absolute top-full left-0 mt-1 rounded-xl shadow-lg z-40 min-w-[170px] overflow-hidden"
-                style={{ background: "#fff", border: `1.5px solid ${brownMid}` }}
-              >
+              <div className="absolute top-full left-0 mt-1 rounded-xl shadow-lg z-40 min-w-[170px] overflow-hidden"
+                style={{ background: "#fff", border: `1.5px solid ${brownMid}` }}>
                 {sortOptions.map(opt => (
-                  <button
-                    key={opt}
-                    onClick={() => { setSortBy(opt); setShowSort(false); }}
+                  <button key={opt} onClick={() => { setSortBy(opt); setShowSort(false); }}
                     className="block w-full text-left px-3 py-2 text-xs transition-colors hover:bg-amber-50"
-                    style={{
-                      color: opt === sortBy ? sandDark : brown,
-                      fontWeight: opt === sortBy ? 800 : 400,
-                      background: opt === sortBy ? brownLight : "transparent",
-                    }}
-                  >
+                    style={{ color: opt === sortBy ? sandDark : brown, fontWeight: opt === sortBy ? 800 : 400, background: opt === sortBy ? brownLight : "transparent" }}>
                     {opt}
                   </button>
                 ))}
               </div>
             )}
           </div>
-
           {isMobile && (
             <button
               onClick={() => setShowMobileFilters(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-colors"
-              style={{
-                background: brownLight,
-                border: `1.5px solid ${brownMid}`,
-                color: brown,
-              }}
+              style={{ background: brownLight, border: `1.5px solid ${brownMid}`, color: brown }}
             >
               <SlidersHorizontal className="w-3.5 h-3.5" style={{ color: sandDark }} />
               Filtro
@@ -438,18 +389,12 @@ const CategoriaDetalhe = () => {
       {/* ══ DRAWER DE FILTROS (mobile) ══ */}
       {isMobile && showMobileFilters && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" onClick={() => setShowMobileFilters(false)}>
-          <div
-            className="absolute left-0 top-0 bottom-0 w-72 overflow-y-auto p-4"
-            style={{ background: cream }}
-            onClick={e => e.stopPropagation()}
-          >
+          <div className="absolute left-0 top-0 bottom-0 w-72 overflow-y-auto p-4"
+            style={{ background: cream }} onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-black" style={{ color: brown }}>Filtros</h2>
-              <button
-                onClick={() => setShowMobileFilters(false)}
-                className="w-7 h-7 rounded-full flex items-center justify-center"
-                style={{ background: brownLight }}
-              >
+              <button onClick={() => setShowMobileFilters(false)}
+                className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: brownLight }}>
                 <X className="w-4 h-4" style={{ color: brown }} />
               </button>
             </div>
@@ -461,18 +406,11 @@ const CategoriaDetalhe = () => {
       {/* ══ LAYOUT PRINCIPAL ══ */}
       <div className="container mx-auto px-3 flex gap-4">
         {!isMobile && (
-          <aside
-            className="w-56 flex-shrink-0 py-4 px-3 mt-4 rounded-2xl self-start sticky top-[88px]"
-            style={{
-              background: cream,
-              border: `1.5px solid ${brownMid}`,
-              boxShadow: "0 2px 10px rgba(74,46,10,0.07)",
-            }}
-          >
+          <aside className="w-56 flex-shrink-0 py-4 px-3 mt-4 rounded-2xl self-start sticky top-[88px]"
+            style={{ background: cream, border: `1.5px solid ${brownMid}`, boxShadow: "0 2px 10px rgba(74,46,10,0.07)" }}>
             <FiltersPanel />
           </aside>
         )}
-
         <div className="flex-1 py-3">
           {isLoading ? (
             <div className="flex justify-center py-12">
@@ -484,9 +422,7 @@ const CategoriaDetalhe = () => {
                 {products.length} resultados em "{categoryName}"
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                {products.map((p: any) => (
-                  <ProductCard key={p.id} product={p} />
-                ))}
+                {products.map((p: any) => <ProductCard key={p.id} product={p} />)}
               </div>
             </>
           )}
