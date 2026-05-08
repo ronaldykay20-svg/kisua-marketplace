@@ -86,9 +86,6 @@ const Navbar = () => {
   const [searchVisible, setSearchVisible] = useState(true);
   const [categorySearchVisible, setCategorySearchVisible] = useState(false);
   const [scrollY, setScrollY] = useState(0);
-  const [lastScrollY, setLastScrollY] = useState(0);
-
-  /* ── Fix tablet: usa um timer para só colapsar após o scroll parar ── */
   const [showCategories, setShowCategories] = useState(true);
   const [showLocation, setShowLocation] = useState(true);
   const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -107,8 +104,8 @@ const Navbar = () => {
       }))
     : staticCategories;
 
-  const isCategoriasPage = location.pathname === "/categorias";
-  const isPesquisaPage = location.pathname === "/pesquisa";
+  const isCategoriasPage      = location.pathname === "/categorias";
+  const isPesquisaPage        = location.pathname === "/pesquisa";
   const isCategoriaDetalhePage = location.pathname.startsWith("/categoria/");
 
   const categoryNameFromUrl = isCategoriaDetalhePage
@@ -119,13 +116,7 @@ const Navbar = () => {
     const handler = () => {
       const current = window.scrollY;
       setScrollY(current);
-      setLastScrollY(current);
-
-      /* Localização: colapsa imediatamente quando passa 30px */
       setShowLocation(current < 30);
-
-      /* Fix piscar tablet: categorias só colapsam/expandem após
-         o scroll parar por 80ms — elimina o estado intermédio */
       if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current);
       collapseTimerRef.current = setTimeout(() => {
         setShowCategories(current < 60);
@@ -208,12 +199,12 @@ const Navbar = () => {
   const scrolled = scrollY > 4;
 
   /* ── Estilo do navbar ──
-     - CategoriaDetalhe: TRANSPARENTE (hero visível por baixo), ícones castanhos
-     - CategoriasPage:   TRANSPARENTE, ícones brancos
-     - Resto:            gradiente castanho normal
+     - CategoriaDetalhe : transparente (hero visível por baixo)
+     - CategoriasPage   : castanho normal (igual ao resto das páginas)
+     - Resto            : gradiente castanho normal
   */
   let navbarStyle: React.CSSProperties;
-  if (isCategoriaDetalhePage || isCategoriasPage) {
+  if (isCategoriaDetalhePage) {
     navbarStyle = { background: "transparent", boxShadow: "none", backdropFilter: "none" };
   } else {
     navbarStyle = {
@@ -224,15 +215,12 @@ const Navbar = () => {
   }
 
   /* ── Cores dos ícones ──
-     CategoriaDetalhe → castanho (fundo transparente mas hero claro no topo)
-     CategoriasPage   → branco (hero escuro)
-     Resto            → castanho
+     Todas as páginas → castanho (incluindo /categorias agora com fundo normal)
+     CategoriaDetalhe → castanho (sobre hero)
   */
-  const iconColor  = isCategoriasPage ? "#fff" : brown;
-  const iconBg     = isCategoriasPage ? "rgba(255,255,255,0.18)" : brownLight;
-  const iconBorder = isCategoriasPage
-    ? "1px solid rgba(255,255,255,0.3)"
-    : "1px solid rgba(74,46,10,0.18)";
+  const iconColor  = brown;
+  const iconBg     = brownLight;
+  const iconBorder = "1px solid rgba(74,46,10,0.18)";
 
   const navPositionClass = isCategoriaDetalhePage
     ? "absolute top-0 left-0 right-0 w-full z-50"
@@ -252,7 +240,6 @@ const Navbar = () => {
                 style={{ background: brownLight, border: "1px solid rgba(74,46,10,0.18)" }}
                 onClick={() => navigate(-1)}
               >
-                {/* Seta castanha */}
                 <ArrowLeft className="w-5 h-5" style={{ color: brown }} />
               </button>
             ) : (
@@ -266,7 +253,6 @@ const Navbar = () => {
             )}
 
             {isCategoriaDetalhePage ? (
-              /* Título da categoria em castanho escuro */
               <span className="flex-1 text-base font-black text-center" style={{ color: brown }}>
                 {categoryNameFromUrl}
               </span>
@@ -275,7 +261,7 @@ const Navbar = () => {
                 {logoUrl ? (
                   <img src={logoUrl} alt="Logo" className="h-9 object-contain" />
                 ) : (
-                  <span className="text-xl font-black" style={{ color: isCategoriasPage ? "#fff" : brown }}>
+                  <span className="text-xl font-black" style={{ color: brown }}>
                     AngoExpress
                   </span>
                 )}
@@ -285,7 +271,6 @@ const Navbar = () => {
             <div className="flex-1" />
 
             {isCategoriaDetalhePage ? (
-              /* Lupa castanha */
               <button
                 className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
                 style={{ background: brownLight, border: "1px solid rgba(74,46,10,0.18)" }}
@@ -308,14 +293,10 @@ const Navbar = () => {
             {user && (
               <button
                 className="relative flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
-                style={{
-                  background: isCategoriaDetalhePage ? brownLight : iconBg,
-                  border: isCategoriaDetalhePage ? "1px solid rgba(74,46,10,0.18)" : iconBorder,
-                }}
+                style={{ background: iconBg, border: iconBorder }}
                 onClick={() => { setNotifOpen(!notifOpen); setMenuOpen(false); }}
               >
-                {/* Sino castanho na página de categoria */}
-                <Bell className="w-5 h-5" style={{ color: isCategoriaDetalhePage ? brown : iconColor }} />
+                <Bell className="w-5 h-5" style={{ color: iconColor }} />
                 {unread > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full text-white text-[9px] font-black flex items-center justify-center px-1"
                     style={{ background: "#E53935" }}>
@@ -325,16 +306,12 @@ const Navbar = () => {
               </button>
             )}
 
-            {/* Carrinho castanho na página de categoria */}
             <button
               className="relative flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
-              style={{
-                background: isCategoriaDetalhePage ? brownLight : iconBg,
-                border: isCategoriaDetalhePage ? "1px solid rgba(74,46,10,0.18)" : iconBorder,
-              }}
+              style={{ background: iconBg, border: iconBorder }}
               onClick={() => navigate("/carrinho")}
             >
-              <ShoppingCart className="w-5 h-5" style={{ color: isCategoriaDetalhePage ? brown : iconColor }} />
+              <ShoppingCart className="w-5 h-5" style={{ color: iconColor }} />
               {cartCount > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full text-white text-[9px] font-black flex items-center justify-center px-1"
                   style={{ background: "#E53935" }}>
@@ -344,7 +321,7 @@ const Navbar = () => {
             </button>
           </div>
 
-          {/* ── Barra de pesquisa na categoria detalhe (castanha) ── */}
+          {/* ── Barra de pesquisa na categoria detalhe ── */}
           {isCategoriaDetalhePage && (
             <div
               className="overflow-hidden"
@@ -449,16 +426,13 @@ const Navbar = () => {
             </div>
           )}
 
-          {/* ── Categorias com fotos ──
-              Fix tablet: transition mais longa + snap discreto via step-end quando
-              está a colapsar (evita estado visual intermédio piscante) */}
+          {/* ── Categorias com fotos ── */}
           {!isCategoriasPage && !isPesquisaPage && !isCategoriaDetalhePage && (
             <div
               className="overflow-hidden"
               style={{
                 maxHeight: showCategories ? "88px" : "0px",
                 opacity: showCategories ? 1 : 0,
-                /* Duração maior e easing mais suave elimina o piscar no tablet */
                 transition: "max-height 0.45s cubic-bezier(0.4,0,0.2,1), opacity 0.35s ease",
               }}
             >
@@ -483,15 +457,21 @@ const Navbar = () => {
                     </span>
                   </button>
                 ))}
+
+                {/* Botão "Ver todas" — símbolo a BRANCO sobre fundo castanho */}
                 <button
                   onClick={() => navigate("/categorias")}
                   className="flex flex-col items-center gap-1.5 flex-shrink-0"
                 >
                   <div
                     className="w-14 h-14 rounded-xl flex items-center justify-center"
-                    style={{ background: brownLight, border: "2px solid rgba(74,46,10,0.18)", boxShadow: "0 2px 8px rgba(74,46,10,0.08)" }}
+                    style={{
+                      background: `linear-gradient(135deg, #6B3F12, #4A2E0A)`,
+                      border: "2px solid rgba(74,46,10,0.35)",
+                      boxShadow: "0 2px 8px rgba(74,46,10,0.18)",
+                    }}
                   >
-                    <span style={{ fontSize: 22, color: sandDark, lineHeight: 1 }}>⊞</span>
+                    <span style={{ fontSize: 22, color: "#FFFFFF", lineHeight: 1 }}>⊞</span>
                   </div>
                   <span className="text-[10px] font-semibold text-center" style={{ color: brown }}>Ver todas</span>
                 </button>
