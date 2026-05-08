@@ -159,7 +159,8 @@ const InfiniteProducts = () => {
   const col1 = allProducts.filter((_: any, i: number) => i % 2 === 0);
   const col2 = allProducts.filter((_: any, i: number) => i % 2 === 1);
 
-  const ProductCard = ({ p, globalIndex }: { p: any; globalIndex: number }) => {
+  // ─── Cartão Mobile (original, sem alterações) ───────────────────────────────
+  const MobileCard = ({ p, globalIndex }: { p: any; globalIndex: number }) => {
     const img = p.cover_url || p.image_url;
     const ratio = RATIOS[globalIndex % RATIOS.length];
     const isTrending = trendingIds.has(p.id);
@@ -232,33 +233,152 @@ const InfiniteProducts = () => {
     );
   };
 
+  // ─── Cartão Tablet (estilo Temu/AliExpress) ─────────────────────────────────
+  const TabletCard = ({ p, globalIndex }: { p: any; globalIndex: number }) => {
+    const img = p.cover_url || p.image_url;
+    const isTrending = trendingIds.has(p.id);
+    const fav = isFavorite(p.id);
+
+    const handleHeart = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (!user) { navigate("/auth"); return; }
+      toggleFavorite(p.id);
+    };
+
+    const handleComprar = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      navigate(`/produto/${p.id}`);
+    };
+
+    return (
+      <div
+        onClick={() => navigate(`/produto/${p.id}`)}
+        className="bg-card border border-border rounded-md overflow-hidden cursor-pointer flex flex-col"
+        style={{ breakInside: "avoid", marginBottom: "6px" }}
+      >
+        {/* Imagem quadrada */}
+        <div className="relative w-full bg-muted" style={{ aspectRatio: "1/1" }}>
+          {img
+            ? <img src={img} alt={p.title} className="w-full h-full object-cover" loading="lazy" />
+            : <div className="w-full h-full flex items-center justify-center text-[10px] text-muted-foreground">Sem foto</div>
+          }
+
+          {/* Badge desconto */}
+          {p.discount_percent && (
+            <span className="absolute top-1 left-1 px-1 py-0.5 rounded text-[9px] font-bold text-white bg-red-500 leading-none">
+              -{p.discount_percent}%
+            </span>
+          )}
+
+          {/* Badge personalizado */}
+          {p.badge && (
+            <span className="absolute top-1 right-8 px-1 py-0.5 rounded text-[9px] font-bold text-white bg-orange-500 leading-none">
+              {p.badge}
+            </span>
+          )}
+
+          {/* Trending badge */}
+          {isTrending && (
+            <span className="absolute top-1 right-1 px-1 py-0.5 rounded text-[9px] font-bold text-white bg-rose-500 leading-none flex items-center gap-0.5">
+              <Flame className="w-2 h-2" />
+            </span>
+          )}
+
+          {/* Botão favorito */}
+          <button
+            onClick={handleHeart}
+            className="absolute bottom-1 right-1 w-5 h-5 rounded-full bg-white/85 flex items-center justify-center shadow-sm"
+          >
+            <Heart className={`w-2.5 h-2.5 transition-colors ${fav ? "fill-[#8B6343] text-[#8B6343]" : "text-gray-400"}`} />
+          </button>
+        </div>
+
+        {/* Informações do produto */}
+        <div className="p-1.5 flex flex-col gap-1">
+          {/* Nome truncado em 2 linhas */}
+          <p className="text-[10px] font-medium text-foreground line-clamp-2 leading-tight">
+            {p.title}
+          </p>
+
+          {/* Avaliação */}
+          {p.rating > 0 && (
+            <div className="flex items-center gap-0.5">
+              <Star className="w-2 h-2 text-yellow-400 fill-yellow-400" />
+              <span className="text-[9px] text-yellow-600 font-semibold">{Number(p.rating).toFixed(1)}</span>
+              {p.sales_count > 0 && (
+                <span className="text-[8px] text-muted-foreground ml-0.5">{p.sales_count}+</span>
+              )}
+            </div>
+          )}
+
+          {/* Preço */}
+          <div className="flex items-baseline gap-1 flex-wrap">
+            <span className="text-[12px] font-black text-red-500 leading-none">
+              {Number(p.price).toLocaleString("pt-AO")} Kz
+            </span>
+            {p.old_price && (
+              <span className="text-[8px] text-muted-foreground line-through leading-none">
+                {Number(p.old_price).toLocaleString("pt-AO")}
+              </span>
+            )}
+          </div>
+
+          {/* Botão Comprar */}
+          <button
+            onClick={handleComprar}
+            className="w-full mt-0.5 py-1 rounded text-[10px] font-bold text-white bg-orange-500 hover:bg-orange-600 active:scale-95 transition-all leading-none"
+          >
+            Comprar
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <section className="container mx-auto px-3 pt-4 pb-4">
       <div className="mb-3">
         <h2 className="text-base font-bold text-foreground">Para si</h2>
       </div>
 
-      <div className="hidden sm:block" style={{ columnCount: 3, columnGap: "8px" }}>
-        {allProducts.map((p: any, i: number) => (
-          <div key={p.id} style={{ breakInside: "avoid", marginBottom: "8px" }}>
-            <ProductCard p={p} globalIndex={i} />
-          </div>
-        ))}
+      {/* ── TABLET: grade densa estilo marketplace (só sm:block) ── */}
+      <div
+        className="hidden sm:block"
+        style={{
+          columnCount: 4,   /* 4 colunas em tablet; ajuste para 5 em telas maiores via CSS abaixo */
+          columnGap: "6px",
+        }}
+      >
+        <style>{`
+          @media (min-width: 1024px) {
+            .tablet-masonry { column-count: 5 !important; }
+          }
+          @media (min-width: 1280px) {
+            .tablet-masonry { column-count: 6 !important; }
+          }
+        `}</style>
+        <div className="tablet-masonry" style={{ columnCount: 4, columnGap: "6px" }}>
+          {allProducts.map((p: any, i: number) => (
+            <TabletCard key={p.id} p={p} globalIndex={i} />
+          ))}
+        </div>
       </div>
 
+      {/* ── MOBILE: masonry 2 colunas original (só abaixo de sm) ── */}
       <div className="flex gap-2 sm:hidden">
         <div className="flex-1">
           {col1.map((p: any, colI: number) => (
-            <ProductCard key={p.id} p={p} globalIndex={colI * 2} />
+            <MobileCard key={p.id} p={p} globalIndex={colI * 2} />
           ))}
         </div>
         <div className="flex-1">
           {col2.map((p: any, colI: number) => (
-            <ProductCard key={p.id} p={p} globalIndex={colI * 2 + 1} />
+            <MobileCard key={p.id} p={p} globalIndex={colI * 2 + 1} />
           ))}
         </div>
       </div>
 
+      {/* Sentinel de scroll infinito */}
       <div ref={observerRef} className="py-6 flex justify-center">
         {isFetchingNextPage && <Loader2 className="w-5 h-5 animate-spin text-primary" />}
         {!hasNextPage && allProducts.length > 0 && (
