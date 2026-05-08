@@ -423,7 +423,7 @@ const Categorias = () => {
           </div>
         </div>
         <button
-          onClick={() => navigate("/ofertas")}
+          onClick={() => navigate("/promocoes")}
           style={{
             background: sandDark, color: white, border: "none",
             borderRadius: 10, padding: "8px 14px",
