@@ -58,7 +58,10 @@ const Carrinho = () => {
     [cartItems]
   );
 
-  /* ── Sugestões: mesma categoria OU recentes como fallback ── */
+  /* ── Sugestões ──
+     Roda sempre que o carrinho terminar de carregar (isLoading = false).
+     Se houver category_id filtra pela categoria, senão traz os mais recentes.
+     Exclui sempre os produtos já no carrinho. ── */
   const { data: suggestions = [] } = useQuery({
     queryKey: ["cart_suggestions", categoryIds.join(","), cartProductIds.join(",")],
     queryFn: async () => {
@@ -69,7 +72,6 @@ const Carrinho = () => {
         .order("created_at", { ascending: false })
         .limit(20);
 
-      /* Filtra pela categoria se existir, senão traz produtos recentes */
       if (categoryIds.length > 0) {
         query = query.in("category_id", categoryIds);
       }
@@ -100,7 +102,8 @@ const Carrinho = () => {
         cover_url: coverMap[p.id] || null,
       }));
     },
-    enabled: cartProductIds.length > 0,
+    /* Espera o carrinho terminar de carregar antes de correr */
+    enabled: !isLoading && cartProductIds.length > 0,
   });
 
   /* ── Totais ── */
@@ -215,7 +218,6 @@ const Carrinho = () => {
               {(cartItems as any[]).map((item: any) => {
                 const product = item.products;
                 if (!product) return null;
-
                 const coverUrl: string | null = product.cover_url || product.image_url || null;
 
                 return (
@@ -386,6 +388,8 @@ const Carrinho = () => {
 
             {/* ────────────────────────────────────────────
                 SUGESTÕES — logo antes do botão fixo
+                Mostra sapatos e outros produtos da mesma
+                categoria que estão no carrinho
             ──────────────────────────────────────────── */}
             {suggestions.length > 0 && (
               <div className="rounded-2xl overflow-hidden" style={{ background: "#fff", border: `1px solid ${sand}` }}>
@@ -395,12 +399,10 @@ const Carrinho = () => {
                 >
                   <div>
                     <p className="text-sm font-black" style={{ color: brown }}>
-                      {categoryIds.length > 0 ? "Você também pode gostar" : "Produtos em destaque"}
+                      Você também pode gostar
                     </p>
                     <p className="text-[11px]" style={{ color: sandDark }}>
-                      {categoryIds.length > 0
-                        ? "Da mesma categoria dos seus produtos"
-                        : "Outros clientes também compraram"}
+                      Da mesma categoria dos seus produtos
                     </p>
                   </div>
                   <button
@@ -492,7 +494,6 @@ const Carrinho = () => {
                 </div>
               </div>
             )}
-
           </>
         )}
       </div>
