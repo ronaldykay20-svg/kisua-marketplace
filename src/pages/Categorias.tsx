@@ -91,12 +91,10 @@ const useTopProducts = () =>
         title: p.title,
         price: Number(p.price),
         priceFormatted: formatPrice(Number(p.price)),
-        oldPrice: p.old_price ? formatPrice(Number(p.old_price)) : undefined,
-        discount: p.discount_percent ? `-${p.discount_percent}%` : undefined,
         image: coverMap[p.id] || p.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&h=600&fit=crop",
+        discount: p.discount_percent ? `-${p.discount_percent}%` : undefined,
         rating: p.rating || 0,
         reviews: p.total_reviews || 0,
-        freeShipping: p.free_shipping || false,
       }));
     },
   });
@@ -122,8 +120,8 @@ const ProductCard = ({ product, rank, isTablet }: { product: any; rank: number; 
     rank === 2 ? "#C0C0C0" :
     rank === 3 ? "#CD7F32" : null;
 
-  const cartSize = isTablet ? 36 : 28;
-  const iconSize = isTablet ? 17 : 13;
+  const cartSize = isTablet ? 34 : 26;
+  const iconSize = isTablet ? 16 : 12;
 
   return (
     <div style={{ position: "relative", flexShrink: 0, width: isTablet ? "calc((100vw - 60px) / 6)" : "calc((100vw - 140px) / 2.4)" }}>
@@ -146,8 +144,9 @@ const ProductCard = ({ product, rank, isTablet }: { product: any; rank: number; 
         background: white, borderRadius: 14,
         border: `1.5px solid ${brownMid}`,
         boxShadow: "0 2px 10px rgba(74,46,10,0.08)",
-        overflow: "hidden", display: "flex", flexDirection: "column", height: "100%",
+        overflow: "hidden", display: "flex", flexDirection: "column",
       }}>
+        {/* Imagem clicável */}
         <button
           style={{ display: "block", width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer" }}
           onClick={() => navigate(`/produto/${product.id}`)}
@@ -168,60 +167,28 @@ const ProductCard = ({ product, rank, isTablet }: { product: any; rank: number; 
           </div>
         </button>
 
-        <div style={{ padding: "8px 8px 10px", flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
-          <button style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}
-            onClick={() => navigate(`/produto/${product.id}`)}>
-            <p style={{
-              margin: 0, fontSize: isTablet ? 11 : 10, fontWeight: 600, color: brown, lineHeight: 1.3,
-              display: "-webkit-box", WebkitLineClamp: 2,
-              WebkitBoxOrient: "vertical", overflow: "hidden",
-            }}>
-              {product.title}
-            </p>
+        {/* Rodapé: preço + carrinho, sem espaço extra */}
+        <div style={{
+          display: "flex", alignItems: "center",
+          padding: "7px 8px",
+          background: white,
+        }}>
+          <span style={{ fontSize: isTablet ? 12 : 11, fontWeight: 800, color: brown, flex: 1, lineHeight: 1.2 }}>
+            {product.priceFormatted}
+          </span>
+          <button
+            onClick={(e) => { e.stopPropagation(); addToCart.mutate({ productId: product.id, quantity: 1 }); }}
+            disabled={addToCart.isPending}
+            style={{
+              width: cartSize, height: cartSize, borderRadius: 8, border: "none", cursor: "pointer",
+              background: `linear-gradient(135deg, ${sandDark}, ${sand})`,
+              boxShadow: "0 2px 6px rgba(74,46,10,0.25)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <ShoppingCart style={{ width: iconSize, height: iconSize, color: white }} />
           </button>
-
-          {product.rating > 0 && (
-            <div style={{ display: "flex", alignItems: "center", gap: 1 }}>
-              {[...Array(5)].map((_, i) => (
-                <Star key={i} style={{
-                  width: 9, height: 9,
-                  fill: i < Math.round(product.rating) ? sandDark : "transparent",
-                  color: i < Math.round(product.rating) ? sandDark : "#ccc",
-                }} />
-              ))}
-              {product.reviews > 0 && (
-                <span style={{ fontSize: 8, color: sandDark, marginLeft: 2 }}>({product.reviews})</span>
-              )}
-            </div>
-          )}
-
-          <div style={{ display: "flex", alignItems: "baseline", gap: 4, flexWrap: "wrap" }}>
-            {product.oldPrice && (
-              <span style={{ fontSize: 9, textDecoration: "line-through", color: "#aaa" }}>{product.oldPrice}</span>
-            )}
-            <span style={{ fontSize: isTablet ? 13 : 12, fontWeight: 800, color: brown }}>{product.priceFormatted}</span>
-          </div>
-
-          {/* Botão do carrinho sempre à direita */}
-          <div style={{ display: "flex", alignItems: "center", marginTop: 2 }}>
-            {product.freeShipping && (
-              <span style={{ fontSize: 8, fontWeight: 700, color: sandDark }}>Frete grátis</span>
-            )}
-            <button
-              onClick={(e) => { e.stopPropagation(); addToCart.mutate({ productId: product.id, quantity: 1 }); }}
-              disabled={addToCart.isPending}
-              style={{
-                marginLeft: "auto",
-                width: cartSize, height: cartSize, borderRadius: 9, border: "none", cursor: "pointer",
-                background: `linear-gradient(135deg, ${sandDark}, ${sand})`,
-                boxShadow: "0 2px 8px rgba(74,46,10,0.25)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                flexShrink: 0,
-              }}
-            >
-              <ShoppingCart style={{ width: iconSize, height: iconSize, color: white }} />
-            </button>
-          </div>
         </div>
       </div>
     </div>
@@ -435,27 +402,25 @@ const Categorias = () => {
 
       {/* ── Campeões de Vendas: Top 12 ── */}
       <div style={{ margin: "16px 10px 0" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{
-              width: 34, height: 34, borderRadius: 10,
-              background: "linear-gradient(135deg, #F5A623, #E8860A)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              boxShadow: "0 2px 8px rgba(245,166,35,0.35)",
-            }}>
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/>
-                <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
-                <path d="M4 22h16"/>
-                <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/>
-                <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/>
-                <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>
-              </svg>
-            </div>
-            <div>
-              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: brown }}>Campeões de Vendas</h3>
-              <p style={{ margin: 0, fontSize: 10, color: sandDark }}>Os produtos mais bem avaliados</p>
-            </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <div style={{
+            width: 34, height: 34, borderRadius: 10,
+            background: "linear-gradient(135deg, #F5A623, #E8860A)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: "0 2px 8px rgba(245,166,35,0.35)",
+          }}>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/>
+              <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
+              <path d="M4 22h16"/>
+              <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/>
+              <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/>
+              <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>
+            </svg>
+          </div>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: brown }}>Campeões de Vendas</h3>
+            <p style={{ margin: 0, fontSize: 10, color: sandDark }}>Os produtos mais bem avaliados</p>
           </div>
         </div>
 
@@ -471,15 +436,10 @@ const Categorias = () => {
           </div>
         ) : (
           <div style={{
-            display: "flex",
-            flexDirection: "row",
-            gap: 10,
-            overflowX: "auto",
-            overflowY: "visible",
-            paddingBottom: 8,
-            paddingTop: 10,
-            scrollbarWidth: "none",
-            msOverflowStyle: "none",
+            display: "flex", flexDirection: "row", gap: 10,
+            overflowX: "auto", overflowY: "visible",
+            paddingBottom: 8, paddingTop: 10,
+            scrollbarWidth: "none", msOverflowStyle: "none",
           }}>
             <style>{`
               @keyframes spin { to { transform: rotate(360deg); } }
