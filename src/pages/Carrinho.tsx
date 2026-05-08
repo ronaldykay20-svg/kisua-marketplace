@@ -5,7 +5,7 @@ import { useUpdateCartItem, useRemoveCartItem } from "@/hooks/useCartActions";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 
 const sand       = "#D4B896";
 const sandDark   = "#B8956A";
@@ -40,16 +40,45 @@ const Carrinho = () => {
   const [couponOpen, setCouponOpen] = useState(false);
   const [favorites, setFavorites] = useState<string[]>([]);
 
-  /* ── IDs de categorias dos produtos no carrinho ── */
-  const categoryIds: string[] = Array.from(
-    new Set(
-      (cartItems as any[])
-        .map((item: any) => item.products?.category_id)
-        .filter(Boolean)
-    )
+  /* ── IDs dos produtos no carrinho ── */
+  const cartProductIds = useMemo(
+    () => (cartItems as any[]).map((i: any) => i.products?.id).filter(Boolean),
+    [cartItems]
   );
 
-  const cartProductIds = (cartItems as any[]).map((i: any) => i.products?.id).filter(Boolean);
+  /* ── IDs de categorias dos produtos no carrinho ── */
+  const categoryIds: string[] = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          (cartItems as any[])
+            .map((item: any) => item.products?.category_id)
+            .filter(Boolean)
+        )
+      ),
+    [cartItems]
+  );
+
+  /* ── Busca covers reais dos itens do carrinho via product_media ── */
+  const { data: cartCovers = {} } = useQuery({
+    queryKey: ["cart_item_covers", cartProductIds.join(",")],
+    queryFn: async () => {
+      if (cartProductIds.length === 0) return {};
+
+      const { data } = await supabase
+        .from("product_media")
+        .select("product_id, url")
+        .in("product_id", cartProductIds)
+        .eq("is_cover", true);
+
+      const coverMap: Record<string, string> = {};
+      (data || []).forEach((m: any) => {
+        coverMap[m.product_id] = m.url;
+      });
+      return coverMap;
+    },
+    enabled: cartProductIds.length > 0,
+  });
 
   /* ── Sugestões pelas mesmas categorias ── */
   const { data: suggestions = [] } = useQuery({
@@ -70,10 +99,10 @@ const Carrinho = () => {
       /* Excluir produtos já no carrinho */
       const filtered = (data || []).filter((p: any) => !cartProductIds.includes(p.id));
 
-      /* Buscar cover real de product_media */
       const ids = filtered.map((p: any) => p.id);
       if (ids.length === 0) return filtered.map((p: any) => ({ ...p, cover_url: null }));
 
+      /* Buscar cover real de product_media para as sugestões */
       const { data: mediaData } = await supabase
         .from("product_media")
         .select("product_id, url")
@@ -204,8 +233,14 @@ const Carrinho = () => {
                 const product = item.products;
                 if (!product) return null;
 
-                /* Somente imagem real — sem URL externa de fallback */
-                const coverUrl: string | null = product.cover_url || product.image_url || null;
+                /*
+                 * Ordem de prioridade para a imagem:
+                 * 1. cover de product_media (tabela separada, igual ao componente Categories)
+                 * 2. image_url direto no produto
+                 * 3. null → mostra placeholder
+                 */
+                const coverUrl: string | null =
+                  cartCovers[product.id] || product.image_url || null;
 
                 return (
                   <div
