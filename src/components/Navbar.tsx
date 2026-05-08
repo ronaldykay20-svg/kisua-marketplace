@@ -27,21 +27,11 @@ const staticCategories = [
 ];
 
 export const categoryAccentColors: Record<string, string> = {
-  "Electrónicos": "#1565C0",
-  "Veículos": "#B71C1C",
-  "Imóveis": "#1B5E20",
-  "Moda": "#F57F17",
-  "Casa & Jardim": "#4A148C",
-  "Desporto": "#E65100",
-  "Bebé & Criança": "#880E4F",
-  "Saúde & Beleza": "#00695C",
-  "Informática": "#006064",
-  "Gaming": "#311B92",
-  "Jóias & Relógios": "#F9A825",
-  "Viagens": "#01579B",
-  "Alimentação": "#33691E",
-  "Empregos": "#37474F",
-  "Educação": "#004D40",
+  "Electrónicos": "#1565C0", "Veículos": "#B71C1C", "Imóveis": "#1B5E20",
+  "Moda": "#F57F17", "Casa & Jardim": "#4A148C", "Desporto": "#E65100",
+  "Bebé & Criança": "#880E4F", "Saúde & Beleza": "#00695C", "Informática": "#006064",
+  "Gaming": "#311B92", "Jóias & Relógios": "#F9A825", "Viagens": "#01579B",
+  "Alimentação": "#33691E", "Empregos": "#37474F", "Educação": "#004D40",
   "Animais": "#BF360C",
 };
 
@@ -71,14 +61,9 @@ const useCartCount = (userId?: string) =>
 const useSpeechRecognition = (onResult: (text: string) => void) => {
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef<any>(null);
-
   const startListening = useCallback(() => {
-    const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert("O seu dispositivo não suporta pesquisa por voz.");
-      return;
-    }
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) { alert("O seu dispositivo não suporta pesquisa por voz."); return; }
     const recognition = new SpeechRecognition();
     recognitionRef.current = recognition;
     recognition.lang = "pt-AO";
@@ -87,18 +72,10 @@ const useSpeechRecognition = (onResult: (text: string) => void) => {
     recognition.onstart = () => setListening(true);
     recognition.onend = () => setListening(false);
     recognition.onerror = () => setListening(false);
-    recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      onResult(transcript);
-    };
+    recognition.onresult = (event: any) => { onResult(event.results[0][0].transcript); };
     recognition.start();
   }, [onResult]);
-
-  const stopListening = useCallback(() => {
-    recognitionRef.current?.stop();
-    setListening(false);
-  }, []);
-
+  const stopListening = useCallback(() => { recognitionRef.current?.stop(); setListening(false); }, []);
   return { listening, startListening, stopListening };
 };
 
@@ -108,11 +85,13 @@ const Navbar = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchVisible, setSearchVisible] = useState(true);
   const [categorySearchVisible, setCategorySearchVisible] = useState(false);
-
   const [scrollY, setScrollY] = useState(0);
   const [lastScrollY, setLastScrollY] = useState(0);
+
+  /* ── Fix tablet: usa um timer para só colapsar após o scroll parar ── */
   const [showCategories, setShowCategories] = useState(true);
   const [showLocation, setShowLocation] = useState(true);
+  const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -137,23 +116,27 @@ const Navbar = () => {
     : null;
 
   useEffect(() => {
-    let ticking = false;
     const handler = () => {
-      if (!ticking) {
-        requestAnimationFrame(() => {
-          const current = window.scrollY;
-          setScrollY(current);
-          setShowCategories(current < 60);
-          setShowLocation(current < 30);
-          setLastScrollY(current);
-          ticking = false;
-        });
-        ticking = true;
-      }
+      const current = window.scrollY;
+      setScrollY(current);
+      setLastScrollY(current);
+
+      /* Localização: colapsa imediatamente quando passa 30px */
+      setShowLocation(current < 30);
+
+      /* Fix piscar tablet: categorias só colapsam/expandem após
+         o scroll parar por 80ms — elimina o estado intermédio */
+      if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current);
+      collapseTimerRef.current = setTimeout(() => {
+        setShowCategories(current < 60);
+      }, 80);
     };
     window.addEventListener("scroll", handler, { passive: true });
-    return () => window.removeEventListener("scroll", handler);
-  }, [lastScrollY]);
+    return () => {
+      window.removeEventListener("scroll", handler);
+      if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     setSearchVisible(true);
@@ -166,11 +149,8 @@ const Navbar = () => {
     queryFn: async () => {
       if (!user) return [];
       const { data } = await (supabase as any)
-        .from("notifications")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(20);
+        .from("notifications").select("*").eq("user_id", user.id)
+        .order("created_at", { ascending: false }).limit(20);
       return data || [];
     },
     enabled: !!user,
@@ -181,19 +161,13 @@ const Navbar = () => {
 
   const markAllRead = async () => {
     if (!user) return;
-    await (supabase as any)
-      .from("notifications")
-      .update({ is_read: true })
-      .eq("user_id", user.id)
-      .eq("is_read", false);
+    await (supabase as any).from("notifications").update({ is_read: true })
+      .eq("user_id", user.id).eq("is_read", false);
     qc.invalidateQueries({ queryKey: ["navbar_notifications", user.id] });
   };
 
   const markOneRead = async (id: string, link_url?: string) => {
-    await (supabase as any)
-      .from("notifications")
-      .update({ is_read: true })
-      .eq("id", id);
+    await (supabase as any).from("notifications").update({ is_read: true }).eq("id", id);
     qc.invalidateQueries({ queryKey: ["navbar_notifications", user?.id] });
     if (link_url) { navigate(link_url); setNotifOpen(false); }
   };
@@ -204,87 +178,61 @@ const Navbar = () => {
     e.preventDefault();
     if (searchQuery.trim()) {
       navigate(`/pesquisa?q=${encodeURIComponent(searchQuery.trim())}`);
-      setSearchQuery("");
-      setSearchVisible(false);
-      setCategorySearchVisible(false);
+      setSearchQuery(""); setSearchVisible(false); setCategorySearchVisible(false);
     }
   };
 
   const handleSearchIconClick = () => {
-    if (searchVisible && !searchQuery.trim()) {
-      setSearchVisible(false);
-    } else if (!searchVisible) {
-      setSearchVisible(true);
-    } else {
-      if (searchQuery.trim()) {
-        navigate(`/pesquisa?q=${encodeURIComponent(searchQuery.trim())}`);
-        setSearchQuery("");
-        setSearchVisible(false);
-      }
+    if (searchVisible && !searchQuery.trim()) setSearchVisible(false);
+    else if (!searchVisible) setSearchVisible(true);
+    else if (searchQuery.trim()) {
+      navigate(`/pesquisa?q=${encodeURIComponent(searchQuery.trim())}`);
+      setSearchQuery(""); setSearchVisible(false);
     }
   };
 
   const { listening, startListening, stopListening } = useSpeechRecognition((text) => {
     setSearchQuery(text);
     navigate(`/pesquisa?q=${encodeURIComponent(text)}`);
-    setSearchVisible(false);
-    setCategorySearchVisible(false);
+    setSearchVisible(false); setCategorySearchVisible(false);
   });
 
-  const handleMicClick = () => {
-    if (listening) stopListening();
-    else startListening();
-  };
+  const handleMicClick = () => { if (listening) stopListening(); else startListening(); };
 
-  const sand      = "#D4B896";
-  const sandDark  = "#B8956A";
-  const cream     = "#F7F0E6";
-  const brown     = "#4A2E0A";
+  const sand       = "#D4B896";
+  const sandDark   = "#B8956A";
+  const cream      = "#F7F0E6";
+  const brown      = "#4A2E0A";
   const brownLight = "rgba(74,46,10,0.12)";
 
   const scrolled = scrollY > 4;
 
-  /* ── Estilo do navbar por página ──
-     - CategoriaDetalhe: fundo castanho/bege com ícones castanhos (identidade da marca)
-     - CategoriasPage:   transparente (hero por baixo)
+  /* ── Estilo do navbar ──
+     - CategoriaDetalhe: TRANSPARENTE (hero visível por baixo), ícones castanhos
+     - CategoriasPage:   TRANSPARENTE, ícones brancos
      - Resto:            gradiente castanho normal
   */
   let navbarStyle: React.CSSProperties;
-  if (isCategoriasPage) {
-    navbarStyle = {
-      background: "transparent",
-      boxShadow: "none",
-      backdropFilter: "none",
-    };
-  } else if (isCategoriaDetalhePage) {
-    /* Navbar castanha sobre o hero — mantém identidade mas visível */
-    navbarStyle = {
-      background: `linear-gradient(160deg, ${cream} 0%, ${sand} 60%, #C9A87C 100%)`,
-      boxShadow: "0 2px 12px rgba(74,46,10,0.18)",
-    };
+  if (isCategoriaDetalhePage || isCategoriasPage) {
+    navbarStyle = { background: "transparent", boxShadow: "none", backdropFilter: "none" };
   } else {
     navbarStyle = {
       background: `linear-gradient(160deg, ${cream} 0%, ${sand} 60%, #C9A87C 100%)`,
-      boxShadow: scrolled
-        ? "0 2px 20px rgba(74,46,10,0.18)"
-        : "0 1px 0 rgba(74,46,10,0.08)",
+      boxShadow: scrolled ? "0 2px 20px rgba(74,46,10,0.18)" : "0 1px 0 rgba(74,46,10,0.08)",
       transition: "box-shadow 0.3s ease",
     };
   }
 
   /* ── Cores dos ícones ──
-     Categorias: branco (sobre hero escuro)
-     CategoriaDetalhe: castanho (navbar castanha)
-     Resto: castanho
+     CategoriaDetalhe → castanho (fundo transparente mas hero claro no topo)
+     CategoriasPage   → branco (hero escuro)
+     Resto            → castanho
   */
   const iconColor  = isCategoriasPage ? "#fff" : brown;
   const iconBg     = isCategoriasPage ? "rgba(255,255,255,0.18)" : brownLight;
   const iconBorder = isCategoriasPage
     ? "1px solid rgba(255,255,255,0.3)"
     : "1px solid rgba(74,46,10,0.18)";
-
-  /* Texto do título da categoria na navbar */
-  const categoryTitleColor = brown;
 
   const navPositionClass = isCategoriaDetalhePage
     ? "absolute top-0 left-0 right-0 w-full z-50"
@@ -301,10 +249,11 @@ const Navbar = () => {
             {isCategoriaDetalhePage ? (
               <button
                 className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
-                style={{ background: iconBg, border: iconBorder }}
+                style={{ background: brownLight, border: "1px solid rgba(74,46,10,0.18)" }}
                 onClick={() => navigate(-1)}
               >
-                <ArrowLeft className="w-5 h-5" style={{ color: iconColor }} />
+                {/* Seta castanha */}
+                <ArrowLeft className="w-5 h-5" style={{ color: brown }} />
               </button>
             ) : (
               <button
@@ -317,11 +266,8 @@ const Navbar = () => {
             )}
 
             {isCategoriaDetalhePage ? (
-              /* Nome da categoria em castanho escuro */
-              <span
-                className="flex-1 text-base font-black text-center"
-                style={{ color: categoryTitleColor }}
-              >
+              /* Título da categoria em castanho escuro */
+              <span className="flex-1 text-base font-black text-center" style={{ color: brown }}>
                 {categoryNameFromUrl}
               </span>
             ) : (
@@ -339,12 +285,13 @@ const Navbar = () => {
             <div className="flex-1" />
 
             {isCategoriaDetalhePage ? (
+              /* Lupa castanha */
               <button
                 className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
-                style={{ background: iconBg, border: iconBorder }}
+                style={{ background: brownLight, border: "1px solid rgba(74,46,10,0.18)" }}
                 onClick={() => setCategorySearchVisible(v => !v)}
               >
-                <Search className="w-5 h-5" style={{ color: iconColor }} />
+                <Search className="w-5 h-5" style={{ color: brown }} />
               </button>
             ) : (
               !searchVisible && (
@@ -361,10 +308,14 @@ const Navbar = () => {
             {user && (
               <button
                 className="relative flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
-                style={{ background: iconBg, border: iconBorder }}
+                style={{
+                  background: isCategoriaDetalhePage ? brownLight : iconBg,
+                  border: isCategoriaDetalhePage ? "1px solid rgba(74,46,10,0.18)" : iconBorder,
+                }}
                 onClick={() => { setNotifOpen(!notifOpen); setMenuOpen(false); }}
               >
-                <Bell className="w-5 h-5" style={{ color: iconColor }} />
+                {/* Sino castanho na página de categoria */}
+                <Bell className="w-5 h-5" style={{ color: isCategoriaDetalhePage ? brown : iconColor }} />
                 {unread > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full text-white text-[9px] font-black flex items-center justify-center px-1"
                     style={{ background: "#E53935" }}>
@@ -374,12 +325,16 @@ const Navbar = () => {
               </button>
             )}
 
+            {/* Carrinho castanho na página de categoria */}
             <button
               className="relative flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
-              style={{ background: iconBg, border: iconBorder }}
+              style={{
+                background: isCategoriaDetalhePage ? brownLight : iconBg,
+                border: isCategoriaDetalhePage ? "1px solid rgba(74,46,10,0.18)" : iconBorder,
+              }}
               onClick={() => navigate("/carrinho")}
             >
-              <ShoppingCart className="w-5 h-5" style={{ color: iconColor }} />
+              <ShoppingCart className="w-5 h-5" style={{ color: isCategoriaDetalhePage ? brown : iconColor }} />
               {cartCount > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full text-white text-[9px] font-black flex items-center justify-center px-1"
                   style={{ background: "#E53935" }}>
@@ -389,7 +344,7 @@ const Navbar = () => {
             </button>
           </div>
 
-          {/* ── Barra de pesquisa flutuante na categoria detalhe ── */}
+          {/* ── Barra de pesquisa na categoria detalhe (castanha) ── */}
           {isCategoriaDetalhePage && (
             <div
               className="overflow-hidden"
@@ -403,10 +358,7 @@ const Navbar = () => {
               <form
                 onSubmit={handleSearch}
                 className="flex items-center rounded-2xl overflow-hidden"
-                style={{
-                  background: "#fff",
-                  boxShadow: "0 1px 6px rgba(74,46,10,0.12)",
-                }}
+                style={{ background: "rgba(255,255,255,0.90)", boxShadow: "0 1px 6px rgba(74,46,10,0.15)" }}
               >
                 <Search className="w-4 h-4 ml-3 flex-shrink-0" style={{ color: sandDark }} />
                 <input
@@ -423,9 +375,7 @@ const Navbar = () => {
                   onClick={handleMicClick}
                   className="w-11 h-10 flex items-center justify-center flex-shrink-0 rounded-xl m-0.5 transition-all"
                   style={{
-                    background: listening
-                      ? "#E53935"
-                      : `linear-gradient(135deg, ${sandDark}, ${sand})`,
+                    background: listening ? "#E53935" : `linear-gradient(135deg, ${sandDark}, ${sand})`,
                     boxShadow: listening ? "0 0 0 4px rgba(229,57,53,0.25)" : "none",
                     animation: listening ? "pulse 1.2s ease-in-out infinite" : "none",
                   }}
@@ -469,9 +419,7 @@ const Navbar = () => {
                   onClick={handleMicClick}
                   className="w-11 h-10 flex items-center justify-center flex-shrink-0 rounded-xl m-0.5 transition-all"
                   style={{
-                    background: listening
-                      ? "#E53935"
-                      : `linear-gradient(135deg, ${sandDark}, ${sand})`,
+                    background: listening ? "#E53935" : `linear-gradient(135deg, ${sandDark}, ${sand})`,
                     boxShadow: listening ? "0 0 0 4px rgba(229,57,53,0.25)" : "none",
                     animation: listening ? "pulse 1.2s ease-in-out infinite" : "none",
                   }}
@@ -501,14 +449,17 @@ const Navbar = () => {
             </div>
           )}
 
-          {/* ── Categorias com fotos ── */}
+          {/* ── Categorias com fotos ──
+              Fix tablet: transition mais longa + snap discreto via step-end quando
+              está a colapsar (evita estado visual intermédio piscante) */}
           {!isCategoriasPage && !isPesquisaPage && !isCategoriaDetalhePage && (
             <div
               className="overflow-hidden"
               style={{
                 maxHeight: showCategories ? "88px" : "0px",
                 opacity: showCategories ? 1 : 0,
-                transition: "max-height 0.35s ease, opacity 0.25s ease",
+                /* Duração maior e easing mais suave elimina o piscar no tablet */
+                transition: "max-height 0.45s cubic-bezier(0.4,0,0.2,1), opacity 0.35s ease",
               }}
             >
               <div
@@ -523,7 +474,7 @@ const Navbar = () => {
                   >
                     <div
                       className="w-14 h-14 rounded-xl overflow-hidden"
-                      style={{ border: `2px solid rgba(74,46,10,0.15)`, boxShadow: "0 2px 8px rgba(74,46,10,0.12)" }}
+                      style={{ border: "2px solid rgba(74,46,10,0.15)", boxShadow: "0 2px 8px rgba(74,46,10,0.12)" }}
                     >
                       <img src={cat.image} alt={cat.name} className="w-full h-full object-cover" />
                     </div>
@@ -538,7 +489,7 @@ const Navbar = () => {
                 >
                   <div
                     className="w-14 h-14 rounded-xl flex items-center justify-center"
-                    style={{ background: brownLight, border: `2px solid rgba(74,46,10,0.18)`, boxShadow: "0 2px 8px rgba(74,46,10,0.08)" }}
+                    style={{ background: brownLight, border: "2px solid rgba(74,46,10,0.18)", boxShadow: "0 2px 8px rgba(74,46,10,0.08)" }}
                   >
                     <span style={{ fontSize: 22, color: sandDark, lineHeight: 1 }}>⊞</span>
                   </div>
@@ -600,9 +551,7 @@ const Navbar = () => {
                       <p className="text-xs font-bold text-foreground">{n.title}</p>
                       <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{n.message}</p>
                       <p className="text-[10px] text-muted-foreground/60 mt-1">
-                        {new Date(n.created_at).toLocaleString("pt-AO", {
-                          day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
-                        })}
+                        {new Date(n.created_at).toLocaleString("pt-AO", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
                       </p>
                     </div>
                   </div>
@@ -618,16 +567,12 @@ const Navbar = () => {
         <div className="fixed inset-0 z-[60] flex">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setMenuOpen(false)} />
           <div className="relative w-[85%] max-w-[320px] bg-card h-full overflow-y-auto flex flex-col animate-in slide-in-from-left duration-200">
-            <div
-              className="flex items-center justify-between p-4"
-              style={{ background: `linear-gradient(135deg, ${cream} 0%, ${sand} 100%)` }}
-            >
+            <div className="flex items-center justify-between p-4"
+              style={{ background: `linear-gradient(135deg, ${cream} 0%, ${sand} 100%)` }}>
               {user ? (
                 <div className="flex items-center gap-2.5">
-                  <div
-                    className="w-10 h-10 rounded-full flex items-center justify-center font-black text-base"
-                    style={{ background: brownLight, color: brown, border: `2px solid ${sandDark}` }}
-                  >
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center font-black text-base"
+                    style={{ background: brownLight, color: brown, border: `2px solid ${sandDark}` }}>
                     {userDisplayName.charAt(0).toUpperCase()}
                   </div>
                   <div>
@@ -647,15 +592,11 @@ const Navbar = () => {
                 <X className="w-4 h-4" style={{ color: brown }} />
               </button>
             </div>
-
             <div className="p-3 border-b border-border">
               <div className="grid grid-cols-5 gap-1">
                 {quickLinks.map(link => (
-                  <button
-                    key={link.label}
-                    onClick={() => { navigate(link.path); setMenuOpen(false); }}
-                    className="flex flex-col items-center gap-1.5 py-2.5 rounded-xl hover:bg-muted transition-colors"
-                  >
+                  <button key={link.label} onClick={() => { navigate(link.path); setMenuOpen(false); }}
+                    className="flex flex-col items-center gap-1.5 py-2.5 rounded-xl hover:bg-muted transition-colors">
                     <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: cream }}>
                       <link.icon className="w-4 h-4" style={{ color: sandDark }} />
                     </div>
@@ -664,16 +605,13 @@ const Navbar = () => {
                 ))}
               </div>
             </div>
-
             <div className="flex-1 p-1">
               <p className="text-[10px] font-bold uppercase tracking-wider px-3 pt-3 pb-2" style={{ color: sandDark }}>Categorias</p>
               <div className="space-y-0.5">
                 {categories.map((cat: any) => (
-                  <button
-                    key={cat.name}
+                  <button key={cat.name}
                     onClick={() => { navigate(`/categoria/${encodeURIComponent(cat.name)}`); setMenuOpen(false); }}
-                    className="w-full flex items-center gap-3 px-3 py-2 hover:bg-muted rounded-xl transition-colors"
-                  >
+                    className="w-full flex items-center gap-3 px-3 py-2 hover:bg-muted rounded-xl transition-colors">
                     <img src={cat.image} alt={cat.name} className="w-10 h-10 rounded-full object-cover border-2" style={{ borderColor: sand }} />
                     <span className="text-sm font-medium text-foreground flex-1 text-left">{cat.name}</span>
                     <ChevronRight className="w-4 h-4 text-muted-foreground" />
@@ -681,7 +619,6 @@ const Navbar = () => {
                 ))}
               </div>
             </div>
-
             <div className="border-t border-border p-3 space-y-0.5">
               {[
                 { label: "Minha conta", path: "/conta" },
@@ -690,20 +627,15 @@ const Navbar = () => {
                 { label: "Ajuda", path: "/ajuda" },
                 { label: "Vender no AngoExpress", path: "/vender" },
               ].map(link => (
-                <button
-                  key={link.label}
-                  onClick={() => { navigate(link.path); setMenuOpen(false); }}
-                  className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium text-foreground hover:bg-muted transition-colors"
-                >
+                <button key={link.label} onClick={() => { navigate(link.path); setMenuOpen(false); }}
+                  className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium text-foreground hover:bg-muted transition-colors">
                   {link.label}
                 </button>
               ))}
               {user && (
-                <button
-                  onClick={async () => { await signOut(); setMenuOpen(false); navigate("/"); }}
+                <button onClick={async () => { await signOut(); setMenuOpen(false); navigate("/"); }}
                   className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2 hover:bg-red-50 transition-colors"
-                  style={{ color: "#E53935" }}
-                >
+                  style={{ color: "#E53935" }}>
                   <LogOut className="w-4 h-4" /> Sair da conta
                 </button>
               )}
