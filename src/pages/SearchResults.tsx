@@ -23,6 +23,22 @@ const isNewProduct = (createdAt: string | null | undefined): boolean => {
   return now - created <= sevenDaysMs;
 };
 
+/** Agrega ratings de uma lista de reviews { entity_id, rating } */
+const aggregateRatings = (
+  reviews: { entity_id: string; rating: number }[]
+): Record<string, number> => {
+  const grouped: Record<string, number[]> = {};
+  reviews.forEach(({ entity_id, rating }) => {
+    if (!grouped[entity_id]) grouped[entity_id] = [];
+    grouped[entity_id].push(rating);
+  });
+  const result: Record<string, number> = {};
+  Object.entries(grouped).forEach(([id, ratings]) => {
+    result[id] = Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 10) / 10;
+  });
+  return result;
+};
+
 const SearchResults = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -51,58 +67,105 @@ const SearchResults = () => {
       if (sortBy === "Menor preço") q = q.order("price", { ascending: true });
       else if (sortBy === "Maior preço") q = q.order("price", { ascending: false });
       else if (sortBy === "Mais vendidos") q = q.order("sales_count", { ascending: false });
-      else if (sortBy === "Melhor avaliação") q = q.order("rating", { ascending: false });
       else q = q.order("created_at", { ascending: false });
       q = q.limit(200);
       const { data, error } = await q;
       if (error) throw error;
-      const ids = (data || []).map((p: any) => p.id);
+
+      const ids       = (data || []).map((p: any) => p.id);
+      const sellerIds = [...new Set((data || []).map((p: any) => p.seller_id).filter(Boolean))];
+
+      // Capas
       const coverMap: Record<string, string> = {};
       if (ids.length > 0) {
-        const { data: media } = await supabase.from("product_media").select("product_id, url").in("product_id", ids).eq("is_cover", true);
+        const { data: media } = await supabase
+          .from("product_media")
+          .select("product_id, url")
+          .in("product_id", ids)
+          .eq("is_cover", true);
         (media || []).forEach((m: any) => { coverMap[m.product_id] = m.url; });
       }
-      return (data || []).map((p: any) => ({ ...p, cover_url: coverMap[p.id] }));
+
+      // Rating real dos vendedores ligados aos produtos
+      let sellerRatingMap: Record<string, number> = {};
+      if (sellerIds.length > 0) {
+        const { data: sReviews } = await supabase
+          .from("seller_reviews")
+          .select("seller_id, rating")
+          .in("seller_id", sellerIds);
+        sellerRatingMap = aggregateRatings(
+          (sReviews || []).map((r: any) => ({ entity_id: r.seller_id, rating: r.rating }))
+        );
+      }
+
+      const result = (data || []).map((p: any) => ({
+        ...p,
+        cover_url:   coverMap[p.id],
+        // rating real: vendedor > fallback campo products
+        real_rating: (p.seller_id && sellerRatingMap[p.seller_id]) || p.rating || 0,
+      }));
+
+      // Ordenação "Melhor avaliação" agora usa o rating real
+      if (sortBy === "Melhor avaliação") {
+        result.sort((a: any, b: any) => b.real_rating - a.real_rating);
+      }
+
+      return result;
     },
   });
 
-  // ── Sellers / Empresas from DB ──
+  // ── Sellers / Empresas from DB (com rating real) ──
   const { data: dbSellers = [], isLoading: loadingSellers } = useQuery({
     queryKey: ["search_sellers", effectiveQuery],
     queryFn: async () => {
       let q = supabase.from("sellers").select("*").eq("is_active", true);
       if (effectiveQuery) q = q.or(`name.ilike.%${effectiveQuery}%,description.ilike.%${effectiveQuery}%`);
-      q = q.order("rating", { ascending: false }).limit(50);
+      q = q.limit(50);
       const { data, error } = await q;
       if (error) throw error;
-      return data || [];
+      if (!data || data.length === 0) return [];
+
+      // Buscar rating real de seller_reviews
+      const sellerIds = data.map((s: any) => s.id);
+      const { data: sReviews } = await supabase
+        .from("seller_reviews")
+        .select("seller_id, rating")
+        .in("seller_id", sellerIds);
+
+      const ratingMap = aggregateRatings(
+        (sReviews || []).map((r: any) => ({ entity_id: r.seller_id, rating: r.rating }))
+      );
+
+      return data.map((s: any) => ({
+        ...s,
+        real_rating: ratingMap[s.id] ?? 0,
+      }));
     },
   });
 
   const products: Product[] = useMemo(
     () => dbProducts.map((p: any) => ({
-      id: p.id,
-      title: p.title,
-      price: formatPrice(p.price),
-      oldPrice: p.old_price ? formatPrice(p.old_price) : undefined,
-      discount: p.discount_percent ? `-${p.discount_percent}%` : undefined,
-      image: p.cover_url || p.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&h=600&fit=crop",
-      rating: p.rating || undefined,
-      reviews: p.total_reviews || undefined,
+      id:          p.id,
+      title:       p.title,
+      price:       formatPrice(p.price),
+      oldPrice:    p.old_price ? formatPrice(p.old_price) : undefined,
+      discount:    p.discount_percent ? `-${p.discount_percent}%` : undefined,
+      image:       p.cover_url || p.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&h=600&fit=crop",
+      rating:      p.real_rating || undefined,
+      reviews:     p.total_reviews || undefined,
       freeShipping: p.free_shipping || false,
-      // Badge "NOVO" apenas se publicado há ≤ 7 dias; caso contrário usa badge definido no produto
-      badge: isNewProduct(p.created_at) ? "NOVO" : (p.badge || undefined),
+      badge:       isNewProduct(p.created_at) ? "NOVO" : (p.badge || undefined),
       description: p.description || undefined,
-      sellerName: p.seller_name || undefined,
+      sellerName:  p.seller_name || undefined,
     })),
     [dbProducts]
   );
 
   const vendedores = dbSellers.filter((s: any) => s.type === "individual");
-  const empresas = dbSellers.filter((s: any) => s.type === "company");
+  const empresas   = dbSellers.filter((s: any) => s.type === "company");
 
-  const totalCount = activeTab === "Produtos" ? products.length : activeTab === "Vendedores" ? vendedores.length : empresas.length;
-  const totalPages = Math.max(1, Math.ceil(products.length / ITEMS_PER_PAGE));
+  const totalCount  = activeTab === "Produtos" ? products.length : activeTab === "Vendedores" ? vendedores.length : empresas.length;
+  const totalPages  = Math.max(1, Math.ceil(products.length / ITEMS_PER_PAGE));
   const paginatedProducts = products.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -120,7 +183,9 @@ const SearchResults = () => {
       {s.logo_url ? (
         <img src={s.logo_url} alt={s.name} className="w-16 h-16 rounded-card object-cover flex-shrink-0" />
       ) : (
-        <div className="w-16 h-16 rounded-card bg-primary/10 flex items-center justify-center text-lg font-bold text-primary flex-shrink-0">{s.name.charAt(0)}</div>
+        <div className="w-16 h-16 rounded-card bg-primary/10 flex items-center justify-center text-lg font-bold text-primary flex-shrink-0">
+          {s.name.charAt(0)}
+        </div>
       )}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
@@ -128,7 +193,9 @@ const SearchResults = () => {
           {s.is_verified && <CheckCircle className="w-3.5 h-3.5 text-primary flex-shrink-0" />}
         </div>
         <div className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground">
-          <Star className="w-3 h-3 text-secondary fill-secondary" /> {Number(s.rating || 0).toFixed(1)}
+          <Star className="w-3 h-3 text-secondary fill-secondary" />
+          {/* rating real de seller_reviews */}
+          {Number(s.real_rating).toFixed(1)}
         </div>
         {s.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{s.description}</p>}
         <button className="mt-1.5 px-3 py-1 rounded-card bg-primary text-primary-foreground text-[10px] font-bold hover:brightness-110 transition">
@@ -258,10 +325,7 @@ const SearchResults = () => {
                   ))}
                 </div>
 
-                {/*
-                  Tablet (640px–1023px): 5 colunas — igual ao design da imagem
-                  Desktop (>=1024px): 4-5 colunas conforme largura
-                */}
+                {/* Tablet/Desktop */}
                 <div className="hidden sm:grid sm:grid-cols-5 lg:grid-cols-4 xl:grid-cols-5 gap-3 px-4 sm:px-0">
                   {paginatedProducts.map(p => (
                     <ProductCard key={p.id} product={p} />
