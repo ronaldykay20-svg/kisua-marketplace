@@ -122,8 +122,8 @@ const ProductCard = ({ product, rank, isTablet }: { product: any; rank: number; 
     rank === 2 ? "#C0C0C0" :
     rank === 3 ? "#CD7F32" : null;
 
-  const cartSize  = isTablet ? 36 : 28;
-  const iconSize  = isTablet ? 17 : 13;
+  const cartSize = isTablet ? 36 : 28;
+  const iconSize = isTablet ? 17 : 13;
 
   return (
     <div style={{ position: "relative", flexShrink: 0, width: isTablet ? "calc((100vw - 60px) / 6)" : "calc((100vw - 140px) / 2.4)" }}>
@@ -199,20 +199,19 @@ const ProductCard = ({ product, rank, isTablet }: { product: any; rank: number; 
             {product.oldPrice && (
               <span style={{ fontSize: 9, textDecoration: "line-through", color: "#aaa" }}>{product.oldPrice}</span>
             )}
-            {/* ✅ Preço sempre em castanho */}
             <span style={{ fontSize: isTablet ? 13 : 12, fontWeight: 800, color: brown }}>{product.priceFormatted}</span>
           </div>
 
-          {/* ✅ Botão do carrinho sempre alinhado à direita */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 2 }}>
-            {product.freeShipping
-              ? <span style={{ fontSize: 8, fontWeight: 700, color: sandDark }}>Frete grátis</span>
-              : <span style={{ flex: 1 }} />
-            }
+          {/* Botão do carrinho sempre à direita */}
+          <div style={{ display: "flex", alignItems: "center", marginTop: 2 }}>
+            {product.freeShipping && (
+              <span style={{ fontSize: 8, fontWeight: 700, color: sandDark }}>Frete grátis</span>
+            )}
             <button
               onClick={(e) => { e.stopPropagation(); addToCart.mutate({ productId: product.id, quantity: 1 }); }}
               disabled={addToCart.isPending}
               style={{
+                marginLeft: "auto",
                 width: cartSize, height: cartSize, borderRadius: 9, border: "none", cursor: "pointer",
                 background: `linear-gradient(135deg, ${sandDark}, ${sand})`,
                 boxShadow: "0 2px 8px rgba(74,46,10,0.25)",
@@ -293,13 +292,11 @@ const Categorias = () => {
         boxShadow: "0 2px 12px rgba(74,46,10,0.08)",
         border: `1px solid ${brownBorder}`,
       }}>
-        {/* Sidebar — só texto, clique navega direto para /categoria/:nome */}
         <aside style={{
           width: 100, flexShrink: 0,
           background: bg, borderRight: `1px solid ${brownBorder}`,
           overflowY: "auto", maxHeight: "calc(100vh - 160px)",
         }}>
-          {/* "Todas" — apenas reseta seleção, não navega */}
           <button
             onClick={() => setSelectedCategory(null)}
             style={{
@@ -481,7 +478,6 @@ const Categorias = () => {
             overflowY: "visible",
             paddingBottom: 8,
             paddingTop: 10,
-            /* hide scrollbar but keep scroll */
             scrollbarWidth: "none",
             msOverflowStyle: "none",
           }}>
@@ -492,7 +488,6 @@ const Categorias = () => {
             {(topProducts || []).map((product: any, idx: number) => (
               <ProductCard key={product.id} product={product} rank={idx + 1} isTablet={isTablet} />
             ))}
-            {/* padding end */}
             <div style={{ flexShrink: 0, width: 2 }} />
           </div>
         )}
