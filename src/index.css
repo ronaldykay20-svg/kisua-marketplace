@@ -91,3 +91,9 @@ div[style*="Edit with Lovable"],
 body > div[style*="position: fixed"][style*="bottom"][style*="right"] {
   display: none !important;
 }
+button[aria-label="Close"],
+button[aria-label="Fechar"],
+div[role="button"][style*="position: fixed"],
+div[style*="bottom: 0px"][style*="right: 0px"] {
+  display: none !important;
+}
