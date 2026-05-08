@@ -81,7 +81,7 @@ export const useProduct = (id: string) =>
       if (error) throw error;
       return data;
     },
-    enabled: !!id && id.length > 10, // UUID check — skip for numeric IDs (static data)
+    enabled: !!id && id.length > 10,
   });
 
 // ── Sellers ──
@@ -269,12 +269,40 @@ export const useCart = () => {
   return useQuery({
     queryKey: ["cart", user?.id],
     queryFn: async () => {
+      // 1. Busca itens do carrinho com todos os campos do produto (incluindo category_id)
       const { data, error } = await supabase
         .from("cart_items")
         .select("*, products(*)")
         .eq("user_id", user!.id);
       if (error) throw error;
-      return data;
+
+      const cartItems = data || [];
+      if (cartItems.length === 0) return cartItems;
+
+      // 2. Busca covers reais via product_media (igual ao useProducts)
+      const productIds = cartItems
+        .map((item: any) => item.products?.id)
+        .filter(Boolean);
+
+      let coverMap: Record<string, string> = {};
+      if (productIds.length > 0) {
+        const { data: mediaData } = await supabase
+          .from("product_media")
+          .select("product_id, url")
+          .in("product_id", productIds)
+          .eq("is_cover", true);
+        (mediaData || []).forEach((m: any) => {
+          coverMap[m.product_id] = m.url;
+        });
+      }
+
+      // 3. Injeta cover_url no produto de cada item do carrinho
+      return cartItems.map((item: any) => ({
+        ...item,
+        products: item.products
+          ? { ...item.products, cover_url: coverMap[item.products.id] || null }
+          : item.products,
+      }));
     },
     enabled: !!user,
   });
