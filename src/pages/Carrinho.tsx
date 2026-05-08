@@ -19,7 +19,6 @@ const SHIPPING_FEE = 2500;
 const formatPrice = (price: number) =>
   price.toLocaleString("pt-AO").replace(/,/g, " ") + " Kz";
 
-/* ── Placeholder neutro quando não há imagem real ── */
 const ImagePlaceholder = ({ className = "w-24 h-24" }: { className?: string }) => (
   <div
     className={`${className} rounded-xl flex flex-col items-center justify-center flex-shrink-0`}
@@ -47,7 +46,7 @@ const Carrinho = () => {
   );
 
   /* ── IDs de categorias dos produtos no carrinho ── */
-  const categoryIds: string[] = useMemo(
+  const categoryIds = useMemo(
     () =>
       Array.from(
         new Set(
@@ -55,54 +54,38 @@ const Carrinho = () => {
             .map((item: any) => item.products?.category_id)
             .filter(Boolean)
         )
-      ),
+      ) as string[],
     [cartItems]
   );
 
-  /* ── Busca covers reais dos itens do carrinho via product_media ── */
-  const { data: cartCovers = {} } = useQuery({
-    queryKey: ["cart_item_covers", cartProductIds.join(",")],
-    queryFn: async () => {
-      if (cartProductIds.length === 0) return {};
-
-      const { data } = await supabase
-        .from("product_media")
-        .select("product_id, url")
-        .in("product_id", cartProductIds)
-        .eq("is_cover", true);
-
-      const coverMap: Record<string, string> = {};
-      (data || []).forEach((m: any) => {
-        coverMap[m.product_id] = m.url;
-      });
-      return coverMap;
-    },
-    enabled: cartProductIds.length > 0,
-  });
-
-  /* ── Sugestões pelas mesmas categorias ── */
+  /* ── Sugestões: mesma categoria OU recentes como fallback ── */
   const { data: suggestions = [] } = useQuery({
-    queryKey: ["cart_suggestions", categoryIds.join(",")],
+    queryKey: ["cart_suggestions", categoryIds.join(","), cartProductIds.join(",")],
     queryFn: async () => {
-      if (categoryIds.length === 0) return [];
-
-      const { data, error } = await supabase
+      let query = supabase
         .from("products")
         .select("id, title, price, image_url, rating, total_reviews, category_id")
         .eq("is_active", true)
-        .in("category_id", categoryIds)
         .order("created_at", { ascending: false })
         .limit(20);
 
+      /* Filtra pela categoria se existir, senão traz produtos recentes */
+      if (categoryIds.length > 0) {
+        query = query.in("category_id", categoryIds);
+      }
+
+      const { data, error } = await query;
       if (error) return [];
 
-      /* Excluir produtos já no carrinho */
-      const filtered = (data || []).filter((p: any) => !cartProductIds.includes(p.id));
+      /* Exclui produtos já no carrinho */
+      const filtered = (data || []).filter(
+        (p: any) => !cartProductIds.includes(p.id)
+      );
 
+      if (filtered.length === 0) return [];
+
+      /* Busca covers via product_media */
       const ids = filtered.map((p: any) => p.id);
-      if (ids.length === 0) return filtered.map((p: any) => ({ ...p, cover_url: null }));
-
-      /* Buscar cover real de product_media para as sugestões */
       const { data: mediaData } = await supabase
         .from("product_media")
         .select("product_id, url")
@@ -117,7 +100,7 @@ const Carrinho = () => {
         cover_url: coverMap[p.id] || null,
       }));
     },
-    enabled: categoryIds.length > 0,
+    enabled: cartProductIds.length > 0,
   });
 
   /* ── Totais ── */
@@ -153,7 +136,7 @@ const Carrinho = () => {
   }
 
   return (
-    <div className="min-h-screen pb-32" style={{ background: "#F2EAE0" }}>
+    <div className="min-h-screen pb-36" style={{ background: "#F2EAE0" }}>
 
       {/* ── Cabeçalho ── */}
       <div
@@ -233,14 +216,7 @@ const Carrinho = () => {
                 const product = item.products;
                 if (!product) return null;
 
-                /*
-                 * Ordem de prioridade para a imagem:
-                 * 1. cover de product_media (tabela separada, igual ao componente Categories)
-                 * 2. image_url direto no produto
-                 * 3. null → mostra placeholder
-                 */
-                const coverUrl: string | null =
-                  cartCovers[product.id] || product.image_url || null;
+                const coverUrl: string | null = product.cover_url || product.image_url || null;
 
                 return (
                   <div
@@ -391,9 +367,9 @@ const Carrinho = () => {
               {/* Garantias */}
               <div className="mt-4 space-y-2.5">
                 {[
-                  { icon: ShieldCheck, label: "Compra 100% segura",   sub: "Seus dados protegidos" },
-                  { icon: RotateCcw,   label: "Devolução garantida",   sub: "Até 7 dias após o recebimento" },
-                  { icon: Headphones,  label: "Atendimento 24/7",      sub: "Suporte sempre disponível" },
+                  { icon: ShieldCheck, label: "Compra 100% segura",  sub: "Seus dados protegidos" },
+                  { icon: RotateCcw,   label: "Devolução garantida", sub: "Até 7 dias após o recebimento" },
+                  { icon: Headphones,  label: "Atendimento 24/7",    sub: "Suporte sempre disponível" },
                 ].map(g => (
                   <div key={g.label} className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: brownLight }}>
@@ -408,24 +384,43 @@ const Carrinho = () => {
               </div>
             </div>
 
-            {/* ── Sugestões por categoria ── */}
+            {/* ────────────────────────────────────────────
+                SUGESTÕES — logo antes do botão fixo
+            ──────────────────────────────────────────── */}
             {suggestions.length > 0 && (
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-black" style={{ color: brown }}>Você também pode gostar</h3>
-                  <button onClick={() => navigate("/")} className="text-xs font-semibold" style={{ color: sandDark }}>
+              <div className="rounded-2xl overflow-hidden" style={{ background: "#fff", border: `1px solid ${sand}` }}>
+                <div
+                  className="flex items-center justify-between px-4 py-3"
+                  style={{ borderBottom: `1px solid ${sand}` }}
+                >
+                  <div>
+                    <p className="text-sm font-black" style={{ color: brown }}>
+                      {categoryIds.length > 0 ? "Você também pode gostar" : "Produtos em destaque"}
+                    </p>
+                    <p className="text-[11px]" style={{ color: sandDark }}>
+                      {categoryIds.length > 0
+                        ? "Da mesma categoria dos seus produtos"
+                        : "Outros clientes também compraram"}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => navigate("/")}
+                    className="text-xs font-bold px-3 py-1.5 rounded-xl"
+                    style={{ background: brownLight, color: sandDark }}
+                  >
                     Ver todas →
                   </button>
                 </div>
-                <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-                  {suggestions.map((p: any) => {
+
+                <div className="flex gap-3 overflow-x-auto px-3 py-3 pb-4 scrollbar-hide">
+                  {suggestions.slice(0, 20).map((p: any) => {
                     const imgUrl: string | null = p.cover_url || p.image_url || null;
                     const isFav = favorites.includes(p.id);
                     return (
                       <div
                         key={p.id}
                         className="flex-shrink-0 w-36 rounded-2xl overflow-hidden cursor-pointer"
-                        style={{ background: "#fff", border: `1px solid ${sand}` }}
+                        style={{ border: `1px solid ${sand}` }}
                         onClick={() => navigate(`/produto/${p.id}`)}
                       >
                         <div className="relative">
@@ -457,7 +452,9 @@ const Carrinho = () => {
                             onClick={e => {
                               e.stopPropagation();
                               setFavorites(fav =>
-                                fav.includes(p.id) ? fav.filter(f => f !== p.id) : [...fav, p.id]
+                                fav.includes(p.id)
+                                  ? fav.filter(f => f !== p.id)
+                                  : [...fav, p.id]
                               );
                             }}
                             className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center"
@@ -465,11 +462,15 @@ const Carrinho = () => {
                           >
                             <Heart
                               className="w-3.5 h-3.5"
-                              style={{ color: isFav ? "#E53935" : sandDark, fill: isFav ? "#E53935" : "none" }}
+                              style={{
+                                color: isFav ? "#E53935" : sandDark,
+                                fill: isFav ? "#E53935" : "none",
+                              }}
                             />
                           </button>
                         </div>
-                        <div className="p-2">
+
+                        <div className="p-2" style={{ background: "#fff" }}>
                           <p className="text-[11px] font-semibold line-clamp-2 leading-tight" style={{ color: brown }}>
                             {p.title}
                           </p>
@@ -491,11 +492,14 @@ const Carrinho = () => {
                 </div>
               </div>
             )}
+
           </>
         )}
       </div>
 
-      {/* ── Botão fixo no fundo ── */}
+      {/* ────────────────────────────────────────────
+          BOTÃO FIXO — sempre suspenso no fundo
+      ──────────────────────────────────────────── */}
       {(cartItems as any[]).length > 0 && (
         <div
           className="fixed bottom-14 md:bottom-0 left-0 right-0 z-50 px-4 py-3"
