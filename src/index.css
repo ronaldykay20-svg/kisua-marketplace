@@ -88,3 +88,6 @@ div[style*="Edit with Lovable"],
   position: absolute !important;
   z-index: -9999 !important;
 }
+body > div[style*="position: fixed"][style*="bottom"][style*="right"] {
+  display: none !important;
+}
