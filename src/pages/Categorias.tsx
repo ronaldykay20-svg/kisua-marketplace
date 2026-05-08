@@ -199,13 +199,15 @@ const ProductCard = ({ product, rank, isTablet }: { product: any; rank: number; 
             {product.oldPrice && (
               <span style={{ fontSize: 9, textDecoration: "line-through", color: "#aaa" }}>{product.oldPrice}</span>
             )}
+            {/* ✅ Preço sempre em castanho */}
             <span style={{ fontSize: isTablet ? 13 : 12, fontWeight: 800, color: brown }}>{product.priceFormatted}</span>
           </div>
 
+          {/* ✅ Botão do carrinho sempre alinhado à direita */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 2 }}>
             {product.freeShipping
               ? <span style={{ fontSize: 8, fontWeight: 700, color: sandDark }}>Frete grátis</span>
-              : <span />
+              : <span style={{ flex: 1 }} />
             }
             <button
               onClick={(e) => { e.stopPropagation(); addToCart.mutate({ productId: product.id, quantity: 1 }); }}
