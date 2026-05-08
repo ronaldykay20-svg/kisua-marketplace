@@ -7,7 +7,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCategories } from "@/hooks/useSupabaseData";
 
-/* ── Paleta castanha clara / bege areia ── */
 const staticCategories = [
   { name: "Electrónicos", image: "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=100&h=100&fit=crop" },
   { name: "Veículos", image: "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=100&h=100&fit=crop" },
@@ -121,7 +120,6 @@ const Navbar = () => {
   const { data: logoUrl } = useSiteSetting("site_logo_url");
   const qc = useQueryClient();
 
-  // ── Categorias do Supabase com fallback estático ──
   const { data: dbCategories } = useCategories();
   const categories = dbCategories && dbCategories.length > 0
     ? dbCategories.map((c: any) => ({
@@ -238,22 +236,31 @@ const Navbar = () => {
     else startListening();
   };
 
-  const sand = "#D4B896";
-  const sandDark = "#B8956A";
-  const cream = "#F7F0E6";
-  const brown = "#4A2E0A";
+  const sand      = "#D4B896";
+  const sandDark  = "#B8956A";
+  const cream     = "#F7F0E6";
+  const brown     = "#4A2E0A";
   const brownLight = "rgba(74,46,10,0.12)";
 
   const scrolled = scrollY > 4;
 
-  const useLightIcons = isCategoriasPage || isCategoriaDetalhePage;
-
+  /* ── Estilo do navbar por página ──
+     - CategoriaDetalhe: fundo castanho/bege com ícones castanhos (identidade da marca)
+     - CategoriasPage:   transparente (hero por baixo)
+     - Resto:            gradiente castanho normal
+  */
   let navbarStyle: React.CSSProperties;
-  if (isCategoriasPage || isCategoriaDetalhePage) {
+  if (isCategoriasPage) {
     navbarStyle = {
       background: "transparent",
       boxShadow: "none",
       backdropFilter: "none",
+    };
+  } else if (isCategoriaDetalhePage) {
+    /* Navbar castanha sobre o hero — mantém identidade mas visível */
+    navbarStyle = {
+      background: `linear-gradient(160deg, ${cream} 0%, ${sand} 60%, #C9A87C 100%)`,
+      boxShadow: "0 2px 12px rgba(74,46,10,0.18)",
     };
   } else {
     navbarStyle = {
@@ -265,11 +272,19 @@ const Navbar = () => {
     };
   }
 
-  const iconColor = useLightIcons ? "#fff" : brown;
-  const iconBg = useLightIcons ? "rgba(255,255,255,0.18)" : brownLight;
-  const iconBorder = useLightIcons
+  /* ── Cores dos ícones ──
+     Categorias: branco (sobre hero escuro)
+     CategoriaDetalhe: castanho (navbar castanha)
+     Resto: castanho
+  */
+  const iconColor  = isCategoriasPage ? "#fff" : brown;
+  const iconBg     = isCategoriasPage ? "rgba(255,255,255,0.18)" : brownLight;
+  const iconBorder = isCategoriasPage
     ? "1px solid rgba(255,255,255,0.3)"
     : "1px solid rgba(74,46,10,0.18)";
+
+  /* Texto do título da categoria na navbar */
+  const categoryTitleColor = brown;
 
   const navPositionClass = isCategoriaDetalhePage
     ? "absolute top-0 left-0 right-0 w-full z-50"
@@ -302,7 +317,11 @@ const Navbar = () => {
             )}
 
             {isCategoriaDetalhePage ? (
-              <span className="flex-1 text-base font-black text-white drop-shadow text-center">
+              /* Nome da categoria em castanho escuro */
+              <span
+                className="flex-1 text-base font-black text-center"
+                style={{ color: categoryTitleColor }}
+              >
                 {categoryNameFromUrl}
               </span>
             ) : (
@@ -310,7 +329,7 @@ const Navbar = () => {
                 {logoUrl ? (
                   <img src={logoUrl} alt="Logo" className="h-9 object-contain" />
                 ) : (
-                  <span className="text-xl font-black" style={{ color: useLightIcons ? "#fff" : brown }}>
+                  <span className="text-xl font-black" style={{ color: isCategoriasPage ? "#fff" : brown }}>
                     AngoExpress
                   </span>
                 )}
@@ -325,7 +344,7 @@ const Navbar = () => {
                 style={{ background: iconBg, border: iconBorder }}
                 onClick={() => setCategorySearchVisible(v => !v)}
               >
-                <Search className="w-5 h-5" style={{ color: "#fff" }} />
+                <Search className="w-5 h-5" style={{ color: iconColor }} />
               </button>
             ) : (
               !searchVisible && (
@@ -385,26 +404,28 @@ const Navbar = () => {
                 onSubmit={handleSearch}
                 className="flex items-center rounded-2xl overflow-hidden"
                 style={{
-                  background: "rgba(255,255,255,0.18)",
-                  backdropFilter: "blur(10px)",
-                  border: "1px solid rgba(255,255,255,0.35)",
+                  background: "#fff",
+                  boxShadow: "0 1px 6px rgba(74,46,10,0.12)",
                 }}
               >
-                <Search className="w-4 h-4 ml-3 flex-shrink-0 text-white" />
+                <Search className="w-4 h-4 ml-3 flex-shrink-0" style={{ color: sandDark }} />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   placeholder="Buscar produtos, marcas..."
                   autoFocus
-                  className="flex-1 py-2.5 px-2.5 text-sm bg-transparent focus:outline-none placeholder:text-white/60 text-white"
+                  className="flex-1 py-2.5 px-2.5 text-sm bg-transparent focus:outline-none"
+                  style={{ color: brown }}
                 />
                 <button
                   type="button"
                   onClick={handleMicClick}
                   className="w-11 h-10 flex items-center justify-center flex-shrink-0 rounded-xl m-0.5 transition-all"
                   style={{
-                    background: listening ? "#E53935" : "rgba(255,255,255,0.2)",
+                    background: listening
+                      ? "#E53935"
+                      : `linear-gradient(135deg, ${sandDark}, ${sand})`,
                     boxShadow: listening ? "0 0 0 4px rgba(229,57,53,0.25)" : "none",
                     animation: listening ? "pulse 1.2s ease-in-out infinite" : "none",
                   }}
