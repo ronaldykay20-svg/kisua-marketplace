@@ -101,8 +101,19 @@ const useTopProducts = () =>
     },
   });
 
+/* ── Hook: detectar tablet (≥ 600px) ── */
+const useIsTablet = () => {
+  const [isTablet, setIsTablet] = useState(() => window.innerWidth >= 600);
+  useState(() => {
+    const handler = () => setIsTablet(window.innerWidth >= 600);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  });
+  return isTablet;
+};
+
 /* ── Card de produto ── */
-const ProductCard = ({ product, rank }: { product: any; rank: number }) => {
+const ProductCard = ({ product, rank, isTablet }: { product: any; rank: number; isTablet: boolean }) => {
   const navigate = useNavigate();
   const addToCart = useAddToCart();
 
@@ -111,8 +122,11 @@ const ProductCard = ({ product, rank }: { product: any; rank: number }) => {
     rank === 2 ? "#C0C0C0" :
     rank === 3 ? "#CD7F32" : null;
 
+  const cartSize  = isTablet ? 36 : 28;
+  const iconSize  = isTablet ? 17 : 13;
+
   return (
-    <div style={{ position: "relative" }}>
+    <div style={{ position: "relative", flexShrink: 0, width: isTablet ? "calc((100vw - 60px) / 6)" : "calc((100vw - 140px) / 2.4)" }}>
       {/* Medalha top 3 */}
       {medalColor && (
         <div style={{
@@ -132,7 +146,7 @@ const ProductCard = ({ product, rank }: { product: any; rank: number }) => {
         background: white, borderRadius: 14,
         border: `1.5px solid ${brownMid}`,
         boxShadow: "0 2px 10px rgba(74,46,10,0.08)",
-        overflow: "hidden", display: "flex", flexDirection: "column",
+        overflow: "hidden", display: "flex", flexDirection: "column", height: "100%",
       }}>
         <button
           style={{ display: "block", width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer" }}
@@ -158,7 +172,7 @@ const ProductCard = ({ product, rank }: { product: any; rank: number }) => {
           <button style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}
             onClick={() => navigate(`/produto/${product.id}`)}>
             <p style={{
-              margin: 0, fontSize: 10, fontWeight: 600, color: brown, lineHeight: 1.3,
+              margin: 0, fontSize: isTablet ? 11 : 10, fontWeight: 600, color: brown, lineHeight: 1.3,
               display: "-webkit-box", WebkitLineClamp: 2,
               WebkitBoxOrient: "vertical", overflow: "hidden",
             }}>
@@ -185,7 +199,7 @@ const ProductCard = ({ product, rank }: { product: any; rank: number }) => {
             {product.oldPrice && (
               <span style={{ fontSize: 9, textDecoration: "line-through", color: "#aaa" }}>{product.oldPrice}</span>
             )}
-            <span style={{ fontSize: 12, fontWeight: 800, color: brown }}>{product.priceFormatted}</span>
+            <span style={{ fontSize: isTablet ? 13 : 12, fontWeight: 800, color: brown }}>{product.priceFormatted}</span>
           </div>
 
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 2 }}>
@@ -197,13 +211,14 @@ const ProductCard = ({ product, rank }: { product: any; rank: number }) => {
               onClick={(e) => { e.stopPropagation(); addToCart.mutate({ productId: product.id, quantity: 1 }); }}
               disabled={addToCart.isPending}
               style={{
-                width: 28, height: 28, borderRadius: 9, border: "none", cursor: "pointer",
+                width: cartSize, height: cartSize, borderRadius: 9, border: "none", cursor: "pointer",
                 background: `linear-gradient(135deg, ${sandDark}, ${sand})`,
                 boxShadow: "0 2px 8px rgba(74,46,10,0.25)",
                 display: "flex", alignItems: "center", justifyContent: "center",
+                flexShrink: 0,
               }}
             >
-              <ShoppingCart style={{ width: 13, height: 13, color: white }} />
+              <ShoppingCart style={{ width: iconSize, height: iconSize, color: white }} />
             </button>
           </div>
         </div>
@@ -218,6 +233,7 @@ const Categorias = () => {
   const { data: dbCategories } = useCategories();
   const { data: topProducts, isLoading: loadingProducts } = useTopProducts();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const isTablet = useIsTablet();
 
   const categories: any[] = useMemo(() => {
     const base = dbCategories && dbCategories.length > 0 ? dbCategories : null;
@@ -442,16 +458,6 @@ const Categorias = () => {
               <p style={{ margin: 0, fontSize: 10, color: sandDark }}>Os produtos mais bem avaliados</p>
             </div>
           </div>
-          <button
-            onClick={() => navigate("/pesquisa?sort=ranking")}
-            style={{
-              background: "none", border: `1px solid ${brownBorder}`,
-              borderRadius: 20, padding: "5px 12px",
-              fontSize: 11, fontWeight: 700, color: sandDark, cursor: "pointer",
-            }}
-          >
-            Ver todos
-          </button>
         </div>
 
         {loadingProducts ? (
@@ -465,10 +471,27 @@ const Categorias = () => {
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
           </div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+          <div style={{
+            display: "flex",
+            flexDirection: "row",
+            gap: 10,
+            overflowX: "auto",
+            overflowY: "visible",
+            paddingBottom: 8,
+            paddingTop: 10,
+            /* hide scrollbar but keep scroll */
+            scrollbarWidth: "none",
+            msOverflowStyle: "none",
+          }}>
+            <style>{`
+              @keyframes spin { to { transform: rotate(360deg); } }
+              .products-scroll::-webkit-scrollbar { display: none; }
+            `}</style>
             {(topProducts || []).map((product: any, idx: number) => (
-              <ProductCard key={product.id} product={product} rank={idx + 1} />
+              <ProductCard key={product.id} product={product} rank={idx + 1} isTablet={isTablet} />
             ))}
+            {/* padding end */}
+            <div style={{ flexShrink: 0, width: 2 }} />
           </div>
         )}
       </div>
