@@ -5,6 +5,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCategories } from "@/hooks/useSupabaseData";
+import { useAddToCart } from "@/hooks/useCartActions";
 
 /* ── Paleta castanha ── */
 const sand     = "#D4B896";
@@ -101,6 +102,7 @@ const CategoriaDetalhe = () => {
   const [selectedSub, setSelectedSub] = useState<string | null>(null);
   const [selectedColors, setSelectedColors] = useState<string[]>([]);
   const isMobile = useIsMobile();
+  const addToCart = useAddToCart();
 
   const { data: dbCategories } = useCategories();
   const category = (dbCategories || []).find((c: any) => c.name === categoryName);
@@ -149,7 +151,6 @@ const CategoriaDetalhe = () => {
     setSelectedColors(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]);
   };
 
-  /* Banner: usa a imagem real da categoria — sem mistura de cor por cima */
   const heroImage =
     category?.image_url ||
     categoryHeroImages[categoryName] ||
@@ -160,11 +161,9 @@ const CategoriaDetalhe = () => {
     categorySubtitles[categoryName] ||
     "Os melhores produtos para si.";
 
-  /* ── Painel de filtros (sidebar e drawer) ── */
+  /* ── Painel de filtros ── */
   const FiltersPanel = () => (
     <div className="space-y-6">
-
-      {/* Subcategoria */}
       <div>
         <h3 className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: sandDark }}>
           Categoria
@@ -175,9 +174,7 @@ const CategoriaDetalhe = () => {
               key={sub}
               onClick={() => setSelectedSub(selectedSub === sub ? null : sub)}
               className="flex items-center justify-between w-full text-left px-2 py-1.5 rounded-lg transition-colors"
-              style={{
-                background: selectedSub === sub ? brownLight : "transparent",
-              }}
+              style={{ background: selectedSub === sub ? brownLight : "transparent" }}
             >
               <div className="flex items-center gap-2">
                 <div
@@ -196,7 +193,6 @@ const CategoriaDetalhe = () => {
         </div>
       </div>
 
-      {/* Cor */}
       <div>
         <h3 className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: sandDark }}>Cor</h3>
         <div className="grid grid-cols-2 gap-1.5">
@@ -218,7 +214,6 @@ const CategoriaDetalhe = () => {
         </div>
       </div>
 
-      {/* Preço */}
       <div>
         <h3 className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: sandDark }}>Preço</h3>
         <div className="space-y-0.5">
@@ -235,9 +230,8 @@ const CategoriaDetalhe = () => {
 
   /* ── Card de produto ── */
   const ProductCard = ({ product }: { product: any }) => (
-    <button
-      onClick={() => navigate(`/produto/${product.id}`)}
-      className="w-full text-left overflow-hidden group"
+    <div
+      className="w-full overflow-hidden group"
       style={{
         background: "#fff",
         borderRadius: 14,
@@ -245,123 +239,119 @@ const CategoriaDetalhe = () => {
         boxShadow: "0 2px 10px rgba(74,46,10,0.08)",
       }}
     >
-      {/* Imagem */}
-      <div className="relative aspect-[3/4] overflow-hidden" style={{ borderRadius: "12px 12px 0 0", background: cream }}>
-        <img
-          src={product.image}
-          alt={product.title}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-          loading="lazy"
-        />
-
-        {/* Badge desconto */}
-        {product.discount && (
-          <span
-            className="absolute top-2 left-2 text-[10px] font-black px-2 py-0.5 rounded-full"
-            style={{ background: "#E53935", color: "#fff" }}
-          >
-            {product.discount}
-          </span>
-        )}
-
-        {/* Comprado X vezes */}
-        {product.salesCount > 0 && (
-          <div
-            className="absolute bottom-2 left-2 right-2 text-[9px] font-semibold px-2 py-1 rounded-full text-center"
-            style={{ background: "rgba(74,46,10,0.65)", color: "#fff" }}
-          >
-            Comprado {product.salesCount} vezes hoje
-          </div>
-        )}
-      </div>
+      {/* Imagem — clicável para detalhe */}
+      <button
+        className="w-full text-left"
+        onClick={() => navigate(`/produto/${product.id}`)}
+      >
+        <div className="relative aspect-[3/4] overflow-hidden" style={{ borderRadius: "12px 12px 0 0", background: cream }}>
+          <img
+            src={product.image}
+            alt={product.title}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            loading="lazy"
+          />
+          {product.discount && (
+            <span
+              className="absolute top-2 left-2 text-[10px] font-black px-2 py-0.5 rounded-full"
+              style={{ background: "#E53935", color: "#fff" }}
+            >
+              {product.discount}
+            </span>
+          )}
+          {product.salesCount > 0 && (
+            <div
+              className="absolute bottom-2 left-2 right-2 text-[9px] font-semibold px-2 py-1 rounded-full text-center"
+              style={{ background: "rgba(74,46,10,0.65)", color: "#fff" }}
+            >
+              Comprado {product.salesCount} vezes hoje
+            </div>
+          )}
+        </div>
+      </button>
 
       {/* Info */}
       <div className="px-2.5 pt-2 pb-2.5">
-        {/* Título */}
-        <h3
-          className="text-xs font-semibold line-clamp-2 leading-snug mb-1"
-          style={{ color: brown }}
-        >
-          {product.title}
-        </h3>
+        <button className="w-full text-left" onClick={() => navigate(`/produto/${product.id}`)}>
+          <h3 className="text-xs font-semibold line-clamp-2 leading-snug mb-1" style={{ color: brown }}>
+            {product.title}
+          </h3>
 
-        {/* Estrelas */}
-        {product.rating > 0 && (
-          <div className="flex items-center gap-0.5 mb-1">
-            {[...Array(5)].map((_, i) => (
-              <Star
-                key={i}
-                className="w-2.5 h-2.5"
-                style={{
-                  fill: i < product.rating ? sandDark : "transparent",
-                  color: i < product.rating ? sandDark : "#ccc",
-                }}
-              />
-            ))}
-            {product.reviews > 0 && (
-              <span className="text-[9px] ml-0.5" style={{ color: sandDark }}>
-                ({product.reviews})
+          {product.rating > 0 && (
+            <div className="flex items-center gap-0.5 mb-1">
+              {[...Array(5)].map((_, i) => (
+                <Star
+                  key={i}
+                  className="w-2.5 h-2.5"
+                  style={{
+                    fill: i < product.rating ? sandDark : "transparent",
+                    color: i < product.rating ? sandDark : "#ccc",
+                  }}
+                />
+              ))}
+              {product.reviews > 0 && (
+                <span className="text-[9px] ml-0.5" style={{ color: sandDark }}>
+                  ({product.reviews})
+                </span>
+              )}
+            </div>
+          )}
+
+          <div className="flex items-baseline gap-1 mb-1.5">
+            {product.oldPrice && (
+              <span className="text-[10px] line-through" style={{ color: "#aaa" }}>
+                {product.oldPrice}
               </span>
             )}
-          </div>
-        )}
-
-        {/* Preços */}
-        <div className="flex items-baseline gap-1 mb-1.5">
-          {product.oldPrice && (
-            <span className="text-[10px] line-through" style={{ color: "#aaa" }}>
-              {product.oldPrice}
+            <span className="text-sm font-black" style={{ color: brown }}>
+              {product.priceFormatted}
             </span>
-          )}
-          <span className="text-sm font-black" style={{ color: brown }}>
-            {product.priceFormatted}
-          </span>
-        </div>
+          </div>
+        </button>
 
         {/* Rodapé: frete + botão carrinho */}
         <div className="flex items-center justify-between">
           {product.freeShipping ? (
-            <span className="text-[9px] font-bold" style={{ color: sandDark }}>
-              Frete grátis
-            </span>
+            <span className="text-[9px] font-bold" style={{ color: sandDark }}>Frete grátis</span>
           ) : (
             <span />
           )}
 
-          {/* Botão adicionar ao carrinho */}
-          <div
-            className="flex items-center justify-center w-8 h-8 rounded-xl transition-all active:scale-95"
+          {/* Botão adicionar ao carrinho — funcional */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              addToCart.mutate({ productId: product.id, quantity: 1 });
+            }}
+            disabled={addToCart.isPending}
+            className="flex items-center justify-center w-8 h-8 rounded-xl transition-all active:scale-95 disabled:opacity-60"
             style={{
               background: `linear-gradient(135deg, ${sandDark}, ${sand})`,
               boxShadow: "0 2px 8px rgba(74,46,10,0.25)",
             }}
           >
-            <ShoppingCart className="w-3.5 h-3.5" style={{ color: "#fff" }} />
-          </div>
+            {addToCart.isPending ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: "#fff" }} />
+            ) : (
+              <ShoppingCart className="w-3.5 h-3.5" style={{ color: "#fff" }} />
+            )}
+          </button>
         </div>
       </div>
-    </button>
+    </div>
   );
 
   return (
-    /* position:relative para que o Navbar absolute se posicione em relação a este div */
     <div className="relative min-h-screen pb-14 md:pb-0" style={{ backgroundColor: "#F5F5F5" }}>
 
-      {/* ══ HERO BANNER ══
-          Navbar está em position:absolute sobre este bloco.
-          A imagem ocupa desde o topo absoluto (y=0).
-          paddingTop compensa a altura do navbar (56px) para o texto não ficar atrás dos ícones. */}
+      {/* ══ HERO BANNER ══ */}
       <div className="relative w-full overflow-hidden" style={{ minHeight: 300 }}>
-
-        {/* Imagem da categoria — ocupa tudo desde o topo */}
         <img
           src={heroImage}
           alt={categoryName}
           className="absolute inset-0 w-full h-full object-cover"
           style={{ objectPosition: "center top" }}
         />
-
-        {/* Gradiente escuro apenas na parte inferior para legibilidade */}
         <div
           className="absolute inset-0"
           style={{
@@ -369,13 +359,10 @@ const CategoriaDetalhe = () => {
               "linear-gradient(to bottom, rgba(0,0,0,0.10) 0%, transparent 35%, rgba(0,0,0,0.25) 65%, rgba(0,0,0,0.60) 100%)",
           }}
         />
-
-        {/* Texto — padding-top = altura do navbar */}
         <div
           className="relative z-10 flex flex-col justify-end px-4 pb-5"
           style={{ paddingTop: 68 }}
         >
-          {/* Breadcrumb */}
           <div className="flex items-center gap-1 text-[11px] text-white/70 mb-2.5">
             <button onClick={() => navigate("/")} className="hover:text-white transition-colors">Início</button>
             <span>/</span>
@@ -383,7 +370,6 @@ const CategoriaDetalhe = () => {
             <span>/</span>
             <span className="text-white font-bold">{categoryName}</span>
           </div>
-
           <h1 className="text-3xl font-black text-white drop-shadow-lg leading-tight mb-1">
             {categoryName}
           </h1>
@@ -474,8 +460,6 @@ const CategoriaDetalhe = () => {
 
       {/* ══ LAYOUT PRINCIPAL ══ */}
       <div className="container mx-auto px-3 flex gap-4">
-
-        {/* Sidebar de filtros (desktop) */}
         {!isMobile && (
           <aside
             className="w-56 flex-shrink-0 py-4 px-3 mt-4 rounded-2xl self-start sticky top-[88px]"
@@ -489,7 +473,6 @@ const CategoriaDetalhe = () => {
           </aside>
         )}
 
-        {/* Grid de produtos */}
         <div className="flex-1 py-3">
           {isLoading ? (
             <div className="flex justify-center py-12">
