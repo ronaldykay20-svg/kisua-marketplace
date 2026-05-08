@@ -232,7 +232,7 @@ const InfiniteProducts = () => {
     );
   };
 
-  // ─── Cartão Tablet (estilo Temu/AliExpress) ─────────────────────────────────
+  // ─── Cartão Tablet (5 colunas fixas, altura uniforme) ───────────────────────
   const TabletCard = ({ p, globalIndex }: { p: any; globalIndex: number }) => {
     const img = p.cover_url || p.image_url;
     const isTrending = trendingIds.has(p.id);
@@ -252,8 +252,9 @@ const InfiniteProducts = () => {
     return (
       <div
         onClick={() => navigate(`/produto/${p.id}`)}
-        className="bg-card border border-border rounded-md overflow-hidden cursor-pointer flex flex-col"
+        className="bg-card border border-border rounded-md overflow-hidden cursor-pointer flex flex-col h-full"
       >
+        {/* Imagem quadrada */}
         <div className="relative w-full bg-muted" style={{ aspectRatio: "1/1" }}>
           {img
             ? <img src={img} alt={p.title} className="w-full h-full object-cover" loading="lazy" />
@@ -265,52 +266,34 @@ const InfiniteProducts = () => {
             </span>
           )}
           {p.badge && (
-            <span className="absolute top-1 right-1 px-1 py-0.5 rounded text-[9px] font-bold text-white bg-orange-500 leading-none">
+            <span className="absolute top-1 right-7 px-1 py-0.5 rounded text-[9px] font-bold text-white bg-orange-500 leading-none">
               {p.badge}
             </span>
           )}
           {isTrending && !p.badge && (
-            <span className="absolute top-1 right-1 px-1 py-0.5 rounded text-[9px] font-bold text-white bg-rose-500 leading-none">
+            <span className="absolute top-1 right-7 px-1 py-0.5 rounded text-[9px] font-bold text-white bg-rose-500 leading-none">
               🔥
             </span>
           )}
           <button
             onClick={handleHeart}
-            className="absolute bottom-1 right-1 w-5 h-5 rounded-full bg-white/85 flex items-center justify-center shadow-sm"
+            className="absolute top-1 right-1 w-5 h-5 rounded-full bg-white/85 flex items-center justify-center shadow-sm"
           >
             <Heart className={`w-2.5 h-2.5 transition-colors ${fav ? "fill-[#8B6343] text-[#8B6343]" : "text-gray-400"}`} />
           </button>
         </div>
 
-        <div className="p-1.5 flex flex-col gap-1 flex-1">
-          <p className="text-[10px] font-medium text-foreground line-clamp-2 leading-tight">
+        {/* Rodapé fixo: título 2 linhas + preço + botão */}
+        <div className="p-1.5 flex flex-col gap-1" style={{ height: "82px" }}>
+          <p className="text-[10px] font-medium text-foreground line-clamp-2 leading-tight" style={{ minHeight: "28px" }}>
             {p.title}
           </p>
-
-          {p.rating > 0 && (
-            <div className="flex items-center gap-0.5">
-              <Star className="w-2 h-2 text-yellow-400 fill-yellow-400" />
-              <span className="text-[9px] text-yellow-600 font-semibold">{Number(p.rating).toFixed(1)}</span>
-              {p.sales_count > 0 && (
-                <span className="text-[8px] text-muted-foreground ml-0.5">{p.sales_count}+</span>
-              )}
-            </div>
-          )}
-
-          <div className="flex items-baseline gap-1 flex-wrap">
-            <span className="text-[12px] font-black text-red-500 leading-none">
-              {Number(p.price).toLocaleString("pt-AO")} Kz
-            </span>
-            {p.old_price && (
-              <span className="text-[8px] text-muted-foreground line-through leading-none">
-                {Number(p.old_price).toLocaleString("pt-AO")}
-              </span>
-            )}
-          </div>
-
+          <span className="text-[12px] font-black text-red-500 leading-none">
+            {Number(p.price).toLocaleString("pt-AO")} Kz
+          </span>
           <button
             onClick={handleComprar}
-            className="w-full mt-auto py-1 rounded text-[10px] font-bold text-white bg-orange-500 hover:bg-orange-600 active:scale-95 transition-all leading-none"
+            className="w-full py-1 rounded text-[10px] font-bold text-white bg-orange-500 hover:bg-orange-600 active:scale-95 transition-all leading-none"
           >
             Comprar
           </button>
@@ -325,12 +308,13 @@ const InfiniteProducts = () => {
         <h2 className="text-base font-bold text-foreground">Para si</h2>
       </div>
 
-      {/* ── TABLET: CSS Grid auto-fill — só em sm+ ── */}
+      {/* ── TABLET: 5 colunas fixas com altura uniforme — só em sm+ ── */}
       <div
         className="hidden sm:grid"
         style={{
-          gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))",
+          gridTemplateColumns: "repeat(5, 1fr)",
           gap: "6px",
+          gridAutoRows: "1fr",
         }}
       >
         {allProducts.map((p: any, i: number) => (
