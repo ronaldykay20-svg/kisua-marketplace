@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { STORAGE_BUCKETS } from "@/lib/storage";
+import { HOME_BANNER_SLOTS, getHomeSlotLabel } from "@/lib/bannerSlots";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -35,11 +36,17 @@ const FORMATS = [
   { value: "natural",        label: "Natural"           },
 ];
 
+// 9 posições de texto
 const TEXT_POSITIONS = [
-  { value: "bottom-left",  label: "↙ Baixo Esquerda" },
-  { value: "bottom-right", label: "↘ Baixo Direita"  },
-  { value: "top-left",     label: "↖ Cima Esquerda"  },
-  { value: "top-right",    label: "↗ Cima Direita"   },
+  { value: "top-left",      label: "↖ Cima Esquerda"    },
+  { value: "top-center",    label: "↑ Cima Centro"      },
+  { value: "top-right",     label: "↗ Cima Direita"     },
+  { value: "middle-left",   label: "← Meio Esquerda"    },
+  { value: "middle-center", label: "· Meio Centro"      },
+  { value: "middle-right",  label: "→ Meio Direita"     },
+  { value: "bottom-left",   label: "↙ Baixo Esquerda"   },
+  { value: "bottom-center", label: "↓ Baixo Centro"     },
+  { value: "bottom-right",  label: "↘ Baixo Direita"    },
 ];
 
 const SIDEBAR_SLOTS = [101, 102, 103];
@@ -63,6 +70,8 @@ interface BannerRow {
   sort_order: number;
   is_active: boolean;
   text_position: string | null;
+  text_color: string | null;
+  text_bg_color: string | null;
   category_id: string | null;
   device: Device | null;
   created_at: string;
@@ -85,21 +94,29 @@ async function uploadBannerImage(file: File): Promise<string> {
 
 interface FormProps {
   initial?: BannerRow | null;
+  existingSlots: number[];
   onClose: () => void;
   onSaved: () => void;
 }
 
-type FormState = Partial<BannerRow> & { extraImgFiles: File[]; extraImgPreviews: string[] };
+type FormState = Partial<BannerRow> & {
+  extraImgFiles: File[];
+  extraImgPreviews: string[];
+  text_color: string;
+  text_bg_color: string;
+  text_bg_enabled: boolean;
+};
 
 const emptyForm = (): FormState => ({
   title: "", subtitle: "", cta_text: "", cta_link: "",
   image_url: "", extra_images: [], extra_links: [],
   format: "hero", bg_color: "", sort_order: 1, is_active: true,
   text_position: "bottom-left", category_id: null, device: "mobile",
+  text_color: "#ffffff", text_bg_color: "#000000", text_bg_enabled: false,
   extraImgFiles: [], extraImgPreviews: [],
 });
 
-const BannerForm = ({ initial, onClose, onSaved }: FormProps) => {
+const BannerForm = ({ initial, existingSlots, onClose, onSaved }: FormProps) => {
   const isEdit = !!initial;
   const mainFileRef = useRef<HTMLInputElement>(null);
   const extraFileRef = useRef<HTMLInputElement>(null);
@@ -108,9 +125,12 @@ const BannerForm = ({ initial, onClose, onSaved }: FormProps) => {
     initial
       ? {
           ...initial,
-          extra_images: initial.extra_images || [],
-          extra_links: initial.extra_links || [],
-          extraImgFiles: [],
+          extra_images:    initial.extra_images || [],
+          extra_links:     initial.extra_links  || [],
+          text_color:      (initial as any).text_color    || "#ffffff",
+          text_bg_color:   (initial as any).text_bg_color || "#000000",
+          text_bg_enabled: !!(initial as any).text_bg_color,
+          extraImgFiles:   [],
           extraImgPreviews: (initial.extra_images || []) as string[],
         }
       : emptyForm(),
@@ -128,7 +148,7 @@ const BannerForm = ({ initial, onClose, onSaved }: FormProps) => {
     const previews = arr.map(f => URL.createObjectURL(f));
     setForm(f => ({
       ...f,
-      extraImgFiles: [...f.extraImgFiles, ...arr],
+      extraImgFiles:    [...f.extraImgFiles, ...arr],
       extraImgPreviews: [...f.extraImgPreviews, ...previews],
     }));
   };
@@ -149,41 +169,44 @@ const BannerForm = ({ initial, onClose, onSaved }: FormProps) => {
     });
   };
 
+  // Slots disponíveis para este device (exclui os já ocupados, excepto o próprio ao editar)
+  const allSlots = HOME_BANNER_SLOTS;
+  const slotOccupied = (slotVal: number) =>
+    existingSlots.includes(slotVal) && slotVal !== initial?.sort_order;
+
   const save = async () => {
     if (!mainPreview && !mainFile) { toast.error("Adiciona a imagem principal"); return; }
     setSaving(true);
     try {
-      // 1. Imagem principal
       let imageUrl = form.image_url || "";
       if (mainFile) imageUrl = await uploadBannerImage(mainFile);
       if (!imageUrl) throw new Error("URL da imagem principal em falta");
 
-      // 2. Imagens extra
       const existingExtras = (initial?.extra_images || []).filter(u =>
         form.extraImgPreviews.includes(u),
       );
       const newExtras = await Promise.all(form.extraImgFiles.map(uploadBannerImage));
       const allExtras = [...existingExtras, ...newExtras];
 
-      // 3. Payload — sem campos desconhecidos
       const payload: Record<string, any> = {
-        title:         form.title        || null,
-        subtitle:      form.subtitle     || null,
-        cta_text:      form.cta_text     || null,
-        cta_link:      form.cta_link     || null,
+        title:         form.title         ?? "",
+        subtitle:      form.subtitle      || "",
+        cta_text:      form.cta_text      || "Compre agora",
+        cta_link:      form.cta_link      || "#",
         image_url:     imageUrl,
-        extra_images:  allExtras.length  ? allExtras : null,
-        extra_links:   (form.extra_links || []).filter(Boolean).length ? form.extra_links : null,
-        format:        form.format       || "hero",
-        bg_color:      form.bg_color     || null,
+        extra_images:  allExtras.length   ? allExtras : [],
+        extra_links:   (form.extra_links  || []).filter(Boolean),
+        format:        form.format        || "hero",
+        bg_color:      form.bg_color      || "#F0F9FF",
         sort_order:    Number(form.sort_order) || 1,
-        is_active:     form.is_active    ?? true,
-        text_position: form.text_position || null,
-        category_id:   form.category_id  || null,
-        device:        form.device       || "mobile",
+        is_active:     form.is_active     ?? true,
+        text_position: form.text_position || "bottom-left",
+        text_color:    form.text_color    || "#ffffff",
+        text_bg_color: form.text_bg_enabled ? (form.text_bg_color || "#000000") : null,
+        category_id:   form.category_id   || null,
+        device:        form.device        || "mobile",
       };
 
-      // 4. Guardar
       if (isEdit) {
         const { error } = await supabase.from("banners" as any).update(payload).eq("id", initial!.id);
         if (error) throw new Error(error.message);
@@ -193,11 +216,10 @@ const BannerForm = ({ initial, onClose, onSaved }: FormProps) => {
         if (error) throw new Error(error.message);
         toast.success("Banner criado!");
       }
-
       onSaved();
       onClose();
     } catch (e: any) {
-      toast.error(e?.message || "Erro desconhecido ao guardar");
+      toast.error(e?.message || "Erro desconhecido");
     } finally {
       setSaving(false);
     }
@@ -227,21 +249,25 @@ const BannerForm = ({ initial, onClose, onSaved }: FormProps) => {
           </div>
         </div>
 
-        {/* Slot */}
+        {/* Slot — dropdown com ocupados desactivados */}
         <div>
-          <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Slot (posição na página)</label>
-          <div className="flex gap-2 items-center">
-            <input type="number" min={1} max={200} value={form.sort_order || 1}
-              onChange={e => set("sort_order", Number(e.target.value))}
-              className="w-24 px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
-            <p className="text-[10px] text-muted-foreground">
-              {form.device === "desktop" && SIDEBAR_SLOTS.includes(Number(form.sort_order))
-                ? "📌 Sidebar direita"
-                : `Slot ${form.sort_order} — ${form.device}`}
-            </p>
-          </div>
-          {form.device === "desktop" && (
-            <p className="text-[10px] text-muted-foreground mt-1">Slots 101–103 aparecem na sidebar direita do desktop.</p>
+          <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Posição na página</label>
+          <select
+            value={form.sort_order || 1}
+            onChange={e => set("sort_order", Number(e.target.value))}
+            className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground"
+          >
+            {allSlots.map(slot => {
+              const occupied = slotOccupied(slot.value);
+              return (
+                <option key={slot.value} value={slot.value} disabled={occupied}>
+                  {slot.label}{occupied ? " — ocupado" : ""}
+                </option>
+              );
+            })}
+          </select>
+          {form.device === "desktop" && SIDEBAR_SLOTS.includes(Number(form.sort_order)) && (
+            <p className="text-[10px] text-muted-foreground mt-1">📌 Aparece na sidebar direita do desktop.</p>
           )}
         </div>
 
@@ -327,9 +353,9 @@ const BannerForm = ({ initial, onClose, onSaved }: FormProps) => {
 
         {/* Texto */}
         <div className="grid grid-cols-2 gap-2">
-          <input placeholder="Título" value={form.title || ""} onChange={e => set("title", e.target.value)}
+          <input placeholder="Título (opcional)" value={form.title || ""} onChange={e => set("title", e.target.value)}
             className="col-span-2 px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
-          <input placeholder="Subtítulo" value={form.subtitle || ""} onChange={e => set("subtitle", e.target.value)}
+          <input placeholder="Subtítulo (opcional)" value={form.subtitle || ""} onChange={e => set("subtitle", e.target.value)}
             className="col-span-2 px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
           <input placeholder="Texto CTA" value={form.cta_text || ""} onChange={e => set("cta_text", e.target.value)}
             className="px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
@@ -337,17 +363,57 @@ const BannerForm = ({ initial, onClose, onSaved }: FormProps) => {
             className="px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
         </div>
 
-        {/* Posição do texto */}
+        {/* Posição do texto — 9 posições em grid 3x3 */}
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Posição do texto</label>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-1.5">
             {TEXT_POSITIONS.map(p => (
               <button key={p.value} onClick={() => set("text_position", p.value)}
-                className={`py-2 rounded-lg text-xs font-bold border transition ${form.text_position === p.value ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-foreground hover:bg-muted"}`}>
+                className={`py-2 rounded-lg text-[10px] font-bold border transition text-center ${form.text_position === p.value ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-foreground hover:bg-muted"}`}>
                 {p.label}
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Cor do texto */}
+        <div>
+          <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Cor do texto</label>
+          <div className="flex items-center gap-2">
+            <input type="color" value={form.text_color || "#ffffff"}
+              onChange={e => set("text_color", e.target.value)}
+              className="w-9 h-9 rounded-lg border border-border cursor-pointer" />
+            <input value={form.text_color || "#ffffff"}
+              onChange={e => set("text_color", e.target.value)}
+              className="flex-1 px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
+            {/* Preview */}
+            <span className="px-3 py-1.5 rounded-lg text-xs font-black border border-border"
+              style={{ color: form.text_color || "#ffffff", backgroundColor: form.text_bg_enabled ? (form.text_bg_color || "#000000") : "transparent" }}>
+              Texto
+            </span>
+          </div>
+        </div>
+
+        {/* Fundo do texto (caixa) */}
+        <div className="rounded-xl border border-border bg-muted/40 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-foreground">Fundo do texto (caixa)</span>
+            <button onClick={() => set("text_bg_enabled", !form.text_bg_enabled)}
+              className={`w-10 h-6 rounded-full transition relative ${form.text_bg_enabled ? "bg-primary" : "bg-muted-foreground/30"}`}>
+              <span className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${form.text_bg_enabled ? "translate-x-4" : ""}`} />
+            </button>
+          </div>
+          {form.text_bg_enabled && (
+            <div className="flex items-center gap-2">
+              <input type="color" value={form.text_bg_color || "#000000"}
+                onChange={e => set("text_bg_color", e.target.value)}
+                className="w-9 h-9 rounded-lg border border-border cursor-pointer" />
+              <input value={form.text_bg_color || "#000000"}
+                onChange={e => set("text_bg_color", e.target.value)}
+                className="flex-1 px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
+              <p className="text-[10px] text-muted-foreground">Podes usar hex com transparência ex: #00000080</p>
+            </div>
+          )}
         </div>
 
         {/* Activo */}
@@ -411,7 +477,7 @@ const BannerCard = ({ banner, onEdit, onToggle, onDelete }: CardProps) => {
               {fmt?.label || banner.format}
             </span>
             <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500">
-              slot {banner.sort_order}
+              {getHomeSlotLabel(banner.sort_order)}
             </span>
             <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
               {imgCount} img{imgCount > 1 ? "s" : ""}
@@ -492,6 +558,9 @@ const AdminBannersTab = () => {
     .filter(b => filterDevice === "all" || (b.device || "mobile") === filterDevice)
     .filter(b => filterFormat === "all" || b.format === filterFormat);
 
+  // Slots já ocupados (para bloquear no dropdown)
+  const existingSlots = banners.map(b => b.sort_order);
+
   const handleEdit = (b: BannerRow) => {
     setEditBanner(b);
     setShowForm(false);
@@ -521,9 +590,9 @@ const AdminBannersTab = () => {
 
       {/* Formulário */}
       {editBanner ? (
-        <BannerForm initial={editBanner} onClose={closeForm} onSaved={invalidate} />
+        <BannerForm initial={editBanner} existingSlots={existingSlots} onClose={closeForm} onSaved={invalidate} />
       ) : showForm ? (
-        <BannerForm onClose={closeForm} onSaved={invalidate} />
+        <BannerForm existingSlots={existingSlots} onClose={closeForm} onSaved={invalidate} />
       ) : (
         <button onClick={() => setShowForm(true)}
           className="w-full py-3 bg-primary text-primary-foreground text-xs font-bold rounded-xl flex items-center justify-center gap-2">
