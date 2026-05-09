@@ -85,7 +85,7 @@ async function uploadBannerImage(file: File): Promise<string> {
   return data.publicUrl;
 }
 
-/* ─── Componente de upload de imagens para Split ─────────────────────────── */
+/* ─── SplitSideUploader ──────────────────────────────────────────────────── */
 interface SplitSideUploaderProps {
   side: "left" | "right";
   images: { file?: File; preview: string; link: string }[];
@@ -105,25 +105,19 @@ const SplitSideUploader = ({ side, images, onChange }: SplitSideUploaderProps) =
   };
 
   const remove = (i: number) => {
-    const next = [...images];
-    next.splice(i, 1);
-    onChange(next);
+    const next = [...images]; next.splice(i, 1); onChange(next);
   };
 
   const setLink = (i: number, val: string) => {
-    const next = [...images];
-    next[i] = { ...next[i], link: val };
-    onChange(next);
+    const next = [...images]; next[i] = { ...next[i], link: val }; onChange(next);
   };
 
   return (
     <div className={`rounded-xl border p-3 space-y-2 ${color}`}>
       <div className="flex items-center justify-between">
         <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${badge}`}>{label}</span>
-        <span className="text-[10px] text-muted-foreground">{images.length}/4 banners</span>
+        <span className="text-[10px] text-muted-foreground">{images.length}/4 imagens</span>
       </div>
-
-      {/* Grid de previews */}
       <div className="grid grid-cols-2 gap-2">
         {images.map((img, i) => (
           <div key={i} className="space-y-1">
@@ -133,44 +127,26 @@ const SplitSideUploader = ({ side, images, onChange }: SplitSideUploaderProps) =
                 className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center">
                 <X className="w-3 h-3" />
               </button>
-              <span className="absolute bottom-1 left-1 text-[9px] bg-black/60 text-white px-1 rounded">
-                {i + 1}
-              </span>
+              <span className="absolute bottom-1 left-1 text-[9px] bg-black/60 text-white px-1 rounded">{i + 1}</span>
             </div>
-            <input
-              placeholder="Link ao clicar"
-              value={img.link}
+            <input placeholder="Link ao clicar" value={img.link}
               onChange={e => setLink(i, e.target.value)}
-              className="w-full px-2 py-1 rounded-lg bg-background border border-border text-[10px] text-foreground"
-            />
+              className="w-full px-2 py-1 rounded-lg bg-background border border-border text-[10px] text-foreground" />
           </div>
         ))}
-
         {images.length < 4 && (
-          <button
-            onClick={() => fileRef.current?.click()}
-            className="aspect-video border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center hover:border-primary/50 hover:bg-primary/5 transition"
-          >
+          <button onClick={() => fileRef.current?.click()}
+            className="aspect-video border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center hover:border-primary/50 hover:bg-primary/5 transition">
             <Plus className="w-5 h-5 text-muted-foreground" />
             <p className="text-[10px] text-muted-foreground mt-1">Adicionar</p>
           </button>
         )}
       </div>
-
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*"
-        multiple
-        className="hidden"
-        onChange={e => e.target.files && addFiles(e.target.files)}
-      />
-
+      <input ref={fileRef} type="file" accept="image/*" multiple className="hidden"
+        onChange={e => e.target.files && addFiles(e.target.files)} />
       {images.length === 0 && (
-        <button
-          onClick={() => fileRef.current?.click()}
-          className="w-full border-2 border-dashed border-border rounded-xl p-4 flex flex-col items-center gap-1 hover:border-primary/50 hover:bg-primary/5 transition"
-        >
+        <button onClick={() => fileRef.current?.click()}
+          className="w-full border-2 border-dashed border-border rounded-xl p-4 flex flex-col items-center gap-1 hover:border-primary/50 hover:bg-primary/5 transition">
           <Upload className="w-5 h-5 text-muted-foreground" />
           <p className="text-xs font-bold text-foreground">Upload para {label}</p>
           <p className="text-[10px] text-muted-foreground">1 a 4 imagens</p>
@@ -180,9 +156,10 @@ const SplitSideUploader = ({ side, images, onChange }: SplitSideUploaderProps) =
   );
 };
 
-/* ─── Formulário principal ───────────────────────────────────────────────── */
+/* ─── Formulário ─────────────────────────────────────────────────────────── */
 interface FormProps {
   initial?: BannerRow | null;
+  initialSplitPair?: { left: BannerRow | null; right: BannerRow | null };
   existingBanners: BannerRow[];
   onClose: () => void;
   onSaved: () => void;
@@ -206,11 +183,9 @@ type FormState = {
   is_active: boolean;
   category_id: string | null;
   bg_color: string;
-  /* extras para formatos normais */
   extraImgFiles: File[];
   extraImgPreviews: string[];
   extra_links: string[];
-  /* split */
   splitLeft: ImgEntry[];
   splitRight: ImgEntry[];
 };
@@ -225,34 +200,61 @@ const emptyForm = (): FormState => ({
   splitLeft: [], splitRight: [],
 });
 
-const BannerForm = ({ initial, existingBanners, onClose, onSaved }: FormProps) => {
-  const isEdit = !!initial;
+const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSaved }: FormProps) => {
+  const isEdit = !!initial || !!initialSplitPair;
+  const isSplitEdit = !!initialSplitPair;
   const mainFileRef = useRef<HTMLInputElement>(null);
   const extraFileRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState<FormState>(() => {
+    if (initialSplitPair) {
+      const ref = initialSplitPair.left || initialSplitPair.right!;
+      return {
+        device: ref.device || "mobile",
+        sort_order: ref.sort_order,
+        format: "split",
+        title: ref.title || "",
+        subtitle: ref.subtitle || "",
+        cta_text: ref.cta_text || "",
+        cta_link: ref.cta_link || "",
+        image_url: "",
+        text_position: ref.text_position || "bottom-left",
+        text_color: (ref as any).text_color || "#ffffff",
+        text_bg_color: (ref as any).text_bg_color || "#000000",
+        text_bg_enabled: !!(ref as any).text_bg_color,
+        is_active: ref.is_active,
+        category_id: ref.category_id,
+        bg_color: ref.bg_color || "#F0F9FF",
+        extraImgFiles: [], extraImgPreviews: [], extra_links: [],
+        splitLeft: initialSplitPair.left
+          ? [{ preview: initialSplitPair.left.image_url, link: initialSplitPair.left.cta_link || "" }]
+          : [],
+        splitRight: initialSplitPair.right
+          ? [{ preview: initialSplitPair.right.image_url, link: initialSplitPair.right.cta_link || "" }]
+          : [],
+      };
+    }
     if (!initial) return emptyForm();
     return {
-      device:          initial.device || "mobile",
-      sort_order:      initial.sort_order,
-      format:          initial.format,
-      title:           initial.title || "",
-      subtitle:        initial.subtitle || "",
-      cta_text:        initial.cta_text || "",
-      cta_link:        initial.cta_link || "",
-      image_url:       initial.image_url || "",
-      text_position:   initial.text_position || "bottom-left",
-      text_color:      (initial as any).text_color || "#ffffff",
-      text_bg_color:   (initial as any).text_bg_color || "#000000",
+      device: initial.device || "mobile",
+      sort_order: initial.sort_order,
+      format: initial.format,
+      title: initial.title || "",
+      subtitle: initial.subtitle || "",
+      cta_text: initial.cta_text || "",
+      cta_link: initial.cta_link || "",
+      image_url: initial.image_url || "",
+      text_position: initial.text_position || "bottom-left",
+      text_color: (initial as any).text_color || "#ffffff",
+      text_bg_color: (initial as any).text_bg_color || "#000000",
       text_bg_enabled: !!(initial as any).text_bg_color,
-      is_active:       initial.is_active,
-      category_id:     initial.category_id,
-      bg_color:        initial.bg_color || "#F0F9FF",
-      extraImgFiles:   [],
-      extraImgPreviews:(initial.extra_images || []) as string[],
-      extra_links:     (initial.extra_links || []) as string[],
-      splitLeft:  [],
-      splitRight: [],
+      is_active: initial.is_active,
+      category_id: initial.category_id,
+      bg_color: initial.bg_color || "#F0F9FF",
+      extraImgFiles: [],
+      extraImgPreviews: (initial.extra_images || []) as string[],
+      extra_links: (initial.extra_links || []) as string[],
+      splitLeft: [], splitRight: [],
     };
   });
 
@@ -262,10 +264,7 @@ const BannerForm = ({ initial, existingBanners, onClose, onSaved }: FormProps) =
 
   const set = (k: keyof FormState, v: any) => setForm(f => ({ ...f, [k]: v }));
 
-  /* slots filtrados pelo device seleccionado */
   const slots = getSlotsForDevice(form.device);
-
-  /* slots ocupados pelo mesmo device (excluindo o próprio ao editar) */
   const occupiedSlots = existingBanners
     .filter(b => (b.device || "mobile") === form.device && b.format !== "split")
     .filter(b => !isEdit || b.id !== initial?.id)
@@ -275,17 +274,15 @@ const BannerForm = ({ initial, existingBanners, onClose, onSaved }: FormProps) =
   const needsExtra = !isSplit ? (EXTRA_COUNT[form.format] || 0) : 0;
 
   const handleMainFile = (f: File) => { setMainFile(f); setMainPreview(URL.createObjectURL(f)); };
-
   const handleExtraFiles = (files: FileList) => {
     const arr = Array.from(files);
     const previews = arr.map(f => URL.createObjectURL(f));
     setForm(f => ({
       ...f,
-      extraImgFiles:    [...f.extraImgFiles, ...arr],
+      extraImgFiles: [...f.extraImgFiles, ...arr],
       extraImgPreviews: [...f.extraImgPreviews, ...previews],
     }));
   };
-
   const removeExtra = (i: number) => {
     setForm(f => {
       const imgs = [...f.extraImgPreviews]; imgs.splice(i, 1);
@@ -296,7 +293,6 @@ const BannerForm = ({ initial, existingBanners, onClose, onSaved }: FormProps) =
     });
   };
 
-  /* ── Guardar ── */
   const save = async () => {
     if (isSplit) {
       if (form.splitLeft.length === 0 && form.splitRight.length === 0) {
@@ -309,7 +305,16 @@ const BannerForm = ({ initial, existingBanners, onClose, onSaved }: FormProps) =
     setSaving(true);
     try {
       if (isSplit) {
-        /* upload e insert de cada imagem individualmente */
+        if (isSplitEdit) {
+          const idsToDelete = [
+            initialSplitPair?.left?.id,
+            initialSplitPair?.right?.id,
+          ].filter(Boolean) as string[];
+          for (const id of idsToDelete) {
+            await supabase.from("banners" as any).delete().eq("id", id);
+          }
+        }
+
         const uploadSide = async (imgs: ImgEntry[], side: "left" | "right") => {
           for (const img of imgs) {
             let url = img.preview;
@@ -320,8 +325,7 @@ const BannerForm = ({ initial, existingBanners, onClose, onSaved }: FormProps) =
               cta_text: form.cta_text || null,
               cta_link: img.link || form.cta_link || "#",
               image_url: url,
-              extra_images: [],
-              extra_links: [],
+              extra_images: [], extra_links: [],
               format: "split",
               bg_color: form.bg_color,
               sort_order: form.sort_order,
@@ -338,18 +342,16 @@ const BannerForm = ({ initial, existingBanners, onClose, onSaved }: FormProps) =
           }
         };
 
-        await uploadSide(form.splitLeft,  "left");
+        await uploadSide(form.splitLeft, "left");
         await uploadSide(form.splitRight, "right");
-        toast.success("Banners split criados!");
+        toast.success(isSplitEdit ? "Split atualizado!" : "Banners split criados!");
 
       } else {
-        /* banner normal */
         let imageUrl = form.image_url;
         if (mainFile) imageUrl = await uploadBannerImage(mainFile);
         if (!imageUrl) throw new Error("URL da imagem principal em falta");
 
-        const existingExtras = (initial?.extra_images || []).filter(u =>
-          form.extraImgPreviews.includes(u));
+        const existingExtras = (initial?.extra_images || []).filter(u => form.extraImgPreviews.includes(u));
         const newExtras = await Promise.all(form.extraImgFiles.map(uploadBannerImage));
         const allExtras = [...existingExtras, ...newExtras];
 
@@ -373,8 +375,8 @@ const BannerForm = ({ initial, existingBanners, onClose, onSaved }: FormProps) =
           split_side: null,
         };
 
-        if (isEdit) {
-          const { error } = await supabase.from("banners" as any).update(payload).eq("id", initial!.id);
+        if (isEdit && initial) {
+          const { error } = await supabase.from("banners" as any).update(payload).eq("id", initial.id);
           if (error) throw new Error(error.message);
           toast.success("Banner atualizado!");
         } else {
@@ -384,8 +386,7 @@ const BannerForm = ({ initial, existingBanners, onClose, onSaved }: FormProps) =
         }
       }
 
-      onSaved();
-      onClose();
+      onSaved(); onClose();
     } catch (e: any) {
       toast.error(e?.message || "Erro desconhecido");
     } finally {
@@ -403,34 +404,27 @@ const BannerForm = ({ initial, existingBanners, onClose, onSaved }: FormProps) =
       </div>
 
       <div className="space-y-3">
-
-        {/* Dispositivo */}
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Dispositivo</label>
           <div className="flex gap-2">
             {DEVICES.map(d => (
-              <button key={d.value} onClick={() => { set("device", d.value); set("sort_order", getSlotsForDevice(d.value)[0].value); }}
+              <button key={d.value}
+                onClick={() => { set("device", d.value); set("sort_order", getSlotsForDevice(d.value)[0].value); }}
                 className={`flex-1 py-2 rounded-lg text-xs font-bold border transition ${form.device === d.value ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-foreground hover:bg-muted"}`}>
                 {d.label}
               </button>
             ))}
           </div>
-          <p className="text-[10px] text-muted-foreground mt-1">
-            Cada device tem slots independentes — um banner mobile não ocupa posição no tablet ou desktop.
-          </p>
+          <p className="text-[10px] text-muted-foreground mt-1">Cada device tem slots independentes.</p>
         </div>
 
-        {/* Slot — só slots do device seleccionado */}
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">
             Posição na página
             {isSplit && <span className="text-primary ml-1">(mesmo número = mesmo bloco split)</span>}
           </label>
-          <select
-            value={form.sort_order}
-            onChange={e => set("sort_order", Number(e.target.value))}
-            className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground"
-          >
+          <select value={form.sort_order} onChange={e => set("sort_order", Number(e.target.value))}
+            className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground">
             {slots.map(slot => {
               const occupied = !isSplit && occupiedSlots.includes(slot.value);
               return (
@@ -445,7 +439,6 @@ const BannerForm = ({ initial, existingBanners, onClose, onSaved }: FormProps) =
           )}
         </div>
 
-        {/* Formato */}
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Formato</label>
           <select value={form.format} onChange={e => set("format", e.target.value)}
@@ -454,26 +447,19 @@ const BannerForm = ({ initial, existingBanners, onClose, onSaved }: FormProps) =
           </select>
         </div>
 
-        {/* ── SPLIT: upload por lado ── */}
         {isSplit ? (
           <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              Sobe as imagens de cada coluna. Podes colocar <strong>1 a 4 banners por lado</strong> — todos dividem a altura igualmente.
-            </p>
-            <SplitSideUploader
-              side="left"
-              images={form.splitLeft}
-              onChange={v => set("splitLeft", v)}
-            />
-            <SplitSideUploader
-              side="right"
-              images={form.splitRight}
-              onChange={v => set("splitRight", v)}
-            />
+            <div className="rounded-xl border border-border bg-muted/30 p-3">
+              <p className="text-xs font-bold text-foreground mb-1">◧ Esquerda | ◨ Direita</p>
+              <p className="text-[10px] text-muted-foreground">
+                Cada lado ocupa <strong>metade da largura</strong>. Podes colocar 1 a 4 imagens por lado.
+              </p>
+            </div>
+            <SplitSideUploader side="left" images={form.splitLeft} onChange={v => set("splitLeft", v)} />
+            <SplitSideUploader side="right" images={form.splitRight} onChange={v => set("splitRight", v)} />
           </div>
         ) : (
           <>
-            {/* Imagem principal */}
             <div>
               <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Imagem principal *</label>
               {mainPreview ? (
@@ -494,15 +480,12 @@ const BannerForm = ({ initial, existingBanners, onClose, onSaved }: FormProps) =
               )}
               <input ref={mainFileRef} type="file" accept="image/*" className="hidden"
                 onChange={e => e.target.files?.[0] && handleMainFile(e.target.files[0])} />
-              <input
-                placeholder="Ou cole o URL da imagem"
+              <input placeholder="Ou cole o URL da imagem"
                 value={mainFile ? "" : (form.image_url || "")}
                 onChange={e => { set("image_url", e.target.value); setMainPreview(e.target.value); setMainFile(null); }}
-                className="w-full mt-1.5 px-3 py-2 rounded-lg bg-muted border border-border text-xs text-foreground"
-              />
+                className="w-full mt-1.5 px-3 py-2 rounded-lg bg-muted border border-border text-xs text-foreground" />
             </div>
 
-            {/* Imagens extra */}
             {needsExtra > 0 && (
               <div>
                 <label className="text-[11px] font-bold text-muted-foreground mb-1 block">
@@ -539,8 +522,7 @@ const BannerForm = ({ initial, existingBanners, onClose, onSaved }: FormProps) =
                           links[i] = e.target.value;
                           set("extra_links", links);
                         }}
-                        className="w-full px-3 py-1.5 rounded-lg bg-muted border border-border text-xs text-foreground"
-                      />
+                        className="w-full px-3 py-1.5 rounded-lg bg-muted border border-border text-xs text-foreground" />
                     ))}
                   </div>
                 )}
@@ -549,25 +531,19 @@ const BannerForm = ({ initial, existingBanners, onClose, onSaved }: FormProps) =
           </>
         )}
 
-        {/* Texto — comum a todos os formatos */}
         <div className="grid grid-cols-2 gap-2">
-          <input placeholder="Título (opcional)" value={form.title}
-            onChange={e => set("title", e.target.value)}
+          <input placeholder="Título (opcional)" value={form.title} onChange={e => set("title", e.target.value)}
             className="col-span-2 px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
-          <input placeholder="Subtítulo (opcional)" value={form.subtitle}
-            onChange={e => set("subtitle", e.target.value)}
+          <input placeholder="Subtítulo (opcional)" value={form.subtitle} onChange={e => set("subtitle", e.target.value)}
             className="col-span-2 px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
           {!isSplit && <>
-            <input placeholder="Texto CTA" value={form.cta_text}
-              onChange={e => set("cta_text", e.target.value)}
+            <input placeholder="Texto CTA" value={form.cta_text} onChange={e => set("cta_text", e.target.value)}
               className="px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
-            <input placeholder="URL de destino" value={form.cta_link}
-              onChange={e => set("cta_link", e.target.value)}
+            <input placeholder="URL de destino" value={form.cta_link} onChange={e => set("cta_link", e.target.value)}
               className="px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
           </>}
         </div>
 
-        {/* Posição do texto */}
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Posição do texto</label>
           <div className="grid grid-cols-3 gap-1.5">
@@ -580,7 +556,6 @@ const BannerForm = ({ initial, existingBanners, onClose, onSaved }: FormProps) =
           </div>
         </div>
 
-        {/* Cor do texto */}
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Cor do texto</label>
           <div className="flex items-center gap-2">
@@ -595,7 +570,6 @@ const BannerForm = ({ initial, existingBanners, onClose, onSaved }: FormProps) =
           </div>
         </div>
 
-        {/* Fundo do texto */}
         <div className="rounded-xl border border-border bg-muted/40 p-3 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-foreground">Fundo do texto (caixa)</span>
@@ -614,7 +588,6 @@ const BannerForm = ({ initial, existingBanners, onClose, onSaved }: FormProps) =
           )}
         </div>
 
-        {/* Activo */}
         <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted border border-border">
           <span className="text-sm font-bold text-foreground">Activo</span>
           <button onClick={() => set("is_active", !form.is_active)}
@@ -623,7 +596,6 @@ const BannerForm = ({ initial, existingBanners, onClose, onSaved }: FormProps) =
           </button>
         </div>
 
-        {/* Guardar */}
         <button onClick={save} disabled={saving}
           className="w-full py-3 bg-primary text-primary-foreground text-sm font-bold rounded-xl disabled:opacity-50 flex items-center justify-center gap-2">
           {saving
@@ -635,7 +607,75 @@ const BannerForm = ({ initial, existingBanners, onClose, onSaved }: FormProps) =
   );
 };
 
-/* ─── Card ───────────────────────────────────────────────────────────────── */
+/* ─── Card Split agrupado ────────────────────────────────────────────────── */
+interface SplitCardProps {
+  leftBanner: BannerRow | null;
+  rightBanner: BannerRow | null;
+  onEdit: () => void;
+  onToggle: () => void;
+  onDelete: () => void;
+}
+
+const SplitBannerCard = ({ leftBanner, rightBanner, onEdit, onToggle, onDelete }: SplitCardProps) => {
+  const ref = leftBanner || rightBanner!;
+  const isActive = ref.is_active;
+
+  return (
+    <div className={`bg-card rounded-xl border border-border overflow-hidden transition ${!isActive ? "opacity-55" : ""}`}>
+      <div className="grid grid-cols-2 h-24 bg-muted gap-0.5">
+        <div className="relative overflow-hidden">
+          {leftBanner ? (
+            <img src={leftBanner.image_url} alt="Esquerda" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-muted">
+              <span className="text-[10px] text-muted-foreground">Sem imagem</span>
+            </div>
+          )}
+          <span className="absolute top-1 left-1 text-[9px] bg-blue-500/90 text-white px-1.5 py-0.5 rounded-full font-bold">◧ Esq</span>
+        </div>
+        <div className="relative overflow-hidden">
+          {rightBanner ? (
+            <img src={rightBanner.image_url} alt="Direita" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-muted">
+              <span className="text-[10px] text-muted-foreground">Sem imagem</span>
+            </div>
+          )}
+          <span className="absolute top-1 right-1 text-[9px] bg-purple-500/90 text-white px-1.5 py-0.5 rounded-full font-bold">◨ Dir</span>
+        </div>
+      </div>
+      <div className="p-3">
+        <div className="flex items-start justify-between gap-2 mb-1.5">
+          <div className="flex flex-wrap gap-1">
+            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+              ref.device === "tablet" ? "bg-purple-500/10 text-purple-500" :
+              ref.device === "desktop" ? "bg-green-500/10 text-green-500" :
+              "bg-blue-500/10 text-blue-500"
+            }`}>{ref.device || "mobile"}</span>
+            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">Split (2 colunas)</span>
+            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500">
+              {getHomeSlotLabel(ref.sort_order)}
+            </span>
+          </div>
+          <div className="flex gap-1 flex-shrink-0">
+            <button onClick={onEdit} className="p-1.5 rounded-lg bg-muted text-foreground hover:bg-accent transition">
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+            <button onClick={onToggle} className={`p-1.5 rounded-lg transition ${isActive ? "text-green-500 bg-green-500/10" : "text-muted-foreground bg-muted"}`}>
+              {isActive ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+            </button>
+            <button onClick={onDelete} className="p-1.5 rounded-lg text-destructive bg-destructive/10 hover:bg-destructive/20 transition">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+        {ref.title && <p className="text-xs font-bold text-foreground truncate">{ref.title}</p>}
+      </div>
+    </div>
+  );
+};
+
+/* ─── Card normal ────────────────────────────────────────────────────────── */
 interface CardProps {
   banner: BannerRow;
   onEdit: () => void;
@@ -660,11 +700,6 @@ const BannerCard = ({ banner, onEdit, onToggle, onDelete }: CardProps) => {
           {imgCount > 1 && (
             <span className="absolute bottom-1.5 right-1.5 bg-black/60 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
               +{imgCount - 1} imgs
-            </span>
-          )}
-          {banner.format === "split" && banner.split_side && (
-            <span className="absolute top-1.5 left-1.5 bg-primary/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
-              {banner.split_side === "left" ? "◧ Esq" : "◨ Dir"}
             </span>
           )}
         </div>
@@ -704,11 +739,12 @@ const BannerCard = ({ banner, onEdit, onToggle, onDelete }: CardProps) => {
 /* ─── Tab principal ──────────────────────────────────────────────────────── */
 const AdminBannersTab = () => {
   const queryClient = useQueryClient();
-  const [showForm, setShowForm]         = useState(false);
-  const [editBanner, setEditBanner]     = useState<BannerRow | null>(null);
-  const [filterDevice, setFilterDevice] = useState<Device | "all">("all");
-  const [filterFormat, setFilterFormat] = useState<string>("all");
-  const [collapsed, setCollapsed]       = useState(false);
+  const [showForm, setShowForm]           = useState(false);
+  const [editBanner, setEditBanner]       = useState<BannerRow | null>(null);
+  const [editSplitPair, setEditSplitPair] = useState<{ left: BannerRow | null; right: BannerRow | null } | null>(null);
+  const [filterDevice, setFilterDevice]   = useState<Device | "all">("all");
+  const [filterFormat, setFilterFormat]   = useState<string>("all");
+  const [collapsed, setCollapsed]         = useState(false);
 
   const { data: banners = [], isLoading } = useQuery({
     queryKey: ["admin_banners"],
@@ -754,18 +790,36 @@ const AdminBannersTab = () => {
     desktop: banners.filter(b => b.device === "desktop").length,
   };
 
-  const formatsWithBanners = FORMATS.filter(f => banners.some(b => b.format === f.value));
+  // Agrupar splits por device+slot num único card
+  const splitGroups = new Map<string, { left: BannerRow | null; right: BannerRow | null }>();
+  const nonSplitBanners: BannerRow[] = [];
 
-  const filtered = banners
+  banners.forEach(b => {
+    if (b.format === "split") {
+      const key = `${b.device || "mobile"}-${b.sort_order}`;
+      if (!splitGroups.has(key)) splitGroups.set(key, { left: null, right: null });
+      const group = splitGroups.get(key)!;
+      if (b.split_side === "left") group.left = b;
+      else if (b.split_side === "right") group.right = b;
+    } else {
+      nonSplitBanners.push(b);
+    }
+  });
+
+  const filteredNonSplit = nonSplitBanners
     .filter(b => filterDevice === "all" || (b.device || "mobile") === filterDevice)
     .filter(b => filterFormat === "all" || b.format === filterFormat);
 
-  const closeForm = () => { setShowForm(false); setEditBanner(null); };
+  const filteredSplitGroups = [...splitGroups.entries()]
+    .filter(([key]) => filterDevice === "all" || key.startsWith(filterDevice + "-"))
+    .filter(() => filterFormat === "all" || filterFormat === "split");
+
+  const formatsWithBanners = FORMATS.filter(f => banners.some(b => b.format === f.value));
+
+  const closeForm = () => { setShowForm(false); setEditBanner(null); setEditSplitPair(null); };
 
   return (
     <div className="space-y-4">
-
-      {/* Stats */}
       <div className="grid grid-cols-5 gap-1.5">
         {[
           { label: "Total",   value: stats.total,   color: "text-primary border-primary/20 bg-primary/5" },
@@ -781,8 +835,9 @@ const AdminBannersTab = () => {
         ))}
       </div>
 
-      {/* Formulário */}
-      {editBanner ? (
+      {editSplitPair ? (
+        <BannerForm initialSplitPair={editSplitPair} existingBanners={banners} onClose={closeForm} onSaved={invalidate} />
+      ) : editBanner ? (
         <BannerForm initial={editBanner} existingBanners={banners} onClose={closeForm} onSaved={invalidate} />
       ) : showForm ? (
         <BannerForm existingBanners={banners} onClose={closeForm} onSaved={invalidate} />
@@ -793,7 +848,6 @@ const AdminBannersTab = () => {
         </button>
       )}
 
-      {/* Filtros */}
       <div className="space-y-2">
         <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
           {[{ value: "all", label: "Todos" }, ...DEVICES].map(d => (
@@ -831,7 +885,7 @@ const AdminBannersTab = () => {
         </div>
       )}
 
-      {!isLoading && filtered.length === 0 && (
+      {!isLoading && filteredNonSplit.length === 0 && filteredSplitGroups.length === 0 && (
         <div className="text-center py-10">
           <ImageIcon className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
           <p className="text-sm font-bold text-foreground">Nenhum banner</p>
@@ -841,11 +895,30 @@ const AdminBannersTab = () => {
 
       {!collapsed && (
         <div className="grid grid-cols-1 gap-3">
-          {filtered.map(b => (
+          {filteredSplitGroups.map(([key, group]) => (
+            <SplitBannerCard
+              key={key}
+              leftBanner={group.left}
+              rightBanner={group.right}
+              onEdit={() => { setEditSplitPair(group); setShowForm(false); setEditBanner(null); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+              onToggle={() => {
+                const ids = [group.left?.id, group.right?.id].filter(Boolean) as string[];
+                const active = !(group.left || group.right)?.is_active;
+                ids.forEach(id => toggleBanner.mutate({ id, active }));
+              }}
+              onDelete={() => {
+                if (!confirm("Eliminar este bloco split (ambos os lados)?")) return;
+                const ids = [group.left?.id, group.right?.id].filter(Boolean) as string[];
+                ids.forEach(id => deleteBanner.mutate(id));
+              }}
+            />
+          ))}
+
+          {filteredNonSplit.map(b => (
             <BannerCard
               key={b.id}
               banner={b}
-              onEdit={() => { setEditBanner(b); setShowForm(false); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+              onEdit={() => { setEditBanner(b); setShowForm(false); setEditSplitPair(null); window.scrollTo({ top: 0, behavior: "smooth" }); }}
               onToggle={() => toggleBanner.mutate({ id: b.id, active: !b.is_active })}
               onDelete={() => { if (confirm("Eliminar este banner?")) deleteBanner.mutate(b.id); }}
             />
