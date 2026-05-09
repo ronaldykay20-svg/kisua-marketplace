@@ -112,6 +112,18 @@ const SplitSideUploader = ({ side, images, onChange }: SplitSideUploaderProps) =
     const next = [...images]; next[i] = { ...next[i], link: val }; onChange(next);
   };
 
+  const handleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    fileRef.current?.click();
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.stopPropagation();
+    if (e.target.files) addFiles(e.target.files);
+    e.target.value = "";
+  };
+
   return (
     <div className={`rounded-xl border p-3 space-y-2 ${color}`}>
       <div className="flex items-center justify-between">
@@ -123,29 +135,44 @@ const SplitSideUploader = ({ side, images, onChange }: SplitSideUploaderProps) =
           <div key={i} className="space-y-1">
             <div className="relative rounded-lg overflow-hidden border border-border aspect-video">
               <img src={img.preview} alt="" className="w-full h-full object-cover" />
-              <button onClick={() => remove(i)}
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); remove(i); }}
                 className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center">
                 <X className="w-3 h-3" />
               </button>
               <span className="absolute bottom-1 left-1 text-[9px] bg-black/60 text-white px-1 rounded">{i + 1}</span>
             </div>
-            <input placeholder="Link ao clicar" value={img.link}
+            <input
+              placeholder="Link ao clicar"
+              value={img.link}
               onChange={e => setLink(i, e.target.value)}
-              className="w-full px-2 py-1 rounded-lg bg-background border border-border text-[10px] text-foreground" />
+              className="w-full px-2 py-1 rounded-lg bg-background border border-border text-[10px] text-foreground"
+            />
           </div>
         ))}
         {images.length < 4 && (
-          <button onClick={() => fileRef.current?.click()}
+          <button
+            type="button"
+            onClick={handleClick}
             className="aspect-video border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center hover:border-primary/50 hover:bg-primary/5 transition">
             <Plus className="w-5 h-5 text-muted-foreground" />
             <p className="text-[10px] text-muted-foreground mt-1">Adicionar</p>
           </button>
         )}
       </div>
-      <input ref={fileRef} type="file" accept="image/*" multiple className="hidden"
-        onChange={e => e.target.files && addFiles(e.target.files)} />
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={handleChange}
+      />
       {images.length === 0 && (
-        <button onClick={() => fileRef.current?.click()}
+        <button
+          type="button"
+          onClick={handleClick}
           className="w-full border-2 border-dashed border-border rounded-xl p-4 flex flex-col items-center gap-1 hover:border-primary/50 hover:bg-primary/5 transition">
           <Upload className="w-5 h-5 text-muted-foreground" />
           <p className="text-xs font-bold text-foreground">Upload para {label}</p>
@@ -398,7 +425,7 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
     <div className="bg-card rounded-xl border border-border p-4 mb-4">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-black text-foreground">{isEdit ? "Editar Banner" : "Novo Banner"}</h3>
-        <button onClick={onClose} className="p-1 rounded-lg hover:bg-muted text-muted-foreground">
+        <button type="button" onClick={onClose} className="p-1 rounded-lg hover:bg-muted text-muted-foreground">
           <X className="w-4 h-4" />
         </button>
       </div>
@@ -408,7 +435,9 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Dispositivo</label>
           <div className="flex gap-2">
             {DEVICES.map(d => (
-              <button key={d.value}
+              <button
+                type="button"
+                key={d.value}
                 onClick={() => { set("device", d.value); set("sort_order", getSlotsForDevice(d.value)[0].value); }}
                 className={`flex-1 py-2 rounded-lg text-xs font-bold border transition ${form.device === d.value ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-foreground hover:bg-muted"}`}>
                 {d.label}
@@ -465,13 +494,17 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
               {mainPreview ? (
                 <div className="relative rounded-xl overflow-hidden border border-border mb-1">
                   <img src={mainPreview} alt="Preview" className="w-full max-h-40 object-cover" />
-                  <button onClick={() => { setMainFile(null); setMainPreview(""); set("image_url", ""); }}
+                  <button
+                    type="button"
+                    onClick={() => { setMainFile(null); setMainPreview(""); set("image_url", ""); }}
                     className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center">
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
               ) : (
-                <button onClick={() => mainFileRef.current?.click()}
+                <button
+                  type="button"
+                  onClick={() => mainFileRef.current?.click()}
                   className="w-full border-2 border-dashed border-border rounded-xl p-5 flex flex-col items-center gap-2 hover:border-primary/50 hover:bg-primary/5 transition">
                   <Upload className="w-5 h-5 text-muted-foreground" />
                   <p className="text-xs font-bold text-foreground">Clique para fazer upload</p>
@@ -495,14 +528,18 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
                   {form.extraImgPreviews.map((p, i) => (
                     <div key={i} className="relative rounded-lg overflow-hidden border border-border aspect-square">
                       <img src={p} alt={`Extra ${i + 1}`} className="w-full h-full object-cover" />
-                      <button onClick={() => removeExtra(i)}
+                      <button
+                        type="button"
+                        onClick={() => removeExtra(i)}
                         className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center">
                         <X className="w-3 h-3" />
                       </button>
                     </div>
                   ))}
                   {form.extraImgPreviews.length < needsExtra && (
-                    <button onClick={() => extraFileRef.current?.click()}
+                    <button
+                      type="button"
+                      onClick={() => extraFileRef.current?.click()}
                       className="aspect-square border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center hover:border-primary/50 hover:bg-primary/5 transition">
                       <Plus className="w-5 h-5 text-muted-foreground" />
                       <p className="text-[10px] text-muted-foreground mt-1">Adicionar</p>
@@ -548,7 +585,10 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Posição do texto</label>
           <div className="grid grid-cols-3 gap-1.5">
             {TEXT_POSITIONS.map(p => (
-              <button key={p.value} onClick={() => set("text_position", p.value)}
+              <button
+                type="button"
+                key={p.value}
+                onClick={() => set("text_position", p.value)}
                 className={`py-2 rounded-lg text-[10px] font-bold border transition text-center ${form.text_position === p.value ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-foreground hover:bg-muted"}`}>
                 {p.label}
               </button>
@@ -573,7 +613,9 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
         <div className="rounded-xl border border-border bg-muted/40 p-3 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-foreground">Fundo do texto (caixa)</span>
-            <button onClick={() => set("text_bg_enabled", !form.text_bg_enabled)}
+            <button
+              type="button"
+              onClick={() => set("text_bg_enabled", !form.text_bg_enabled)}
               className={`w-10 h-6 rounded-full transition relative ${form.text_bg_enabled ? "bg-primary" : "bg-muted-foreground/30"}`}>
               <span className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${form.text_bg_enabled ? "translate-x-4" : ""}`} />
             </button>
@@ -590,13 +632,18 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
 
         <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted border border-border">
           <span className="text-sm font-bold text-foreground">Activo</span>
-          <button onClick={() => set("is_active", !form.is_active)}
+          <button
+            type="button"
+            onClick={() => set("is_active", !form.is_active)}
             className={`w-10 h-6 rounded-full transition relative ${form.is_active ? "bg-primary" : "bg-muted-foreground/30"}`}>
             <span className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${form.is_active ? "translate-x-4" : ""}`} />
           </button>
         </div>
 
-        <button onClick={save} disabled={saving}
+        <button
+          type="button"
+          onClick={save}
+          disabled={saving}
           className="w-full py-3 bg-primary text-primary-foreground text-sm font-bold rounded-xl disabled:opacity-50 flex items-center justify-center gap-2">
           {saving
             ? <><Loader2 className="w-4 h-4 animate-spin" /> A guardar...</>
@@ -658,13 +705,13 @@ const SplitBannerCard = ({ leftBanner, rightBanner, onEdit, onToggle, onDelete }
             </span>
           </div>
           <div className="flex gap-1 flex-shrink-0">
-            <button onClick={onEdit} className="p-1.5 rounded-lg bg-muted text-foreground hover:bg-accent transition">
+            <button type="button" onClick={onEdit} className="p-1.5 rounded-lg bg-muted text-foreground hover:bg-accent transition">
               <Pencil className="w-3.5 h-3.5" />
             </button>
-            <button onClick={onToggle} className={`p-1.5 rounded-lg transition ${isActive ? "text-green-500 bg-green-500/10" : "text-muted-foreground bg-muted"}`}>
+            <button type="button" onClick={onToggle} className={`p-1.5 rounded-lg transition ${isActive ? "text-green-500 bg-green-500/10" : "text-muted-foreground bg-muted"}`}>
               {isActive ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
             </button>
-            <button onClick={onDelete} className="p-1.5 rounded-lg text-destructive bg-destructive/10 hover:bg-destructive/20 transition">
+            <button type="button" onClick={onDelete} className="p-1.5 rounded-lg text-destructive bg-destructive/10 hover:bg-destructive/20 transition">
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -718,13 +765,13 @@ const BannerCard = ({ banner, onEdit, onToggle, onDelete }: CardProps) => {
             </span>
           </div>
           <div className="flex gap-1 flex-shrink-0">
-            <button onClick={onEdit} className="p-1.5 rounded-lg bg-muted text-foreground hover:bg-accent transition">
+            <button type="button" onClick={onEdit} className="p-1.5 rounded-lg bg-muted text-foreground hover:bg-accent transition">
               <Pencil className="w-3.5 h-3.5" />
             </button>
-            <button onClick={onToggle} className={`p-1.5 rounded-lg transition ${banner.is_active ? "text-green-500 bg-green-500/10" : "text-muted-foreground bg-muted"}`}>
+            <button type="button" onClick={onToggle} className={`p-1.5 rounded-lg transition ${banner.is_active ? "text-green-500 bg-green-500/10" : "text-muted-foreground bg-muted"}`}>
               {banner.is_active ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
             </button>
-            <button onClick={onDelete} className="p-1.5 rounded-lg text-destructive bg-destructive/10 hover:bg-destructive/20 transition">
+            <button type="button" onClick={onDelete} className="p-1.5 rounded-lg text-destructive bg-destructive/10 hover:bg-destructive/20 transition">
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -790,7 +837,6 @@ const AdminBannersTab = () => {
     desktop: banners.filter(b => b.device === "desktop").length,
   };
 
-  // Agrupar splits por device+slot num único card
   const splitGroups = new Map<string, { left: BannerRow | null; right: BannerRow | null }>();
   const nonSplitBanners: BannerRow[] = [];
 
@@ -842,7 +888,9 @@ const AdminBannersTab = () => {
       ) : showForm ? (
         <BannerForm existingBanners={banners} onClose={closeForm} onSaved={invalidate} />
       ) : (
-        <button onClick={() => setShowForm(true)}
+        <button
+          type="button"
+          onClick={() => setShowForm(true)}
           className="w-full py-3 bg-primary text-primary-foreground text-xs font-bold rounded-xl flex items-center justify-center gap-2">
           <Plus className="w-4 h-4" /> Novo Banner
         </button>
@@ -851,12 +899,17 @@ const AdminBannersTab = () => {
       <div className="space-y-2">
         <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
           {[{ value: "all", label: "Todos" }, ...DEVICES].map(d => (
-            <button key={d.value} onClick={() => setFilterDevice(d.value as any)}
+            <button
+              type="button"
+              key={d.value}
+              onClick={() => setFilterDevice(d.value as any)}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold border whitespace-nowrap transition ${filterDevice === d.value ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border text-foreground hover:bg-muted"}`}>
               {d.label}
             </button>
           ))}
-          <button onClick={() => setCollapsed(c => !c)}
+          <button
+            type="button"
+            onClick={() => setCollapsed(c => !c)}
             className="ml-auto px-2.5 py-1.5 rounded-lg text-xs font-bold border border-border bg-card text-foreground hover:bg-muted flex items-center gap-1">
             {collapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
             {collapsed ? "Expandir" : "Colapsar"}
@@ -865,12 +918,17 @@ const AdminBannersTab = () => {
 
         {formatsWithBanners.length > 0 && (
           <div className="flex gap-1 overflow-x-auto no-scrollbar">
-            <button onClick={() => setFilterFormat("all")}
+            <button
+              type="button"
+              onClick={() => setFilterFormat("all")}
               className={`px-3 py-1.5 text-[10px] font-bold rounded-lg border whitespace-nowrap ${filterFormat === "all" ? "bg-primary text-primary-foreground border-primary" : "bg-card text-foreground border-border"}`}>
               Todos ({banners.length})
             </button>
             {formatsWithBanners.map(f => (
-              <button key={f.value} onClick={() => setFilterFormat(f.value)}
+              <button
+                type="button"
+                key={f.value}
+                onClick={() => setFilterFormat(f.value)}
                 className={`px-3 py-1.5 text-[10px] font-bold rounded-lg border whitespace-nowrap ${filterFormat === f.value ? "bg-primary text-primary-foreground border-primary" : "bg-card text-foreground border-border"}`}>
                 {f.label} ({banners.filter(b => b.format === f.value).length})
               </button>
