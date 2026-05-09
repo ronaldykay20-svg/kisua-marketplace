@@ -9,8 +9,6 @@ import { toast } from "sonner";
 import { STORAGE_BUCKETS } from "@/lib/storage";
 import { HOME_BANNER_SLOTS, getHomeSlotLabel } from "@/lib/bannerSlots";
 
-// ─── Tipos ────────────────────────────────────────────────────────────────────
-
 type Device = "mobile" | "tablet" | "desktop";
 
 const DEVICES: { value: Device; label: string }[] = [
@@ -20,33 +18,33 @@ const DEVICES: { value: Device; label: string }[] = [
 ];
 
 const FORMATS = [
-  { value: "hero",           label: "Hero (carrossel)"  },
-  { value: "hero-full",      label: "Hero Full"         },
-  { value: "wide",           label: "Wide"              },
-  { value: "wide-slim",      label: "Wide Slim"         },
-  { value: "duo-square",     label: "Duo (2 imagens)"   },
-  { value: "trio-banner",    label: "Trio (3 imagens)"  },
-  { value: "mosaic",         label: "Mosaico"           },
-  { value: "promo",          label: "Promo (4 imagens)" },
-  { value: "square",         label: "Quadrado"          },
-  { value: "square-rounded", label: "Quadrado Redondo"  },
-  { value: "vertical",       label: "Vertical"          },
-  { value: "story-card",     label: "Story Card"        },
-  { value: "tall",           label: "Tall"              },
-  { value: "natural",        label: "Natural"           },
+  { value: "hero",           label: "Hero (carrossel)"           },
+  { value: "hero-full",      label: "Hero Full"                  },
+  { value: "wide",           label: "Wide"                       },
+  { value: "wide-slim",      label: "Wide Slim"                  },
+  { value: "duo-square",     label: "Duo (2 imagens)"            },
+  { value: "trio-banner",    label: "Trio (3 imagens)"           },
+  { value: "mosaic",         label: "Mosaico"                    },
+  { value: "promo",          label: "Promo (4 imagens)"          },
+  { value: "square",         label: "Quadrado"                   },
+  { value: "square-rounded", label: "Quadrado Redondo"           },
+  { value: "vertical",       label: "Vertical"                   },
+  { value: "story-card",     label: "Story Card"                 },
+  { value: "tall",           label: "Tall"                       },
+  { value: "natural",        label: "Natural"                    },
+  { value: "split",          label: "Split (2 colunas livres)"   }, // ← NOVO
 ];
 
-// 9 posições de texto
 const TEXT_POSITIONS = [
-  { value: "top-left",      label: "↖ Cima Esquerda"    },
-  { value: "top-center",    label: "↑ Cima Centro"      },
-  { value: "top-right",     label: "↗ Cima Direita"     },
-  { value: "middle-left",   label: "← Meio Esquerda"    },
-  { value: "middle-center", label: "· Meio Centro"      },
-  { value: "middle-right",  label: "→ Meio Direita"     },
-  { value: "bottom-left",   label: "↙ Baixo Esquerda"   },
-  { value: "bottom-center", label: "↓ Baixo Centro"     },
-  { value: "bottom-right",  label: "↘ Baixo Direita"    },
+  { value: "top-left",      label: "↖ Cima Esquerda"  },
+  { value: "top-center",    label: "↑ Cima Centro"    },
+  { value: "top-right",     label: "↗ Cima Direita"   },
+  { value: "middle-left",   label: "← Meio Esquerda"  },
+  { value: "middle-center", label: "· Meio Centro"    },
+  { value: "middle-right",  label: "→ Meio Direita"   },
+  { value: "bottom-left",   label: "↙ Baixo Esquerda" },
+  { value: "bottom-center", label: "↓ Baixo Centro"   },
+  { value: "bottom-right",  label: "↘ Baixo Direita"  },
 ];
 
 const SIDEBAR_SLOTS = [101, 102, 103];
@@ -74,10 +72,9 @@ interface BannerRow {
   text_bg_color: string | null;
   category_id: string | null;
   device: Device | null;
+  split_side: "left" | "right" | null; // ← NOVO
   created_at: string;
 }
-
-// ─── Upload helper ────────────────────────────────────────────────────────────
 
 async function uploadBannerImage(file: File): Promise<string> {
   const ext = file.name.split(".").pop();
@@ -89,8 +86,6 @@ async function uploadBannerImage(file: File): Promise<string> {
   const { data } = supabase.storage.from(STORAGE_BUCKETS.banners).getPublicUrl(path);
   return data.publicUrl;
 }
-
-// ─── Formulário ───────────────────────────────────────────────────────────────
 
 interface FormProps {
   initial?: BannerRow | null;
@@ -105,6 +100,7 @@ type FormState = Partial<BannerRow> & {
   text_color: string;
   text_bg_color: string;
   text_bg_enabled: boolean;
+  split_side: "left" | "right"; // ← NOVO
 };
 
 const emptyForm = (): FormState => ({
@@ -114,6 +110,7 @@ const emptyForm = (): FormState => ({
   text_position: "bottom-left", category_id: null, device: "mobile",
   text_color: "#ffffff", text_bg_color: "#000000", text_bg_enabled: false,
   extraImgFiles: [], extraImgPreviews: [],
+  split_side: "left", // ← NOVO
 });
 
 const BannerForm = ({ initial, existingSlots, onClose, onSaved }: FormProps) => {
@@ -125,13 +122,14 @@ const BannerForm = ({ initial, existingSlots, onClose, onSaved }: FormProps) => 
     initial
       ? {
           ...initial,
-          extra_images:    initial.extra_images || [],
-          extra_links:     initial.extra_links  || [],
-          text_color:      (initial as any).text_color    || "#ffffff",
-          text_bg_color:   (initial as any).text_bg_color || "#000000",
-          text_bg_enabled: !!(initial as any).text_bg_color,
-          extraImgFiles:   [],
+          extra_images:     initial.extra_images || [],
+          extra_links:      initial.extra_links  || [],
+          text_color:       (initial as any).text_color    || "#ffffff",
+          text_bg_color:    (initial as any).text_bg_color || "#000000",
+          text_bg_enabled:  !!(initial as any).text_bg_color,
+          extraImgFiles:    [],
           extraImgPreviews: (initial.extra_images || []) as string[],
+          split_side:       (initial.split_side || "left") as "left" | "right", // ← NOVO
         }
       : emptyForm(),
   );
@@ -169,10 +167,12 @@ const BannerForm = ({ initial, existingSlots, onClose, onSaved }: FormProps) => 
     });
   };
 
-  // Slots disponíveis para este device (exclui os já ocupados, excepto o próprio ao editar)
   const allSlots = HOME_BANNER_SLOTS;
   const slotOccupied = (slotVal: number) =>
-    existingSlots.includes(slotVal) && slotVal !== initial?.sort_order;
+    /* split permite vários banners no mesmo slot */
+    form.format !== "split" &&
+    existingSlots.includes(slotVal) &&
+    slotVal !== initial?.sort_order;
 
   const save = async () => {
     if (!mainPreview && !mainFile) { toast.error("Adiciona a imagem principal"); return; }
@@ -205,6 +205,7 @@ const BannerForm = ({ initial, existingSlots, onClose, onSaved }: FormProps) => 
         text_bg_color: form.text_bg_enabled ? (form.text_bg_color || "#000000") : null,
         category_id:   form.category_id   || null,
         device:        form.device        || "mobile",
+        split_side:    form.format === "split" ? (form.split_side || "left") : null, // ← NOVO
       };
 
       if (isEdit) {
@@ -226,12 +227,15 @@ const BannerForm = ({ initial, existingSlots, onClose, onSaved }: FormProps) => 
   };
 
   const needsExtra = EXTRA_COUNT[form.format || "hero"] || 0;
+  const isSplit = form.format === "split";
 
   return (
     <div className="bg-card rounded-xl border border-border p-4 mb-4">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-black text-foreground">{isEdit ? "Editar Banner" : "Novo Banner"}</h3>
-        <button onClick={onClose} className="p-1 rounded-lg hover:bg-muted text-muted-foreground"><X className="w-4 h-4" /></button>
+        <button onClick={onClose} className="p-1 rounded-lg hover:bg-muted text-muted-foreground">
+          <X className="w-4 h-4" />
+        </button>
       </div>
 
       <div className="space-y-3">
@@ -249,9 +253,11 @@ const BannerForm = ({ initial, existingSlots, onClose, onSaved }: FormProps) => 
           </div>
         </div>
 
-        {/* Slot — dropdown com ocupados desactivados */}
+        {/* Slot */}
         <div>
-          <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Posição na página</label>
+          <label className="text-[11px] font-bold text-muted-foreground mb-1 block">
+            Posição na página {isSplit && <span className="text-primary">(mesmo número = mesmo bloco split)</span>}
+          </label>
           <select
             value={form.sort_order || 1}
             onChange={e => set("sort_order", Number(e.target.value))}
@@ -280,6 +286,37 @@ const BannerForm = ({ initial, existingSlots, onClose, onSaved }: FormProps) => 
           </select>
         </div>
 
+        {/* ── NOVO: Coluna split ── */}
+        {isSplit && (
+          <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-2">
+            <label className="text-[11px] font-bold text-primary block">
+              Coluna do bloco Split
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                { value: "left",  label: "◧  Esquerda" },
+                { value: "right", label: "◨  Direita"  },
+              ] as const).map(s => (
+                <button
+                  key={s.value}
+                  onClick={() => set("split_side", s.value)}
+                  className={`py-2.5 rounded-xl text-sm font-bold border transition ${
+                    form.split_side === s.value
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background border-border text-foreground hover:bg-muted"
+                  }`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-muted-foreground leading-relaxed">
+              Banners com o <strong>mesmo slot</strong> e o mesmo <strong>dispositivo</strong> formam um bloco.
+              Cada lado pode ter <strong>1 a 4 banners</strong> — todos dividem a altura igualmente.
+            </p>
+          </div>
+        )}
+
         {/* Imagem principal */}
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Imagem principal *</label>
@@ -301,14 +338,16 @@ const BannerForm = ({ initial, existingSlots, onClose, onSaved }: FormProps) => 
           )}
           <input ref={mainFileRef} type="file" accept="image/*" className="hidden"
             onChange={e => e.target.files?.[0] && handleMainFile(e.target.files[0])} />
-          <input placeholder="Ou cole o URL da imagem"
+          <input
+            placeholder="Ou cole o URL da imagem"
             value={mainFile ? "" : (form.image_url || "")}
             onChange={e => { set("image_url", e.target.value); setMainPreview(e.target.value); setMainFile(null); }}
-            className="w-full mt-1.5 px-3 py-2 rounded-lg bg-muted border border-border text-xs text-foreground" />
+            className="w-full mt-1.5 px-3 py-2 rounded-lg bg-muted border border-border text-xs text-foreground"
+          />
         </div>
 
-        {/* Imagens extra */}
-        {needsExtra > 0 && (
+        {/* Imagens extra — não aparecem no formato split */}
+        {!isSplit && needsExtra > 0 && (
           <div>
             <label className="text-[11px] font-bold text-muted-foreground mb-1 block">
               Imagens extra ({form.extraImgPreviews.length}/{needsExtra} recomendadas)
@@ -363,7 +402,7 @@ const BannerForm = ({ initial, existingSlots, onClose, onSaved }: FormProps) => 
             className="px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
         </div>
 
-        {/* Posição do texto — 9 posições em grid 3x3 */}
+        {/* Posição do texto */}
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Posição do texto</label>
           <div className="grid grid-cols-3 gap-1.5">
@@ -386,7 +425,6 @@ const BannerForm = ({ initial, existingSlots, onClose, onSaved }: FormProps) => 
             <input value={form.text_color || "#ffffff"}
               onChange={e => set("text_color", e.target.value)}
               className="flex-1 px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
-            {/* Preview */}
             <span className="px-3 py-1.5 rounded-lg text-xs font-black border border-border"
               style={{ color: form.text_color || "#ffffff", backgroundColor: form.text_bg_enabled ? (form.text_bg_color || "#000000") : "transparent" }}>
               Texto
@@ -394,7 +432,7 @@ const BannerForm = ({ initial, existingSlots, onClose, onSaved }: FormProps) => 
           </div>
         </div>
 
-        {/* Fundo do texto (caixa) */}
+        {/* Fundo do texto */}
         <div className="rounded-xl border border-border bg-muted/40 p-3 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-foreground">Fundo do texto (caixa)</span>
@@ -411,7 +449,7 @@ const BannerForm = ({ initial, existingSlots, onClose, onSaved }: FormProps) => 
               <input value={form.text_bg_color || "#000000"}
                 onChange={e => set("text_bg_color", e.target.value)}
                 className="flex-1 px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
-              <p className="text-[10px] text-muted-foreground">Podes usar hex com transparência ex: #00000080</p>
+              <p className="text-[10px] text-muted-foreground">ex: #00000080</p>
             </div>
           )}
         </div>
@@ -436,8 +474,6 @@ const BannerForm = ({ initial, existingSlots, onClose, onSaved }: FormProps) => 
     </div>
   );
 };
-
-// ─── Card ─────────────────────────────────────────────────────────────────────
 
 interface CardProps {
   banner: BannerRow;
@@ -465,6 +501,12 @@ const BannerCard = ({ banner, onEdit, onToggle, onDelete }: CardProps) => {
               +{imgCount - 1} imgs
             </span>
           )}
+          {/* Badge split_side */}
+          {banner.format === "split" && banner.split_side && (
+            <span className="absolute top-1.5 left-1.5 bg-primary/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
+              {banner.split_side === "left" ? "◧ Esq" : "◨ Dir"}
+            </span>
+          )}
         </div>
       )}
       <div className="p-3">
@@ -484,11 +526,15 @@ const BannerCard = ({ banner, onEdit, onToggle, onDelete }: CardProps) => {
             </span>
           </div>
           <div className="flex gap-1 flex-shrink-0">
-            <button onClick={onEdit} className="p-1.5 rounded-lg bg-muted text-foreground hover:bg-accent transition"><Pencil className="w-3.5 h-3.5" /></button>
+            <button onClick={onEdit} className="p-1.5 rounded-lg bg-muted text-foreground hover:bg-accent transition">
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
             <button onClick={onToggle} className={`p-1.5 rounded-lg transition ${banner.is_active ? "text-green-500 bg-green-500/10" : "text-muted-foreground bg-muted"}`}>
               {banner.is_active ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
             </button>
-            <button onClick={onDelete} className="p-1.5 rounded-lg text-destructive bg-destructive/10 hover:bg-destructive/20 transition"><Trash2 className="w-3.5 h-3.5" /></button>
+            <button onClick={onDelete} className="p-1.5 rounded-lg text-destructive bg-destructive/10 hover:bg-destructive/20 transition">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
         {banner.title && <p className="text-xs font-bold text-foreground truncate">{banner.title}</p>}
@@ -497,8 +543,6 @@ const BannerCard = ({ banner, onEdit, onToggle, onDelete }: CardProps) => {
     </div>
   );
 };
-
-// ─── Tab principal ─────────────────────────────────────────────────────────────
 
 const AdminBannersTab = () => {
   const queryClient = useQueryClient();
@@ -558,8 +602,9 @@ const AdminBannersTab = () => {
     .filter(b => filterDevice === "all" || (b.device || "mobile") === filterDevice)
     .filter(b => filterFormat === "all" || b.format === filterFormat);
 
-  // Slots já ocupados (para bloquear no dropdown)
-  const existingSlots = banners.map(b => b.sort_order);
+  const existingSlots = banners
+    .filter(b => b.format !== "split")
+    .map(b => b.sort_order);
 
   const handleEdit = (b: BannerRow) => {
     setEditBanner(b);
@@ -572,7 +617,6 @@ const AdminBannersTab = () => {
   return (
     <div className="space-y-4">
 
-      {/* Stats */}
       <div className="grid grid-cols-5 gap-1.5">
         {[
           { label: "Total",   value: stats.total,   color: "text-primary border-primary/20 bg-primary/5" },
@@ -588,7 +632,6 @@ const AdminBannersTab = () => {
         ))}
       </div>
 
-      {/* Formulário */}
       {editBanner ? (
         <BannerForm initial={editBanner} existingSlots={existingSlots} onClose={closeForm} onSaved={invalidate} />
       ) : showForm ? (
@@ -600,7 +643,6 @@ const AdminBannersTab = () => {
         </button>
       )}
 
-      {/* Filtros */}
       <div className="space-y-2">
         <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
           {[{ value: "all", label: "Todos" }, ...DEVICES].map(d => (
@@ -632,7 +674,6 @@ const AdminBannersTab = () => {
         )}
       </div>
 
-      {/* Lista */}
       {isLoading && (
         <div className="flex justify-center py-10">
           <Loader2 className="w-5 h-5 animate-spin text-primary" />
