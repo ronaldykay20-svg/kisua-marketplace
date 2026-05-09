@@ -73,20 +73,24 @@ const HomeBannerSlot = ({
   if (isSplitSlot) {
     if (splitLeft.length === 0 && splitRight.length === 0) return null;
 
-    const blockH = compact
-      ? "min-h-[200px]"
+    // Altura total do bloco
+    const totalMinH = compact
+      ? 200
       : sidebar
-        ? "min-h-[400px]"
-        : "min-h-[260px] sm:min-h-[340px]";
+        ? 400
+        : 340;
 
     const renderSide = (items: any[]) => (
-      <div className={`flex flex-col gap-1 ${blockH}`}>
+      <div
+        className="flex flex-col gap-1"
+        style={{ minHeight: totalMinH }}
+      >
         {items.map((b: any) => (
           <a
             key={b.id}
             href={b.cta_link || "#"}
-            className="relative flex-1 block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md"
-            style={{ minHeight: 0 }}
+            className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md"
+            style={{ flex: 1, minHeight: 0 }}
           >
             <img
               src={b.image_url}
@@ -114,7 +118,10 @@ const HomeBannerSlot = ({
 
     return (
       <section className={sectionCls}>
-        <div className={`grid ${gridCols} gap-1 ${blockH}`}>
+        <div
+          className={`grid ${gridCols} gap-1`}
+          style={{ minHeight: totalMinH }}
+        >
           {splitLeft.length  > 0 && renderSide(splitLeft)}
           {splitRight.length > 0 && renderSide(splitRight)}
         </div>
