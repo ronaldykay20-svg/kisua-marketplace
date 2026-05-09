@@ -51,9 +51,9 @@ const TabletLayout = () => (
       <HomeBannerSlot slot={3} device="tablet" compact />
     </div>
 
-    {/* Vendedores em destaque */}
+    {/* Vendedores em destaque — 2 lado a lado */}
     <div className="mt-4">
-      <FeaturedSellers />
+      <FeaturedSellers layout="tablet" />
     </div>
 
     {/* Banner wide */}
@@ -123,7 +123,7 @@ const DesktopLayout = () => (
         </div>
 
         <div className="mt-4">
-          <FeaturedSellers />
+          <FeaturedSellers layout="desktop" />
         </div>
 
         <HomeBannerSlot slot={4} device="desktop" />
