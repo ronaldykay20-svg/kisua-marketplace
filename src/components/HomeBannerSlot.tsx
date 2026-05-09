@@ -5,11 +5,8 @@ import type { DeviceLayout } from "@/hooks/useDeviceLayout";
 
 interface HomeBannerSlotProps {
   slot: number;
-  /** Dispositivo actual — usado para buscar o banner correcto no Supabase */
   device?: DeviceLayout;
-  /** Modo compacto (dentro de grid) — remove padding lateral e reduz alturas */
   compact?: boolean;
-  /** Modo sidebar (coluna direita no desktop) */
   sidebar?: boolean;
 }
 
@@ -37,8 +34,20 @@ const HomeBannerSlot = ({
 }: HomeBannerSlotProps) => {
   const { data: banners = [] } = useBanners(undefined, device);
 
+  // Todos os banners deste slot + device
+  const slotBanners = useMemo(() =>
+    banners.filter(
+      (b) => b.sort_order === slot && (b as any).device === device,
+    ),
+    [banners, slot, device],
+  );
+
+  // Split: separar por lado
+  const splitLeft  = useMemo(() => slotBanners.filter((b: any) => b.split_side === "left"),  [slotBanners]);
+  const splitRight = useMemo(() => slotBanners.filter((b: any) => b.split_side === "right"), [slotBanners]);
+
   /*
-   * Prioridade de correspondência:
+   * Prioridade de correspondência para formatos normais:
    * 1. Banner com device == dispositivo actual e sort_order == slot
    * 2. Banner com device == "mobile" e sort_order == slot (fallback)
    */
@@ -72,6 +81,86 @@ const HomeBannerSlot = ({
     return () => window.clearInterval(t);
   }, [banner, images.length]);
 
+  // Wrapper de secção
+  const sectionCls = compact || sidebar
+    ? "w-full"
+    : "container mx-auto px-3 pt-3";
+
+  // ── Split ──
+  const isSplitSlot = slotBanners.some((b: any) => b.format === "split");
+  if (isSplitSlot) {
+    if (splitLeft.length === 0 && splitRight.length === 0) return null;
+
+    // Altura de cada imagem dentro da coluna
+    const imgCls = compact
+      ? "w-full object-cover aspect-[4/3]"
+      : sidebar
+        ? "w-full object-cover aspect-[3/4]"
+        : "w-full object-cover aspect-[4/3] sm:aspect-[3/2]";
+
+    return (
+      <section className={sectionCls}>
+        <div className="grid grid-cols-2 gap-2">
+          {/* Coluna Esquerda */}
+          <div className="flex flex-col gap-2">
+            {splitLeft.map((b: any) => (
+              <a
+                key={b.id}
+                href={b.cta_link || "#"}
+                className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md"
+              >
+                <img
+                  src={b.image_url}
+                  alt={b.title || "Banner"}
+                  className={imgCls}
+                  loading="lazy"
+                />
+                {b.title && (
+                  <>
+                    <div className={`absolute inset-0 ${gradientDir(b.text_position)}`} />
+                    <div className={`absolute inset-0 flex flex-col p-2 ${getPos(b.text_position).wrapper}`}>
+                      <p className={`text-xs font-bold text-white drop-shadow-lg ${getPos(b.text_position).align}`}>
+                        {b.title}
+                      </p>
+                    </div>
+                  </>
+                )}
+              </a>
+            ))}
+          </div>
+
+          {/* Coluna Direita */}
+          <div className="flex flex-col gap-2">
+            {splitRight.map((b: any) => (
+              <a
+                key={b.id}
+                href={b.cta_link || "#"}
+                className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md"
+              >
+                <img
+                  src={b.image_url}
+                  alt={b.title || "Banner"}
+                  className={imgCls}
+                  loading="lazy"
+                />
+                {b.title && (
+                  <>
+                    <div className={`absolute inset-0 ${gradientDir(b.text_position)}`} />
+                    <div className={`absolute inset-0 flex flex-col p-2 ${getPos(b.text_position).wrapper}`}>
+                      <p className={`text-xs font-bold text-white drop-shadow-lg ${getPos(b.text_position).align}`}>
+                        {b.title}
+                      </p>
+                    </div>
+                  </>
+                )}
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   if (!banner) return null;
 
   const image   = images[currentImage] || images[0];
@@ -80,7 +169,6 @@ const HomeBannerSlot = ({
   const pos     = getPos(banner.text_position);
   const hasText = !!(banner.title || banner.subtitle || banner.cta_text);
 
-  /* Alturas adaptadas ao contexto */
   const heroH = sidebar
     ? "min-h-[320px]"
     : compact
@@ -92,11 +180,6 @@ const HomeBannerSlot = ({
     : compact
       ? "min-h-[160px] sm:min-h-[200px]"
       : "min-h-[260px] sm:min-h-[320px] md:min-h-[380px]";
-
-  /* Wrapper de secção — sem padding extra quando compact ou sidebar */
-  const sectionCls = compact || sidebar
-    ? "w-full"
-    : "container mx-auto px-3 pt-3";
 
   const withCategoryProducts = (children: React.ReactNode) => (
     <>
@@ -112,16 +195,10 @@ const HomeBannerSlot = ({
     const h = banner.format === "hero-full" ? heroFullH : heroH;
     return withCategoryProducts(
       <section className={sectionCls}>
-        <a
-          href={href}
-          className="block rounded-card overflow-hidden border border-border"
-        >
+        <a href={href} className="block rounded-card overflow-hidden border border-border">
           <div className={`relative ${h}`}>
-            <img
-              src={image}
-              alt={banner.title || "Banner"}
-              className="absolute inset-0 h-full w-full object-cover"
-            />
+            <img src={image} alt={banner.title || "Banner"}
+              className="absolute inset-0 h-full w-full object-cover" />
             {hasText && (
               <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
             )}
@@ -129,16 +206,12 @@ const HomeBannerSlot = ({
               <div className={`relative flex h-full flex-col p-5 sm:p-8 ${pos.wrapper} ${h}`}>
                 <div className={`max-w-[72%] space-y-1.5 ${pos.align}`}>
                   {banner.subtitle && (
-                    <p className="text-xs font-bold text-white/80 drop-shadow-md">
-                      {banner.subtitle}
-                    </p>
+                    <p className="text-xs font-bold text-white/80 drop-shadow-md">{banner.subtitle}</p>
                   )}
                   {banner.title && (
-                    <h2
-                      className={`font-black leading-tight text-white whitespace-pre-line drop-shadow-lg ${
-                        compact ? "text-sm sm:text-base" : "text-xl sm:text-3xl"
-                      }`}
-                    >
+                    <h2 className={`font-black leading-tight text-white whitespace-pre-line drop-shadow-lg ${
+                      compact ? "text-sm sm:text-base" : "text-xl sm:text-3xl"
+                    }`}>
                       {banner.title}
                     </h2>
                   )}
@@ -153,12 +226,8 @@ const HomeBannerSlot = ({
             {images.length > 1 && (
               <div className="absolute bottom-3 right-3 flex gap-1.5">
                 {images.map((_, i) => (
-                  <span
-                    key={`${banner.id}-${i}`}
-                    className={`h-1.5 w-1.5 rounded-full ${
-                      i === currentImage ? "bg-white" : "bg-white/35"
-                    }`}
-                  />
+                  <span key={`${banner.id}-${i}`}
+                    className={`h-1.5 w-1.5 rounded-full ${i === currentImage ? "bg-white" : "bg-white/35"}`} />
                 ))}
               </div>
             )}
@@ -168,35 +237,25 @@ const HomeBannerSlot = ({
     );
   }
 
-  // ── Wide / Publicidade ──
+  // ── Wide ──
   if (banner.format === "wide" || banner.format === "wide-slim") {
     return withCategoryProducts(
       <section className={sectionCls}>
-        <a
-          href={href}
-          className="block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md"
-        >
-          <div
-            className={
-              banner.format === "wide-slim"
-                ? "aspect-[4/1]"
-                : compact
-                  ? "aspect-[3/1]"
-                  : "aspect-[21/9] sm:aspect-[16/6] md:aspect-[16/5]"
-            }
-          >
-            <img
-              src={image}
-              alt={banner.title || "Banner"}
-              className="h-full w-full object-cover"
-              loading="lazy"
-            />
+        <a href={href}
+          className="block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
+          <div className={
+            banner.format === "wide-slim"
+              ? "aspect-[4/1]"
+              : compact
+                ? "aspect-[3/1]"
+                : "aspect-[21/9] sm:aspect-[16/6] md:aspect-[16/5]"
+          }>
+            <img src={image} alt={banner.title || "Banner"}
+              className="h-full w-full object-cover" loading="lazy" />
           </div>
         </a>
         {!compact && (
-          <p className="mt-0.5 text-right text-[9px] text-muted-foreground">
-            Publicidade
-          </p>
+          <p className="mt-0.5 text-right text-[9px] text-muted-foreground">Publicidade</p>
         )}
       </section>,
     );
@@ -208,17 +267,10 @@ const HomeBannerSlot = ({
       <section className={sectionCls}>
         <div className="grid grid-cols-2 gap-2.5">
           {[0, 1].map((i) => (
-            <a
-              key={`${banner.id}-${i}`}
-              href={linkFor(i)}
-              className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md"
-            >
-              <img
-                src={images[i] || images[0]}
-                alt={banner.title || "Banner"}
-                className="aspect-square sm:aspect-[5/4] w-full object-cover"
-                loading="lazy"
-              />
+            <a key={`${banner.id}-${i}`} href={linkFor(i)}
+              className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
+              <img src={images[i] || images[0]} alt={banner.title || "Banner"}
+                className="aspect-square sm:aspect-[5/4] w-full object-cover" loading="lazy" />
               {i === 0 && banner.title && (
                 <>
                   <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
@@ -247,17 +299,10 @@ const HomeBannerSlot = ({
       <section className={sectionCls}>
         <div className="grid grid-cols-3 gap-2.5">
           {[0, 1, 2].map((i) => (
-            <a
-              key={`${banner.id}-${i}`}
-              href={linkFor(i)}
-              className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md"
-            >
-              <img
-                src={images[i] || images[0]}
-                alt={banner.title || "Banner"}
-                className="aspect-[4/3] sm:aspect-[5/4] w-full object-cover"
-                loading="lazy"
-              />
+            <a key={`${banner.id}-${i}`} href={linkFor(i)}
+              className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
+              <img src={images[i] || images[0]} alt={banner.title || "Banner"}
+                className="aspect-[4/3] sm:aspect-[5/4] w-full object-cover" loading="lazy" />
               {i === 0 && banner.title && (
                 <>
                   <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
@@ -280,17 +325,11 @@ const HomeBannerSlot = ({
     return withCategoryProducts(
       <section className={sectionCls}>
         <div className="grid grid-cols-2 gap-2.5" style={{ minHeight: 280 }}>
-          <a
-            href={linkFor(0)}
-            className="relative row-span-2 block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md"
-          >
+          <a href={linkFor(0)}
+            className="relative row-span-2 block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
             <div className="relative h-full min-h-[280px] md:min-h-[340px]">
-              <img
-                src={images[0]}
-                alt={banner.title || "Banner"}
-                className="absolute inset-0 h-full w-full object-cover"
-                loading="lazy"
-              />
+              <img src={images[0]} alt={banner.title || "Banner"}
+                className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
               {(banner.title || banner.cta_text) && (
                 <>
                   <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
@@ -312,18 +351,11 @@ const HomeBannerSlot = ({
           </a>
           <div className="flex flex-col gap-2.5">
             {[1, 2].map((i) => (
-              <a
-                key={`${banner.id}-${i}`}
-                href={linkFor(i)}
-                className="relative block flex-1 overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md"
-              >
+              <a key={`${banner.id}-${i}`} href={linkFor(i)}
+                className="relative block flex-1 overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
                 <div className="relative h-full min-h-[130px] md:min-h-[165px]">
-                  <img
-                    src={images[i] || images[0]}
-                    alt={banner.title || "Banner"}
-                    className="absolute inset-0 h-full w-full object-cover"
-                    loading="lazy"
-                  />
+                  <img src={images[i] || images[0]} alt={banner.title || "Banner"}
+                    className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
                 </div>
               </a>
             ))}
@@ -340,18 +372,11 @@ const HomeBannerSlot = ({
         {images.length >= 4 ? (
           <div className="grid grid-cols-2 gap-2.5">
             {images.slice(0, 4).map((item, i) => (
-              <a
-                key={`${banner.id}-${i}`}
-                href={linkFor(i)}
+              <a key={`${banner.id}-${i}`} href={linkFor(i)}
                 className="relative block overflow-hidden rounded-card border border-border transition-transform duration-300 hover:scale-[1.01]"
-                style={{ minHeight: compact ? 120 : 180 }}
-              >
-                <img
-                  src={item}
-                  alt={banner.title || `Banner ${i + 1}`}
-                  className="absolute inset-0 h-full w-full object-cover"
-                  loading="lazy"
-                />
+                style={{ minHeight: compact ? 120 : 180 }}>
+                <img src={item} alt={banner.title || `Banner ${i + 1}`}
+                  className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
                 {i === 0 && hasText && (
                   <>
                     <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
@@ -378,17 +403,11 @@ const HomeBannerSlot = ({
             ))}
           </div>
         ) : (
-          <a
-            href={href}
+          <a href={href}
             className="relative block overflow-hidden rounded-card border border-border transition-transform duration-300 hover:scale-[1.01]"
-            style={{ minHeight: compact ? 140 : 220 }}
-          >
-            <img
-              src={image}
-              alt={banner.title || "Banner promocional"}
-              className="absolute inset-0 h-full w-full object-cover"
-              loading="lazy"
-            />
+            style={{ minHeight: compact ? 140 : 220 }}>
+            <img src={image} alt={banner.title || "Banner promocional"}
+              className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
             {hasText && (
               <>
                 <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
@@ -421,20 +440,14 @@ const HomeBannerSlot = ({
   if (banner.format === "square" || banner.format === "square-rounded") {
     return withCategoryProducts(
       <section className={sectionCls}>
-        <a
-          href={href}
+        <a href={href}
           className={`block overflow-hidden border border-border transition-shadow hover:shadow-md ${
             banner.format === "square-rounded"
               ? "mx-auto max-w-[220px] rounded-full"
               : "rounded-card"
-          }`}
-        >
-          <img
-            src={image}
-            alt={banner.title || "Banner"}
-            className="aspect-square w-full object-cover"
-            loading="lazy"
-          />
+          }`}>
+          <img src={image} alt={banner.title || "Banner"}
+            className="aspect-square w-full object-cover" loading="lazy" />
         </a>
       </section>,
     );
@@ -444,23 +457,15 @@ const HomeBannerSlot = ({
   if (banner.format === "vertical" || banner.format === "story-card") {
     return withCategoryProducts(
       <section className={sectionCls}>
-        <a
-          href={href}
+        <a href={href}
           className={`block overflow-hidden rounded-2xl border border-border transition-shadow hover:shadow-md ${
             sidebar ? "w-full" : "mx-auto max-w-[220px]"
-          }`}
-        >
-          <img
-            src={image}
-            alt={banner.title || "Banner"}
-            className="aspect-[9/16] w-full object-cover"
-            loading="lazy"
-          />
+          }`}>
+          <img src={image} alt={banner.title || "Banner"}
+            className="aspect-[9/16] w-full object-cover" loading="lazy" />
           {banner.title && (
             <div className="p-2 text-center">
-              <p className="truncate text-[10px] font-bold text-foreground">
-                {banner.title}
-              </p>
+              <p className="truncate text-[10px] font-bold text-foreground">{banner.title}</p>
             </div>
           )}
         </a>
@@ -472,33 +477,21 @@ const HomeBannerSlot = ({
   if (banner.format === "tall" || banner.format === "natural") {
     return withCategoryProducts(
       <section className={sectionCls}>
-        <a
-          href={href}
-          className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md"
-        >
-          <img
-            src={image}
-            alt={banner.title || "Banner"}
-            className="w-full h-auto object-contain"
-            loading="lazy"
-          />
+        <a href={href}
+          className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
+          <img src={image} alt={banner.title || "Banner"}
+            className="w-full h-auto object-contain" loading="lazy" />
           {banner.title && (
             <>
               <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
               <div className={`absolute inset-0 flex flex-col p-4 ${pos.wrapper}`}>
                 <div className={`max-w-[80%] space-y-1 ${pos.align}`}>
                   {banner.subtitle && (
-                    <p className="text-xs font-bold text-white/90 drop-shadow-md">
-                      {banner.subtitle}
-                    </p>
+                    <p className="text-xs font-bold text-white/90 drop-shadow-md">{banner.subtitle}</p>
                   )}
-                  <h3 className="text-sm sm:text-lg font-black text-white drop-shadow-lg">
-                    {banner.title}
-                  </h3>
+                  <h3 className="text-sm sm:text-lg font-black text-white drop-shadow-lg">{banner.title}</h3>
                   {banner.cta_text && (
-                    <span className="text-[11px] font-semibold text-white drop-shadow-md">
-                      {banner.cta_text}
-                    </span>
+                    <span className="text-[11px] font-semibold text-white drop-shadow-md">{banner.cta_text}</span>
                   )}
                 </div>
               </div>
@@ -512,20 +505,15 @@ const HomeBannerSlot = ({
   // ── Fallback ──
   return withCategoryProducts(
     <section className={sectionCls}>
-      <a
-        href={href}
-        className="block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md"
-      >
-        <img
-          src={image}
-          alt={banner.title || "Banner"}
+      <a href={href}
+        className="block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
+        <img src={image} alt={banner.title || "Banner"}
           className={
             compact
               ? "aspect-[3/1] w-full object-cover"
               : "aspect-[21/9] sm:aspect-[16/6] md:aspect-[16/5] w-full object-cover"
           }
-          loading="lazy"
-        />
+          loading="lazy" />
       </a>
     </section>,
   );
