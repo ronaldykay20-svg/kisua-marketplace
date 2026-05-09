@@ -34,11 +34,17 @@ const HomeBannerSlot = ({
 }: HomeBannerSlotProps) => {
   const { data: banners = [] } = useBanners(undefined, device);
 
-  // Todos os banners deste slot + device
+  // Verifica se um banner pertence ao device pedido
+  // Banners sem device (null/undefined) são tratados como mobile
+  const matchesDevice = (b: any) => {
+    if (b.device === device) return true;
+    if (!b.device && device === "mobile") return true;
+    return false;
+  };
+
+  // Todos os banners deste slot + device (incluindo device=null para mobile)
   const slotBanners = useMemo(() =>
-    banners.filter(
-      (b) => b.sort_order === slot && (b as any).device === device,
-    ),
+    banners.filter((b) => b.sort_order === slot && matchesDevice(b)),
     [banners, slot, device],
   );
 
@@ -46,20 +52,11 @@ const HomeBannerSlot = ({
   const splitLeft  = useMemo(() => slotBanners.filter((b: any) => b.split_side === "left"),  [slotBanners]);
   const splitRight = useMemo(() => slotBanners.filter((b: any) => b.split_side === "right"), [slotBanners]);
 
-  /*
-   * Prioridade de correspondência para formatos normais:
-   * 1. Banner com device == dispositivo actual e sort_order == slot
-   * 2. Banner com device == "mobile" e sort_order == slot (fallback)
-   */
-  const banner = useMemo(() => {
-    const exact = banners.find(
-      (b) => b.sort_order === slot && (b as any).device === device,
-    );
-    if (exact) return exact;
-    return banners.find(
-      (b) => b.sort_order === slot && ((b as any).device === "mobile" || !(b as any).device),
-    );
-  }, [banners, slot, device]);
+  // Banner normal: primeiro do slot que corresponde ao device
+  const banner = useMemo(() =>
+    slotBanners.find((b: any) => !b.split_side),
+    [slotBanners],
+  );
 
   const images = useMemo(
     () =>
