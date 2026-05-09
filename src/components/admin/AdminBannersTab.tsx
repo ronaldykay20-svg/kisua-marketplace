@@ -86,6 +86,12 @@ async function uploadBannerImage(file: File): Promise<string> {
 }
 
 /* ─── SplitSideUploader ──────────────────────────────────────────────────── */
+/*
+ * MODELO CORRECTO:
+ * Cada lado (left/right) é guardado como 1 único registo na BD.
+ * Múltiplas imagens → image_url (principal) + extra_images[] (restantes).
+ * Máximo 4 imagens por lado.
+ */
 interface SplitSideUploaderProps {
   side: "left" | "right";
   images: { file?: File; preview: string; link: string }[];
@@ -130,6 +136,14 @@ const SplitSideUploader = ({ side, images, onChange }: SplitSideUploaderProps) =
         <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${badge}`}>{label}</span>
         <span className="text-[10px] text-muted-foreground">{images.length}/4 imagens</span>
       </div>
+
+      {/* Aviso do modelo correcto */}
+      {images.length === 0 && (
+        <p className="text-[10px] text-muted-foreground bg-muted/50 rounded-lg px-2 py-1.5">
+          Adiciona 1 a 4 imagens. Serão guardadas <strong>num único registo</strong> para este lado.
+        </p>
+      )}
+
       <div className="grid grid-cols-2 gap-2">
         {images.map((img, i) => (
           <div key={i} className="space-y-1">
@@ -141,7 +155,9 @@ const SplitSideUploader = ({ side, images, onChange }: SplitSideUploaderProps) =
                 className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center">
                 <X className="w-3 h-3" />
               </button>
-              <span className="absolute bottom-1 left-1 text-[9px] bg-black/60 text-white px-1 rounded">{i + 1}</span>
+              <span className="absolute bottom-1 left-1 text-[9px] bg-black/60 text-white px-1 rounded">
+                {i === 0 ? "Principal" : `Extra ${i}`}
+              </span>
             </div>
             <input
               placeholder="Link ao clicar"
@@ -161,6 +177,7 @@ const SplitSideUploader = ({ side, images, onChange }: SplitSideUploaderProps) =
           </button>
         )}
       </div>
+
       <input
         ref={fileRef}
         type="file"
@@ -169,6 +186,7 @@ const SplitSideUploader = ({ side, images, onChange }: SplitSideUploaderProps) =
         className="hidden"
         onChange={handleChange}
       />
+
       {images.length === 0 && (
         <button
           type="button"
@@ -236,6 +254,18 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
   const [form, setForm] = useState<FormState>(() => {
     if (initialSplitPair) {
       const ref = initialSplitPair.left || initialSplitPair.right!;
+
+      /*
+       * Ao editar um split existente, reconstrói o estado do formulário
+       * a partir dos registos left e right (cada um com image_url + extra_images).
+       */
+      const buildSideEntries = (b: BannerRow | null): ImgEntry[] => {
+        if (!b) return [];
+        const allImgs = [b.image_url, ...(b.extra_images || [])].filter(Boolean);
+        const links   = [b.cta_link || "", ...(b.extra_links || [])];
+        return allImgs.map((url, i) => ({ preview: url, link: links[i] || "" }));
+      };
+
       return {
         device: ref.device || "mobile",
         sort_order: ref.sort_order,
@@ -253,12 +283,8 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
         category_id: ref.category_id,
         bg_color: ref.bg_color || "#F0F9FF",
         extraImgFiles: [], extraImgPreviews: [], extra_links: [],
-        splitLeft: initialSplitPair.left
-          ? [{ preview: initialSplitPair.left.image_url, link: initialSplitPair.left.cta_link || "" }]
-          : [],
-        splitRight: initialSplitPair.right
-          ? [{ preview: initialSplitPair.right.image_url, link: initialSplitPair.right.cta_link || "" }]
-          : [],
+        splitLeft:  buildSideEntries(initialSplitPair.left),
+        splitRight: buildSideEntries(initialSplitPair.right),
       };
     }
     if (!initial) return emptyForm();
@@ -297,7 +323,7 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
     .filter(b => !isEdit || b.id !== initial?.id)
     .map(b => b.sort_order);
 
-  const isSplit = form.format === "split";
+  const isSplit    = form.format === "split";
   const needsExtra = !isSplit ? (EXTRA_COUNT[form.format] || 0) : 0;
 
   const handleMainFile = (f: File) => { setMainFile(f); setMainPreview(URL.createObjectURL(f)); };
@@ -332,6 +358,11 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
     setSaving(true);
     try {
       if (isSplit) {
+        /*
+         * MODELO CORRECTO: apaga os registos anteriores e cria
+         * EXACTAMENTE 1 registo por lado (left e right).
+         * Múltiplas imagens ficam em extra_images[].
+         */
         if (isSplitEdit) {
           const idsToDelete = [
             initialSplitPair?.left?.id,
@@ -342,36 +373,55 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
           }
         }
 
+        /*
+         * uploadSide: faz upload de todas as imagens de um lado
+         * e cria 1 único registo com image_url + extra_images[].
+         */
         const uploadSide = async (imgs: ImgEntry[], side: "left" | "right") => {
-          for (const img of imgs) {
-            let url = img.preview;
-            if (img.file) url = await uploadBannerImage(img.file);
-            const payload = {
-              title: form.title || null,
-              subtitle: form.subtitle || null,
-              cta_text: form.cta_text || null,
-              cta_link: img.link || form.cta_link || "#",
-              image_url: url,
-              extra_images: [], extra_links: [],
-              format: "split",
-              bg_color: form.bg_color,
-              sort_order: form.sort_order,
-              is_active: form.is_active,
-              text_position: form.text_position,
-              text_color: form.text_color,
-              text_bg_color: form.text_bg_enabled ? form.text_bg_color : null,
-              category_id: form.category_id,
-              device: form.device,
-              split_side: side,
-            };
-            const { error } = await supabase.from("banners" as any).insert(payload);
-            if (error) throw new Error(error.message);
-          }
+          if (imgs.length === 0) return;
+
+          // Faz upload de todas as imagens que têm ficheiro novo
+          const uploadedUrls: string[] = await Promise.all(
+            imgs.map(async (img) => {
+              if (img.file) return uploadBannerImage(img.file);
+              return img.preview; // URL existente (ao editar)
+            })
+          );
+
+          const [mainUrl, ...extraUrls] = uploadedUrls;
+          const [mainLink, ...extraLinks] = imgs.map(img => img.link || "");
+
+          const payload = {
+            title: form.title || null,
+            subtitle: form.subtitle || null,
+            cta_text: form.cta_text || null,
+            cta_link: mainLink || form.cta_link || "#",
+            image_url: mainUrl,
+            extra_images: extraUrls,              // restantes imagens do lado
+            extra_links: extraLinks.filter(Boolean),
+            format: "split",
+            bg_color: form.bg_color,
+            sort_order: form.sort_order,
+            is_active: form.is_active,
+            text_position: form.text_position,
+            text_color: form.text_color,
+            text_bg_color: form.text_bg_enabled ? form.text_bg_color : null,
+            category_id: form.category_id,
+            device: form.device,
+            split_side: side,
+          };
+
+          const { error } = await supabase.from("banners" as any).insert(payload);
+          if (error) throw new Error(error.message);
         };
 
-        await uploadSide(form.splitLeft, "left");
+        await uploadSide(form.splitLeft,  "left");
         await uploadSide(form.splitRight, "right");
-        toast.success(isSplitEdit ? "Split atualizado!" : "Banners split criados!");
+
+        const total = form.splitLeft.length + form.splitRight.length;
+        toast.success(isSplitEdit
+          ? "Split atualizado!"
+          : `Split criado! (${total} imagens em 2 registos)`);
 
       } else {
         let imageUrl = form.image_url;
@@ -420,6 +470,8 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
       setSaving(false);
     }
   };
+
+  const splitTotal = form.splitLeft.length + form.splitRight.length;
 
   return (
     <div className="bg-card rounded-xl border border-border p-4 mb-4">
@@ -481,10 +533,11 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
             <div className="rounded-xl border border-border bg-muted/30 p-3">
               <p className="text-xs font-bold text-foreground mb-1">◧ Esquerda | ◨ Direita</p>
               <p className="text-[10px] text-muted-foreground">
-                Cada lado ocupa <strong>metade da largura</strong>. Podes colocar 1 a 4 imagens por lado.
+                Cada lado = <strong>1 registo</strong> na base de dados.
+                Podes colocar 1 a 4 imagens por lado — ficam em <code>extra_images[]</code>.
               </p>
             </div>
-            <SplitSideUploader side="left" images={form.splitLeft} onChange={v => set("splitLeft", v)} />
+            <SplitSideUploader side="left"  images={form.splitLeft}  onChange={v => set("splitLeft",  v)} />
             <SplitSideUploader side="right" images={form.splitRight} onChange={v => set("splitRight", v)} />
           </div>
         ) : (
@@ -647,7 +700,7 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
           className="w-full py-3 bg-primary text-primary-foreground text-sm font-bold rounded-xl disabled:opacity-50 flex items-center justify-center gap-2">
           {saving
             ? <><Loader2 className="w-4 h-4 animate-spin" /> A guardar...</>
-            : <><Check className="w-4 h-4" /> {isEdit ? "Guardar alterações" : isSplit ? `Criar ${form.splitLeft.length + form.splitRight.length} banners` : "Criar banner"}</>}
+            : <><Check className="w-4 h-4" /> {isEdit ? "Guardar alterações" : isSplit ? `Criar split (${splitTotal} imgs em 2 registos)` : "Criar banner"}</>}
         </button>
       </div>
     </div>
@@ -667,6 +720,10 @@ const SplitBannerCard = ({ leftBanner, rightBanner, onEdit, onToggle, onDelete }
   const ref = leftBanner || rightBanner!;
   const isActive = ref.is_active;
 
+  // Conta imagens reais de cada lado
+  const leftCount  = leftBanner  ? 1 + (leftBanner.extra_images?.length  || 0) : 0;
+  const rightCount = rightBanner ? 1 + (rightBanner.extra_images?.length || 0) : 0;
+
   return (
     <div className={`bg-card rounded-xl border border-border overflow-hidden transition ${!isActive ? "opacity-55" : ""}`}>
       <div className="grid grid-cols-2 h-24 bg-muted gap-0.5">
@@ -678,7 +735,9 @@ const SplitBannerCard = ({ leftBanner, rightBanner, onEdit, onToggle, onDelete }
               <span className="text-[10px] text-muted-foreground">Sem imagem</span>
             </div>
           )}
-          <span className="absolute top-1 left-1 text-[9px] bg-blue-500/90 text-white px-1.5 py-0.5 rounded-full font-bold">◧ Esq</span>
+          <span className="absolute top-1 left-1 text-[9px] bg-blue-500/90 text-white px-1.5 py-0.5 rounded-full font-bold">
+            ◧ Esq {leftCount > 1 ? `(${leftCount})` : ""}
+          </span>
         </div>
         <div className="relative overflow-hidden">
           {rightBanner ? (
@@ -688,7 +747,9 @@ const SplitBannerCard = ({ leftBanner, rightBanner, onEdit, onToggle, onDelete }
               <span className="text-[10px] text-muted-foreground">Sem imagem</span>
             </div>
           )}
-          <span className="absolute top-1 right-1 text-[9px] bg-purple-500/90 text-white px-1.5 py-0.5 rounded-full font-bold">◨ Dir</span>
+          <span className="absolute top-1 right-1 text-[9px] bg-purple-500/90 text-white px-1.5 py-0.5 rounded-full font-bold">
+            ◨ Dir {rightCount > 1 ? `(${rightCount})` : ""}
+          </span>
         </div>
       </div>
       <div className="p-3">
@@ -699,7 +760,9 @@ const SplitBannerCard = ({ leftBanner, rightBanner, onEdit, onToggle, onDelete }
               ref.device === "desktop" ? "bg-green-500/10 text-green-500" :
               "bg-blue-500/10 text-blue-500"
             }`}>{ref.device || "mobile"}</span>
-            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">Split (2 colunas)</span>
+            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+              Split · {leftCount}esq + {rightCount}dir
+            </span>
             <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500">
               {getHomeSlotLabel(ref.sort_order)}
             </span>
@@ -837,6 +900,11 @@ const AdminBannersTab = () => {
     desktop: banners.filter(b => b.device === "desktop").length,
   };
 
+  /*
+   * Agrupa os banners split: 1 left + 1 right por chave device-sort_order.
+   * Com o modelo correcto, cada chave tem exactamente 1 registo por lado.
+   * Usa .find() (não filter) para garantir que só pega 1 de cada lado.
+   */
   const splitGroups = new Map<string, { left: BannerRow | null; right: BannerRow | null }>();
   const nonSplitBanners: BannerRow[] = [];
 
@@ -845,8 +913,9 @@ const AdminBannersTab = () => {
       const key = `${b.device || "mobile"}-${b.sort_order}`;
       if (!splitGroups.has(key)) splitGroups.set(key, { left: null, right: null });
       const group = splitGroups.get(key)!;
-      if (b.split_side === "left") group.left = b;
-      else if (b.split_side === "right") group.right = b;
+      // Só guarda o primeiro que encontrar de cada lado (evita duplicados antigos)
+      if (b.split_side === "left"  && !group.left)  group.left  = b;
+      if (b.split_side === "right" && !group.right) group.right = b;
     } else {
       nonSplitBanners.push(b);
     }
