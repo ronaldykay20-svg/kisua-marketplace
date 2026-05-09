@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { STORAGE_BUCKETS } from "@/lib/storage";
-import { HOME_BANNER_SLOTS, getHomeSlotLabel } from "@/lib/bannerSlots";
+import { getSlotsForDevice, SIDEBAR_SLOTS, getHomeSlotLabel } from "@/lib/bannerSlots";
 
 type Device = "mobile" | "tablet" | "desktop";
 
@@ -18,21 +18,21 @@ const DEVICES: { value: Device; label: string }[] = [
 ];
 
 const FORMATS = [
-  { value: "hero",           label: "Hero (carrossel)"           },
-  { value: "hero-full",      label: "Hero Full"                  },
-  { value: "wide",           label: "Wide"                       },
-  { value: "wide-slim",      label: "Wide Slim"                  },
-  { value: "duo-square",     label: "Duo (2 imagens)"            },
-  { value: "trio-banner",    label: "Trio (3 imagens)"           },
-  { value: "mosaic",         label: "Mosaico"                    },
-  { value: "promo",          label: "Promo (4 imagens)"          },
-  { value: "square",         label: "Quadrado"                   },
-  { value: "square-rounded", label: "Quadrado Redondo"           },
-  { value: "vertical",       label: "Vertical"                   },
-  { value: "story-card",     label: "Story Card"                 },
-  { value: "tall",           label: "Tall"                       },
-  { value: "natural",        label: "Natural"                    },
-  { value: "split",          label: "Split (2 colunas livres)"   }, // ← NOVO
+  { value: "hero",           label: "Hero (carrossel)"          },
+  { value: "hero-full",      label: "Hero Full"                 },
+  { value: "wide",           label: "Wide"                      },
+  { value: "wide-slim",      label: "Wide Slim"                 },
+  { value: "duo-square",     label: "Duo (2 imagens)"           },
+  { value: "trio-banner",    label: "Trio (3 imagens)"          },
+  { value: "mosaic",         label: "Mosaico"                   },
+  { value: "promo",          label: "Promo (4 imagens)"         },
+  { value: "square",         label: "Quadrado"                  },
+  { value: "square-rounded", label: "Quadrado Redondo"          },
+  { value: "vertical",       label: "Vertical"                  },
+  { value: "story-card",     label: "Story Card"                },
+  { value: "tall",           label: "Tall"                      },
+  { value: "natural",        label: "Natural"                   },
+  { value: "split",          label: "Split (2 colunas livres)"  },
 ];
 
 const TEXT_POSITIONS = [
@@ -46,8 +46,6 @@ const TEXT_POSITIONS = [
   { value: "bottom-center", label: "↓ Baixo Centro"   },
   { value: "bottom-right",  label: "↘ Baixo Direita"  },
 ];
-
-const SIDEBAR_SLOTS = [101, 102, 103];
 
 const EXTRA_COUNT: Record<string, number> = {
   "hero": 4, "hero-full": 4, "duo-square": 1,
@@ -72,7 +70,7 @@ interface BannerRow {
   text_bg_color: string | null;
   category_id: string | null;
   device: Device | null;
-  split_side: "left" | "right" | null; // ← NOVO
+  split_side: "left" | "right" | null;
   created_at: string;
 }
 
@@ -87,57 +85,194 @@ async function uploadBannerImage(file: File): Promise<string> {
   return data.publicUrl;
 }
 
+/* ─── Componente de upload de imagens para Split ─────────────────────────── */
+interface SplitSideUploaderProps {
+  side: "left" | "right";
+  images: { file?: File; preview: string; link: string }[];
+  onChange: (imgs: { file?: File; preview: string; link: string }[]) => void;
+}
+
+const SplitSideUploader = ({ side, images, onChange }: SplitSideUploaderProps) => {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const label = side === "left" ? "◧ Esquerda" : "◨ Direita";
+  const color = side === "left" ? "border-blue-500/40 bg-blue-500/5" : "border-purple-500/40 bg-purple-500/5";
+  const badge = side === "left" ? "bg-blue-500/10 text-blue-500" : "bg-purple-500/10 text-purple-500";
+
+  const addFiles = (files: FileList) => {
+    const toAdd = Array.from(files).slice(0, 4 - images.length);
+    const newImgs = toAdd.map(f => ({ file: f, preview: URL.createObjectURL(f), link: "" }));
+    onChange([...images, ...newImgs]);
+  };
+
+  const remove = (i: number) => {
+    const next = [...images];
+    next.splice(i, 1);
+    onChange(next);
+  };
+
+  const setLink = (i: number, val: string) => {
+    const next = [...images];
+    next[i] = { ...next[i], link: val };
+    onChange(next);
+  };
+
+  return (
+    <div className={`rounded-xl border p-3 space-y-2 ${color}`}>
+      <div className="flex items-center justify-between">
+        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${badge}`}>{label}</span>
+        <span className="text-[10px] text-muted-foreground">{images.length}/4 banners</span>
+      </div>
+
+      {/* Grid de previews */}
+      <div className="grid grid-cols-2 gap-2">
+        {images.map((img, i) => (
+          <div key={i} className="space-y-1">
+            <div className="relative rounded-lg overflow-hidden border border-border aspect-video">
+              <img src={img.preview} alt="" className="w-full h-full object-cover" />
+              <button onClick={() => remove(i)}
+                className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center">
+                <X className="w-3 h-3" />
+              </button>
+              <span className="absolute bottom-1 left-1 text-[9px] bg-black/60 text-white px-1 rounded">
+                {i + 1}
+              </span>
+            </div>
+            <input
+              placeholder="Link ao clicar"
+              value={img.link}
+              onChange={e => setLink(i, e.target.value)}
+              className="w-full px-2 py-1 rounded-lg bg-background border border-border text-[10px] text-foreground"
+            />
+          </div>
+        ))}
+
+        {images.length < 4 && (
+          <button
+            onClick={() => fileRef.current?.click()}
+            className="aspect-video border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center hover:border-primary/50 hover:bg-primary/5 transition"
+          >
+            <Plus className="w-5 h-5 text-muted-foreground" />
+            <p className="text-[10px] text-muted-foreground mt-1">Adicionar</p>
+          </button>
+        )}
+      </div>
+
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={e => e.target.files && addFiles(e.target.files)}
+      />
+
+      {images.length === 0 && (
+        <button
+          onClick={() => fileRef.current?.click()}
+          className="w-full border-2 border-dashed border-border rounded-xl p-4 flex flex-col items-center gap-1 hover:border-primary/50 hover:bg-primary/5 transition"
+        >
+          <Upload className="w-5 h-5 text-muted-foreground" />
+          <p className="text-xs font-bold text-foreground">Upload para {label}</p>
+          <p className="text-[10px] text-muted-foreground">1 a 4 imagens</p>
+        </button>
+      )}
+    </div>
+  );
+};
+
+/* ─── Formulário principal ───────────────────────────────────────────────── */
 interface FormProps {
   initial?: BannerRow | null;
-  existingSlots: number[];
+  existingBanners: BannerRow[];
   onClose: () => void;
   onSaved: () => void;
 }
 
-type FormState = Partial<BannerRow> & {
-  extraImgFiles: File[];
-  extraImgPreviews: string[];
+type ImgEntry = { file?: File; preview: string; link: string };
+
+type FormState = {
+  device: Device;
+  sort_order: number;
+  format: string;
+  title: string;
+  subtitle: string;
+  cta_text: string;
+  cta_link: string;
+  image_url: string;
+  text_position: string;
   text_color: string;
   text_bg_color: string;
   text_bg_enabled: boolean;
-  split_side: "left" | "right"; // ← NOVO
+  is_active: boolean;
+  category_id: string | null;
+  bg_color: string;
+  /* extras para formatos normais */
+  extraImgFiles: File[];
+  extraImgPreviews: string[];
+  extra_links: string[];
+  /* split */
+  splitLeft: ImgEntry[];
+  splitRight: ImgEntry[];
 };
 
 const emptyForm = (): FormState => ({
-  title: "", subtitle: "", cta_text: "", cta_link: "",
-  image_url: "", extra_images: [], extra_links: [],
-  format: "hero", bg_color: "", sort_order: 1, is_active: true,
-  text_position: "bottom-left", category_id: null, device: "mobile",
-  text_color: "#ffffff", text_bg_color: "#000000", text_bg_enabled: false,
-  extraImgFiles: [], extraImgPreviews: [],
-  split_side: "left", // ← NOVO
+  device: "mobile", sort_order: 1, format: "hero",
+  title: "", subtitle: "", cta_text: "", cta_link: "", image_url: "",
+  text_position: "bottom-left", text_color: "#ffffff",
+  text_bg_color: "#000000", text_bg_enabled: false,
+  is_active: true, category_id: null, bg_color: "#F0F9FF",
+  extraImgFiles: [], extraImgPreviews: [], extra_links: [],
+  splitLeft: [], splitRight: [],
 });
 
-const BannerForm = ({ initial, existingSlots, onClose, onSaved }: FormProps) => {
+const BannerForm = ({ initial, existingBanners, onClose, onSaved }: FormProps) => {
   const isEdit = !!initial;
   const mainFileRef = useRef<HTMLInputElement>(null);
   const extraFileRef = useRef<HTMLInputElement>(null);
 
-  const [form, setForm] = useState<FormState>(() =>
-    initial
-      ? {
-          ...initial,
-          extra_images:     initial.extra_images || [],
-          extra_links:      initial.extra_links  || [],
-          text_color:       (initial as any).text_color    || "#ffffff",
-          text_bg_color:    (initial as any).text_bg_color || "#000000",
-          text_bg_enabled:  !!(initial as any).text_bg_color,
-          extraImgFiles:    [],
-          extraImgPreviews: (initial.extra_images || []) as string[],
-          split_side:       (initial.split_side || "left") as "left" | "right", // ← NOVO
-        }
-      : emptyForm(),
-  );
+  const [form, setForm] = useState<FormState>(() => {
+    if (!initial) return emptyForm();
+    return {
+      device:          initial.device || "mobile",
+      sort_order:      initial.sort_order,
+      format:          initial.format,
+      title:           initial.title || "",
+      subtitle:        initial.subtitle || "",
+      cta_text:        initial.cta_text || "",
+      cta_link:        initial.cta_link || "",
+      image_url:       initial.image_url || "",
+      text_position:   initial.text_position || "bottom-left",
+      text_color:      (initial as any).text_color || "#ffffff",
+      text_bg_color:   (initial as any).text_bg_color || "#000000",
+      text_bg_enabled: !!(initial as any).text_bg_color,
+      is_active:       initial.is_active,
+      category_id:     initial.category_id,
+      bg_color:        initial.bg_color || "#F0F9FF",
+      extraImgFiles:   [],
+      extraImgPreviews:(initial.extra_images || []) as string[],
+      extra_links:     (initial.extra_links || []) as string[],
+      splitLeft:  [],
+      splitRight: [],
+    };
+  });
+
   const [mainFile, setMainFile]       = useState<File | null>(null);
   const [mainPreview, setMainPreview] = useState<string>(initial?.image_url || "");
   const [saving, setSaving]           = useState(false);
 
-  const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
+  const set = (k: keyof FormState, v: any) => setForm(f => ({ ...f, [k]: v }));
+
+  /* slots filtrados pelo device seleccionado */
+  const slots = getSlotsForDevice(form.device);
+
+  /* slots ocupados pelo mesmo device (excluindo o próprio ao editar) */
+  const occupiedSlots = existingBanners
+    .filter(b => (b.device || "mobile") === form.device && b.format !== "split")
+    .filter(b => !isEdit || b.id !== initial?.id)
+    .map(b => b.sort_order);
+
+  const isSplit = form.format === "split";
+  const needsExtra = !isSplit ? (EXTRA_COUNT[form.format] || 0) : 0;
 
   const handleMainFile = (f: File) => { setMainFile(f); setMainPreview(URL.createObjectURL(f)); };
 
@@ -153,70 +288,102 @@ const BannerForm = ({ initial, existingSlots, onClose, onSaved }: FormProps) => 
 
   const removeExtra = (i: number) => {
     setForm(f => {
+      const imgs = [...f.extraImgPreviews]; imgs.splice(i, 1);
+      const files = [...f.extraImgFiles];
       const existingCount = (initial?.extra_images || []).length;
-      const isExisting = i < existingCount && f.extraImgFiles.length === 0;
-      if (isExisting) {
-        const imgs = [...(f.extra_images || [])]; imgs.splice(i, 1);
-        const prvs = [...f.extraImgPreviews];     prvs.splice(i, 1);
-        return { ...f, extra_images: imgs, extraImgPreviews: prvs };
-      }
-      const fileIdx = i - existingCount;
-      const files = [...f.extraImgFiles]; files.splice(fileIdx, 1);
-      const prvs  = [...f.extraImgPreviews]; prvs.splice(i, 1);
-      return { ...f, extraImgFiles: files, extraImgPreviews: prvs };
+      if (i >= existingCount) files.splice(i - existingCount, 1);
+      return { ...f, extraImgPreviews: imgs, extraImgFiles: files };
     });
   };
 
-  const allSlots = HOME_BANNER_SLOTS;
-  const slotOccupied = (slotVal: number) =>
-    /* split permite vários banners no mesmo slot */
-    form.format !== "split" &&
-    existingSlots.includes(slotVal) &&
-    slotVal !== initial?.sort_order;
-
+  /* ── Guardar ── */
   const save = async () => {
-    if (!mainPreview && !mainFile) { toast.error("Adiciona a imagem principal"); return; }
+    if (isSplit) {
+      if (form.splitLeft.length === 0 && form.splitRight.length === 0) {
+        toast.error("Adiciona pelo menos uma imagem num dos lados"); return;
+      }
+    } else {
+      if (!mainPreview && !mainFile) { toast.error("Adiciona a imagem principal"); return; }
+    }
+
     setSaving(true);
     try {
-      let imageUrl = form.image_url || "";
-      if (mainFile) imageUrl = await uploadBannerImage(mainFile);
-      if (!imageUrl) throw new Error("URL da imagem principal em falta");
+      if (isSplit) {
+        /* upload e insert de cada imagem individualmente */
+        const uploadSide = async (imgs: ImgEntry[], side: "left" | "right") => {
+          for (const img of imgs) {
+            let url = img.preview;
+            if (img.file) url = await uploadBannerImage(img.file);
+            const payload = {
+              title: form.title || null,
+              subtitle: form.subtitle || null,
+              cta_text: form.cta_text || null,
+              cta_link: img.link || form.cta_link || "#",
+              image_url: url,
+              extra_images: [],
+              extra_links: [],
+              format: "split",
+              bg_color: form.bg_color,
+              sort_order: form.sort_order,
+              is_active: form.is_active,
+              text_position: form.text_position,
+              text_color: form.text_color,
+              text_bg_color: form.text_bg_enabled ? form.text_bg_color : null,
+              category_id: form.category_id,
+              device: form.device,
+              split_side: side,
+            };
+            const { error } = await supabase.from("banners" as any).insert(payload);
+            if (error) throw new Error(error.message);
+          }
+        };
 
-      const existingExtras = (initial?.extra_images || []).filter(u =>
-        form.extraImgPreviews.includes(u),
-      );
-      const newExtras = await Promise.all(form.extraImgFiles.map(uploadBannerImage));
-      const allExtras = [...existingExtras, ...newExtras];
+        await uploadSide(form.splitLeft,  "left");
+        await uploadSide(form.splitRight, "right");
+        toast.success("Banners split criados!");
 
-      const payload: Record<string, any> = {
-        title:         form.title         ?? "",
-        subtitle:      form.subtitle      || "",
-        cta_text:      form.cta_text      || "Compre agora",
-        cta_link:      form.cta_link      || "#",
-        image_url:     imageUrl,
-        extra_images:  allExtras.length   ? allExtras : [],
-        extra_links:   (form.extra_links  || []).filter(Boolean),
-        format:        form.format        || "hero",
-        bg_color:      form.bg_color      || "#F0F9FF",
-        sort_order:    Number(form.sort_order) || 1,
-        is_active:     form.is_active     ?? true,
-        text_position: form.text_position || "bottom-left",
-        text_color:    form.text_color    || "#ffffff",
-        text_bg_color: form.text_bg_enabled ? (form.text_bg_color || "#000000") : null,
-        category_id:   form.category_id   || null,
-        device:        form.device        || "mobile",
-        split_side:    form.format === "split" ? (form.split_side || "left") : null, // ← NOVO
-      };
-
-      if (isEdit) {
-        const { error } = await supabase.from("banners" as any).update(payload).eq("id", initial!.id);
-        if (error) throw new Error(error.message);
-        toast.success("Banner atualizado!");
       } else {
-        const { error } = await supabase.from("banners" as any).insert(payload);
-        if (error) throw new Error(error.message);
-        toast.success("Banner criado!");
+        /* banner normal */
+        let imageUrl = form.image_url;
+        if (mainFile) imageUrl = await uploadBannerImage(mainFile);
+        if (!imageUrl) throw new Error("URL da imagem principal em falta");
+
+        const existingExtras = (initial?.extra_images || []).filter(u =>
+          form.extraImgPreviews.includes(u));
+        const newExtras = await Promise.all(form.extraImgFiles.map(uploadBannerImage));
+        const allExtras = [...existingExtras, ...newExtras];
+
+        const payload: Record<string, any> = {
+          title: form.title || "",
+          subtitle: form.subtitle || "",
+          cta_text: form.cta_text || "Compre agora",
+          cta_link: form.cta_link || "#",
+          image_url: imageUrl,
+          extra_images: allExtras.length ? allExtras : [],
+          extra_links: form.extra_links.filter(Boolean),
+          format: form.format,
+          bg_color: form.bg_color,
+          sort_order: form.sort_order,
+          is_active: form.is_active,
+          text_position: form.text_position,
+          text_color: form.text_color,
+          text_bg_color: form.text_bg_enabled ? form.text_bg_color : null,
+          category_id: form.category_id,
+          device: form.device,
+          split_side: null,
+        };
+
+        if (isEdit) {
+          const { error } = await supabase.from("banners" as any).update(payload).eq("id", initial!.id);
+          if (error) throw new Error(error.message);
+          toast.success("Banner atualizado!");
+        } else {
+          const { error } = await supabase.from("banners" as any).insert(payload);
+          if (error) throw new Error(error.message);
+          toast.success("Banner criado!");
+        }
       }
+
       onSaved();
       onClose();
     } catch (e: any) {
@@ -225,9 +392,6 @@ const BannerForm = ({ initial, existingSlots, onClose, onSaved }: FormProps) => 
       setSaving(false);
     }
   };
-
-  const needsExtra = EXTRA_COUNT[form.format || "hero"] || 0;
-  const isSplit = form.format === "split";
 
   return (
     <div className="bg-card rounded-xl border border-border p-4 mb-4">
@@ -245,26 +409,30 @@ const BannerForm = ({ initial, existingSlots, onClose, onSaved }: FormProps) => 
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Dispositivo</label>
           <div className="flex gap-2">
             {DEVICES.map(d => (
-              <button key={d.value} onClick={() => set("device", d.value)}
+              <button key={d.value} onClick={() => { set("device", d.value); set("sort_order", getSlotsForDevice(d.value)[0].value); }}
                 className={`flex-1 py-2 rounded-lg text-xs font-bold border transition ${form.device === d.value ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-foreground hover:bg-muted"}`}>
                 {d.label}
               </button>
             ))}
           </div>
+          <p className="text-[10px] text-muted-foreground mt-1">
+            Cada device tem slots independentes — um banner mobile não ocupa posição no tablet ou desktop.
+          </p>
         </div>
 
-        {/* Slot */}
+        {/* Slot — só slots do device seleccionado */}
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">
-            Posição na página {isSplit && <span className="text-primary">(mesmo número = mesmo bloco split)</span>}
+            Posição na página
+            {isSplit && <span className="text-primary ml-1">(mesmo número = mesmo bloco split)</span>}
           </label>
           <select
-            value={form.sort_order || 1}
+            value={form.sort_order}
             onChange={e => set("sort_order", Number(e.target.value))}
             className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground"
           >
-            {allSlots.map(slot => {
-              const occupied = slotOccupied(slot.value);
+            {slots.map(slot => {
+              const occupied = !isSplit && occupiedSlots.includes(slot.value);
               return (
                 <option key={slot.value} value={slot.value} disabled={occupied}>
                   {slot.label}{occupied ? " — ocupado" : ""}
@@ -272,7 +440,7 @@ const BannerForm = ({ initial, existingSlots, onClose, onSaved }: FormProps) => 
               );
             })}
           </select>
-          {form.device === "desktop" && SIDEBAR_SLOTS.includes(Number(form.sort_order)) && (
+          {form.device === "desktop" && SIDEBAR_SLOTS.includes(form.sort_order) && (
             <p className="text-[10px] text-muted-foreground mt-1">📌 Aparece na sidebar direita do desktop.</p>
           )}
         </div>
@@ -280,126 +448,123 @@ const BannerForm = ({ initial, existingSlots, onClose, onSaved }: FormProps) => 
         {/* Formato */}
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Formato</label>
-          <select value={form.format || "hero"} onChange={e => set("format", e.target.value)}
+          <select value={form.format} onChange={e => set("format", e.target.value)}
             className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground">
             {FORMATS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
           </select>
         </div>
 
-        {/* ── NOVO: Coluna split ── */}
-        {isSplit && (
-          <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-2">
-            <label className="text-[11px] font-bold text-primary block">
-              Coluna do bloco Split
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {([
-                { value: "left",  label: "◧  Esquerda" },
-                { value: "right", label: "◨  Direita"  },
-              ] as const).map(s => (
-                <button
-                  key={s.value}
-                  onClick={() => set("split_side", s.value)}
-                  className={`py-2.5 rounded-xl text-sm font-bold border transition ${
-                    form.split_side === s.value
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-background border-border text-foreground hover:bg-muted"
-                  }`}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-            <p className="text-[10px] text-muted-foreground leading-relaxed">
-              Banners com o <strong>mesmo slot</strong> e o mesmo <strong>dispositivo</strong> formam um bloco.
-              Cada lado pode ter <strong>1 a 4 banners</strong> — todos dividem a altura igualmente.
+        {/* ── SPLIT: upload por lado ── */}
+        {isSplit ? (
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Sobe as imagens de cada coluna. Podes colocar <strong>1 a 4 banners por lado</strong> — todos dividem a altura igualmente.
             </p>
+            <SplitSideUploader
+              side="left"
+              images={form.splitLeft}
+              onChange={v => set("splitLeft", v)}
+            />
+            <SplitSideUploader
+              side="right"
+              images={form.splitRight}
+              onChange={v => set("splitRight", v)}
+            />
           </div>
-        )}
-
-        {/* Imagem principal */}
-        <div>
-          <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Imagem principal *</label>
-          {mainPreview ? (
-            <div className="relative rounded-xl overflow-hidden border border-border mb-1">
-              <img src={mainPreview} alt="Preview" className="w-full max-h-40 object-cover" />
-              <button onClick={() => { setMainFile(null); setMainPreview(""); set("image_url", ""); }}
-                className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ) : (
-            <button onClick={() => mainFileRef.current?.click()}
-              className="w-full border-2 border-dashed border-border rounded-xl p-5 flex flex-col items-center gap-2 hover:border-primary/50 hover:bg-primary/5 transition">
-              <Upload className="w-5 h-5 text-muted-foreground" />
-              <p className="text-xs font-bold text-foreground">Clique para fazer upload</p>
-              <p className="text-[10px] text-muted-foreground">JPG, PNG, WebP, GIF</p>
-            </button>
-          )}
-          <input ref={mainFileRef} type="file" accept="image/*" className="hidden"
-            onChange={e => e.target.files?.[0] && handleMainFile(e.target.files[0])} />
-          <input
-            placeholder="Ou cole o URL da imagem"
-            value={mainFile ? "" : (form.image_url || "")}
-            onChange={e => { set("image_url", e.target.value); setMainPreview(e.target.value); setMainFile(null); }}
-            className="w-full mt-1.5 px-3 py-2 rounded-lg bg-muted border border-border text-xs text-foreground"
-          />
-        </div>
-
-        {/* Imagens extra — não aparecem no formato split */}
-        {!isSplit && needsExtra > 0 && (
-          <div>
-            <label className="text-[11px] font-bold text-muted-foreground mb-1 block">
-              Imagens extra ({form.extraImgPreviews.length}/{needsExtra} recomendadas)
-            </label>
-            <div className="grid grid-cols-3 gap-2 mb-2">
-              {form.extraImgPreviews.map((p, i) => (
-                <div key={i} className="relative rounded-lg overflow-hidden border border-border aspect-square">
-                  <img src={p} alt={`Extra ${i + 1}`} className="w-full h-full object-cover" />
-                  <button onClick={() => removeExtra(i)}
-                    className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center">
-                    <X className="w-3 h-3" />
+        ) : (
+          <>
+            {/* Imagem principal */}
+            <div>
+              <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Imagem principal *</label>
+              {mainPreview ? (
+                <div className="relative rounded-xl overflow-hidden border border-border mb-1">
+                  <img src={mainPreview} alt="Preview" className="w-full max-h-40 object-cover" />
+                  <button onClick={() => { setMainFile(null); setMainPreview(""); set("image_url", ""); }}
+                    className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center">
+                    <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
-              ))}
-              {form.extraImgPreviews.length < needsExtra && (
-                <button onClick={() => extraFileRef.current?.click()}
-                  className="aspect-square border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center hover:border-primary/50 hover:bg-primary/5 transition">
-                  <Plus className="w-5 h-5 text-muted-foreground" />
-                  <p className="text-[10px] text-muted-foreground mt-1">Adicionar</p>
+              ) : (
+                <button onClick={() => mainFileRef.current?.click()}
+                  className="w-full border-2 border-dashed border-border rounded-xl p-5 flex flex-col items-center gap-2 hover:border-primary/50 hover:bg-primary/5 transition">
+                  <Upload className="w-5 h-5 text-muted-foreground" />
+                  <p className="text-xs font-bold text-foreground">Clique para fazer upload</p>
+                  <p className="text-[10px] text-muted-foreground">JPG, PNG, WebP, GIF</p>
                 </button>
               )}
+              <input ref={mainFileRef} type="file" accept="image/*" className="hidden"
+                onChange={e => e.target.files?.[0] && handleMainFile(e.target.files[0])} />
+              <input
+                placeholder="Ou cole o URL da imagem"
+                value={mainFile ? "" : (form.image_url || "")}
+                onChange={e => { set("image_url", e.target.value); setMainPreview(e.target.value); setMainFile(null); }}
+                className="w-full mt-1.5 px-3 py-2 rounded-lg bg-muted border border-border text-xs text-foreground"
+              />
             </div>
-            <input ref={extraFileRef} type="file" accept="image/*" multiple className="hidden"
-              onChange={e => e.target.files && handleExtraFiles(e.target.files)} />
-            {form.extraImgPreviews.length > 0 && (
-              <div className="space-y-1.5 mt-2">
-                <p className="text-[10px] font-bold text-muted-foreground">Links das imagens extra</p>
-                {form.extraImgPreviews.map((_, i) => (
-                  <input key={i} placeholder={`URL imagem ${i + 2}`}
-                    value={(form.extra_links || [])[i] || ""}
-                    onChange={e => {
-                      const links = [...(form.extra_links || [])];
-                      links[i] = e.target.value;
-                      set("extra_links", links);
-                    }}
-                    className="w-full px-3 py-1.5 rounded-lg bg-muted border border-border text-xs text-foreground" />
-                ))}
+
+            {/* Imagens extra */}
+            {needsExtra > 0 && (
+              <div>
+                <label className="text-[11px] font-bold text-muted-foreground mb-1 block">
+                  Imagens extra ({form.extraImgPreviews.length}/{needsExtra} recomendadas)
+                </label>
+                <div className="grid grid-cols-3 gap-2 mb-2">
+                  {form.extraImgPreviews.map((p, i) => (
+                    <div key={i} className="relative rounded-lg overflow-hidden border border-border aspect-square">
+                      <img src={p} alt={`Extra ${i + 1}`} className="w-full h-full object-cover" />
+                      <button onClick={() => removeExtra(i)}
+                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                  {form.extraImgPreviews.length < needsExtra && (
+                    <button onClick={() => extraFileRef.current?.click()}
+                      className="aspect-square border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center hover:border-primary/50 hover:bg-primary/5 transition">
+                      <Plus className="w-5 h-5 text-muted-foreground" />
+                      <p className="text-[10px] text-muted-foreground mt-1">Adicionar</p>
+                    </button>
+                  )}
+                </div>
+                <input ref={extraFileRef} type="file" accept="image/*" multiple className="hidden"
+                  onChange={e => e.target.files && handleExtraFiles(e.target.files)} />
+                {form.extraImgPreviews.length > 0 && (
+                  <div className="space-y-1.5 mt-2">
+                    <p className="text-[10px] font-bold text-muted-foreground">Links das imagens extra</p>
+                    {form.extraImgPreviews.map((_, i) => (
+                      <input key={i} placeholder={`URL imagem ${i + 2}`}
+                        value={form.extra_links[i] || ""}
+                        onChange={e => {
+                          const links = [...form.extra_links];
+                          links[i] = e.target.value;
+                          set("extra_links", links);
+                        }}
+                        className="w-full px-3 py-1.5 rounded-lg bg-muted border border-border text-xs text-foreground"
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             )}
-          </div>
+          </>
         )}
 
-        {/* Texto */}
+        {/* Texto — comum a todos os formatos */}
         <div className="grid grid-cols-2 gap-2">
-          <input placeholder="Título (opcional)" value={form.title || ""} onChange={e => set("title", e.target.value)}
+          <input placeholder="Título (opcional)" value={form.title}
+            onChange={e => set("title", e.target.value)}
             className="col-span-2 px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
-          <input placeholder="Subtítulo (opcional)" value={form.subtitle || ""} onChange={e => set("subtitle", e.target.value)}
+          <input placeholder="Subtítulo (opcional)" value={form.subtitle}
+            onChange={e => set("subtitle", e.target.value)}
             className="col-span-2 px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
-          <input placeholder="Texto CTA" value={form.cta_text || ""} onChange={e => set("cta_text", e.target.value)}
-            className="px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
-          <input placeholder="URL de destino" value={form.cta_link || ""} onChange={e => set("cta_link", e.target.value)}
-            className="px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
+          {!isSplit && <>
+            <input placeholder="Texto CTA" value={form.cta_text}
+              onChange={e => set("cta_text", e.target.value)}
+              className="px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
+            <input placeholder="URL de destino" value={form.cta_link}
+              onChange={e => set("cta_link", e.target.value)}
+              className="px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
+          </>}
         </div>
 
         {/* Posição do texto */}
@@ -419,14 +584,12 @@ const BannerForm = ({ initial, existingSlots, onClose, onSaved }: FormProps) => 
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Cor do texto</label>
           <div className="flex items-center gap-2">
-            <input type="color" value={form.text_color || "#ffffff"}
-              onChange={e => set("text_color", e.target.value)}
+            <input type="color" value={form.text_color} onChange={e => set("text_color", e.target.value)}
               className="w-9 h-9 rounded-lg border border-border cursor-pointer" />
-            <input value={form.text_color || "#ffffff"}
-              onChange={e => set("text_color", e.target.value)}
+            <input value={form.text_color} onChange={e => set("text_color", e.target.value)}
               className="flex-1 px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
             <span className="px-3 py-1.5 rounded-lg text-xs font-black border border-border"
-              style={{ color: form.text_color || "#ffffff", backgroundColor: form.text_bg_enabled ? (form.text_bg_color || "#000000") : "transparent" }}>
+              style={{ color: form.text_color, backgroundColor: form.text_bg_enabled ? form.text_bg_color : "transparent" }}>
               Texto
             </span>
           </div>
@@ -443,13 +606,10 @@ const BannerForm = ({ initial, existingSlots, onClose, onSaved }: FormProps) => 
           </div>
           {form.text_bg_enabled && (
             <div className="flex items-center gap-2">
-              <input type="color" value={form.text_bg_color || "#000000"}
-                onChange={e => set("text_bg_color", e.target.value)}
+              <input type="color" value={form.text_bg_color} onChange={e => set("text_bg_color", e.target.value)}
                 className="w-9 h-9 rounded-lg border border-border cursor-pointer" />
-              <input value={form.text_bg_color || "#000000"}
-                onChange={e => set("text_bg_color", e.target.value)}
+              <input value={form.text_bg_color} onChange={e => set("text_bg_color", e.target.value)}
                 className="flex-1 px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
-              <p className="text-[10px] text-muted-foreground">ex: #00000080</p>
             </div>
           )}
         </div>
@@ -468,13 +628,14 @@ const BannerForm = ({ initial, existingSlots, onClose, onSaved }: FormProps) => 
           className="w-full py-3 bg-primary text-primary-foreground text-sm font-bold rounded-xl disabled:opacity-50 flex items-center justify-center gap-2">
           {saving
             ? <><Loader2 className="w-4 h-4 animate-spin" /> A guardar...</>
-            : <><Check className="w-4 h-4" /> {isEdit ? "Guardar alterações" : "Criar banner"}</>}
+            : <><Check className="w-4 h-4" /> {isEdit ? "Guardar alterações" : isSplit ? `Criar ${form.splitLeft.length + form.splitRight.length} banners` : "Criar banner"}</>}
         </button>
       </div>
     </div>
   );
 };
 
+/* ─── Card ───────────────────────────────────────────────────────────────── */
 interface CardProps {
   banner: BannerRow;
   onEdit: () => void;
@@ -501,7 +662,6 @@ const BannerCard = ({ banner, onEdit, onToggle, onDelete }: CardProps) => {
               +{imgCount - 1} imgs
             </span>
           )}
-          {/* Badge split_side */}
           {banner.format === "split" && banner.split_side && (
             <span className="absolute top-1.5 left-1.5 bg-primary/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
               {banner.split_side === "left" ? "◧ Esq" : "◨ Dir"}
@@ -520,9 +680,6 @@ const BannerCard = ({ banner, onEdit, onToggle, onDelete }: CardProps) => {
             </span>
             <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500">
               {getHomeSlotLabel(banner.sort_order)}
-            </span>
-            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-              {imgCount} img{imgCount > 1 ? "s" : ""}
             </span>
           </div>
           <div className="flex gap-1 flex-shrink-0">
@@ -544,6 +701,7 @@ const BannerCard = ({ banner, onEdit, onToggle, onDelete }: CardProps) => {
   );
 };
 
+/* ─── Tab principal ──────────────────────────────────────────────────────── */
 const AdminBannersTab = () => {
   const queryClient = useQueryClient();
   const [showForm, setShowForm]         = useState(false);
@@ -560,7 +718,7 @@ const AdminBannersTab = () => {
         .select("*")
         .order("sort_order")
         .order("created_at");
-      if (error) { console.error("Erro banners:", error); throw new Error(error.message); }
+      if (error) throw new Error(error.message);
       return (data || []) as BannerRow[];
     },
   });
@@ -602,21 +760,12 @@ const AdminBannersTab = () => {
     .filter(b => filterDevice === "all" || (b.device || "mobile") === filterDevice)
     .filter(b => filterFormat === "all" || b.format === filterFormat);
 
-  const existingSlots = banners
-    .filter(b => b.format !== "split")
-    .map(b => b.sort_order);
-
-  const handleEdit = (b: BannerRow) => {
-    setEditBanner(b);
-    setShowForm(false);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
   const closeForm = () => { setShowForm(false); setEditBanner(null); };
 
   return (
     <div className="space-y-4">
 
+      {/* Stats */}
       <div className="grid grid-cols-5 gap-1.5">
         {[
           { label: "Total",   value: stats.total,   color: "text-primary border-primary/20 bg-primary/5" },
@@ -632,10 +781,11 @@ const AdminBannersTab = () => {
         ))}
       </div>
 
+      {/* Formulário */}
       {editBanner ? (
-        <BannerForm initial={editBanner} existingSlots={existingSlots} onClose={closeForm} onSaved={invalidate} />
+        <BannerForm initial={editBanner} existingBanners={banners} onClose={closeForm} onSaved={invalidate} />
       ) : showForm ? (
-        <BannerForm existingSlots={existingSlots} onClose={closeForm} onSaved={invalidate} />
+        <BannerForm existingBanners={banners} onClose={closeForm} onSaved={invalidate} />
       ) : (
         <button onClick={() => setShowForm(true)}
           className="w-full py-3 bg-primary text-primary-foreground text-xs font-bold rounded-xl flex items-center justify-center gap-2">
@@ -643,6 +793,7 @@ const AdminBannersTab = () => {
         </button>
       )}
 
+      {/* Filtros */}
       <div className="space-y-2">
         <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
           {[{ value: "all", label: "Todos" }, ...DEVICES].map(d => (
@@ -694,7 +845,7 @@ const AdminBannersTab = () => {
             <BannerCard
               key={b.id}
               banner={b}
-              onEdit={() => handleEdit(b)}
+              onEdit={() => { setEditBanner(b); setShowForm(false); window.scrollTo({ top: 0, behavior: "smooth" }); }}
               onToggle={() => toggleBanner.mutate({ id: b.id, active: !b.is_active })}
               onDelete={() => { if (confirm("Eliminar este banner?")) deleteBanner.mutate(b.id); }}
             />
