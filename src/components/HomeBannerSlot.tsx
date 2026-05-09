@@ -45,8 +45,22 @@ const HomeBannerSlot = ({
     [banners, slot, device],
   );
 
-  const splitLeft  = useMemo(() => slotBanners.filter((b: any) => b.split_side === "left"),  [slotBanners]);
-  const splitRight = useMemo(() => slotBanners.filter((b: any) => b.split_side === "right"), [slotBanners]);
+  /*
+   * MODELO CORRECTO DO SPLIT:
+   *   1 registo left  → image_url = img principal, extra_images = [img2, img3, ...]
+   *   1 registo right → image_url = img principal, extra_images = [img2, img3, ...]
+   *
+   * Usamos .find() — só queremos O PRIMEIRO registo de cada lado.
+   * Se houver duplicados na BD, o SQL de limpeza resolve isso.
+   */
+  const splitLeft = useMemo(
+    () => slotBanners.find((b: any) => b.format === "split" && b.split_side === "left") ?? null,
+    [slotBanners],
+  );
+  const splitRight = useMemo(
+    () => slotBanners.find((b: any) => b.format === "split" && b.split_side === "right") ?? null,
+    [slotBanners],
+  );
 
   const banner = useMemo(
     () => slotBanners.find((b: any) => !b.split_side),
@@ -69,51 +83,67 @@ const HomeBannerSlot = ({
   const sectionCls = compact || sidebar ? "w-full" : "container mx-auto px-3 pt-3";
 
   /* ── Split ── */
-  const isSplitSlot = slotBanners.some((b: any) => b.format === "split");
+  const isSplitSlot = splitLeft !== null || splitRight !== null;
+
   if (isSplitSlot) {
-    if (splitLeft.length === 0 && splitRight.length === 0) return null;
+    if (!splitLeft && !splitRight) return null;
 
-    // Altura total do bloco
-    const totalMinH = compact
-      ? 200
-      : sidebar
-        ? 400
-        : 340;
+    const totalMinH = compact ? 200 : sidebar ? 400 : 340;
 
-    const renderSide = (items: any[]) => (
-      <div
-        className="flex flex-col gap-1"
-        style={{ minHeight: totalMinH }}
-      >
-        {items.map((b: any) => (
-          <a
-            key={b.id}
-            href={b.cta_link || "#"}
-            className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md"
-            style={{ flex: 1, minHeight: 0 }}
-          >
-            <img
-              src={b.image_url}
-              alt={b.title || "Banner"}
-              className="absolute inset-0 w-full h-full object-cover"
-              loading="lazy"
-            />
-            {b.title && (
-              <>
-                <div className={`absolute inset-0 ${gradientDir(b.text_position)}`} />
-                <div className={`absolute inset-0 flex flex-col p-2 ${getPos(b.text_position).wrapper}`}>
-                  <p className={`text-xs font-bold text-white drop-shadow-lg ${getPos(b.text_position).align}`}>
-                    {b.title}
-                  </p>
-                </div>
-              </>
-            )}
-          </a>
-        ))}
-      </div>
-    );
+    // Extrai todas as imagens de um registo de lado: [image_url, ...extra_images]
+    const getSideImages = (b: any): string[] =>
+      [b.image_url, ...(b.extra_images || [])].filter(Boolean);
 
-    const hasBoth  = splitLeft.length > 0 && splitRight.length > 0;
+    /*
+     * Renderiza UM lado.
+     * Se o registo tiver extra_images, empilha verticalmente
+     * dividindo o espaço em partes iguais via flex:1.
+     */
+    const renderSide = (b: any) => {
+      const imgs = getSideImages(b);
+      const pos  = getPos(b.text_position);
+
+      return (
+        <div
+          className="flex flex-col gap-1"
+          style={{ minHeight: totalMinH }}
+        >
+          {imgs.map((imgUrl: string, i: number) => {
+            const linkUrl = i === 0
+              ? (b.cta_link || "#")
+              : (b.extra_links?.[i - 1] || b.cta_link || "#");
+
+            return (
+              <a
+                key={`${b.id}-${i}`}
+                href={linkUrl}
+                className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md"
+                style={{ flex: 1, minHeight: 0 }}
+              >
+                <img
+                  src={imgUrl}
+                  alt={b.title || "Banner"}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  loading="lazy"
+                />
+                {i === 0 && b.title && (
+                  <>
+                    <div className={`absolute inset-0 ${gradientDir(b.text_position)}`} />
+                    <div className={`absolute inset-0 flex flex-col p-2 ${pos.wrapper}`}>
+                      <p className={`text-xs font-bold text-white drop-shadow-lg ${pos.align}`}>
+                        {b.title}
+                      </p>
+                    </div>
+                  </>
+                )}
+              </a>
+            );
+          })}
+        </div>
+      );
+    };
+
+    const hasBoth  = splitLeft !== null && splitRight !== null;
     const gridCols = hasBoth ? "grid-cols-2" : "grid-cols-1";
 
     return (
@@ -122,8 +152,8 @@ const HomeBannerSlot = ({
           className={`grid ${gridCols} gap-1`}
           style={{ minHeight: totalMinH }}
         >
-          {splitLeft.length  > 0 && renderSide(splitLeft)}
-          {splitRight.length > 0 && renderSide(splitRight)}
+          {splitLeft  && renderSide(splitLeft)}
+          {splitRight && renderSide(splitRight)}
         </div>
       </section>
     );
