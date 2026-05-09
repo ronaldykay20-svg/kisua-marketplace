@@ -17,14 +17,14 @@ export interface Banner {
   text_position?: string;
   extra_links?: string[];
   category_id?: string | null;
-  /** Dispositivo alvo — se null/undefined aplica-se a todos */
   device?: DeviceLayout | null;
+  split_side?: "left" | "right" | null;
 }
 
 /**
  * Devolve banners activos.
  * @param format   — filtra por formato (opcional)
- * @param device   — filtra por dispositivo; também inclui banners sem device (fallback)
+ * @param device   — filtra por dispositivo; se não definido, devolve tudo
  */
 export const useBanners = (format?: string, device?: DeviceLayout) => {
   return useQuery({
@@ -44,16 +44,19 @@ export const useBanners = (format?: string, device?: DeviceLayout) => {
 
       const rows = (data || []) as Banner[];
 
-      /* Se não foi pedido filtro por device, devolve tudo */
+      /* Sem filtro de device — devolve tudo */
       if (!device) return rows;
 
       /*
-       * Filtra: inclui banners que sejam do device pedido
-       * OU que não tenham device definido (servem como fallback mobile)
+       * Filtra estritamente pelo device pedido.
+       * Banners sem device definido só aparecem no mobile (fallback).
        */
-      return rows.filter(
-        (b) => !b.device || b.device === device,
-      );
+      return rows.filter((b) => {
+        if (b.device === device) return true;
+        // fallback: banners sem device só servem o mobile
+        if (!b.device && device === "mobile") return true;
+        return false;
+      });
     },
     staleTime: 5 * 60 * 1000,
   });
