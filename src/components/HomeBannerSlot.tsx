@@ -34,25 +34,20 @@ const HomeBannerSlot = ({
 }: HomeBannerSlotProps) => {
   const { data: banners = [] } = useBanners(undefined, device);
 
-  // Verifica se um banner pertence ao device pedido
-  // Banners sem device (null/undefined) são tratados como mobile
   const matchesDevice = (b: any) => {
     if (b.device === device) return true;
     if (!b.device && device === "mobile") return true;
     return false;
   };
 
-  // Todos os banners deste slot + device (incluindo device=null para mobile)
   const slotBanners = useMemo(() =>
     banners.filter((b) => b.sort_order === slot && matchesDevice(b)),
     [banners, slot, device],
   );
 
-  // Split: separar por lado
   const splitLeft  = useMemo(() => slotBanners.filter((b: any) => b.split_side === "left"),  [slotBanners]);
   const splitRight = useMemo(() => slotBanners.filter((b: any) => b.split_side === "right"), [slotBanners]);
 
-  // Banner normal: primeiro do slot que corresponde ao device
   const banner = useMemo(() =>
     slotBanners.find((b: any) => !b.split_side),
     [slotBanners],
@@ -78,7 +73,6 @@ const HomeBannerSlot = ({
     return () => window.clearInterval(t);
   }, [banner, images.length]);
 
-  // Wrapper de secção
   const sectionCls = compact || sidebar
     ? "w-full"
     : "container mx-auto px-3 pt-3";
@@ -88,7 +82,6 @@ const HomeBannerSlot = ({
   if (isSplitSlot) {
     if (splitLeft.length === 0 && splitRight.length === 0) return null;
 
-    // Altura total do bloco — igual para as duas colunas
     const blockH = compact
       ? "min-h-[200px]"
       : sidebar
@@ -98,7 +91,7 @@ const HomeBannerSlot = ({
     const renderSide = (items: any[]) => (
       <div className={`flex flex-col gap-1 ${blockH}`}>
         {items.map((b: any) => (
-          <a
+          
             key={b.id}
             href={b.cta_link || "#"}
             className="relative flex-1 block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md"
@@ -125,11 +118,15 @@ const HomeBannerSlot = ({
       </div>
     );
 
+    // Se só tem um lado, ocupa a largura toda; se tem os dois, divide ao meio
+    const hasBoth = splitLeft.length > 0 && splitRight.length > 0;
+    const gridCols = hasBoth ? "grid-cols-2" : "grid-cols-1";
+
     return (
       <section className={sectionCls}>
-        <div className={`grid grid-cols-2 gap-1 ${blockH}`}>
-          {renderSide(splitLeft)}
-          {renderSide(splitRight)}
+        <div className={`grid ${gridCols} gap-1 ${blockH}`}>
+          {splitLeft.length > 0 && renderSide(splitLeft)}
+          {splitRight.length > 0 && renderSide(splitRight)}
         </div>
       </section>
     );
