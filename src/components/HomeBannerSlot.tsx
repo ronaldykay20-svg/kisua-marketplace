@@ -20,9 +20,9 @@ const getPos = (p?: string) =>
   positionClasses[p || "bottom-left"] || positionClasses["bottom-left"];
 
 const gradientDir = (p?: string) => {
-  if (p === "top-left")    return "bg-gradient-to-br from-black/80 via-black/30 to-transparent";
-  if (p === "top-right")   return "bg-gradient-to-bl from-black/80 via-black/30 to-transparent";
-  if (p === "bottom-right")return "bg-gradient-to-tl from-black/80 via-black/30 to-transparent";
+  if (p === "top-left")     return "bg-gradient-to-br from-black/80 via-black/30 to-transparent";
+  if (p === "top-right")    return "bg-gradient-to-bl from-black/80 via-black/30 to-transparent";
+  if (p === "bottom-right") return "bg-gradient-to-tl from-black/80 via-black/30 to-transparent";
   return "bg-gradient-to-t from-black/80 via-black/30 to-transparent";
 };
 
@@ -40,44 +40,35 @@ const HomeBannerSlot = ({
     return false;
   };
 
-  const slotBanners = useMemo(() =>
-    banners.filter((b) => b.sort_order === slot && matchesDevice(b)),
+  const slotBanners = useMemo(
+    () => banners.filter((b) => b.sort_order === slot && matchesDevice(b)),
     [banners, slot, device],
   );
 
   const splitLeft  = useMemo(() => slotBanners.filter((b: any) => b.split_side === "left"),  [slotBanners]);
   const splitRight = useMemo(() => slotBanners.filter((b: any) => b.split_side === "right"), [slotBanners]);
 
-  const banner = useMemo(() =>
-    slotBanners.find((b: any) => !b.split_side),
+  const banner = useMemo(
+    () => slotBanners.find((b: any) => !b.split_side),
     [slotBanners],
   );
 
   const images = useMemo(
-    () =>
-      banner
-        ? [banner.image_url, ...(banner.extra_images || [])].filter(Boolean)
-        : [],
+    () => banner ? [banner.image_url, ...(banner.extra_images || [])].filter(Boolean) : [],
     [banner],
   );
 
   const [currentImage, setCurrentImage] = useState(0);
   useEffect(() => { setCurrentImage(0); }, [banner?.id]);
   useEffect(() => {
-    if (!banner || !["hero", "hero-full"].includes(banner.format) || images.length <= 1)
-      return;
-    const t = window.setInterval(
-      () => setCurrentImage((v) => (v + 1) % images.length),
-      5000,
-    );
+    if (!banner || !["hero", "hero-full"].includes(banner.format) || images.length <= 1) return;
+    const t = window.setInterval(() => setCurrentImage((v) => (v + 1) % images.length), 5000);
     return () => window.clearInterval(t);
   }, [banner, images.length]);
 
-  const sectionCls = compact || sidebar
-    ? "w-full"
-    : "container mx-auto px-3 pt-3";
+  const sectionCls = compact || sidebar ? "w-full" : "container mx-auto px-3 pt-3";
 
-  // ── Split ──
+  /* ── Split ── */
   const isSplitSlot = slotBanners.some((b: any) => b.format === "split");
   if (isSplitSlot) {
     if (splitLeft.length === 0 && splitRight.length === 0) return null;
@@ -91,7 +82,7 @@ const HomeBannerSlot = ({
     const renderSide = (items: any[]) => (
       <div className={`flex flex-col gap-1 ${blockH}`}>
         {items.map((b: any) => (
-          
+          <a
             key={b.id}
             href={b.cta_link || "#"}
             className="relative flex-1 block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md"
@@ -118,14 +109,13 @@ const HomeBannerSlot = ({
       </div>
     );
 
-    // Se só tem um lado, ocupa a largura toda; se tem os dois, divide ao meio
-    const hasBoth = splitLeft.length > 0 && splitRight.length > 0;
+    const hasBoth  = splitLeft.length > 0 && splitRight.length > 0;
     const gridCols = hasBoth ? "grid-cols-2" : "grid-cols-1";
 
     return (
       <section className={sectionCls}>
         <div className={`grid ${gridCols} gap-1 ${blockH}`}>
-          {splitLeft.length > 0 && renderSide(splitLeft)}
+          {splitLeft.length  > 0 && renderSide(splitLeft)}
           {splitRight.length > 0 && renderSide(splitRight)}
         </div>
       </section>
@@ -155,9 +145,7 @@ const HomeBannerSlot = ({
   const withCategoryProducts = (children: React.ReactNode) => (
     <>
       {children}
-      {banner.category_id && (
-        <BannerCategoryProducts categoryId={banner.category_id} />
-      )}
+      {banner.category_id && <BannerCategoryProducts categoryId={banner.category_id} />}
     </>
   );
 
@@ -170,9 +158,7 @@ const HomeBannerSlot = ({
           <div className={`relative ${h}`}>
             <img src={image} alt={banner.title || "Banner"}
               className="absolute inset-0 h-full w-full object-cover" />
-            {hasText && (
-              <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
-            )}
+            {hasText && <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />}
             {hasText && (
               <div className={`relative flex h-full flex-col p-5 sm:p-8 ${pos.wrapper} ${h}`}>
                 <div className={`max-w-[72%] space-y-1.5 ${pos.align}`}>
