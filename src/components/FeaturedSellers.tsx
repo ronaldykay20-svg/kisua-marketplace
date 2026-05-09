@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { ChevronLeft, ChevronRight, CheckCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, CheckCircle, ShoppingCart } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 interface FeaturedSellersProps {
@@ -84,8 +84,10 @@ const FeaturedSellers = ({ layout = "mobile" }: FeaturedSellersProps) => {
       .filter((p: any) => p.seller_id === seller.id)
       .slice(0, productsLimit);
 
+    const rating = seller.positive_rating ?? 98;
+
     return (
-      <div className="border border-border rounded-2xl overflow-hidden flex flex-col">
+      <div className="border border-border rounded-2xl overflow-hidden flex flex-col bg-card">
         {/* Banner */}
         <div className="relative overflow-hidden h-[160px] bg-muted flex-shrink-0">
           {seller.cover_url ? (
@@ -122,6 +124,23 @@ const FeaturedSellers = ({ layout = "mobile" }: FeaturedSellersProps) => {
           </button>
         </div>
 
+        {/* Estatísticas da loja */}
+        <div className="flex items-center justify-around px-3 py-2 border-b border-border text-[10px] text-muted-foreground">
+          <div className="flex items-center gap-1">
+            <span>☆</span>
+            <span className="font-bold text-foreground">{rating}%</span>
+            <span>Avaliações positivas</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span>📦</span>
+            <span>Envio rápido</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span>🛡️</span>
+            <span>Compra segura</span>
+          </div>
+        </div>
+
         {/* Cabeçalho produtos */}
         <div className="flex items-center justify-between px-3 pt-3 pb-2">
           <div className="flex items-center gap-3 flex-1">
@@ -150,9 +169,9 @@ const FeaturedSellers = ({ layout = "mobile" }: FeaturedSellersProps) => {
                   <div
                     key={p.id}
                     onClick={() => navigate(`/produto/${p.id}`)}
-                    className="cursor-pointer hover:opacity-80 transition"
+                    className="cursor-pointer hover:opacity-90 transition bg-card rounded-xl border border-border overflow-hidden"
                   >
-                    <div className="aspect-square rounded-xl overflow-hidden bg-muted border border-border">
+                    <div className="aspect-square bg-muted overflow-hidden">
                       {img ? (
                         <img src={img} alt={p.title} className="w-full h-full object-cover" loading="lazy" />
                       ) : (
@@ -161,10 +180,22 @@ const FeaturedSellers = ({ layout = "mobile" }: FeaturedSellersProps) => {
                         </div>
                       )}
                     </div>
-                    <p className="text-[11px] font-semibold text-foreground line-clamp-1 mt-1">{p.title}</p>
-                    <p className="text-[12px] font-black text-primary">
-                      {Number(p.price).toLocaleString("pt-AO")} Kz
-                    </p>
+                    <div className="p-1.5">
+                      <p className="text-[11px] font-semibold text-foreground line-clamp-2 leading-tight mb-1">
+                        {p.title}
+                      </p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[12px] font-black text-primary">
+                          {Number(p.price).toLocaleString("pt-AO")} Kz
+                        </span>
+                        <button
+                          onClick={e => { e.stopPropagation(); navigate(`/produto/${p.id}`); }}
+                          className="w-6 h-6 rounded-lg flex items-center justify-center bg-primary/10 hover:bg-primary/20 transition"
+                        >
+                          <ShoppingCart className="w-3 h-3 text-primary" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 );
               })}
