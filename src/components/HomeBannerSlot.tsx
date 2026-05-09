@@ -88,71 +88,48 @@ const HomeBannerSlot = ({
   if (isSplitSlot) {
     if (splitLeft.length === 0 && splitRight.length === 0) return null;
 
-    // Altura de cada imagem dentro da coluna
-    const imgCls = compact
-      ? "w-full object-cover aspect-[4/3]"
+    // Altura total do bloco — igual para as duas colunas
+    const blockH = compact
+      ? "min-h-[200px]"
       : sidebar
-        ? "w-full object-cover aspect-[3/4]"
-        : "w-full object-cover aspect-[4/3] sm:aspect-[3/2]";
+        ? "min-h-[400px]"
+        : "min-h-[260px] sm:min-h-[340px]";
+
+    const renderSide = (items: any[]) => (
+      <div className={`flex flex-col gap-1 ${blockH}`}>
+        {items.map((b: any) => (
+          <a
+            key={b.id}
+            href={b.cta_link || "#"}
+            className="relative flex-1 block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md"
+            style={{ minHeight: 0 }}
+          >
+            <img
+              src={b.image_url}
+              alt={b.title || "Banner"}
+              className="absolute inset-0 w-full h-full object-cover"
+              loading="lazy"
+            />
+            {b.title && (
+              <>
+                <div className={`absolute inset-0 ${gradientDir(b.text_position)}`} />
+                <div className={`absolute inset-0 flex flex-col p-2 ${getPos(b.text_position).wrapper}`}>
+                  <p className={`text-xs font-bold text-white drop-shadow-lg ${getPos(b.text_position).align}`}>
+                    {b.title}
+                  </p>
+                </div>
+              </>
+            )}
+          </a>
+        ))}
+      </div>
+    );
 
     return (
       <section className={sectionCls}>
-        <div className="grid grid-cols-2 gap-2">
-          {/* Coluna Esquerda */}
-          <div className="flex flex-col gap-2">
-            {splitLeft.map((b: any) => (
-              <a
-                key={b.id}
-                href={b.cta_link || "#"}
-                className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md"
-              >
-                <img
-                  src={b.image_url}
-                  alt={b.title || "Banner"}
-                  className={imgCls}
-                  loading="lazy"
-                />
-                {b.title && (
-                  <>
-                    <div className={`absolute inset-0 ${gradientDir(b.text_position)}`} />
-                    <div className={`absolute inset-0 flex flex-col p-2 ${getPos(b.text_position).wrapper}`}>
-                      <p className={`text-xs font-bold text-white drop-shadow-lg ${getPos(b.text_position).align}`}>
-                        {b.title}
-                      </p>
-                    </div>
-                  </>
-                )}
-              </a>
-            ))}
-          </div>
-
-          {/* Coluna Direita */}
-          <div className="flex flex-col gap-2">
-            {splitRight.map((b: any) => (
-              <a
-                key={b.id}
-                href={b.cta_link || "#"}
-                className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md"
-              >
-                <img
-                  src={b.image_url}
-                  alt={b.title || "Banner"}
-                  className={imgCls}
-                  loading="lazy"
-                />
-                {b.title && (
-                  <>
-                    <div className={`absolute inset-0 ${gradientDir(b.text_position)}`} />
-                    <div className={`absolute inset-0 flex flex-col p-2 ${getPos(b.text_position).wrapper}`}>
-                      <p className={`text-xs font-bold text-white drop-shadow-lg ${getPos(b.text_position).align}`}>
-                        {b.title}
-                      </p>
-                    </div>
-                  </>
-                )}
-              </a>
-            ))}
-          </div>
+        <div className={`grid grid-cols-2 gap-1 ${blockH}`}>
+          {renderSide(splitLeft)}
+          {renderSide(splitRight)}
         </div>
       </section>
     );
