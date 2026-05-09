@@ -45,14 +45,6 @@ const HomeBannerSlot = ({
     [banners, slot, device],
   );
 
-  /*
-   * MODELO CORRECTO DO SPLIT:
-   *   1 registo left  → image_url = img principal, extra_images = [img2, img3, ...]
-   *   1 registo right → image_url = img principal, extra_images = [img2, img3, ...]
-   *
-   * Usamos .find() — só queremos O PRIMEIRO registo de cada lado.
-   * Se houver duplicados na BD, o SQL de limpeza resolve isso.
-   */
   const splitLeft = useMemo(
     () => slotBanners.find((b: any) => b.format === "split" && b.split_side === "left") ?? null,
     [slotBanners],
@@ -88,17 +80,17 @@ const HomeBannerSlot = ({
   if (isSplitSlot) {
     if (!splitLeft && !splitRight) return null;
 
-    const totalMinH = compact ? 200 : sidebar ? 400 : 340;
+    // Altura mínima por imagem: garante espaço digno para 1 a 4 imagens por lado
+    const imgPerSide = Math.max(
+      splitLeft  ? 1 + (splitLeft.extra_images?.length  || 0) : 1,
+      splitRight ? 1 + (splitRight.extra_images?.length || 0) : 1,
+    );
+    const heightPerImg = sidebar ? 140 : compact ? 110 : 180;
+    const totalMinH = imgPerSide * heightPerImg;
 
-    // Extrai todas as imagens de um registo de lado: [image_url, ...extra_images]
     const getSideImages = (b: any): string[] =>
       [b.image_url, ...(b.extra_images || [])].filter(Boolean);
 
-    /*
-     * Renderiza UM lado.
-     * Se o registo tiver extra_images, empilha verticalmente
-     * dividindo o espaço em partes iguais via flex:1.
-     */
     const renderSide = (b: any) => {
       const imgs = getSideImages(b);
       const pos  = getPos(b.text_position);
@@ -114,11 +106,11 @@ const HomeBannerSlot = ({
               : (b.extra_links?.[i - 1] || b.cta_link || "#");
 
             return (
-              <a
+              
                 key={`${b.id}-${i}`}
                 href={linkUrl}
                 className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md"
-                style={{ flex: 1, minHeight: 0 }}
+                style={{ flex: 1, minHeight: heightPerImg }}
               >
                 <img
                   src={imgUrl}
