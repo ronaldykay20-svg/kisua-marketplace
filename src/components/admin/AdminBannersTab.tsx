@@ -35,27 +35,36 @@ const FORMATS = [
   { value: "split",          label: "Split (2 colunas livres)"  },
 ];
 
-// Layouts disponíveis por lado do split
-const SPLIT_LAYOUTS = [
-  {
-    value: "stack",
-    label: "Coluna",
-    desc: "Uma por baixo da outra",
-    icon: "▤",
-  },
-  {
-    value: "grid-2",
-    label: "Grelha 2 col.",
-    desc: "Sempre 2 lado a lado",
-    icon: "▦",
-  },
-  {
-    value: "auto",
-    label: "Auto",
-    desc: "1→full · 2→lado a lado · 3→2+1 · 4→2×2",
-    icon: "✦",
-  },
-];
+// Layouts por número de imagens
+const LAYOUTS_BY_COUNT: Record<number, { value: string; label: string; diagram: string }[]> = {
+  1: [
+    { value: "1-full", label: "Ocupa tudo", diagram: "█" },
+  ],
+  2: [
+    { value: "2-col", label: "Coluna", diagram: "▀\n▄" },
+    { value: "2-row", label: "Lado a lado", diagram: "▌▐" },
+  ],
+  3: [
+    { value: "3-col",          label: "Coluna",           diagram: "▀\n▄\n▄" },
+    { value: "3-row",          label: "Lado a lado",      diagram: "▌▐▐" },
+    { value: "3-2cima-1baixo", label: "2↑ + 1↓",         diagram: "▌▐\n██" },
+    { value: "3-1cima-2baixo", label: "1↑ + 2↓",         diagram: "██\n▌▐" },
+    { value: "3-2esq-1dir",    label: "2esq + 1dir",      diagram: "▀▐\n▄▐" },
+    { value: "3-1esq-2dir",    label: "1esq + 2dir",      diagram: "▌▀\n▌▄" },
+  ],
+  4: [
+    { value: "4-2x2",          label: "Grelha 2×2",       diagram: "▌▐\n▌▐" },
+    { value: "4-col",          label: "Coluna",           diagram: "▀\n▄\n▄\n▄" },
+    { value: "4-row",          label: "Lado a lado",      diagram: "▌▐▐▐" },
+    { value: "4-1cima-3baixo", label: "1↑ + 3↓",         diagram: "███\n▌▐▐" },
+    { value: "4-3cima-1baixo", label: "3↑ + 1↓",         diagram: "▌▐▐\n███" },
+    { value: "4-1esq-3dir",    label: "1esq + 3dir",      diagram: "▌▀\n▌▄\n▌▄" },
+    { value: "4-3esq-1dir",    label: "3esq + 1dir",      diagram: "▀▐\n▄▐\n▄▐" },
+  ],
+};
+
+const getLayoutsForCount = (n: number) =>
+  LAYOUTS_BY_COUNT[Math.min(n, 4)] ?? LAYOUTS_BY_COUNT[1];
 
 const TEXT_POSITIONS = [
   { value: "top-left",      label: "↖ Cima Esquerda"  },
@@ -123,28 +132,30 @@ const SplitSideUploader = ({ side, images, layout, onChange, onLayoutChange }: S
   const color = side === "left" ? "border-blue-500/40 bg-blue-500/5" : "border-purple-500/40 bg-purple-500/5";
   const badge = side === "left" ? "bg-blue-500/10 text-blue-500" : "bg-purple-500/10 text-purple-500";
 
+  const imgCount = Math.max(images.length, 1);
+  const layouts = getLayoutsForCount(imgCount);
+
+  // Se o layout atual não existe para este número de imgs, reseta
+  const validLayout = layouts.find(l => l.value === layout) ? layout : layouts[0].value;
+
   const addFiles = (files: FileList) => {
     const toAdd = Array.from(files).slice(0, 4 - images.length);
     const newImgs = toAdd.map(f => ({ file: f, preview: URL.createObjectURL(f), link: "" }));
-    onChange([...images, ...newImgs]);
+    const next = [...images, ...newImgs];
+    onChange(next);
+    // Atualiza layouts disponíveis
+    const newLayouts = getLayoutsForCount(next.length);
+    if (!newLayouts.find(l => l.value === layout)) onLayoutChange(newLayouts[0].value);
   };
 
   const remove = (i: number) => {
     const next = [...images]; next.splice(i, 1); onChange(next);
+    const newLayouts = getLayoutsForCount(Math.max(next.length, 1));
+    if (!newLayouts.find(l => l.value === layout)) onLayoutChange(newLayouts[0].value);
   };
 
   const setLink = (i: number, val: string) => {
     const next = [...images]; next[i] = { ...next[i], link: val }; onChange(next);
-  };
-
-  const handleClick = (e: React.MouseEvent) => {
-    e.preventDefault(); e.stopPropagation(); fileRef.current?.click();
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    e.stopPropagation();
-    if (e.target.files) addFiles(e.target.files);
-    e.target.value = "";
   };
 
   return (
@@ -154,83 +165,65 @@ const SplitSideUploader = ({ side, images, layout, onChange, onLayoutChange }: S
         <span className="text-[10px] text-muted-foreground">{images.length}/4 imagens</span>
       </div>
 
-      {/* Selector de layout */}
-      <div>
-        <p className="text-[10px] font-bold text-muted-foreground mb-1.5">Disposição das imagens</p>
-        <div className="grid grid-cols-3 gap-1.5">
-          {SPLIT_LAYOUTS.map(l => (
-            <button
-              key={l.value}
-              type="button"
-              onClick={() => onLayoutChange(l.value)}
-              className={`flex flex-col items-center gap-0.5 px-2 py-2 rounded-lg border text-center transition ${
-                layout === l.value
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-background border-border text-foreground hover:bg-muted"
-              }`}
-            >
-              <span className="text-base leading-none">{l.icon}</span>
-              <span className="text-[10px] font-bold leading-tight">{l.label}</span>
-              <span className={`text-[9px] leading-tight ${layout === l.value ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
-                {l.desc}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Imagens */}
-      {images.length === 0 && (
-        <p className="text-[10px] text-muted-foreground bg-muted/50 rounded-lg px-2 py-1.5">
-          Adiciona 1 a 4 imagens. Serão guardadas <strong>num único registo</strong>.
-        </p>
-      )}
-
-      <div className="grid grid-cols-2 gap-2">
-        {images.map((img, i) => (
-          <div key={i} className="space-y-1">
-            <div className="relative rounded-lg overflow-hidden border border-border aspect-video">
-              <img src={img.preview} alt="" className="w-full h-full object-cover" />
-              <button
-                type="button"
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); remove(i); }}
-                className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center">
-                <X className="w-3 h-3" />
-              </button>
-              <span className="absolute bottom-1 left-1 text-[9px] bg-black/60 text-white px-1 rounded">
-                {i === 0 ? "Principal" : `Extra ${i}`}
-              </span>
-            </div>
-            <input
-              placeholder="Link ao clicar"
-              value={img.link}
-              onChange={e => setLink(i, e.target.value)}
-              className="w-full px-2 py-1 rounded-lg bg-background border border-border text-[10px] text-foreground"
-            />
-          </div>
-        ))}
-        {images.length < 4 && (
-          <button
-            type="button"
-            onClick={handleClick}
-            className="aspect-video border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center hover:border-primary/50 hover:bg-primary/5 transition">
-            <Plus className="w-5 h-5 text-muted-foreground" />
-            <p className="text-[10px] text-muted-foreground mt-1">Adicionar</p>
-          </button>
-        )}
-      </div>
-
-      <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleChange} />
-
-      {images.length === 0 && (
-        <button
-          type="button"
-          onClick={handleClick}
+      {/* Upload */}
+      {images.length === 0 ? (
+        <button type="button" onClick={() => fileRef.current?.click()}
           className="w-full border-2 border-dashed border-border rounded-xl p-4 flex flex-col items-center gap-1 hover:border-primary/50 hover:bg-primary/5 transition">
           <Upload className="w-5 h-5 text-muted-foreground" />
           <p className="text-xs font-bold text-foreground">Upload para {label}</p>
           <p className="text-[10px] text-muted-foreground">1 a 4 imagens</p>
         </button>
+      ) : (
+        <div className="grid grid-cols-2 gap-2">
+          {images.map((img, i) => (
+            <div key={i} className="space-y-1">
+              <div className="relative rounded-lg overflow-hidden border border-border aspect-video">
+                <img src={img.preview} alt="" className="w-full h-full object-cover" />
+                <button type="button" onClick={() => remove(i)}
+                  className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center">
+                  <X className="w-3 h-3" />
+                </button>
+                <span className="absolute bottom-1 left-1 text-[9px] bg-black/60 text-white px-1 rounded">
+                  {i === 0 ? "Principal" : `Extra ${i}`}
+                </span>
+              </div>
+              <input placeholder="Link ao clicar" value={img.link} onChange={e => setLink(i, e.target.value)}
+                className="w-full px-2 py-1 rounded-lg bg-background border border-border text-[10px] text-foreground" />
+            </div>
+          ))}
+          {images.length < 4 && (
+            <button type="button" onClick={() => fileRef.current?.click()}
+              className="aspect-video border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center hover:border-primary/50 hover:bg-primary/5 transition">
+              <Plus className="w-5 h-5 text-muted-foreground" />
+              <p className="text-[10px] text-muted-foreground mt-1">Adicionar</p>
+            </button>
+          )}
+        </div>
+      )}
+
+      <input ref={fileRef} type="file" accept="image/*" multiple className="hidden"
+        onChange={e => { if (e.target.files) addFiles(e.target.files); e.target.value = ""; }} />
+
+      {/* Selector de layout — aparece depois de ter imagens */}
+      {images.length > 0 && (
+        <div>
+          <p className="text-[10px] font-bold text-muted-foreground mb-1.5">
+            Disposição ({images.length} {images.length === 1 ? "imagem" : "imagens"})
+          </p>
+          <div className="grid grid-cols-2 gap-1.5">
+            {layouts.map(l => (
+              <button key={l.value} type="button" onClick={() => onLayoutChange(l.value)}
+                className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border text-left transition ${
+                  validLayout === l.value
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background border-border text-foreground hover:bg-muted"
+                }`}>
+                <span className="font-mono text-[11px] leading-none whitespace-pre opacity-70">{l.diagram}</span>
+                <span className="text-[10px] font-bold leading-tight">{l.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );
@@ -280,7 +273,7 @@ const emptyForm = (): FormState => ({
   is_active: true, category_id: null, bg_color: "#F0F9FF",
   extraImgFiles: [], extraImgPreviews: [], extra_links: [],
   splitLeft: [], splitRight: [],
-  splitLeftLayout: "stack", splitRightLayout: "stack",
+  splitLeftLayout: "1-full", splitRightLayout: "1-full",
 });
 
 const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSaved }: FormProps) => {
@@ -292,59 +285,42 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
   const [form, setForm] = useState<FormState>(() => {
     if (initialSplitPair) {
       const ref = initialSplitPair.left || initialSplitPair.right!;
-
       const buildSideEntries = (b: BannerRow | null): ImgEntry[] => {
         if (!b) return [];
         const allImgs = [b.image_url, ...(b.extra_images || [])].filter(Boolean);
         const links   = [b.cta_link || "", ...(b.extra_links || [])];
         return allImgs.map((url, i) => ({ preview: url, link: links[i] || "" }));
       };
-
       return {
-        device: ref.device || "mobile",
-        sort_order: ref.sort_order,
-        format: "split",
-        title: ref.title || "",
-        subtitle: ref.subtitle || "",
-        cta_text: ref.cta_text || "",
-        cta_link: ref.cta_link || "",
-        image_url: "",
+        device: ref.device || "mobile", sort_order: ref.sort_order, format: "split",
+        title: ref.title || "", subtitle: ref.subtitle || "",
+        cta_text: ref.cta_text || "", cta_link: ref.cta_link || "", image_url: "",
         text_position: ref.text_position || "bottom-left",
         text_color: (ref as any).text_color || "#ffffff",
         text_bg_color: (ref as any).text_bg_color || "#000000",
         text_bg_enabled: !!(ref as any).text_bg_color,
-        is_active: ref.is_active,
-        category_id: ref.category_id,
-        bg_color: ref.bg_color || "#F0F9FF",
+        is_active: ref.is_active, category_id: ref.category_id, bg_color: ref.bg_color || "#F0F9FF",
         extraImgFiles: [], extraImgPreviews: [], extra_links: [],
-        splitLeft:  buildSideEntries(initialSplitPair.left),
+        splitLeft: buildSideEntries(initialSplitPair.left),
         splitRight: buildSideEntries(initialSplitPair.right),
-        splitLeftLayout:  initialSplitPair.left?.split_layout  || "stack",
-        splitRightLayout: initialSplitPair.right?.split_layout || "stack",
+        splitLeftLayout:  initialSplitPair.left?.split_layout  || "1-full",
+        splitRightLayout: initialSplitPair.right?.split_layout || "1-full",
       };
     }
     if (!initial) return emptyForm();
     return {
-      device: initial.device || "mobile",
-      sort_order: initial.sort_order,
-      format: initial.format,
-      title: initial.title || "",
-      subtitle: initial.subtitle || "",
-      cta_text: initial.cta_text || "",
-      cta_link: initial.cta_link || "",
-      image_url: initial.image_url || "",
-      text_position: initial.text_position || "bottom-left",
+      device: initial.device || "mobile", sort_order: initial.sort_order, format: initial.format,
+      title: initial.title || "", subtitle: initial.subtitle || "",
+      cta_text: initial.cta_text || "", cta_link: initial.cta_link || "",
+      image_url: initial.image_url || "", text_position: initial.text_position || "bottom-left",
       text_color: (initial as any).text_color || "#ffffff",
       text_bg_color: (initial as any).text_bg_color || "#000000",
       text_bg_enabled: !!(initial as any).text_bg_color,
-      is_active: initial.is_active,
-      category_id: initial.category_id,
-      bg_color: initial.bg_color || "#F0F9FF",
-      extraImgFiles: [],
-      extraImgPreviews: (initial.extra_images || []) as string[],
+      is_active: initial.is_active, category_id: initial.category_id, bg_color: initial.bg_color || "#F0F9FF",
+      extraImgFiles: [], extraImgPreviews: (initial.extra_images || []) as string[],
       extra_links: (initial.extra_links || []) as string[],
       splitLeft: [], splitRight: [],
-      splitLeftLayout: "stack", splitRightLayout: "stack",
+      splitLeftLayout: "1-full", splitRightLayout: "1-full",
     };
   });
 
@@ -367,11 +343,7 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
   const handleExtraFiles = (files: FileList) => {
     const arr = Array.from(files);
     const previews = arr.map(f => URL.createObjectURL(f));
-    setForm(f => ({
-      ...f,
-      extraImgFiles: [...f.extraImgFiles, ...arr],
-      extraImgPreviews: [...f.extraImgPreviews, ...previews],
-    }));
+    setForm(f => ({ ...f, extraImgFiles: [...f.extraImgFiles, ...arr], extraImgPreviews: [...f.extraImgPreviews, ...previews] }));
   };
   const removeExtra = (i: number) => {
     setForm(f => {
@@ -391,94 +363,52 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
     } else {
       if (!mainPreview && !mainFile) { toast.error("Adiciona a imagem principal"); return; }
     }
-
     setSaving(true);
     try {
       if (isSplit) {
         if (isSplitEdit) {
-          const idsToDelete = [
-            initialSplitPair?.left?.id,
-            initialSplitPair?.right?.id,
-          ].filter(Boolean) as string[];
-          for (const id of idsToDelete) {
-            await supabase.from("banners" as any).delete().eq("id", id);
-          }
+          const ids = [initialSplitPair?.left?.id, initialSplitPair?.right?.id].filter(Boolean) as string[];
+          for (const id of ids) await supabase.from("banners" as any).delete().eq("id", id);
         }
-
         const uploadSide = async (imgs: ImgEntry[], side: "left" | "right", sideLayout: string) => {
           if (imgs.length === 0) return;
-
-          const uploadedUrls: string[] = await Promise.all(
-            imgs.map(async (img) => {
-              if (img.file) return uploadBannerImage(img.file);
-              return img.preview;
-            })
-          );
-
+          const uploadedUrls = await Promise.all(imgs.map(img => img.file ? uploadBannerImage(img.file) : Promise.resolve(img.preview)));
           const [mainUrl, ...extraUrls] = uploadedUrls;
           const [mainLink, ...extraLinks] = imgs.map(img => img.link || "");
-
-          const payload = {
-            title: form.title || null,
-            subtitle: form.subtitle || null,
-            cta_text: form.cta_text || null,
-            cta_link: mainLink || form.cta_link || "#",
-            image_url: mainUrl,
-            extra_images: extraUrls,
+          const { error } = await supabase.from("banners" as any).insert({
+            title: form.title || null, subtitle: form.subtitle || null,
+            cta_text: form.cta_text || null, cta_link: mainLink || form.cta_link || "#",
+            image_url: mainUrl, extra_images: extraUrls,
             extra_links: extraLinks.filter(Boolean),
-            format: "split",
-            bg_color: form.bg_color,
-            sort_order: form.sort_order,
-            is_active: form.is_active,
-            text_position: form.text_position,
+            format: "split", bg_color: form.bg_color, sort_order: form.sort_order,
+            is_active: form.is_active, text_position: form.text_position,
             text_color: form.text_color,
             text_bg_color: form.text_bg_enabled ? form.text_bg_color : null,
-            category_id: form.category_id,
-            device: form.device,
-            split_side: side,
-            split_layout: sideLayout,
-          };
-
-          const { error } = await supabase.from("banners" as any).insert(payload);
+            category_id: form.category_id, device: form.device,
+            split_side: side, split_layout: sideLayout,
+          });
           if (error) throw new Error(error.message);
         };
-
         await uploadSide(form.splitLeft,  "left",  form.splitLeftLayout);
         await uploadSide(form.splitRight, "right", form.splitRightLayout);
-
-        const total = form.splitLeft.length + form.splitRight.length;
-        toast.success(isSplitEdit ? "Split atualizado!" : `Split criado! (${total} imagens)`);
-
+        toast.success(isSplitEdit ? "Split atualizado!" : "Split criado!");
       } else {
         let imageUrl = form.image_url;
         if (mainFile) imageUrl = await uploadBannerImage(mainFile);
         if (!imageUrl) throw new Error("URL da imagem principal em falta");
-
         const existingExtras = (initial?.extra_images || []).filter(u => form.extraImgPreviews.includes(u));
         const newExtras = await Promise.all(form.extraImgFiles.map(uploadBannerImage));
         const allExtras = [...existingExtras, ...newExtras];
-
         const payload: Record<string, any> = {
-          title: form.title || "",
-          subtitle: form.subtitle || "",
-          cta_text: form.cta_text || "Compre agora",
-          cta_link: form.cta_link || "#",
-          image_url: imageUrl,
-          extra_images: allExtras.length ? allExtras : [],
-          extra_links: form.extra_links.filter(Boolean),
-          format: form.format,
-          bg_color: form.bg_color,
-          sort_order: form.sort_order,
-          is_active: form.is_active,
-          text_position: form.text_position,
-          text_color: form.text_color,
+          title: form.title || "", subtitle: form.subtitle || "",
+          cta_text: form.cta_text || "Compre agora", cta_link: form.cta_link || "#",
+          image_url: imageUrl, extra_images: allExtras.length ? allExtras : [],
+          extra_links: form.extra_links.filter(Boolean), format: form.format,
+          bg_color: form.bg_color, sort_order: form.sort_order, is_active: form.is_active,
+          text_position: form.text_position, text_color: form.text_color,
           text_bg_color: form.text_bg_enabled ? form.text_bg_color : null,
-          category_id: form.category_id,
-          device: form.device,
-          split_side: null,
-          split_layout: null,
+          category_id: form.category_id, device: form.device, split_side: null, split_layout: null,
         };
-
         if (isEdit && initial) {
           const { error } = await supabase.from("banners" as any).update(payload).eq("id", initial.id);
           if (error) throw new Error(error.message);
@@ -489,7 +419,6 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
           toast.success("Banner criado!");
         }
       }
-
       onSaved(); onClose();
     } catch (e: any) {
       toast.error(e?.message || "Erro desconhecido");
@@ -498,15 +427,11 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
     }
   };
 
-  const splitTotal = form.splitLeft.length + form.splitRight.length;
-
   return (
     <div className="bg-card rounded-xl border border-border p-4 mb-4">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-black text-foreground">{isEdit ? "Editar Banner" : "Novo Banner"}</h3>
-        <button type="button" onClick={onClose} className="p-1 rounded-lg hover:bg-muted text-muted-foreground">
-          <X className="w-4 h-4" />
-        </button>
+        <button type="button" onClick={onClose} className="p-1 rounded-lg hover:bg-muted text-muted-foreground"><X className="w-4 h-4" /></button>
       </div>
 
       <div className="space-y-3">
@@ -514,9 +439,7 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Dispositivo</label>
           <div className="flex gap-2">
             {DEVICES.map(d => (
-              <button
-                type="button"
-                key={d.value}
+              <button type="button" key={d.value}
                 onClick={() => { set("device", d.value); set("sort_order", getSlotsForDevice(d.value)[0].value); }}
                 className={`flex-1 py-2 rounded-lg text-xs font-bold border transition ${form.device === d.value ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-foreground hover:bg-muted"}`}>
                 {d.label}
@@ -534,11 +457,7 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
             className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground">
             {slots.map(slot => {
               const occupied = !isSplit && occupiedSlots.includes(slot.value);
-              return (
-                <option key={slot.value} value={slot.value} disabled={occupied}>
-                  {slot.label}{occupied ? " — ocupado" : ""}
-                </option>
-              );
+              return <option key={slot.value} value={slot.value} disabled={occupied}>{slot.label}{occupied ? " — ocupado" : ""}</option>;
             })}
           </select>
           {form.device === "desktop" && SIDEBAR_SLOTS.includes(form.sort_order) && (
@@ -557,26 +476,15 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
         {isSplit ? (
           <div className="space-y-3">
             <div className="rounded-xl border border-border bg-muted/30 p-3">
-              <p className="text-xs font-bold text-foreground mb-1">◧ Esquerda | ◨ Direita</p>
+              <p className="text-xs font-bold text-foreground mb-1">◧ Esquerda | ◨ Direita — 50% cada</p>
               <p className="text-[10px] text-muted-foreground">
-                Cada lado = <strong>1 registo</strong>. 1 a 4 imagens por lado.
-                Escolhe a disposição independentemente para cada lado.
+                Adiciona 1 a 4 imagens por lado. A disposição adapta-se ao número de imagens.
               </p>
             </div>
-            <SplitSideUploader
-              side="left"
-              images={form.splitLeft}
-              layout={form.splitLeftLayout}
-              onChange={v => set("splitLeft", v)}
-              onLayoutChange={v => set("splitLeftLayout", v)}
-            />
-            <SplitSideUploader
-              side="right"
-              images={form.splitRight}
-              layout={form.splitRightLayout}
-              onChange={v => set("splitRight", v)}
-              onLayoutChange={v => set("splitRightLayout", v)}
-            />
+            <SplitSideUploader side="left"  images={form.splitLeft}  layout={form.splitLeftLayout}
+              onChange={v => set("splitLeft", v)} onLayoutChange={v => set("splitLeftLayout", v)} />
+            <SplitSideUploader side="right" images={form.splitRight} layout={form.splitRightLayout}
+              onChange={v => set("splitRight", v)} onLayoutChange={v => set("splitRightLayout", v)} />
           </div>
         ) : (
           <>
@@ -585,17 +493,11 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
               {mainPreview ? (
                 <div className="relative rounded-xl overflow-hidden border border-border mb-1">
                   <img src={mainPreview} alt="Preview" className="w-full max-h-40 object-cover" />
-                  <button
-                    type="button"
-                    onClick={() => { setMainFile(null); setMainPreview(""); set("image_url", ""); }}
-                    className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center">
-                    <X className="w-3.5 h-3.5" />
-                  </button>
+                  <button type="button" onClick={() => { setMainFile(null); setMainPreview(""); set("image_url", ""); }}
+                    className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center"><X className="w-3.5 h-3.5" /></button>
                 </div>
               ) : (
-                <button
-                  type="button"
-                  onClick={() => mainFileRef.current?.click()}
+                <button type="button" onClick={() => mainFileRef.current?.click()}
                   className="w-full border-2 border-dashed border-border rounded-xl p-5 flex flex-col items-center gap-2 hover:border-primary/50 hover:bg-primary/5 transition">
                   <Upload className="w-5 h-5 text-muted-foreground" />
                   <p className="text-xs font-bold text-foreground">Clique para fazer upload</p>
@@ -609,7 +511,6 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
                 onChange={e => { set("image_url", e.target.value); setMainPreview(e.target.value); setMainFile(null); }}
                 className="w-full mt-1.5 px-3 py-2 rounded-lg bg-muted border border-border text-xs text-foreground" />
             </div>
-
             {needsExtra > 0 && (
               <div>
                 <label className="text-[11px] font-bold text-muted-foreground mb-1 block">
@@ -620,16 +521,13 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
                     <div key={i} className="relative rounded-lg overflow-hidden border border-border aspect-square">
                       <img src={p} alt={`Extra ${i + 1}`} className="w-full h-full object-cover" />
                       <button type="button" onClick={() => removeExtra(i)}
-                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center">
-                        <X className="w-3 h-3" />
-                      </button>
+                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center"><X className="w-3 h-3" /></button>
                     </div>
                   ))}
                   {form.extraImgPreviews.length < needsExtra && (
                     <button type="button" onClick={() => extraFileRef.current?.click()}
                       className="aspect-square border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center hover:border-primary/50 hover:bg-primary/5 transition">
-                      <Plus className="w-5 h-5 text-muted-foreground" />
-                      <p className="text-[10px] text-muted-foreground mt-1">Adicionar</p>
+                      <Plus className="w-5 h-5 text-muted-foreground" /><p className="text-[10px] text-muted-foreground mt-1">Adicionar</p>
                     </button>
                   )}
                 </div>
@@ -639,13 +537,8 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
                   <div className="space-y-1.5 mt-2">
                     <p className="text-[10px] font-bold text-muted-foreground">Links das imagens extra</p>
                     {form.extraImgPreviews.map((_, i) => (
-                      <input key={i} placeholder={`URL imagem ${i + 2}`}
-                        value={form.extra_links[i] || ""}
-                        onChange={e => {
-                          const links = [...form.extra_links];
-                          links[i] = e.target.value;
-                          set("extra_links", links);
-                        }}
+                      <input key={i} placeholder={`URL imagem ${i + 2}`} value={form.extra_links[i] || ""}
+                        onChange={e => { const links = [...form.extra_links]; links[i] = e.target.value; set("extra_links", links); }}
                         className="w-full px-3 py-1.5 rounded-lg bg-muted border border-border text-xs text-foreground" />
                     ))}
                   </div>
@@ -688,9 +581,7 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
             <input value={form.text_color} onChange={e => set("text_color", e.target.value)}
               className="flex-1 px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
             <span className="px-3 py-1.5 rounded-lg text-xs font-black border border-border"
-              style={{ color: form.text_color, backgroundColor: form.text_bg_enabled ? form.text_bg_color : "transparent" }}>
-              Texto
-            </span>
+              style={{ color: form.text_color, backgroundColor: form.text_bg_enabled ? form.text_bg_color : "transparent" }}>Texto</span>
           </div>
         </div>
 
@@ -722,79 +613,52 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
 
         <button type="button" onClick={save} disabled={saving}
           className="w-full py-3 bg-primary text-primary-foreground text-sm font-bold rounded-xl disabled:opacity-50 flex items-center justify-center gap-2">
-          {saving
-            ? <><Loader2 className="w-4 h-4 animate-spin" /> A guardar...</>
-            : <><Check className="w-4 h-4" /> {isEdit ? "Guardar alterações" : isSplit ? `Criar split (${splitTotal} imgs)` : "Criar banner"}</>}
+          {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> A guardar...</> : <><Check className="w-4 h-4" /> {isEdit ? "Guardar alterações" : "Criar banner"}</>}
         </button>
       </div>
     </div>
   );
 };
 
-/* ─── Card Split ─────────────────────────────────────────────────────────── */
-interface SplitCardProps {
-  leftBanner: BannerRow | null;
-  rightBanner: BannerRow | null;
-  onEdit: () => void;
-  onToggle: () => void;
-  onDelete: () => void;
-}
-
-const LAYOUT_ICON: Record<string, string> = { stack: "▤", "grid-2": "▦", auto: "✦" };
-
-const SplitBannerCard = ({ leftBanner, rightBanner, onEdit, onToggle, onDelete }: SplitCardProps) => {
+/* ─── Cards ──────────────────────────────────────────────────────────────── */
+const SplitBannerCard = ({ leftBanner, rightBanner, onEdit, onToggle, onDelete }: {
+  leftBanner: BannerRow | null; rightBanner: BannerRow | null;
+  onEdit: () => void; onToggle: () => void; onDelete: () => void;
+}) => {
   const ref = leftBanner || rightBanner!;
   const isActive = ref.is_active;
   const leftCount  = leftBanner  ? 1 + (leftBanner.extra_images?.length  || 0) : 0;
   const rightCount = rightBanner ? 1 + (rightBanner.extra_images?.length || 0) : 0;
-  const leftLayout  = leftBanner?.split_layout  || "stack";
-  const rightLayout = rightBanner?.split_layout || "stack";
 
   return (
     <div className={`bg-card rounded-xl border border-border overflow-hidden transition ${!isActive ? "opacity-55" : ""}`}>
       <div className="grid grid-cols-2 h-24 bg-muted gap-0.5">
         <div className="relative overflow-hidden">
-          {leftBanner
-            ? <img src={leftBanner.image_url} alt="Esquerda" className="w-full h-full object-cover" />
+          {leftBanner ? <img src={leftBanner.image_url} alt="Esquerda" className="w-full h-full object-cover" />
             : <div className="w-full h-full flex items-center justify-center bg-muted"><span className="text-[10px] text-muted-foreground">Sem imagem</span></div>}
           <span className="absolute top-1 left-1 text-[9px] bg-blue-500/90 text-white px-1.5 py-0.5 rounded-full font-bold">
-            ◧ {leftCount > 0 ? `${leftCount}img` : "—"} {LAYOUT_ICON[leftLayout]}
+            ◧ {leftCount}img · {leftBanner?.split_layout || "—"}
           </span>
         </div>
         <div className="relative overflow-hidden">
-          {rightBanner
-            ? <img src={rightBanner.image_url} alt="Direita" className="w-full h-full object-cover" />
+          {rightBanner ? <img src={rightBanner.image_url} alt="Direita" className="w-full h-full object-cover" />
             : <div className="w-full h-full flex items-center justify-center bg-muted"><span className="text-[10px] text-muted-foreground">Sem imagem</span></div>}
           <span className="absolute top-1 right-1 text-[9px] bg-purple-500/90 text-white px-1.5 py-0.5 rounded-full font-bold">
-            ◨ {rightCount > 0 ? `${rightCount}img` : "—"} {LAYOUT_ICON[rightLayout]}
+            ◨ {rightCount}img · {rightBanner?.split_layout || "—"}
           </span>
         </div>
       </div>
       <div className="p-3">
         <div className="flex items-start justify-between gap-2 mb-1.5">
           <div className="flex flex-wrap gap-1">
-            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
-              ref.device === "tablet" ? "bg-purple-500/10 text-purple-500" :
-              ref.device === "desktop" ? "bg-green-500/10 text-green-500" :
-              "bg-blue-500/10 text-blue-500"
-            }`}>{ref.device || "mobile"}</span>
-            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-              Split · {leftCount}esq + {rightCount}dir
-            </span>
-            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500">
-              {getHomeSlotLabel(ref.sort_order)}
-            </span>
+            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${ref.device === "tablet" ? "bg-purple-500/10 text-purple-500" : ref.device === "desktop" ? "bg-green-500/10 text-green-500" : "bg-blue-500/10 text-blue-500"}`}>{ref.device || "mobile"}</span>
+            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">Split · {leftCount}esq + {rightCount}dir</span>
+            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500">{getHomeSlotLabel(ref.sort_order)}</span>
           </div>
           <div className="flex gap-1 flex-shrink-0">
-            <button type="button" onClick={onEdit} className="p-1.5 rounded-lg bg-muted text-foreground hover:bg-accent transition">
-              <Pencil className="w-3.5 h-3.5" />
-            </button>
-            <button type="button" onClick={onToggle} className={`p-1.5 rounded-lg transition ${isActive ? "text-green-500 bg-green-500/10" : "text-muted-foreground bg-muted"}`}>
-              {isActive ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-            </button>
-            <button type="button" onClick={onDelete} className="p-1.5 rounded-lg text-destructive bg-destructive/10 hover:bg-destructive/20 transition">
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
+            <button type="button" onClick={onEdit} className="p-1.5 rounded-lg bg-muted text-foreground hover:bg-accent transition"><Pencil className="w-3.5 h-3.5" /></button>
+            <button type="button" onClick={onToggle} className={`p-1.5 rounded-lg transition ${isActive ? "text-green-500 bg-green-500/10" : "text-muted-foreground bg-muted"}`}>{isActive ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}</button>
+            <button type="button" onClick={onDelete} className="p-1.5 rounded-lg text-destructive bg-destructive/10 hover:bg-destructive/20 transition"><Trash2 className="w-3.5 h-3.5" /></button>
           </div>
         </div>
         {ref.title && <p className="text-xs font-bold text-foreground truncate">{ref.title}</p>}
@@ -803,58 +667,31 @@ const SplitBannerCard = ({ leftBanner, rightBanner, onEdit, onToggle, onDelete }
   );
 };
 
-/* ─── Card normal ────────────────────────────────────────────────────────── */
-interface CardProps {
-  banner: BannerRow;
-  onEdit: () => void;
-  onToggle: () => void;
-  onDelete: () => void;
-}
-
-const BannerCard = ({ banner, onEdit, onToggle, onDelete }: CardProps) => {
-  const deviceColor: Record<string, string> = {
-    mobile:  "bg-blue-500/10 text-blue-500",
-    tablet:  "bg-purple-500/10 text-purple-500",
-    desktop: "bg-green-500/10 text-green-500",
-  };
+const BannerCard = ({ banner, onEdit, onToggle, onDelete }: {
+  banner: BannerRow; onEdit: () => void; onToggle: () => void; onDelete: () => void;
+}) => {
+  const deviceColor: Record<string, string> = { mobile: "bg-blue-500/10 text-blue-500", tablet: "bg-purple-500/10 text-purple-500", desktop: "bg-green-500/10 text-green-500" };
   const fmt = FORMATS.find(f => f.value === banner.format);
   const imgCount = 1 + (banner.extra_images?.length || 0);
-
   return (
     <div className={`bg-card rounded-xl border border-border overflow-hidden transition ${!banner.is_active ? "opacity-55" : ""}`}>
       {banner.image_url && (
         <div className="relative h-24 bg-muted">
           <img src={banner.image_url} alt={banner.title || "Banner"} className="w-full h-full object-cover" />
-          {imgCount > 1 && (
-            <span className="absolute bottom-1.5 right-1.5 bg-black/60 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
-              +{imgCount - 1} imgs
-            </span>
-          )}
+          {imgCount > 1 && <span className="absolute bottom-1.5 right-1.5 bg-black/60 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">+{imgCount - 1} imgs</span>}
         </div>
       )}
       <div className="p-3">
         <div className="flex items-start justify-between gap-2 mb-1.5">
           <div className="flex flex-wrap gap-1">
-            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${deviceColor[banner.device || "mobile"] || deviceColor.mobile}`}>
-              {banner.device || "mobile"}
-            </span>
-            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-              {fmt?.label || banner.format}
-            </span>
-            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500">
-              {getHomeSlotLabel(banner.sort_order)}
-            </span>
+            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${deviceColor[banner.device || "mobile"] || deviceColor.mobile}`}>{banner.device || "mobile"}</span>
+            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{fmt?.label || banner.format}</span>
+            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500">{getHomeSlotLabel(banner.sort_order)}</span>
           </div>
           <div className="flex gap-1 flex-shrink-0">
-            <button type="button" onClick={onEdit} className="p-1.5 rounded-lg bg-muted text-foreground hover:bg-accent transition">
-              <Pencil className="w-3.5 h-3.5" />
-            </button>
-            <button type="button" onClick={onToggle} className={`p-1.5 rounded-lg transition ${banner.is_active ? "text-green-500 bg-green-500/10" : "text-muted-foreground bg-muted"}`}>
-              {banner.is_active ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-            </button>
-            <button type="button" onClick={onDelete} className="p-1.5 rounded-lg text-destructive bg-destructive/10 hover:bg-destructive/20 transition">
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
+            <button type="button" onClick={onEdit} className="p-1.5 rounded-lg bg-muted text-foreground hover:bg-accent transition"><Pencil className="w-3.5 h-3.5" /></button>
+            <button type="button" onClick={onToggle} className={`p-1.5 rounded-lg transition ${banner.is_active ? "text-green-500 bg-green-500/10" : "text-muted-foreground bg-muted"}`}>{banner.is_active ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}</button>
+            <button type="button" onClick={onDelete} className="p-1.5 rounded-lg text-destructive bg-destructive/10 hover:bg-destructive/20 transition"><Trash2 className="w-3.5 h-3.5" /></button>
           </div>
         </div>
         {banner.title && <p className="text-xs font-bold text-foreground truncate">{banner.title}</p>}
@@ -877,28 +714,20 @@ const AdminBannersTab = () => {
   const { data: banners = [], isLoading } = useQuery({
     queryKey: ["admin_banners"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("banners" as any)
-        .select("*")
-        .order("sort_order")
-        .order("created_at");
+      const { data, error } = await supabase.from("banners" as any).select("*").order("sort_order").order("created_at");
       if (error) throw new Error(error.message);
       return (data || []) as BannerRow[];
     },
   });
 
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["admin_banners"] });
-    queryClient.invalidateQueries({ queryKey: ["banners"] });
-  };
+  const invalidate = () => { queryClient.invalidateQueries({ queryKey: ["admin_banners"] }); queryClient.invalidateQueries({ queryKey: ["banners"] }); };
 
   const toggleBanner = useMutation({
     mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
       const { error } = await supabase.from("banners" as any).update({ is_active: active }).eq("id", id);
       if (error) throw new Error(error.message);
     },
-    onSuccess: invalidate,
-    onError: (e: any) => toast.error(e.message),
+    onSuccess: invalidate, onError: (e: any) => toast.error(e.message),
   });
 
   const deleteBanner = useMutation({
@@ -910,17 +739,10 @@ const AdminBannersTab = () => {
     onError: (e: any) => toast.error(e.message),
   });
 
-  const stats = {
-    total:   banners.length,
-    active:  banners.filter(b => b.is_active).length,
-    mobile:  banners.filter(b => (b.device || "mobile") === "mobile").length,
-    tablet:  banners.filter(b => b.device === "tablet").length,
-    desktop: banners.filter(b => b.device === "desktop").length,
-  };
+  const stats = { total: banners.length, active: banners.filter(b => b.is_active).length, mobile: banners.filter(b => (b.device || "mobile") === "mobile").length, tablet: banners.filter(b => b.device === "tablet").length, desktop: banners.filter(b => b.device === "desktop").length };
 
   const splitGroups = new Map<string, { left: BannerRow | null; right: BannerRow | null }>();
   const nonSplitBanners: BannerRow[] = [];
-
   banners.forEach(b => {
     if (b.format === "split") {
       const key = `${b.device || "mobile"}-${b.sort_order}`;
@@ -928,19 +750,11 @@ const AdminBannersTab = () => {
       const group = splitGroups.get(key)!;
       if (b.split_side === "left"  && !group.left)  group.left  = b;
       if (b.split_side === "right" && !group.right) group.right = b;
-    } else {
-      nonSplitBanners.push(b);
-    }
+    } else { nonSplitBanners.push(b); }
   });
 
-  const filteredNonSplit = nonSplitBanners
-    .filter(b => filterDevice === "all" || (b.device || "mobile") === filterDevice)
-    .filter(b => filterFormat === "all" || b.format === filterFormat);
-
-  const filteredSplitGroups = [...splitGroups.entries()]
-    .filter(([key]) => filterDevice === "all" || key.startsWith(filterDevice + "-"))
-    .filter(() => filterFormat === "all" || filterFormat === "split");
-
+  const filteredNonSplit = nonSplitBanners.filter(b => filterDevice === "all" || (b.device || "mobile") === filterDevice).filter(b => filterFormat === "all" || b.format === filterFormat);
+  const filteredSplitGroups = [...splitGroups.entries()].filter(([key]) => filterDevice === "all" || key.startsWith(filterDevice + "-")).filter(() => filterFormat === "all" || filterFormat === "split");
   const formatsWithBanners = FORMATS.filter(f => banners.some(b => b.format === f.value));
   const closeForm = () => { setShowForm(false); setEditBanner(null); setEditSplitPair(null); };
 
@@ -955,24 +769,15 @@ const AdminBannersTab = () => {
           { label: "Desktop", value: stats.desktop, color: "text-emerald-500 border-emerald-500/20 bg-emerald-500/5" },
         ].map(s => (
           <div key={s.label} className={`rounded-xl border p-2 text-center ${s.color}`}>
-            <p className="text-base font-black">{s.value}</p>
-            <p className="text-[9px] font-bold">{s.label}</p>
+            <p className="text-base font-black">{s.value}</p><p className="text-[9px] font-bold">{s.label}</p>
           </div>
         ))}
       </div>
 
-      {editSplitPair ? (
-        <BannerForm initialSplitPair={editSplitPair} existingBanners={banners} onClose={closeForm} onSaved={invalidate} />
-      ) : editBanner ? (
-        <BannerForm initial={editBanner} existingBanners={banners} onClose={closeForm} onSaved={invalidate} />
-      ) : showForm ? (
-        <BannerForm existingBanners={banners} onClose={closeForm} onSaved={invalidate} />
-      ) : (
-        <button type="button" onClick={() => setShowForm(true)}
-          className="w-full py-3 bg-primary text-primary-foreground text-xs font-bold rounded-xl flex items-center justify-center gap-2">
-          <Plus className="w-4 h-4" /> Novo Banner
-        </button>
-      )}
+      {editSplitPair ? <BannerForm initialSplitPair={editSplitPair} existingBanners={banners} onClose={closeForm} onSaved={invalidate} />
+        : editBanner ? <BannerForm initial={editBanner} existingBanners={banners} onClose={closeForm} onSaved={invalidate} />
+        : showForm ? <BannerForm existingBanners={banners} onClose={closeForm} onSaved={invalidate} />
+        : <button type="button" onClick={() => setShowForm(true)} className="w-full py-3 bg-primary text-primary-foreground text-xs font-bold rounded-xl flex items-center justify-center gap-2"><Plus className="w-4 h-4" /> Novo Banner</button>}
 
       <div className="space-y-2">
         <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
@@ -984,11 +789,9 @@ const AdminBannersTab = () => {
           ))}
           <button type="button" onClick={() => setCollapsed(c => !c)}
             className="ml-auto px-2.5 py-1.5 rounded-lg text-xs font-bold border border-border bg-card text-foreground hover:bg-muted flex items-center gap-1">
-            {collapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
-            {collapsed ? "Expandir" : "Colapsar"}
+            {collapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}{collapsed ? "Expandir" : "Colapsar"}
           </button>
         </div>
-
         {formatsWithBanners.length > 0 && (
           <div className="flex gap-1 overflow-x-auto no-scrollbar">
             <button type="button" onClick={() => setFilterFormat("all")}
@@ -1006,7 +809,6 @@ const AdminBannersTab = () => {
       </div>
 
       {isLoading && <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>}
-
       {!isLoading && filteredNonSplit.length === 0 && filteredSplitGroups.length === 0 && (
         <div className="text-center py-10">
           <ImageIcon className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
@@ -1018,28 +820,14 @@ const AdminBannersTab = () => {
       {!collapsed && (
         <div className="grid grid-cols-1 gap-3">
           {filteredSplitGroups.map(([key, group]) => (
-            <SplitBannerCard
-              key={key}
-              leftBanner={group.left}
-              rightBanner={group.right}
+            <SplitBannerCard key={key} leftBanner={group.left} rightBanner={group.right}
               onEdit={() => { setEditSplitPair(group); setShowForm(false); setEditBanner(null); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-              onToggle={() => {
-                const ids = [group.left?.id, group.right?.id].filter(Boolean) as string[];
-                const active = !(group.left || group.right)?.is_active;
-                ids.forEach(id => toggleBanner.mutate({ id, active }));
-              }}
-              onDelete={() => {
-                if (!confirm("Eliminar este bloco split (ambos os lados)?")) return;
-                const ids = [group.left?.id, group.right?.id].filter(Boolean) as string[];
-                ids.forEach(id => deleteBanner.mutate(id));
-              }}
+              onToggle={() => { const ids = [group.left?.id, group.right?.id].filter(Boolean) as string[]; const active = !(group.left || group.right)?.is_active; ids.forEach(id => toggleBanner.mutate({ id, active })); }}
+              onDelete={() => { if (!confirm("Eliminar este bloco split?")) return; const ids = [group.left?.id, group.right?.id].filter(Boolean) as string[]; ids.forEach(id => deleteBanner.mutate(id)); }}
             />
           ))}
-
           {filteredNonSplit.map(b => (
-            <BannerCard
-              key={b.id}
-              banner={b}
+            <BannerCard key={b.id} banner={b}
               onEdit={() => { setEditBanner(b); setShowForm(false); setEditSplitPair(null); window.scrollTo({ top: 0, behavior: "smooth" }); }}
               onToggle={() => toggleBanner.mutate({ id: b.id, active: !b.is_active })}
               onDelete={() => { if (confirm("Eliminar este banner?")) deleteBanner.mutate(b.id); }}
