@@ -26,7 +26,6 @@ const gradientDir = (p?: string) => {
   return "bg-gradient-to-t from-black/80 via-black/30 to-transparent";
 };
 
-// Cada imagem já "achatada" de um lado do split
 interface SplitImage {
   url: string;
   cta_link: string;
@@ -53,7 +52,7 @@ const HomeBannerSlot = ({
     [banners, slot, device],
   );
 
-  // ── SPLIT: coleta TODOS os registos de cada lado (1 upload = 1 registo) ──
+  // ── SPLIT: coleta TODOS os registos de cada lado ──
   const splitLeftBanners = useMemo(
     () => slotBanners.filter((b: any) => b.format === "split" && b.split_side === "left"),
     [slotBanners],
@@ -63,7 +62,7 @@ const HomeBannerSlot = ({
     [slotBanners],
   );
 
-  // Achata todos os banners de cada lado numa lista plana de imagens com metadados
+  // Achata todos os banners de cada lado numa lista plana de imagens
   const splitLeftImages = useMemo<SplitImage[]>(
     () => splitLeftBanners.flatMap((b: any) =>
       [b.image_url, ...(b.extra_images || [])].filter(Boolean).map((url: string) => ({
@@ -106,16 +105,26 @@ const HomeBannerSlot = ({
     return () => window.clearInterval(t);
   }, [banner, images.length]);
 
-  const sectionCls = compact || sidebar ? "w-full" : "container mx-auto px-3 pt-3";
+  /*
+   * sectionCls:
+   * - sidebar  → w-full (sem padding extra, o pai já controla)
+   * - compact  → w-full (está dentro de um grid externo no Index.tsx)
+   * - normal   → container mx-auto px-3 pt-3 (slot solto na página)
+   */
+  const sectionCls = sidebar || compact ? "w-full" : "container mx-auto px-3 pt-3";
 
-  /* ── Split ── */
+  /* ────────────────────────────────────────────
+     SPLIT
+     Lógica: dois lados, fronteira sempre ao meio (50/50).
+     Cada lado divide a altura igualmente pelas suas imagens.
+     A altura total = lado com mais imagens × heightPerImg.
+  ──────────────────────────────────────────── */
   const isSplitSlot = splitLeftBanners.length > 0 || splitRightBanners.length > 0;
 
   if (isSplitSlot) {
     if (splitLeftImages.length === 0 && splitRightImages.length === 0) return null;
 
     const heightPerImg = sidebar ? 140 : compact ? 110 : 180;
-    // Altura total baseada no lado com mais imagens
     const totalMinH = Math.max(splitLeftImages.length, splitRightImages.length, 1) * heightPerImg;
 
     const renderSide = (imgs: SplitImage[]) => {
@@ -123,17 +132,14 @@ const HomeBannerSlot = ({
       const perImg = totalMinH / imgs.length;
 
       return (
-        <div
-          className="flex flex-col gap-1"
-          style={{ height: totalMinH, minHeight: totalMinH }}
-        >
+        <div className="flex flex-col gap-1 w-full" style={{ height: totalMinH }}>
           {imgs.map((img, i) => {
             const pos = getPos(img.text_position);
             return (
               <a
                 key={`${img.url}-${i}`}
                 href={img.cta_link}
-                className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md"
+                className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md w-full"
                 style={{ flex: 1, minHeight: perImg }}
               >
                 <img
@@ -164,14 +170,17 @@ const HomeBannerSlot = ({
     return (
       <section className={sectionCls}>
         {hasBoth ? (
-          // Dois lados: grid 50/50
-          <div className="grid grid-cols-2 gap-1" style={{ minHeight: totalMinH }}>
-            {renderSide(splitLeftImages)}
-            {renderSide(splitRightImages)}
+          // Dois lados: 50% / 50% fixo — fronteira ao meio
+          <div
+            className="flex gap-1 w-full"
+            style={{ minHeight: totalMinH }}
+          >
+            <div className="flex-1 min-w-0">{renderSide(splitLeftImages)}</div>
+            <div className="flex-1 min-w-0">{renderSide(splitRightImages)}</div>
           </div>
         ) : (
-          // Um lado só: largura total
-          <div style={{ minHeight: totalMinH }}>
+          // Um lado só: ocupa largura total
+          <div className="w-full" style={{ minHeight: totalMinH }}>
             {renderSide(splitLeftImages)}
             {renderSide(splitRightImages)}
           </div>
@@ -180,6 +189,9 @@ const HomeBannerSlot = ({
     );
   }
 
+  /* ────────────────────────────────────────────
+     BANNER NORMAL
+  ──────────────────────────────────────────── */
   if (!banner) return null;
 
   const image   = images[currentImage] || images[0];
