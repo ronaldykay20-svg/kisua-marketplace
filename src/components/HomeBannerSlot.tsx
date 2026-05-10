@@ -80,7 +80,6 @@ const HomeBannerSlot = ({
   if (isSplitSlot) {
     if (!splitLeft && !splitRight) return null;
 
-    // Altura mínima por imagem: garante espaço digno para 1 a 4 imagens por lado
     const imgPerSide = Math.max(
       splitLeft  ? 1 + (splitLeft.extra_images?.length  || 0) : 1,
       splitRight ? 1 + (splitRight.extra_images?.length || 0) : 1,
@@ -106,7 +105,7 @@ const HomeBannerSlot = ({
               : (b.extra_links?.[i - 1] || b.cta_link || "#");
 
             return (
-              
+              <a
                 key={`${b.id}-${i}`}
                 href={linkUrl}
                 className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md"
