@@ -37,9 +37,6 @@ const MobileLayout = () => (
 
 /* ─────────────────────────────────────────────
    Layout Tablet — slots 201–216
-   REGRA: slots que podem ser split ocupam
-   sempre largura total (nunca dentro de grid externo).
-   O split interno já divide em 2 colunas sozinho.
 ───────────────────────────────────────────── */
 const TabletLayout = () => (
   <div className="max-w-screen-lg mx-auto px-4">
@@ -53,12 +50,9 @@ const TabletLayout = () => (
     </div>
 
     <HomeBannerSlot slot={204} device="tablet" />
-
-    <div className="grid grid-cols-3 gap-3 mt-3">
-      <HomeBannerSlot slot={205} device="tablet" compact />
-      <HomeBannerSlot slot={206} device="tablet" compact />
-      <HomeBannerSlot slot={207} device="tablet" compact />
-    </div>
+    <HomeBannerSlot slot={205} device="tablet" />
+    <HomeBannerSlot slot={206} device="tablet" />
+    <HomeBannerSlot slot={207} device="tablet" />
 
     <div className="mt-4">
       <PromoProductCards />
@@ -92,8 +86,6 @@ const TabletLayout = () => (
 
 /* ─────────────────────────────────────────────
    Layout Desktop — slots 301–316 + sidebar 101–103
-   REGRA: mesma que tablet — splits ocupam
-   largura total dentro da coluna principal.
 ───────────────────────────────────────────── */
 const DesktopLayout = () => (
   <div className="max-w-screen-xl mx-auto px-6">
@@ -111,12 +103,9 @@ const DesktopLayout = () => (
         </div>
 
         <HomeBannerSlot slot={304} device="desktop" />
-
-        <div className="grid grid-cols-3 gap-3 mt-3">
-          <HomeBannerSlot slot={305} device="desktop" compact />
-          <HomeBannerSlot slot={306} device="desktop" compact />
-          <HomeBannerSlot slot={307} device="desktop" compact />
-        </div>
+        <HomeBannerSlot slot={305} device="desktop" />
+        <HomeBannerSlot slot={306} device="desktop" />
+        <HomeBannerSlot slot={307} device="desktop" />
 
         <div className="mt-4">
           <PromoProductCards />
