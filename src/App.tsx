@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import NewNavbar from "@/components/NewNavbar";
+import DesktopNavbar from "@/components/DesktopNavbar";
 import BottomNav from "@/components/BottomNav";
 import Index from "./pages/Index.tsx";
 import ProductDetail from "./pages/ProductDetail.tsx";
@@ -42,10 +43,15 @@ import ProtectedRoute from "./components/ProtectedRoute.tsx";
 
 const queryClient = new QueryClient();
 
-// Layout global — navbar + conteúdo + bottom nav
+// Layout global — navbar mobile + navbar tablet/desktop + conteúdo + bottom nav
 const Layout = ({ children }: { children: React.ReactNode }) => (
   <div className="min-h-screen bg-background pb-14 md:pb-0">
-    <NewNavbar />
+    {/* Mobile: NewNavbar (visível só em ecrãs < md) */}
+    <div className="md:hidden">
+      <NewNavbar />
+    </div>
+    {/* Tablet + Desktop: DesktopNavbar (visível só em ecrãs ≥ md) */}
+    <DesktopNavbar />
     {children}
     <BottomNav />
   </div>
