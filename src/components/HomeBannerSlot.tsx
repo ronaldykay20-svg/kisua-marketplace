@@ -80,24 +80,23 @@ const HomeBannerSlot = ({
   if (isSplitSlot) {
     if (!splitLeft && !splitRight) return null;
 
-    const imgPerSide = Math.max(
-      splitLeft  ? 1 + (splitLeft.extra_images?.length  || 0) : 1,
-      splitRight ? 1 + (splitRight.extra_images?.length || 0) : 1,
-    );
+    const leftImgs  = splitLeft  ? 1 + (splitLeft.extra_images?.length  || 0) : 0;
+    const rightImgs = splitRight ? 1 + (splitRight.extra_images?.length || 0) : 0;
     const heightPerImg = sidebar ? 140 : compact ? 110 : 180;
-    const totalMinH = imgPerSide * heightPerImg;
+    const totalMinH = Math.max(leftImgs, rightImgs, 1) * heightPerImg;
 
     const getSideImages = (b: any): string[] =>
       [b.image_url, ...(b.extra_images || [])].filter(Boolean);
 
-    const renderSide = (b: any) => {
+    const renderSide = (b: any, sideImgCount: number) => {
       const imgs = getSideImages(b);
       const pos  = getPos(b.text_position);
+      const perImg = totalMinH / sideImgCount;
 
       return (
         <div
           className="flex flex-col gap-1"
-          style={{ minHeight: totalMinH }}
+          style={{ height: totalMinH, minHeight: totalMinH }}
         >
           {imgs.map((imgUrl: string, i: number) => {
             const linkUrl = i === 0
@@ -109,7 +108,7 @@ const HomeBannerSlot = ({
                 key={`${b.id}-${i}`}
                 href={linkUrl}
                 className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md"
-                style={{ flex: 1, minHeight: heightPerImg }}
+                style={{ flex: 1, minHeight: perImg }}
               >
                 <img
                   src={imgUrl}
@@ -134,18 +133,21 @@ const HomeBannerSlot = ({
       );
     };
 
-    const hasBoth  = splitLeft !== null && splitRight !== null;
-    const gridCols = hasBoth ? "grid-cols-2" : "grid-cols-1";
+    const hasBoth = splitLeft !== null && splitRight !== null;
 
     return (
       <section className={sectionCls}>
-        <div
-          className={`grid ${gridCols} gap-1`}
-          style={{ minHeight: totalMinH }}
-        >
-          {splitLeft  && renderSide(splitLeft)}
-          {splitRight && renderSide(splitRight)}
-        </div>
+        {hasBoth ? (
+          <div className="grid grid-cols-2 gap-1" style={{ minHeight: totalMinH }}>
+            {splitLeft  && renderSide(splitLeft,  leftImgs)}
+            {splitRight && renderSide(splitRight, rightImgs)}
+          </div>
+        ) : (
+          <div style={{ minHeight: totalMinH }}>
+            {splitLeft  && renderSide(splitLeft,  leftImgs)}
+            {splitRight && renderSide(splitRight, rightImgs)}
+          </div>
+        )}
       </section>
     );
   }
