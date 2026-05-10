@@ -35,6 +35,28 @@ const FORMATS = [
   { value: "split",          label: "Split (2 colunas livres)"  },
 ];
 
+// Layouts disponíveis por lado do split
+const SPLIT_LAYOUTS = [
+  {
+    value: "stack",
+    label: "Coluna",
+    desc: "Uma por baixo da outra",
+    icon: "▤",
+  },
+  {
+    value: "grid-2",
+    label: "Grelha 2 col.",
+    desc: "Sempre 2 lado a lado",
+    icon: "▦",
+  },
+  {
+    value: "auto",
+    label: "Auto",
+    desc: "1→full · 2→lado a lado · 3→2+1 · 4→2×2",
+    icon: "✦",
+  },
+];
+
 const TEXT_POSITIONS = [
   { value: "top-left",      label: "↖ Cima Esquerda"  },
   { value: "top-center",    label: "↑ Cima Centro"    },
@@ -71,6 +93,7 @@ interface BannerRow {
   category_id: string | null;
   device: Device | null;
   split_side: "left" | "right" | null;
+  split_layout: string | null;
   created_at: string;
 }
 
@@ -86,19 +109,15 @@ async function uploadBannerImage(file: File): Promise<string> {
 }
 
 /* ─── SplitSideUploader ──────────────────────────────────────────────────── */
-/*
- * MODELO CORRECTO:
- * Cada lado (left/right) é guardado como 1 único registo na BD.
- * Múltiplas imagens → image_url (principal) + extra_images[] (restantes).
- * Máximo 4 imagens por lado.
- */
 interface SplitSideUploaderProps {
   side: "left" | "right";
   images: { file?: File; preview: string; link: string }[];
+  layout: string;
   onChange: (imgs: { file?: File; preview: string; link: string }[]) => void;
+  onLayoutChange: (layout: string) => void;
 }
 
-const SplitSideUploader = ({ side, images, onChange }: SplitSideUploaderProps) => {
+const SplitSideUploader = ({ side, images, layout, onChange, onLayoutChange }: SplitSideUploaderProps) => {
   const fileRef = useRef<HTMLInputElement>(null);
   const label = side === "left" ? "◧ Esquerda" : "◨ Direita";
   const color = side === "left" ? "border-blue-500/40 bg-blue-500/5" : "border-purple-500/40 bg-purple-500/5";
@@ -119,9 +138,7 @@ const SplitSideUploader = ({ side, images, onChange }: SplitSideUploaderProps) =
   };
 
   const handleClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    fileRef.current?.click();
+    e.preventDefault(); e.stopPropagation(); fileRef.current?.click();
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -131,16 +148,41 @@ const SplitSideUploader = ({ side, images, onChange }: SplitSideUploaderProps) =
   };
 
   return (
-    <div className={`rounded-xl border p-3 space-y-2 ${color}`}>
+    <div className={`rounded-xl border p-3 space-y-3 ${color}`}>
       <div className="flex items-center justify-between">
         <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${badge}`}>{label}</span>
         <span className="text-[10px] text-muted-foreground">{images.length}/4 imagens</span>
       </div>
 
-      {/* Aviso do modelo correcto */}
+      {/* Selector de layout */}
+      <div>
+        <p className="text-[10px] font-bold text-muted-foreground mb-1.5">Disposição das imagens</p>
+        <div className="grid grid-cols-3 gap-1.5">
+          {SPLIT_LAYOUTS.map(l => (
+            <button
+              key={l.value}
+              type="button"
+              onClick={() => onLayoutChange(l.value)}
+              className={`flex flex-col items-center gap-0.5 px-2 py-2 rounded-lg border text-center transition ${
+                layout === l.value
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-background border-border text-foreground hover:bg-muted"
+              }`}
+            >
+              <span className="text-base leading-none">{l.icon}</span>
+              <span className="text-[10px] font-bold leading-tight">{l.label}</span>
+              <span className={`text-[9px] leading-tight ${layout === l.value ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                {l.desc}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Imagens */}
       {images.length === 0 && (
         <p className="text-[10px] text-muted-foreground bg-muted/50 rounded-lg px-2 py-1.5">
-          Adiciona 1 a 4 imagens. Serão guardadas <strong>num único registo</strong> para este lado.
+          Adiciona 1 a 4 imagens. Serão guardadas <strong>num único registo</strong>.
         </p>
       )}
 
@@ -178,14 +220,7 @@ const SplitSideUploader = ({ side, images, onChange }: SplitSideUploaderProps) =
         )}
       </div>
 
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*"
-        multiple
-        className="hidden"
-        onChange={handleChange}
-      />
+      <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleChange} />
 
       {images.length === 0 && (
         <button
@@ -233,6 +268,8 @@ type FormState = {
   extra_links: string[];
   splitLeft: ImgEntry[];
   splitRight: ImgEntry[];
+  splitLeftLayout: string;
+  splitRightLayout: string;
 };
 
 const emptyForm = (): FormState => ({
@@ -243,6 +280,7 @@ const emptyForm = (): FormState => ({
   is_active: true, category_id: null, bg_color: "#F0F9FF",
   extraImgFiles: [], extraImgPreviews: [], extra_links: [],
   splitLeft: [], splitRight: [],
+  splitLeftLayout: "stack", splitRightLayout: "stack",
 });
 
 const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSaved }: FormProps) => {
@@ -255,10 +293,6 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
     if (initialSplitPair) {
       const ref = initialSplitPair.left || initialSplitPair.right!;
 
-      /*
-       * Ao editar um split existente, reconstrói o estado do formulário
-       * a partir dos registos left e right (cada um com image_url + extra_images).
-       */
       const buildSideEntries = (b: BannerRow | null): ImgEntry[] => {
         if (!b) return [];
         const allImgs = [b.image_url, ...(b.extra_images || [])].filter(Boolean);
@@ -285,6 +319,8 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
         extraImgFiles: [], extraImgPreviews: [], extra_links: [],
         splitLeft:  buildSideEntries(initialSplitPair.left),
         splitRight: buildSideEntries(initialSplitPair.right),
+        splitLeftLayout:  initialSplitPair.left?.split_layout  || "stack",
+        splitRightLayout: initialSplitPair.right?.split_layout || "stack",
       };
     }
     if (!initial) return emptyForm();
@@ -308,6 +344,7 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
       extraImgPreviews: (initial.extra_images || []) as string[],
       extra_links: (initial.extra_links || []) as string[],
       splitLeft: [], splitRight: [],
+      splitLeftLayout: "stack", splitRightLayout: "stack",
     };
   });
 
@@ -358,11 +395,6 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
     setSaving(true);
     try {
       if (isSplit) {
-        /*
-         * MODELO CORRECTO: apaga os registos anteriores e cria
-         * EXACTAMENTE 1 registo por lado (left e right).
-         * Múltiplas imagens ficam em extra_images[].
-         */
         if (isSplitEdit) {
           const idsToDelete = [
             initialSplitPair?.left?.id,
@@ -373,18 +405,13 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
           }
         }
 
-        /*
-         * uploadSide: faz upload de todas as imagens de um lado
-         * e cria 1 único registo com image_url + extra_images[].
-         */
-        const uploadSide = async (imgs: ImgEntry[], side: "left" | "right") => {
+        const uploadSide = async (imgs: ImgEntry[], side: "left" | "right", sideLayout: string) => {
           if (imgs.length === 0) return;
 
-          // Faz upload de todas as imagens que têm ficheiro novo
           const uploadedUrls: string[] = await Promise.all(
             imgs.map(async (img) => {
               if (img.file) return uploadBannerImage(img.file);
-              return img.preview; // URL existente (ao editar)
+              return img.preview;
             })
           );
 
@@ -397,7 +424,7 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
             cta_text: form.cta_text || null,
             cta_link: mainLink || form.cta_link || "#",
             image_url: mainUrl,
-            extra_images: extraUrls,              // restantes imagens do lado
+            extra_images: extraUrls,
             extra_links: extraLinks.filter(Boolean),
             format: "split",
             bg_color: form.bg_color,
@@ -409,19 +436,18 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
             category_id: form.category_id,
             device: form.device,
             split_side: side,
+            split_layout: sideLayout,
           };
 
           const { error } = await supabase.from("banners" as any).insert(payload);
           if (error) throw new Error(error.message);
         };
 
-        await uploadSide(form.splitLeft,  "left");
-        await uploadSide(form.splitRight, "right");
+        await uploadSide(form.splitLeft,  "left",  form.splitLeftLayout);
+        await uploadSide(form.splitRight, "right", form.splitRightLayout);
 
         const total = form.splitLeft.length + form.splitRight.length;
-        toast.success(isSplitEdit
-          ? "Split atualizado!"
-          : `Split criado! (${total} imagens em 2 registos)`);
+        toast.success(isSplitEdit ? "Split atualizado!" : `Split criado! (${total} imagens)`);
 
       } else {
         let imageUrl = form.image_url;
@@ -450,6 +476,7 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
           category_id: form.category_id,
           device: form.device,
           split_side: null,
+          split_layout: null,
         };
 
         if (isEdit && initial) {
@@ -496,7 +523,6 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
               </button>
             ))}
           </div>
-          <p className="text-[10px] text-muted-foreground mt-1">Cada device tem slots independentes.</p>
         </div>
 
         <div>
@@ -533,12 +559,24 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
             <div className="rounded-xl border border-border bg-muted/30 p-3">
               <p className="text-xs font-bold text-foreground mb-1">◧ Esquerda | ◨ Direita</p>
               <p className="text-[10px] text-muted-foreground">
-                Cada lado = <strong>1 registo</strong> na base de dados.
-                Podes colocar 1 a 4 imagens por lado — ficam em <code>extra_images[]</code>.
+                Cada lado = <strong>1 registo</strong>. 1 a 4 imagens por lado.
+                Escolhe a disposição independentemente para cada lado.
               </p>
             </div>
-            <SplitSideUploader side="left"  images={form.splitLeft}  onChange={v => set("splitLeft",  v)} />
-            <SplitSideUploader side="right" images={form.splitRight} onChange={v => set("splitRight", v)} />
+            <SplitSideUploader
+              side="left"
+              images={form.splitLeft}
+              layout={form.splitLeftLayout}
+              onChange={v => set("splitLeft", v)}
+              onLayoutChange={v => set("splitLeftLayout", v)}
+            />
+            <SplitSideUploader
+              side="right"
+              images={form.splitRight}
+              layout={form.splitRightLayout}
+              onChange={v => set("splitRight", v)}
+              onLayoutChange={v => set("splitRightLayout", v)}
+            />
           </div>
         ) : (
           <>
@@ -581,18 +619,14 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
                   {form.extraImgPreviews.map((p, i) => (
                     <div key={i} className="relative rounded-lg overflow-hidden border border-border aspect-square">
                       <img src={p} alt={`Extra ${i + 1}`} className="w-full h-full object-cover" />
-                      <button
-                        type="button"
-                        onClick={() => removeExtra(i)}
+                      <button type="button" onClick={() => removeExtra(i)}
                         className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center">
                         <X className="w-3 h-3" />
                       </button>
                     </div>
                   ))}
                   {form.extraImgPreviews.length < needsExtra && (
-                    <button
-                      type="button"
-                      onClick={() => extraFileRef.current?.click()}
+                    <button type="button" onClick={() => extraFileRef.current?.click()}
                       className="aspect-square border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center hover:border-primary/50 hover:bg-primary/5 transition">
                       <Plus className="w-5 h-5 text-muted-foreground" />
                       <p className="text-[10px] text-muted-foreground mt-1">Adicionar</p>
@@ -638,10 +672,7 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Posição do texto</label>
           <div className="grid grid-cols-3 gap-1.5">
             {TEXT_POSITIONS.map(p => (
-              <button
-                type="button"
-                key={p.value}
-                onClick={() => set("text_position", p.value)}
+              <button type="button" key={p.value} onClick={() => set("text_position", p.value)}
                 className={`py-2 rounded-lg text-[10px] font-bold border transition text-center ${form.text_position === p.value ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-foreground hover:bg-muted"}`}>
                 {p.label}
               </button>
@@ -666,9 +697,7 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
         <div className="rounded-xl border border-border bg-muted/40 p-3 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-foreground">Fundo do texto (caixa)</span>
-            <button
-              type="button"
-              onClick={() => set("text_bg_enabled", !form.text_bg_enabled)}
+            <button type="button" onClick={() => set("text_bg_enabled", !form.text_bg_enabled)}
               className={`w-10 h-6 rounded-full transition relative ${form.text_bg_enabled ? "bg-primary" : "bg-muted-foreground/30"}`}>
               <span className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${form.text_bg_enabled ? "translate-x-4" : ""}`} />
             </button>
@@ -685,29 +714,24 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
 
         <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted border border-border">
           <span className="text-sm font-bold text-foreground">Activo</span>
-          <button
-            type="button"
-            onClick={() => set("is_active", !form.is_active)}
+          <button type="button" onClick={() => set("is_active", !form.is_active)}
             className={`w-10 h-6 rounded-full transition relative ${form.is_active ? "bg-primary" : "bg-muted-foreground/30"}`}>
             <span className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${form.is_active ? "translate-x-4" : ""}`} />
           </button>
         </div>
 
-        <button
-          type="button"
-          onClick={save}
-          disabled={saving}
+        <button type="button" onClick={save} disabled={saving}
           className="w-full py-3 bg-primary text-primary-foreground text-sm font-bold rounded-xl disabled:opacity-50 flex items-center justify-center gap-2">
           {saving
             ? <><Loader2 className="w-4 h-4 animate-spin" /> A guardar...</>
-            : <><Check className="w-4 h-4" /> {isEdit ? "Guardar alterações" : isSplit ? `Criar split (${splitTotal} imgs em 2 registos)` : "Criar banner"}</>}
+            : <><Check className="w-4 h-4" /> {isEdit ? "Guardar alterações" : isSplit ? `Criar split (${splitTotal} imgs)` : "Criar banner"}</>}
         </button>
       </div>
     </div>
   );
 };
 
-/* ─── Card Split agrupado ────────────────────────────────────────────────── */
+/* ─── Card Split ─────────────────────────────────────────────────────────── */
 interface SplitCardProps {
   leftBanner: BannerRow | null;
   rightBanner: BannerRow | null;
@@ -716,39 +740,33 @@ interface SplitCardProps {
   onDelete: () => void;
 }
 
+const LAYOUT_ICON: Record<string, string> = { stack: "▤", "grid-2": "▦", auto: "✦" };
+
 const SplitBannerCard = ({ leftBanner, rightBanner, onEdit, onToggle, onDelete }: SplitCardProps) => {
   const ref = leftBanner || rightBanner!;
   const isActive = ref.is_active;
-
-  // Conta imagens reais de cada lado
   const leftCount  = leftBanner  ? 1 + (leftBanner.extra_images?.length  || 0) : 0;
   const rightCount = rightBanner ? 1 + (rightBanner.extra_images?.length || 0) : 0;
+  const leftLayout  = leftBanner?.split_layout  || "stack";
+  const rightLayout = rightBanner?.split_layout || "stack";
 
   return (
     <div className={`bg-card rounded-xl border border-border overflow-hidden transition ${!isActive ? "opacity-55" : ""}`}>
       <div className="grid grid-cols-2 h-24 bg-muted gap-0.5">
         <div className="relative overflow-hidden">
-          {leftBanner ? (
-            <img src={leftBanner.image_url} alt="Esquerda" className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-muted">
-              <span className="text-[10px] text-muted-foreground">Sem imagem</span>
-            </div>
-          )}
+          {leftBanner
+            ? <img src={leftBanner.image_url} alt="Esquerda" className="w-full h-full object-cover" />
+            : <div className="w-full h-full flex items-center justify-center bg-muted"><span className="text-[10px] text-muted-foreground">Sem imagem</span></div>}
           <span className="absolute top-1 left-1 text-[9px] bg-blue-500/90 text-white px-1.5 py-0.5 rounded-full font-bold">
-            ◧ Esq {leftCount > 1 ? `(${leftCount})` : ""}
+            ◧ {leftCount > 0 ? `${leftCount}img` : "—"} {LAYOUT_ICON[leftLayout]}
           </span>
         </div>
         <div className="relative overflow-hidden">
-          {rightBanner ? (
-            <img src={rightBanner.image_url} alt="Direita" className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-muted">
-              <span className="text-[10px] text-muted-foreground">Sem imagem</span>
-            </div>
-          )}
+          {rightBanner
+            ? <img src={rightBanner.image_url} alt="Direita" className="w-full h-full object-cover" />
+            : <div className="w-full h-full flex items-center justify-center bg-muted"><span className="text-[10px] text-muted-foreground">Sem imagem</span></div>}
           <span className="absolute top-1 right-1 text-[9px] bg-purple-500/90 text-white px-1.5 py-0.5 rounded-full font-bold">
-            ◨ Dir {rightCount > 1 ? `(${rightCount})` : ""}
+            ◨ {rightCount > 0 ? `${rightCount}img` : "—"} {LAYOUT_ICON[rightLayout]}
           </span>
         </div>
       </div>
@@ -900,11 +918,6 @@ const AdminBannersTab = () => {
     desktop: banners.filter(b => b.device === "desktop").length,
   };
 
-  /*
-   * Agrupa os banners split: 1 left + 1 right por chave device-sort_order.
-   * Com o modelo correcto, cada chave tem exactamente 1 registo por lado.
-   * Usa .find() (não filter) para garantir que só pega 1 de cada lado.
-   */
   const splitGroups = new Map<string, { left: BannerRow | null; right: BannerRow | null }>();
   const nonSplitBanners: BannerRow[] = [];
 
@@ -913,7 +926,6 @@ const AdminBannersTab = () => {
       const key = `${b.device || "mobile"}-${b.sort_order}`;
       if (!splitGroups.has(key)) splitGroups.set(key, { left: null, right: null });
       const group = splitGroups.get(key)!;
-      // Só guarda o primeiro que encontrar de cada lado (evita duplicados antigos)
       if (b.split_side === "left"  && !group.left)  group.left  = b;
       if (b.split_side === "right" && !group.right) group.right = b;
     } else {
@@ -930,7 +942,6 @@ const AdminBannersTab = () => {
     .filter(() => filterFormat === "all" || filterFormat === "split");
 
   const formatsWithBanners = FORMATS.filter(f => banners.some(b => b.format === f.value));
-
   const closeForm = () => { setShowForm(false); setEditBanner(null); setEditSplitPair(null); };
 
   return (
@@ -957,9 +968,7 @@ const AdminBannersTab = () => {
       ) : showForm ? (
         <BannerForm existingBanners={banners} onClose={closeForm} onSaved={invalidate} />
       ) : (
-        <button
-          type="button"
-          onClick={() => setShowForm(true)}
+        <button type="button" onClick={() => setShowForm(true)}
           className="w-full py-3 bg-primary text-primary-foreground text-xs font-bold rounded-xl flex items-center justify-center gap-2">
           <Plus className="w-4 h-4" /> Novo Banner
         </button>
@@ -968,17 +977,12 @@ const AdminBannersTab = () => {
       <div className="space-y-2">
         <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
           {[{ value: "all", label: "Todos" }, ...DEVICES].map(d => (
-            <button
-              type="button"
-              key={d.value}
-              onClick={() => setFilterDevice(d.value as any)}
+            <button type="button" key={d.value} onClick={() => setFilterDevice(d.value as any)}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold border whitespace-nowrap transition ${filterDevice === d.value ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border text-foreground hover:bg-muted"}`}>
               {d.label}
             </button>
           ))}
-          <button
-            type="button"
-            onClick={() => setCollapsed(c => !c)}
+          <button type="button" onClick={() => setCollapsed(c => !c)}
             className="ml-auto px-2.5 py-1.5 rounded-lg text-xs font-bold border border-border bg-card text-foreground hover:bg-muted flex items-center gap-1">
             {collapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
             {collapsed ? "Expandir" : "Colapsar"}
@@ -987,17 +991,12 @@ const AdminBannersTab = () => {
 
         {formatsWithBanners.length > 0 && (
           <div className="flex gap-1 overflow-x-auto no-scrollbar">
-            <button
-              type="button"
-              onClick={() => setFilterFormat("all")}
+            <button type="button" onClick={() => setFilterFormat("all")}
               className={`px-3 py-1.5 text-[10px] font-bold rounded-lg border whitespace-nowrap ${filterFormat === "all" ? "bg-primary text-primary-foreground border-primary" : "bg-card text-foreground border-border"}`}>
               Todos ({banners.length})
             </button>
             {formatsWithBanners.map(f => (
-              <button
-                type="button"
-                key={f.value}
-                onClick={() => setFilterFormat(f.value)}
+              <button type="button" key={f.value} onClick={() => setFilterFormat(f.value)}
                 className={`px-3 py-1.5 text-[10px] font-bold rounded-lg border whitespace-nowrap ${filterFormat === f.value ? "bg-primary text-primary-foreground border-primary" : "bg-card text-foreground border-border"}`}>
                 {f.label} ({banners.filter(b => b.format === f.value).length})
               </button>
@@ -1006,11 +1005,7 @@ const AdminBannersTab = () => {
         )}
       </div>
 
-      {isLoading && (
-        <div className="flex justify-center py-10">
-          <Loader2 className="w-5 h-5 animate-spin text-primary" />
-        </div>
-      )}
+      {isLoading && <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>}
 
       {!isLoading && filteredNonSplit.length === 0 && filteredSplitGroups.length === 0 && (
         <div className="text-center py-10">
