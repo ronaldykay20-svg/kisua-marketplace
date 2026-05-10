@@ -1,7 +1,7 @@
 /**
  * DesktopNavbar — visível apenas em md: (tablet ≥768px) e lg: (desktop)
  * Linha 1: Logo + Pesquisa (sempre visível) + ícones
- * Linha 2: Categorias scroll horizontal (tablet) / nav links (desktop)
+ * Linha 2: Categorias scroll horizontal + "Mais categorias" + quicklinks (tablet) / nav links (desktop)
  */
 import { useState, useCallback, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -242,6 +242,18 @@ const DesktopNavbar = () => {
           </button>
         </form>
 
+        {/* Localização — só tablet (md), escondido em desktop (lg) */}
+        <div className="hidden md:flex lg:hidden items-center gap-1.5 flex-shrink-0 px-3 py-1.5 rounded-xl"
+          style={{ background: brownLight, border: `1px solid rgba(74,46,10,0.18)` }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={sandDark} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+          </svg>
+          <div className="flex flex-col leading-tight">
+            <span className="text-[9px]" style={{ color: sandDark }}>Retirada ou entrega?</span>
+            <span className="text-[10px] font-bold" style={{ color: brown }}>Luanda, Angola</span>
+          </div>
+        </div>
+
         {/* Ícones direita */}
         <div className="flex items-center gap-2 flex-shrink-0">
 
@@ -351,45 +363,90 @@ const DesktopNavbar = () => {
         </div>
       </div>
 
-      {/* ══ LINHA 2: Tablet → categorias com foto | Desktop → nav links ══ */}
+      {/* ══ LINHA 2 ══ */}
       <div className="border-t" style={{ borderColor: "rgba(74,46,10,0.15)" }}>
 
-        {/* Tablet (md) — scroll horizontal de categorias com imagem */}
-        <div className="md:flex lg:hidden max-w-screen-xl mx-auto px-5 overflow-x-auto scrollbar-hide">
-          <div className="flex items-center gap-4 py-2">
-            {cats.map((cat: any) => (
-              <button
-                key={cat.name}
-                onClick={() => navigate(`/categoria/${encodeURIComponent(cat.name)}`)}
-                className="flex flex-col items-center gap-1 flex-shrink-0"
-              >
-                <div
-                  className="w-11 h-11 rounded-xl overflow-hidden flex-shrink-0"
-                  style={{ border: "2px solid rgba(74,46,10,0.15)", boxShadow: "0 1px 6px rgba(74,46,10,0.10)" }}
+        {/* ── TABLET (md, não lg): categorias + "Mais categorias" + quicklinks ── */}
+        <div className="md:flex lg:hidden max-w-screen-xl mx-auto px-5">
+          <div className="flex items-center w-full py-2">
+
+            {/* Scroll horizontal de categorias com foto */}
+            <div className="flex-1 overflow-x-auto scrollbar-hide min-w-0">
+              <div className="flex items-center gap-3">
+                {cats.map((cat: any) => (
+                  <button
+                    key={cat.name}
+                    onClick={() => navigate(`/categoria/${encodeURIComponent(cat.name)}`)}
+                    className="flex flex-col items-center gap-1 flex-shrink-0"
+                  >
+                    <div
+                      className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0"
+                      style={{ border: "2px solid rgba(74,46,10,0.15)", boxShadow: "0 1px 6px rgba(74,46,10,0.10)" }}
+                    >
+                      <img src={cat.image} alt={cat.name} className="w-full h-full object-cover" />
+                    </div>
+                    <span className="text-[9px] font-semibold text-center leading-tight" style={{ color: brown, maxWidth: 48 }}>
+                      {cat.name}
+                    </span>
+                  </button>
+                ))}
+
+                {/* Botão "Mais categorias" */}
+                <button
+                  onClick={() => navigate("/categorias")}
+                  className="flex flex-col items-center gap-1 flex-shrink-0"
                 >
-                  <img src={cat.image} alt={cat.name} className="w-full h-full object-cover" />
-                </div>
-                <span className="text-[9px] font-semibold text-center leading-tight" style={{ color: brown, maxWidth: 44 }}>
-                  {cat.name}
-                </span>
-              </button>
-            ))}
-            <button
-              onClick={() => navigate("/categorias")}
-              className="flex flex-col items-center gap-1 flex-shrink-0"
-            >
-              <div
-                className="w-11 h-11 rounded-xl flex items-center justify-center"
-                style={{ background: `linear-gradient(135deg, #6B3F12, #4A2E0A)`, border: "2px solid rgba(74,46,10,0.35)" }}
-              >
-                <span style={{ fontSize: 18, color: "#fff" }}>⊞</span>
+                  <div
+                    className="w-12 h-12 rounded-xl flex items-center justify-center"
+                    style={{
+                      background: "rgba(74,46,10,0.08)",
+                      border: "2px solid rgba(74,46,10,0.20)",
+                      boxShadow: "0 1px 6px rgba(74,46,10,0.10)",
+                    }}
+                  >
+                    <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+                      <rect x="2" y="2" width="8" height="8" rx="2" fill={brown} opacity="0.85"/>
+                      <rect x="12" y="2" width="8" height="8" rx="2" fill={brown} opacity="0.85"/>
+                      <rect x="2" y="12" width="8" height="8" rx="2" fill={brown} opacity="0.85"/>
+                      <rect x="12" y="12" width="8" height="8" rx="2" fill={brown} opacity="0.85"/>
+                    </svg>
+                  </div>
+                  <span className="text-[9px] font-semibold text-center leading-tight" style={{ color: brown, maxWidth: 48 }}>
+                    Mais<br/>categorias
+                  </span>
+                </button>
               </div>
-              <span className="text-[9px] font-semibold" style={{ color: brown }}>Ver todas</span>
-            </button>
+            </div>
+
+            {/* Separador vertical */}
+            <div
+              className="flex-shrink-0 w-px mx-3 self-stretch"
+              style={{ background: "rgba(74,46,10,0.18)" }}
+            />
+
+            {/* Quicklinks fixos à direita */}
+            <div className="flex-shrink-0 flex items-center gap-1">
+              {quickLinks.map(link => (
+                <button
+                  key={link.label}
+                  onClick={() => navigate(link.path)}
+                  className="flex flex-col items-center gap-1 px-2 py-1 rounded-xl transition-all hover:bg-white/40"
+                >
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center"
+                    style={{ background: brownLight, border: "1px solid rgba(74,46,10,0.15)" }}
+                  >
+                    <link.icon className="w-4 h-4" style={{ color: brown }} />
+                  </div>
+                  <span className="text-[9px] font-semibold" style={{ color: brown }}>{link.label}</span>
+                </button>
+              ))}
+            </div>
+
           </div>
         </div>
 
-        {/* Desktop (lg) — nav links + quick links */}
+        {/* ── DESKTOP (lg): nav links + quicklinks ── */}
         <div className="hidden lg:flex max-w-screen-xl mx-auto px-5 items-center gap-1 h-10">
           {navItems.map(item => {
             const active = location.pathname === item.path;
@@ -412,6 +469,7 @@ const DesktopNavbar = () => {
             ))}
           </div>
         </div>
+
       </div>
     </header>
   );
