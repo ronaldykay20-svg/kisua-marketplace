@@ -33,11 +33,15 @@ interface SplitImage {
   text_position: string | undefined;
 }
 
-/* ─── imgCard: renderiza 1 imagem ─── */
-const ImgCard = ({ img, style, className = "" }: {
+/* ─── Uma célula de imagem ─── */
+const ImgCell = ({
+  img,
+  className = "",
+  style,
+}: {
   img: SplitImage;
-  style?: React.CSSProperties;
   className?: string;
+  style?: React.CSSProperties;
 }) => {
   const pos = getPos(img.text_position);
   return (
@@ -67,175 +71,214 @@ const ImgCard = ({ img, style, className = "" }: {
 };
 
 /* ─────────────────────────────────────────────────────────────────
-   renderSide — renderiza as imagens de um lado com o layout
-   escolhido pelo admin. Todos os layouts garantem que não há
-   espaço em branco — cada imagem estica para preencher a lacuna.
+   renderSide
+   totalH = altura total do bloco split (px)
+   layout = chave escolhida pelo admin
+   
+   REGRA: nenhum espaço em branco — cada imagem estica
+   para preencher a lacuna do lado que ficaria vazio.
 ───────────────────────────────────────────────────────────────── */
 const renderSide = (imgs: SplitImage[], layout: string, totalH: number) => {
   if (imgs.length === 0) return null;
-  const n = imgs.length;
-  const h = totalH;
-  const half = h / 2;
 
-  // Helpers de altura
-  const full  = { minHeight: h,    height: h    };
-  const top   = { minHeight: half, height: half };
-  const bot   = { minHeight: half, height: half };
+  // fallback seguro: usa a imagem disponível mesmo que o layout peça mais
+  const g = (i: number) => imgs[i] ?? imgs[imgs.length - 1];
+  const half = totalH / 2;
+  const third = totalH / 3;
 
   switch (layout) {
 
-    /* ── 1 imagem: sempre ocupa tudo ── */
+    /* ══ 1 imagem ══ */
     case "1-full":
-      return <ImgCard img={imgs[0]} style={full} className="w-full" />;
+      return <ImgCell img={g(0)} className="w-full" style={{ height: totalH }} />;
 
-    /* ── 2 imagens ── */
-    case "2-col": // coluna
+    /* ══ 2 imagens ══ */
+    case "2-col":
       return (
-        <div className="flex flex-col gap-1 w-full" style={full}>
-          <ImgCard img={imgs[0]} style={{ flex: 1, minHeight: half }} className="w-full" />
-          <ImgCard img={imgs[1] ?? imgs[0]} style={{ flex: 1, minHeight: half }} className="w-full" />
+        <div className="flex flex-col gap-1 w-full" style={{ height: totalH }}>
+          <ImgCell img={g(0)} className="w-full" style={{ flex: 1 }} />
+          <ImgCell img={g(1)} className="w-full" style={{ flex: 1 }} />
         </div>
       );
-    case "2-row": // lado a lado
+    case "2-row":
       return (
-        <div className="grid grid-cols-2 gap-1 w-full" style={full}>
-          <ImgCard img={imgs[0]} style={full} />
-          <ImgCard img={imgs[1] ?? imgs[0]} style={full} />
-        </div>
-      );
-
-    /* ── 3 imagens ── */
-    case "3-row": // lado a lado (3 colunas)
-      return (
-        <div className="grid grid-cols-3 gap-1 w-full" style={full}>
-          {[0,1,2].map(i => <ImgCard key={i} img={imgs[i] ?? imgs[0]} style={full} />)}
-        </div>
-      );
-    case "3-col": // coluna (3 linhas)
-      return (
-        <div className="flex flex-col gap-1 w-full" style={full}>
-          {[0,1,2].map(i => <ImgCard key={i} img={imgs[i] ?? imgs[0]} style={{ flex: 1, minHeight: h/3 }} className="w-full" />)}
-        </div>
-      );
-    case "3-2cima-1baixo": // [ A | B ] / [   C   ]
-      return (
-        <div className="flex flex-col gap-1 w-full" style={full}>
-          <div className="grid grid-cols-2 gap-1" style={top}>
-            <ImgCard img={imgs[0]} style={top} />
-            <ImgCard img={imgs[1] ?? imgs[0]} style={top} />
-          </div>
-          <ImgCard img={imgs[2] ?? imgs[0]} style={bot} className="w-full" />
-        </div>
-      );
-    case "3-1cima-2baixo": // [   A   ] / [ B | C ]
-      return (
-        <div className="flex flex-col gap-1 w-full" style={full}>
-          <ImgCard img={imgs[0]} style={top} className="w-full" />
-          <div className="grid grid-cols-2 gap-1" style={bot}>
-            <ImgCard img={imgs[1] ?? imgs[0]} style={bot} />
-            <ImgCard img={imgs[2] ?? imgs[0]} style={bot} />
-          </div>
-        </div>
-      );
-    case "3-2esq-1dir": // [ A ] [ C ]
-                        // [ B ] [   ]
-      return (
-        <div className="grid grid-cols-2 gap-1 w-full" style={full}>
-          <div className="flex flex-col gap-1" style={full}>
-            <ImgCard img={imgs[0]} style={{ flex: 1, minHeight: half }} className="w-full" />
-            <ImgCard img={imgs[1] ?? imgs[0]} style={{ flex: 1, minHeight: half }} className="w-full" />
-          </div>
-          <ImgCard img={imgs[2] ?? imgs[0]} style={full} />
-        </div>
-      );
-    case "3-1esq-2dir": // [ A ] [ B ]
-                        // [   ] [ C ]
-      return (
-        <div className="grid grid-cols-2 gap-1 w-full" style={full}>
-          <ImgCard img={imgs[0]} style={full} />
-          <div className="flex flex-col gap-1" style={full}>
-            <ImgCard img={imgs[1] ?? imgs[0]} style={{ flex: 1, minHeight: half }} className="w-full" />
-            <ImgCard img={imgs[2] ?? imgs[0]} style={{ flex: 1, minHeight: half }} className="w-full" />
-          </div>
+        <div className="grid grid-cols-2 gap-1 w-full" style={{ height: totalH }}>
+          <ImgCell img={g(0)} style={{ height: totalH }} />
+          <ImgCell img={g(1)} style={{ height: totalH }} />
         </div>
       );
 
-    /* ── 4 imagens ── */
-    case "4-2x2": // grelha 2×2
+    /* ══ 3 imagens ══ */
+    case "3-col":
       return (
-        <div className="grid grid-cols-2 gap-1 w-full" style={full}>
-          {[0,1,2,3].map(i => <ImgCard key={i} img={imgs[i] ?? imgs[0]} style={{ minHeight: half }} />)}
+        <div className="flex flex-col gap-1 w-full" style={{ height: totalH }}>
+          <ImgCell img={g(0)} className="w-full" style={{ flex: 1 }} />
+          <ImgCell img={g(1)} className="w-full" style={{ flex: 1 }} />
+          <ImgCell img={g(2)} className="w-full" style={{ flex: 1 }} />
         </div>
       );
-    case "4-row": // 4 lado a lado
+    case "3-row":
       return (
-        <div className="grid grid-cols-4 gap-1 w-full" style={full}>
-          {[0,1,2,3].map(i => <ImgCard key={i} img={imgs[i] ?? imgs[0]} style={full} />)}
+        <div className="grid grid-cols-3 gap-1 w-full" style={{ height: totalH }}>
+          <ImgCell img={g(0)} style={{ height: totalH }} />
+          <ImgCell img={g(1)} style={{ height: totalH }} />
+          <ImgCell img={g(2)} style={{ height: totalH }} />
         </div>
       );
-    case "4-col": // 4 em coluna
+    /* [ A | B ]
+       [   C   ] */
+    case "3-2cima-1baixo":
       return (
-        <div className="flex flex-col gap-1 w-full" style={full}>
-          {[0,1,2,3].map(i => <ImgCard key={i} img={imgs[i] ?? imgs[0]} style={{ flex: 1, minHeight: h/4 }} className="w-full" />)}
+        <div className="flex flex-col gap-1 w-full" style={{ height: totalH }}>
+          <div className="grid grid-cols-2 gap-1" style={{ flex: 1 }}>
+            <ImgCell img={g(0)} style={{ height: half }} />
+            <ImgCell img={g(1)} style={{ height: half }} />
+          </div>
+          <ImgCell img={g(2)} className="w-full" style={{ flex: 1 }} />
         </div>
       );
-    case "4-1cima-3baixo": // [      A      ] / [ B | C | D ]
+    /* [   A   ]
+       [ B | C ] */
+    case "3-1cima-2baixo":
       return (
-        <div className="flex flex-col gap-1 w-full" style={full}>
-          <ImgCard img={imgs[0]} style={top} className="w-full" />
-          <div className="grid grid-cols-3 gap-1" style={bot}>
-            {[1,2,3].map(i => <ImgCard key={i} img={imgs[i] ?? imgs[0]} style={bot} />)}
+        <div className="flex flex-col gap-1 w-full" style={{ height: totalH }}>
+          <ImgCell img={g(0)} className="w-full" style={{ flex: 1 }} />
+          <div className="grid grid-cols-2 gap-1" style={{ flex: 1 }}>
+            <ImgCell img={g(1)} style={{ height: half }} />
+            <ImgCell img={g(2)} style={{ height: half }} />
           </div>
         </div>
       );
-    case "4-3cima-1baixo": // [ A | B | C ] / [      D      ]
+    /* [ A ] [ C ]
+       [ B ] [   ] → C estica */
+    case "3-2esq-1dir":
       return (
-        <div className="flex flex-col gap-1 w-full" style={full}>
-          <div className="grid grid-cols-3 gap-1" style={top}>
-            {[0,1,2].map(i => <ImgCard key={i} img={imgs[i] ?? imgs[0]} style={top} />)}
+        <div className="grid grid-cols-2 gap-1 w-full" style={{ height: totalH }}>
+          <div className="flex flex-col gap-1" style={{ height: totalH }}>
+            <ImgCell img={g(0)} className="w-full" style={{ flex: 1 }} />
+            <ImgCell img={g(1)} className="w-full" style={{ flex: 1 }} />
           </div>
-          <ImgCard img={imgs[3] ?? imgs[0]} style={bot} className="w-full" />
+          <ImgCell img={g(2)} style={{ height: totalH }} />
         </div>
       );
-    case "4-1esq-3dir": // [ A ] [ B ]
-                        // [   ] [ C ]
-                        // [   ] [ D ]
+    /* [ A ] [ B ]
+       [   ] [ C ] → A estica */
+    case "3-1esq-2dir":
       return (
-        <div className="grid grid-cols-2 gap-1 w-full" style={full}>
-          <ImgCard img={imgs[0]} style={full} />
-          <div className="flex flex-col gap-1" style={full}>
-            {[1,2,3].map(i => <ImgCard key={i} img={imgs[i] ?? imgs[0]} style={{ flex: 1, minHeight: h/3 }} className="w-full" />)}
+        <div className="grid grid-cols-2 gap-1 w-full" style={{ height: totalH }}>
+          <ImgCell img={g(0)} style={{ height: totalH }} />
+          <div className="flex flex-col gap-1" style={{ height: totalH }}>
+            <ImgCell img={g(1)} className="w-full" style={{ flex: 1 }} />
+            <ImgCell img={g(2)} className="w-full" style={{ flex: 1 }} />
           </div>
-        </div>
-      );
-    case "4-3esq-1dir": // [ A ] [ D ]
-                        // [ B ] [   ]
-                        // [ C ] [   ]
-      return (
-        <div className="grid grid-cols-2 gap-1 w-full" style={full}>
-          <div className="flex flex-col gap-1" style={full}>
-            {[0,1,2].map(i => <ImgCard key={i} img={imgs[i] ?? imgs[0]} style={{ flex: 1, minHeight: h/3 }} className="w-full" />)}
-          </div>
-          <ImgCard img={imgs[3] ?? imgs[0]} style={full} />
         </div>
       );
 
-    /* fallback: coluna */
+    /* ══ 4 imagens ══ */
+    case "4-2x2":
+      return (
+        <div className="grid grid-cols-2 gap-1 w-full" style={{ height: totalH }}>
+          <ImgCell img={g(0)} style={{ height: half }} />
+          <ImgCell img={g(1)} style={{ height: half }} />
+          <ImgCell img={g(2)} style={{ height: half }} />
+          <ImgCell img={g(3)} style={{ height: half }} />
+        </div>
+      );
+    case "4-col":
+      return (
+        <div className="flex flex-col gap-1 w-full" style={{ height: totalH }}>
+          <ImgCell img={g(0)} className="w-full" style={{ flex: 1 }} />
+          <ImgCell img={g(1)} className="w-full" style={{ flex: 1 }} />
+          <ImgCell img={g(2)} className="w-full" style={{ flex: 1 }} />
+          <ImgCell img={g(3)} className="w-full" style={{ flex: 1 }} />
+        </div>
+      );
+    case "4-row":
+      return (
+        <div className="grid grid-cols-4 gap-1 w-full" style={{ height: totalH }}>
+          <ImgCell img={g(0)} style={{ height: totalH }} />
+          <ImgCell img={g(1)} style={{ height: totalH }} />
+          <ImgCell img={g(2)} style={{ height: totalH }} />
+          <ImgCell img={g(3)} style={{ height: totalH }} />
+        </div>
+      );
+    /* [      A      ]
+       [ B | C | D  ] */
+    case "4-1cima-3baixo":
+      return (
+        <div className="flex flex-col gap-1 w-full" style={{ height: totalH }}>
+          <ImgCell img={g(0)} className="w-full" style={{ flex: 1 }} />
+          <div className="grid grid-cols-3 gap-1" style={{ flex: 1 }}>
+            <ImgCell img={g(1)} style={{ height: half }} />
+            <ImgCell img={g(2)} style={{ height: half }} />
+            <ImgCell img={g(3)} style={{ height: half }} />
+          </div>
+        </div>
+      );
+    /* [ A | B | C ]
+       [     D     ] */
+    case "4-3cima-1baixo":
+      return (
+        <div className="flex flex-col gap-1 w-full" style={{ height: totalH }}>
+          <div className="grid grid-cols-3 gap-1" style={{ flex: 1 }}>
+            <ImgCell img={g(0)} style={{ height: half }} />
+            <ImgCell img={g(1)} style={{ height: half }} />
+            <ImgCell img={g(2)} style={{ height: half }} />
+          </div>
+          <ImgCell img={g(3)} className="w-full" style={{ flex: 1 }} />
+        </div>
+      );
+    /* [ A ] [ B ]
+       [   ] [ C ]
+       [   ] [ D ] → A estica */
+    case "4-1esq-3dir":
+      return (
+        <div className="grid grid-cols-2 gap-1 w-full" style={{ height: totalH }}>
+          <ImgCell img={g(0)} style={{ height: totalH }} />
+          <div className="flex flex-col gap-1" style={{ height: totalH }}>
+            <ImgCell img={g(1)} className="w-full" style={{ flex: 1 }} />
+            <ImgCell img={g(2)} className="w-full" style={{ flex: 1 }} />
+            <ImgCell img={g(3)} className="w-full" style={{ flex: 1 }} />
+          </div>
+        </div>
+      );
+    /* [ A ] [ D ]
+       [ B ] [   ]
+       [ C ] [   ] → D estica */
+    case "4-3esq-1dir":
+      return (
+        <div className="grid grid-cols-2 gap-1 w-full" style={{ height: totalH }}>
+          <div className="flex flex-col gap-1" style={{ height: totalH }}>
+            <ImgCell img={g(0)} className="w-full" style={{ flex: 1 }} />
+            <ImgCell img={g(1)} className="w-full" style={{ flex: 1 }} />
+            <ImgCell img={g(2)} className="w-full" style={{ flex: 1 }} />
+          </div>
+          <ImgCell img={g(3)} style={{ height: totalH }} />
+        </div>
+      );
+
+    /* ── fallback: empilhado simples ── */
     default:
       return (
-        <div className="flex flex-col gap-1 w-full" style={full}>
-          {imgs.map((img, i) => <ImgCard key={i} img={img} style={{ flex: 1, minHeight: h / imgs.length }} className="w-full" />)}
+        <div className="flex flex-col gap-1 w-full" style={{ height: totalH }}>
+          {imgs.map((img, i) => (
+            <ImgCell key={i} img={img} className="w-full" style={{ flex: 1 }} />
+          ))}
         </div>
       );
   }
 };
 
-/* ─── Altura total baseada no layout ─── */
-const calcRows = (layout: string): number => {
-  if (layout.includes("2x2") || layout.includes("cima") || layout.includes("baixo")) return 2;
-  if (layout === "3-col") return 3;
-  if (layout === "4-col") return 4;
-  return 1;
+/* ─── Número de linhas visuais de um layout (para calcular altura) ─── */
+const layoutRows: Record<string, number> = {
+  "1-full": 1,
+  "2-col": 2, "2-row": 1,
+  "3-col": 3, "3-row": 1,
+  "3-2cima-1baixo": 2, "3-1cima-2baixo": 2,
+  "3-2esq-1dir": 1, "3-1esq-2dir": 1,
+  "4-2x2": 2, "4-col": 4, "4-row": 1,
+  "4-1cima-3baixo": 2, "4-3cima-1baixo": 2,
+  "4-1esq-3dir": 1, "4-3esq-1dir": 1,
 };
 
 const HomeBannerSlot = ({
@@ -314,21 +357,25 @@ const HomeBannerSlot = ({
     if (splitLeftImages.length === 0 && splitRightImages.length === 0) return null;
 
     const heightPerRow = sidebar ? 140 : compact ? 110 : 180;
-    const rowsLeft  = calcRows(splitLeftLayout);
-    const rowsRight = calcRows(splitRightLayout);
-    const totalMinH = Math.max(rowsLeft, rowsRight, 1) * heightPerRow;
+    const rowsLeft  = layoutRows[splitLeftLayout]  ?? 1;
+    const rowsRight = layoutRows[splitRightLayout] ?? 1;
+    const totalMinH = Math.max(rowsLeft, rowsRight) * heightPerRow;
 
     const hasBoth = splitLeftImages.length > 0 && splitRightImages.length > 0;
 
     return (
       <section className={sectionCls}>
         {hasBoth ? (
-          <div className="flex gap-1 w-full" style={{ minHeight: totalMinH }}>
-            <div className="flex-1 min-w-0">{renderSide(splitLeftImages,  splitLeftLayout,  totalMinH)}</div>
-            <div className="flex-1 min-w-0">{renderSide(splitRightImages, splitRightLayout, totalMinH)}</div>
+          <div className="flex gap-1 w-full" style={{ height: totalMinH }}>
+            <div className="flex-1 min-w-0" style={{ height: totalMinH }}>
+              {renderSide(splitLeftImages, splitLeftLayout, totalMinH)}
+            </div>
+            <div className="flex-1 min-w-0" style={{ height: totalMinH }}>
+              {renderSide(splitRightImages, splitRightLayout, totalMinH)}
+            </div>
           </div>
         ) : (
-          <div className="w-full" style={{ minHeight: totalMinH }}>
+          <div className="w-full" style={{ height: totalMinH }}>
             {renderSide(splitLeftImages,  splitLeftLayout,  totalMinH)}
             {renderSide(splitRightImages, splitRightLayout, totalMinH)}
           </div>
@@ -400,13 +447,13 @@ const HomeBannerSlot = ({
           {[0, 1].map((i) => (
             <a key={i} href={linkFor(i)} className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
               <img src={images[i] || images[0]} alt={banner.title || "Banner"} className="aspect-square sm:aspect-[5/4] w-full object-cover" loading="lazy" />
-              {i === 0 && banner.title && (
-                <><div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
+              {i === 0 && banner.title && (<>
+                <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
                 <div className={`absolute inset-0 flex flex-col p-3 ${pos.wrapper}`}>
                   <h3 className={`text-xs sm:text-sm font-bold text-white drop-shadow-lg ${pos.align}`}>{banner.title}</h3>
                   {banner.cta_text && <span className={`text-[10px] font-semibold text-white/90 drop-shadow-md ${pos.align}`}>{banner.cta_text}</span>}
-                </div></>
-              )}
+                </div>
+              </>)}
             </a>
           ))}
         </div>
@@ -421,12 +468,12 @@ const HomeBannerSlot = ({
           {[0, 1, 2].map((i) => (
             <a key={i} href={linkFor(i)} className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
               <img src={images[i] || images[0]} alt={banner.title || "Banner"} className="aspect-[4/3] sm:aspect-[5/4] w-full object-cover" loading="lazy" />
-              {i === 0 && banner.title && (
-                <><div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
+              {i === 0 && banner.title && (<>
+                <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
                 <div className={`absolute inset-0 flex flex-col p-2 ${pos.wrapper}`}>
                   <h3 className={`text-[10px] sm:text-xs font-bold text-white drop-shadow-lg ${pos.align}`}>{banner.title}</h3>
-                </div></>
-              )}
+                </div>
+              </>)}
             </a>
           ))}
         </div>
@@ -441,13 +488,13 @@ const HomeBannerSlot = ({
           <a href={linkFor(0)} className="relative row-span-2 block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
             <div className="relative h-full min-h-[280px] md:min-h-[340px]">
               <img src={images[0]} alt={banner.title || "Banner"} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
-              {(banner.title || banner.cta_text) && (
-                <><div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
+              {(banner.title || banner.cta_text) && (<>
+                <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
                 <div className={`absolute inset-0 flex flex-col p-3 ${pos.wrapper}`}>
                   {banner.title && <h3 className={`text-sm font-bold leading-tight text-white drop-shadow-lg ${pos.align}`}>{banner.title}</h3>}
                   {banner.cta_text && <span className={`text-[11px] font-semibold text-white/90 drop-shadow-md ${pos.align}`}>{banner.cta_text}</span>}
-                </div></>
-              )}
+                </div>
+              </>)}
             </div>
           </a>
           <div className="flex flex-col gap-2.5">
@@ -472,28 +519,28 @@ const HomeBannerSlot = ({
             {images.slice(0, 4).map((item, i) => (
               <a key={i} href={linkFor(i)} className="relative block overflow-hidden rounded-card border border-border transition-transform duration-300 hover:scale-[1.01]" style={{ minHeight: compact ? 120 : 180 }}>
                 <img src={item} alt={banner.title || `Banner ${i+1}`} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
-                {i === 0 && hasText && (
-                  <><div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
+                {i === 0 && hasText && (<>
+                  <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
                   <div className={`absolute inset-0 flex flex-col p-3 ${pos.wrapper}`}>
                     {banner.title && <h3 className={`text-xs font-bold leading-tight text-white drop-shadow-lg sm:text-sm ${pos.align}`}>{banner.title}</h3>}
                     {banner.subtitle && <p className={`text-[10px] text-white/80 drop-shadow-md ${pos.align}`}>{banner.subtitle}</p>}
                     {banner.cta_text && <span className={`mt-0.5 text-[10px] font-semibold text-white drop-shadow-md ${pos.align}`}>{banner.cta_text}</span>}
-                  </div></>
-                )}
+                  </div>
+                </>)}
               </a>
             ))}
           </div>
         ) : (
           <a href={href} className="relative block overflow-hidden rounded-card border border-border" style={{ minHeight: compact ? 140 : 220 }}>
             <img src={image} alt={banner.title || "Banner promocional"} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
-            {hasText && (
-              <><div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
+            {hasText && (<>
+              <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
               <div className={`absolute inset-0 flex flex-col p-4 ${pos.wrapper}`}>
                 {banner.title && <h3 className={`text-sm font-bold leading-tight text-white drop-shadow-lg sm:text-lg ${pos.align}`}>{banner.title}</h3>}
                 {banner.subtitle && <p className={`text-[10px] text-white/80 drop-shadow-md ${pos.align}`}>{banner.subtitle}</p>}
                 {banner.cta_text && <span className={`mt-0.5 text-[10px] font-semibold text-white drop-shadow-md ${pos.align}`}>{banner.cta_text}</span>}
-              </div></>
-            )}
+              </div>
+            </>)}
           </a>
         )}
       </section>,
@@ -526,16 +573,16 @@ const HomeBannerSlot = ({
       <section className={sectionCls}>
         <a href={href} className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
           <img src={image} alt={banner.title || "Banner"} className="w-full h-auto object-contain" loading="lazy" />
-          {banner.title && (
-            <><div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
+          {banner.title && (<>
+            <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
             <div className={`absolute inset-0 flex flex-col p-4 ${pos.wrapper}`}>
               <div className={`max-w-[80%] space-y-1 ${pos.align}`}>
                 {banner.subtitle && <p className="text-xs font-bold text-white/90 drop-shadow-md">{banner.subtitle}</p>}
                 <h3 className="text-sm sm:text-lg font-black text-white drop-shadow-lg">{banner.title}</h3>
                 {banner.cta_text && <span className="text-[11px] font-semibold text-white drop-shadow-md">{banner.cta_text}</span>}
               </div>
-            </div></>
-          )}
+            </div>
+          </>)}
         </a>
       </section>,
     );
