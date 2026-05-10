@@ -62,7 +62,6 @@ const HomeBannerSlot = ({
     [slotBanners],
   );
 
-  // Achata todos os banners de cada lado numa lista plana de imagens
   const splitLeftImages = useMemo<SplitImage[]>(
     () => splitLeftBanners.flatMap((b: any) =>
       [b.image_url, ...(b.extra_images || [])].filter(Boolean).map((url: string) => ({
@@ -106,18 +105,32 @@ const HomeBannerSlot = ({
   }, [banner, images.length]);
 
   /*
-   * sectionCls:
-   * - sidebar  → w-full (sem padding extra, o pai já controla)
-   * - compact  → w-full (está dentro de um grid externo no Index.tsx)
-   * - normal   → container mx-auto px-3 pt-3 (slot solto na página)
+   * sectionCls — regra de padding:
+   *
+   * mobile  (device="mobile", compact=false, sidebar=false)
+   *   → "container mx-auto px-3 pt-3"
+   *   O layout mobile não tem container pai, por isso o slot
+   *   trata do próprio padding.
+   *
+   * tablet / desktop sem compact
+   *   → "w-full pt-3"
+   *   O pai (TabletLayout / DesktopLayout) já tem px-4/px-6
+   *   e max-w-screen-*. Não adicionar padding extra.
+   *
+   * compact (dentro de grid externo) ou sidebar
+   *   → "w-full"
+   *   O grid pai já controla espaçamento.
    */
-  const sectionCls = sidebar || compact ? "w-full" : "container mx-auto px-3 pt-3";
+  const sectionCls =
+    sidebar || compact
+      ? "w-full"
+      : device === "mobile"
+        ? "container mx-auto px-3 pt-3"
+        : "w-full pt-3";
 
   /* ────────────────────────────────────────────
-     SPLIT
-     Lógica: dois lados, fronteira sempre ao meio (50/50).
-     Cada lado divide a altura igualmente pelas suas imagens.
-     A altura total = lado com mais imagens × heightPerImg.
+     SPLIT — fronteira sempre ao meio (50/50)
+     Cada lado divide a altura pelas suas imagens.
   ──────────────────────────────────────────── */
   const isSplitSlot = splitLeftBanners.length > 0 || splitRightBanners.length > 0;
 
@@ -170,16 +183,11 @@ const HomeBannerSlot = ({
     return (
       <section className={sectionCls}>
         {hasBoth ? (
-          // Dois lados: 50% / 50% fixo — fronteira ao meio
-          <div
-            className="flex gap-1 w-full"
-            style={{ minHeight: totalMinH }}
-          >
+          <div className="flex gap-1 w-full" style={{ minHeight: totalMinH }}>
             <div className="flex-1 min-w-0">{renderSide(splitLeftImages)}</div>
             <div className="flex-1 min-w-0">{renderSide(splitRightImages)}</div>
           </div>
         ) : (
-          // Um lado só: ocupa largura total
           <div className="w-full" style={{ minHeight: totalMinH }}>
             {renderSide(splitLeftImages)}
             {renderSide(splitRightImages)}
