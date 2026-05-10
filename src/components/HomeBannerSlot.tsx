@@ -33,6 +33,133 @@ interface SplitImage {
   text_position: string | undefined;
 }
 
+/* ─────────────────────────────────────────────────────────────────
+   renderSide — renderiza as imagens de um lado do split
+   com base no split_layout escolhido pelo admin:
+
+   stack  → todas empilhadas (coluna única)
+   grid-2 → 2 colunas (lado a lado aos pares)
+   auto   → inteligente:
+              1 img  → ocupa tudo
+              2 imgs → lado a lado
+              3 imgs → 2 em cima, 1 em baixo (largura total)
+              4 imgs → grelha 2×2
+───────────────────────────────────────────────────────────────── */
+const renderSide = (
+  imgs: SplitImage[],
+  layout: string,
+  totalMinH: number,
+) => {
+  if (imgs.length === 0) return null;
+
+  const imgCard = (img: SplitImage, key: string, style?: React.CSSProperties) => {
+    const pos = getPos(img.text_position);
+    return (
+      <a
+        key={key}
+        href={img.cta_link}
+        className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md w-full h-full"
+        style={style}
+      >
+        <img
+          src={img.url}
+          alt={img.title || "Banner"}
+          className="absolute inset-0 w-full h-full object-cover"
+          loading="lazy"
+        />
+        {img.title && (
+          <>
+            <div className={`absolute inset-0 ${gradientDir(img.text_position)}`} />
+            <div className={`absolute inset-0 flex flex-col p-2 ${pos.wrapper}`}>
+              <p className={`text-xs font-bold text-white drop-shadow-lg ${pos.align}`}>
+                {img.title}
+              </p>
+            </div>
+          </>
+        )}
+      </a>
+    );
+  };
+
+  // ── stack: coluna única ──
+  if (layout === "stack" || (!layout && imgs.length === 1)) {
+    const perImg = totalMinH / imgs.length;
+    return (
+      <div className="flex flex-col gap-1 w-full h-full" style={{ minHeight: totalMinH }}>
+        {imgs.map((img, i) =>
+          imgCard(img, `${img.url}-${i}`, { flex: 1, minHeight: perImg })
+        )}
+      </div>
+    );
+  }
+
+  // ── grid-2: sempre 2 colunas ──
+  if (layout === "grid-2") {
+    return (
+      <div
+        className="grid grid-cols-2 gap-1 w-full"
+        style={{ minHeight: totalMinH }}
+      >
+        {imgs.map((img, i) =>
+          imgCard(img, `${img.url}-${i}`, { minHeight: totalMinH / Math.ceil(imgs.length / 2) })
+        )}
+      </div>
+    );
+  }
+
+  // ── auto: layout inteligente por quantidade ──
+  if (layout === "auto") {
+    const n = imgs.length;
+    const rowH = totalMinH / (n <= 2 ? 1 : 2);
+
+    if (n === 1) {
+      return (
+        <div className="w-full" style={{ minHeight: totalMinH }}>
+          {imgCard(imgs[0], imgs[0].url + "-0", { minHeight: totalMinH })}
+        </div>
+      );
+    }
+    if (n === 2) {
+      return (
+        <div className="grid grid-cols-2 gap-1 w-full" style={{ minHeight: totalMinH }}>
+          {imgs.map((img, i) => imgCard(img, `${img.url}-${i}`, { minHeight: totalMinH }))}
+        </div>
+      );
+    }
+    if (n === 3) {
+      return (
+        <div className="flex flex-col gap-1 w-full" style={{ minHeight: totalMinH }}>
+          {/* linha de cima: 2 imagens lado a lado */}
+          <div className="grid grid-cols-2 gap-1" style={{ minHeight: rowH }}>
+            {imgCard(imgs[0], `${imgs[0].url}-0`, { minHeight: rowH })}
+            {imgCard(imgs[1], `${imgs[1].url}-1`, { minHeight: rowH })}
+          </div>
+          {/* linha de baixo: 1 imagem largura total */}
+          {imgCard(imgs[2], `${imgs[2].url}-2`, { minHeight: rowH })}
+        </div>
+      );
+    }
+    // n >= 4 → grelha 2×2
+    return (
+      <div className="grid grid-cols-2 gap-1 w-full" style={{ minHeight: totalMinH }}>
+        {imgs.slice(0, 4).map((img, i) =>
+          imgCard(img, `${img.url}-${i}`, { minHeight: rowH })
+        )}
+      </div>
+    );
+  }
+
+  // fallback → stack
+  const perImg = totalMinH / imgs.length;
+  return (
+    <div className="flex flex-col gap-1 w-full" style={{ minHeight: totalMinH }}>
+      {imgs.map((img, i) =>
+        imgCard(img, `${img.url}-${i}`, { flex: 1, minHeight: perImg })
+      )}
+    </div>
+  );
+};
+
 const HomeBannerSlot = ({
   slot,
   device = "mobile",
@@ -52,7 +179,7 @@ const HomeBannerSlot = ({
     [banners, slot, device],
   );
 
-  // ── SPLIT: coleta TODOS os registos de cada lado ──
+  // ── SPLIT ──
   const splitLeftBanners = useMemo(
     () => slotBanners.filter((b: any) => b.format === "split" && b.split_side === "left"),
     [slotBanners],
@@ -61,6 +188,10 @@ const HomeBannerSlot = ({
     () => slotBanners.filter((b: any) => b.format === "split" && b.split_side === "right"),
     [slotBanners],
   );
+
+  // split_layout vem do 1º registo de cada lado
+  const splitLeftLayout  = (splitLeftBanners[0] as any)?.split_layout  || "stack";
+  const splitRightLayout = (splitRightBanners[0] as any)?.split_layout || "stack";
 
   const splitLeftImages = useMemo<SplitImage[]>(
     () => splitLeftBanners.flatMap((b: any) =>
@@ -85,7 +216,7 @@ const HomeBannerSlot = ({
     [splitRightBanners],
   );
 
-  // ── Banner normal (não split) ──
+  // ── Banner normal ──
   const banner = useMemo(
     () => slotBanners.find((b: any) => !b.split_side),
     [slotBanners],
@@ -104,23 +235,6 @@ const HomeBannerSlot = ({
     return () => window.clearInterval(t);
   }, [banner, images.length]);
 
-  /*
-   * sectionCls — regra de padding:
-   *
-   * mobile  (device="mobile", compact=false, sidebar=false)
-   *   → "container mx-auto px-3 pt-3"
-   *   O layout mobile não tem container pai, por isso o slot
-   *   trata do próprio padding.
-   *
-   * tablet / desktop sem compact
-   *   → "w-full pt-3"
-   *   O pai (TabletLayout / DesktopLayout) já tem px-4/px-6
-   *   e max-w-screen-*. Não adicionar padding extra.
-   *
-   * compact (dentro de grid externo) ou sidebar
-   *   → "w-full"
-   *   O grid pai já controla espaçamento.
-   */
   const sectionCls =
     sidebar || compact
       ? "w-full"
@@ -128,55 +242,19 @@ const HomeBannerSlot = ({
         ? "container mx-auto px-3 pt-3"
         : "w-full pt-3";
 
-  /* ────────────────────────────────────────────
-     SPLIT — fronteira sempre ao meio (50/50)
-     Cada lado divide a altura pelas suas imagens.
-  ──────────────────────────────────────────── */
+  /* ── SPLIT ── */
   const isSplitSlot = splitLeftBanners.length > 0 || splitRightBanners.length > 0;
 
   if (isSplitSlot) {
     if (splitLeftImages.length === 0 && splitRightImages.length === 0) return null;
 
     const heightPerImg = sidebar ? 140 : compact ? 110 : 180;
-    const totalMinH = Math.max(splitLeftImages.length, splitRightImages.length, 1) * heightPerImg;
 
-    const renderSide = (imgs: SplitImage[]) => {
-      if (imgs.length === 0) return null;
-      const perImg = totalMinH / imgs.length;
-
-      return (
-        <div className="flex flex-col gap-1 w-full" style={{ height: totalMinH }}>
-          {imgs.map((img, i) => {
-            const pos = getPos(img.text_position);
-            return (
-              <a
-                key={`${img.url}-${i}`}
-                href={img.cta_link}
-                className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md w-full"
-                style={{ flex: 1, minHeight: perImg }}
-              >
-                <img
-                  src={img.url}
-                  alt={img.title || "Banner"}
-                  className="absolute inset-0 w-full h-full object-cover"
-                  loading="lazy"
-                />
-                {img.title && (
-                  <>
-                    <div className={`absolute inset-0 ${gradientDir(img.text_position)}`} />
-                    <div className={`absolute inset-0 flex flex-col p-2 ${pos.wrapper}`}>
-                      <p className={`text-xs font-bold text-white drop-shadow-lg ${pos.align}`}>
-                        {img.title}
-                      </p>
-                    </div>
-                  </>
-                )}
-              </a>
-            );
-          })}
-        </div>
-      );
-    };
+    // altura total: lado com mais imagens × heightPerImg
+    // para grid-2 e auto, conta as linhas em vez das imagens
+    const rowsLeft  = splitLeftLayout  === "stack" ? splitLeftImages.length  : Math.ceil(splitLeftImages.length  / 2);
+    const rowsRight = splitRightLayout === "stack" ? splitRightImages.length : Math.ceil(splitRightImages.length / 2);
+    const totalMinH = Math.max(rowsLeft, rowsRight, 1) * heightPerImg;
 
     const hasBoth = splitLeftImages.length > 0 && splitRightImages.length > 0;
 
@@ -184,22 +262,24 @@ const HomeBannerSlot = ({
       <section className={sectionCls}>
         {hasBoth ? (
           <div className="flex gap-1 w-full" style={{ minHeight: totalMinH }}>
-            <div className="flex-1 min-w-0">{renderSide(splitLeftImages)}</div>
-            <div className="flex-1 min-w-0">{renderSide(splitRightImages)}</div>
+            <div className="flex-1 min-w-0">
+              {renderSide(splitLeftImages,  splitLeftLayout,  totalMinH)}
+            </div>
+            <div className="flex-1 min-w-0">
+              {renderSide(splitRightImages, splitRightLayout, totalMinH)}
+            </div>
           </div>
         ) : (
           <div className="w-full" style={{ minHeight: totalMinH }}>
-            {renderSide(splitLeftImages)}
-            {renderSide(splitRightImages)}
+            {renderSide(splitLeftImages,  splitLeftLayout,  totalMinH)}
+            {renderSide(splitRightImages, splitRightLayout, totalMinH)}
           </div>
         )}
       </section>
     );
   }
 
-  /* ────────────────────────────────────────────
-     BANNER NORMAL
-  ──────────────────────────────────────────── */
+  /* ── BANNER NORMAL ── */
   if (!banner) return null;
 
   const image   = images[currentImage] || images[0];
@@ -227,7 +307,6 @@ const HomeBannerSlot = ({
     </>
   );
 
-  // ── Hero ──
   if (banner.format === "hero" || banner.format === "hero-full") {
     const h = banner.format === "hero-full" ? heroFullH : heroH;
     return withCategoryProducts(
@@ -240,21 +319,13 @@ const HomeBannerSlot = ({
             {hasText && (
               <div className={`relative flex h-full flex-col p-5 sm:p-8 ${pos.wrapper} ${h}`}>
                 <div className={`max-w-[72%] space-y-1.5 ${pos.align}`}>
-                  {banner.subtitle && (
-                    <p className="text-xs font-bold text-white/80 drop-shadow-md">{banner.subtitle}</p>
-                  )}
+                  {banner.subtitle && <p className="text-xs font-bold text-white/80 drop-shadow-md">{banner.subtitle}</p>}
                   {banner.title && (
-                    <h2 className={`font-black leading-tight text-white whitespace-pre-line drop-shadow-lg ${
-                      compact ? "text-sm sm:text-base" : "text-xl sm:text-3xl"
-                    }`}>
+                    <h2 className={`font-black leading-tight text-white whitespace-pre-line drop-shadow-lg ${compact ? "text-sm sm:text-base" : "text-xl sm:text-3xl"}`}>
                       {banner.title}
                     </h2>
                   )}
-                  {banner.cta_text && (
-                    <span className="inline-block pt-1 text-sm font-semibold text-white drop-shadow-md">
-                      {banner.cta_text}
-                    </span>
-                  )}
+                  {banner.cta_text && <span className="inline-block pt-1 text-sm font-semibold text-white drop-shadow-md">{banner.cta_text}</span>}
                 </div>
               </div>
             )}
@@ -272,31 +343,19 @@ const HomeBannerSlot = ({
     );
   }
 
-  // ── Wide ──
   if (banner.format === "wide" || banner.format === "wide-slim") {
     return withCategoryProducts(
       <section className={sectionCls}>
-        <a href={href}
-          className="block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
-          <div className={
-            banner.format === "wide-slim"
-              ? "aspect-[4/1]"
-              : compact
-                ? "aspect-[3/1]"
-                : "aspect-[21/9] sm:aspect-[16/6] md:aspect-[16/5]"
-          }>
-            <img src={image} alt={banner.title || "Banner"}
-              className="h-full w-full object-cover" loading="lazy" />
+        <a href={href} className="block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
+          <div className={banner.format === "wide-slim" ? "aspect-[4/1]" : compact ? "aspect-[3/1]" : "aspect-[21/9] sm:aspect-[16/6] md:aspect-[16/5]"}>
+            <img src={image} alt={banner.title || "Banner"} className="h-full w-full object-cover" loading="lazy" />
           </div>
         </a>
-        {!compact && (
-          <p className="mt-0.5 text-right text-[9px] text-muted-foreground">Publicidade</p>
-        )}
+        {!compact && <p className="mt-0.5 text-right text-[9px] text-muted-foreground">Publicidade</p>}
       </section>,
     );
   }
 
-  // ── Duo ──
   if (banner.format === "duo-square") {
     return withCategoryProducts(
       <section className={sectionCls}>
@@ -310,14 +369,8 @@ const HomeBannerSlot = ({
                 <>
                   <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
                   <div className={`absolute inset-0 flex flex-col p-3 ${pos.wrapper}`}>
-                    <h3 className={`text-xs sm:text-sm font-bold text-white drop-shadow-lg ${pos.align}`}>
-                      {banner.title}
-                    </h3>
-                    {banner.cta_text && (
-                      <span className={`text-[10px] font-semibold text-white/90 drop-shadow-md ${pos.align}`}>
-                        {banner.cta_text}
-                      </span>
-                    )}
+                    <h3 className={`text-xs sm:text-sm font-bold text-white drop-shadow-lg ${pos.align}`}>{banner.title}</h3>
+                    {banner.cta_text && <span className={`text-[10px] font-semibold text-white/90 drop-shadow-md ${pos.align}`}>{banner.cta_text}</span>}
                   </div>
                 </>
               )}
@@ -328,7 +381,6 @@ const HomeBannerSlot = ({
     );
   }
 
-  // ── Trio ──
   if (banner.format === "trio-banner") {
     return withCategoryProducts(
       <section className={sectionCls}>
@@ -342,9 +394,7 @@ const HomeBannerSlot = ({
                 <>
                   <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
                   <div className={`absolute inset-0 flex flex-col p-2 ${pos.wrapper}`}>
-                    <h3 className={`text-[10px] sm:text-xs font-bold text-white drop-shadow-lg ${pos.align}`}>
-                      {banner.title}
-                    </h3>
+                    <h3 className={`text-[10px] sm:text-xs font-bold text-white drop-shadow-lg ${pos.align}`}>{banner.title}</h3>
                   </div>
                 </>
               )}
@@ -355,30 +405,19 @@ const HomeBannerSlot = ({
     );
   }
 
-  // ── Mosaic ──
   if (banner.format === "mosaic") {
     return withCategoryProducts(
       <section className={sectionCls}>
         <div className="grid grid-cols-2 gap-2.5" style={{ minHeight: 280 }}>
-          <a href={linkFor(0)}
-            className="relative row-span-2 block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
+          <a href={linkFor(0)} className="relative row-span-2 block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
             <div className="relative h-full min-h-[280px] md:min-h-[340px]">
-              <img src={images[0]} alt={banner.title || "Banner"}
-                className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
+              <img src={images[0]} alt={banner.title || "Banner"} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
               {(banner.title || banner.cta_text) && (
                 <>
                   <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
                   <div className={`absolute inset-0 flex flex-col p-3 ${pos.wrapper}`}>
-                    {banner.title && (
-                      <h3 className={`text-sm font-bold leading-tight text-white drop-shadow-lg ${pos.align}`}>
-                        {banner.title}
-                      </h3>
-                    )}
-                    {banner.cta_text && (
-                      <span className={`text-[11px] font-semibold text-white/90 drop-shadow-md ${pos.align}`}>
-                        {banner.cta_text}
-                      </span>
-                    )}
+                    {banner.title && <h3 className={`text-sm font-bold leading-tight text-white drop-shadow-lg ${pos.align}`}>{banner.title}</h3>}
+                    {banner.cta_text && <span className={`text-[11px] font-semibold text-white/90 drop-shadow-md ${pos.align}`}>{banner.cta_text}</span>}
                   </div>
                 </>
               )}
@@ -389,8 +428,7 @@ const HomeBannerSlot = ({
               <a key={`${banner.id}-${i}`} href={linkFor(i)}
                 className="relative block flex-1 overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
                 <div className="relative h-full min-h-[130px] md:min-h-[165px]">
-                  <img src={images[i] || images[0]} alt={banner.title || "Banner"}
-                    className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
+                  <img src={images[i] || images[0]} alt={banner.title || "Banner"} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
                 </div>
               </a>
             ))}
@@ -400,7 +438,6 @@ const HomeBannerSlot = ({
     );
   }
 
-  // ── Promo ──
   if (banner.format === "promo") {
     return withCategoryProducts(
       <section className={sectionCls}>
@@ -410,27 +447,14 @@ const HomeBannerSlot = ({
               <a key={`${banner.id}-${i}`} href={linkFor(i)}
                 className="relative block overflow-hidden rounded-card border border-border transition-transform duration-300 hover:scale-[1.01]"
                 style={{ minHeight: compact ? 120 : 180 }}>
-                <img src={item} alt={banner.title || `Banner ${i + 1}`}
-                  className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
+                <img src={item} alt={banner.title || `Banner ${i + 1}`} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
                 {i === 0 && hasText && (
                   <>
                     <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
                     <div className={`absolute inset-0 flex flex-col p-3 ${pos.wrapper}`}>
-                      {banner.title && (
-                        <h3 className={`text-xs font-bold leading-tight text-white drop-shadow-lg sm:text-sm ${pos.align}`}>
-                          {banner.title}
-                        </h3>
-                      )}
-                      {banner.subtitle && (
-                        <p className={`text-[10px] text-white/80 drop-shadow-md ${pos.align}`}>
-                          {banner.subtitle}
-                        </p>
-                      )}
-                      {banner.cta_text && (
-                        <span className={`mt-0.5 text-[10px] font-semibold text-white drop-shadow-md ${pos.align}`}>
-                          {banner.cta_text}
-                        </span>
-                      )}
+                      {banner.title && <h3 className={`text-xs font-bold leading-tight text-white drop-shadow-lg sm:text-sm ${pos.align}`}>{banner.title}</h3>}
+                      {banner.subtitle && <p className={`text-[10px] text-white/80 drop-shadow-md ${pos.align}`}>{banner.subtitle}</p>}
+                      {banner.cta_text && <span className={`mt-0.5 text-[10px] font-semibold text-white drop-shadow-md ${pos.align}`}>{banner.cta_text}</span>}
                     </div>
                   </>
                 )}
@@ -438,30 +462,16 @@ const HomeBannerSlot = ({
             ))}
           </div>
         ) : (
-          <a href={href}
-            className="relative block overflow-hidden rounded-card border border-border transition-transform duration-300 hover:scale-[1.01]"
+          <a href={href} className="relative block overflow-hidden rounded-card border border-border transition-transform duration-300 hover:scale-[1.01]"
             style={{ minHeight: compact ? 140 : 220 }}>
-            <img src={image} alt={banner.title || "Banner promocional"}
-              className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
+            <img src={image} alt={banner.title || "Banner promocional"} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
             {hasText && (
               <>
                 <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
                 <div className={`absolute inset-0 flex flex-col p-4 ${pos.wrapper}`}>
-                  {banner.title && (
-                    <h3 className={`text-sm font-bold leading-tight text-white drop-shadow-lg sm:text-lg ${pos.align}`}>
-                      {banner.title}
-                    </h3>
-                  )}
-                  {banner.subtitle && (
-                    <p className={`text-[10px] text-white/80 drop-shadow-md ${pos.align}`}>
-                      {banner.subtitle}
-                    </p>
-                  )}
-                  {banner.cta_text && (
-                    <span className={`mt-0.5 text-[10px] font-semibold text-white drop-shadow-md ${pos.align}`}>
-                      {banner.cta_text}
-                    </span>
-                  )}
+                  {banner.title && <h3 className={`text-sm font-bold leading-tight text-white drop-shadow-lg sm:text-lg ${pos.align}`}>{banner.title}</h3>}
+                  {banner.subtitle && <p className={`text-[10px] text-white/80 drop-shadow-md ${pos.align}`}>{banner.subtitle}</p>}
+                  {banner.cta_text && <span className={`mt-0.5 text-[10px] font-semibold text-white drop-shadow-md ${pos.align}`}>{banner.cta_text}</span>}
                 </div>
               </>
             )}
@@ -471,63 +481,40 @@ const HomeBannerSlot = ({
     );
   }
 
-  // ── Square ──
   if (banner.format === "square" || banner.format === "square-rounded") {
     return withCategoryProducts(
       <section className={sectionCls}>
-        <a href={href}
-          className={`block overflow-hidden border border-border transition-shadow hover:shadow-md ${
-            banner.format === "square-rounded"
-              ? "mx-auto max-w-[220px] rounded-full"
-              : "rounded-card"
-          }`}>
-          <img src={image} alt={banner.title || "Banner"}
-            className="aspect-square w-full object-cover" loading="lazy" />
+        <a href={href} className={`block overflow-hidden border border-border transition-shadow hover:shadow-md ${banner.format === "square-rounded" ? "mx-auto max-w-[220px] rounded-full" : "rounded-card"}`}>
+          <img src={image} alt={banner.title || "Banner"} className="aspect-square w-full object-cover" loading="lazy" />
         </a>
       </section>,
     );
   }
 
-  // ── Vertical / Story ──
   if (banner.format === "vertical" || banner.format === "story-card") {
     return withCategoryProducts(
       <section className={sectionCls}>
-        <a href={href}
-          className={`block overflow-hidden rounded-2xl border border-border transition-shadow hover:shadow-md ${
-            sidebar ? "w-full" : "mx-auto max-w-[220px]"
-          }`}>
-          <img src={image} alt={banner.title || "Banner"}
-            className="aspect-[9/16] w-full object-cover" loading="lazy" />
-          {banner.title && (
-            <div className="p-2 text-center">
-              <p className="truncate text-[10px] font-bold text-foreground">{banner.title}</p>
-            </div>
-          )}
+        <a href={href} className={`block overflow-hidden rounded-2xl border border-border transition-shadow hover:shadow-md ${sidebar ? "w-full" : "mx-auto max-w-[220px]"}`}>
+          <img src={image} alt={banner.title || "Banner"} className="aspect-[9/16] w-full object-cover" loading="lazy" />
+          {banner.title && <div className="p-2 text-center"><p className="truncate text-[10px] font-bold text-foreground">{banner.title}</p></div>}
         </a>
       </section>,
     );
   }
 
-  // ── Tall / Natural ──
   if (banner.format === "tall" || banner.format === "natural") {
     return withCategoryProducts(
       <section className={sectionCls}>
-        <a href={href}
-          className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
-          <img src={image} alt={banner.title || "Banner"}
-            className="w-full h-auto object-contain" loading="lazy" />
+        <a href={href} className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
+          <img src={image} alt={banner.title || "Banner"} className="w-full h-auto object-contain" loading="lazy" />
           {banner.title && (
             <>
               <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
               <div className={`absolute inset-0 flex flex-col p-4 ${pos.wrapper}`}>
                 <div className={`max-w-[80%] space-y-1 ${pos.align}`}>
-                  {banner.subtitle && (
-                    <p className="text-xs font-bold text-white/90 drop-shadow-md">{banner.subtitle}</p>
-                  )}
+                  {banner.subtitle && <p className="text-xs font-bold text-white/90 drop-shadow-md">{banner.subtitle}</p>}
                   <h3 className="text-sm sm:text-lg font-black text-white drop-shadow-lg">{banner.title}</h3>
-                  {banner.cta_text && (
-                    <span className="text-[11px] font-semibold text-white drop-shadow-md">{banner.cta_text}</span>
-                  )}
+                  {banner.cta_text && <span className="text-[11px] font-semibold text-white drop-shadow-md">{banner.cta_text}</span>}
                 </div>
               </div>
             </>
@@ -537,17 +524,11 @@ const HomeBannerSlot = ({
     );
   }
 
-  // ── Fallback ──
   return withCategoryProducts(
     <section className={sectionCls}>
-      <a href={href}
-        className="block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
+      <a href={href} className="block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
         <img src={image} alt={banner.title || "Banner"}
-          className={
-            compact
-              ? "aspect-[3/1] w-full object-cover"
-              : "aspect-[21/9] sm:aspect-[16/6] md:aspect-[16/5] w-full object-cover"
-          }
+          className={compact ? "aspect-[3/1] w-full object-cover" : "aspect-[21/9] sm:aspect-[16/6] md:aspect-[16/5] w-full object-cover"}
           loading="lazy" />
       </a>
     </section>,
