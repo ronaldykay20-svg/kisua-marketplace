@@ -33,131 +33,209 @@ interface SplitImage {
   text_position: string | undefined;
 }
 
-/* ─────────────────────────────────────────────────────────────────
-   renderSide — renderiza as imagens de um lado do split
-   com base no split_layout escolhido pelo admin:
-
-   stack  → todas empilhadas (coluna única)
-   grid-2 → 2 colunas (lado a lado aos pares)
-   auto   → inteligente:
-              1 img  → ocupa tudo
-              2 imgs → lado a lado
-              3 imgs → 2 em cima, 1 em baixo (largura total)
-              4 imgs → grelha 2×2
-───────────────────────────────────────────────────────────────── */
-const renderSide = (
-  imgs: SplitImage[],
-  layout: string,
-  totalMinH: number,
-) => {
-  if (imgs.length === 0) return null;
-
-  const imgCard = (img: SplitImage, key: string, style?: React.CSSProperties) => {
-    const pos = getPos(img.text_position);
-    return (
-      <a
-        key={key}
-        href={img.cta_link}
-        className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md w-full h-full"
-        style={style}
-      >
-        <img
-          src={img.url}
-          alt={img.title || "Banner"}
-          className="absolute inset-0 w-full h-full object-cover"
-          loading="lazy"
-        />
-        {img.title && (
-          <>
-            <div className={`absolute inset-0 ${gradientDir(img.text_position)}`} />
-            <div className={`absolute inset-0 flex flex-col p-2 ${pos.wrapper}`}>
-              <p className={`text-xs font-bold text-white drop-shadow-lg ${pos.align}`}>
-                {img.title}
-              </p>
-            </div>
-          </>
-        )}
-      </a>
-    );
-  };
-
-  // ── stack: coluna única ──
-  if (layout === "stack" || (!layout && imgs.length === 1)) {
-    const perImg = totalMinH / imgs.length;
-    return (
-      <div className="flex flex-col gap-1 w-full h-full" style={{ minHeight: totalMinH }}>
-        {imgs.map((img, i) =>
-          imgCard(img, `${img.url}-${i}`, { flex: 1, minHeight: perImg })
-        )}
-      </div>
-    );
-  }
-
-  // ── grid-2: sempre 2 colunas ──
-  if (layout === "grid-2") {
-    return (
-      <div
-        className="grid grid-cols-2 gap-1 w-full"
-        style={{ minHeight: totalMinH }}
-      >
-        {imgs.map((img, i) =>
-          imgCard(img, `${img.url}-${i}`, { minHeight: totalMinH / Math.ceil(imgs.length / 2) })
-        )}
-      </div>
-    );
-  }
-
-  // ── auto: layout inteligente por quantidade ──
-  if (layout === "auto") {
-    const n = imgs.length;
-    const rowH = totalMinH / (n <= 2 ? 1 : 2);
-
-    if (n === 1) {
-      return (
-        <div className="w-full" style={{ minHeight: totalMinH }}>
-          {imgCard(imgs[0], imgs[0].url + "-0", { minHeight: totalMinH })}
-        </div>
-      );
-    }
-    if (n === 2) {
-      return (
-        <div className="grid grid-cols-2 gap-1 w-full" style={{ minHeight: totalMinH }}>
-          {imgs.map((img, i) => imgCard(img, `${img.url}-${i}`, { minHeight: totalMinH }))}
-        </div>
-      );
-    }
-    if (n === 3) {
-      return (
-        <div className="flex flex-col gap-1 w-full" style={{ minHeight: totalMinH }}>
-          {/* linha de cima: 2 imagens lado a lado */}
-          <div className="grid grid-cols-2 gap-1" style={{ minHeight: rowH }}>
-            {imgCard(imgs[0], `${imgs[0].url}-0`, { minHeight: rowH })}
-            {imgCard(imgs[1], `${imgs[1].url}-1`, { minHeight: rowH })}
-          </div>
-          {/* linha de baixo: 1 imagem largura total */}
-          {imgCard(imgs[2], `${imgs[2].url}-2`, { minHeight: rowH })}
-        </div>
-      );
-    }
-    // n >= 4 → grelha 2×2
-    return (
-      <div className="grid grid-cols-2 gap-1 w-full" style={{ minHeight: totalMinH }}>
-        {imgs.slice(0, 4).map((img, i) =>
-          imgCard(img, `${img.url}-${i}`, { minHeight: rowH })
-        )}
-      </div>
-    );
-  }
-
-  // fallback → stack
-  const perImg = totalMinH / imgs.length;
+/* ─── imgCard: renderiza 1 imagem ─── */
+const ImgCard = ({ img, style, className = "" }: {
+  img: SplitImage;
+  style?: React.CSSProperties;
+  className?: string;
+}) => {
+  const pos = getPos(img.text_position);
   return (
-    <div className="flex flex-col gap-1 w-full" style={{ minHeight: totalMinH }}>
-      {imgs.map((img, i) =>
-        imgCard(img, `${img.url}-${i}`, { flex: 1, minHeight: perImg })
+    <a
+      href={img.cta_link}
+      className={`relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md ${className}`}
+      style={style}
+    >
+      <img
+        src={img.url}
+        alt={img.title || "Banner"}
+        className="absolute inset-0 w-full h-full object-cover"
+        loading="lazy"
+      />
+      {img.title && (
+        <>
+          <div className={`absolute inset-0 ${gradientDir(img.text_position)}`} />
+          <div className={`absolute inset-0 flex flex-col p-2 ${pos.wrapper}`}>
+            <p className={`text-xs font-bold text-white drop-shadow-lg ${pos.align}`}>
+              {img.title}
+            </p>
+          </div>
+        </>
       )}
-    </div>
+    </a>
   );
+};
+
+/* ─────────────────────────────────────────────────────────────────
+   renderSide — renderiza as imagens de um lado com o layout
+   escolhido pelo admin. Todos os layouts garantem que não há
+   espaço em branco — cada imagem estica para preencher a lacuna.
+───────────────────────────────────────────────────────────────── */
+const renderSide = (imgs: SplitImage[], layout: string, totalH: number) => {
+  if (imgs.length === 0) return null;
+  const n = imgs.length;
+  const h = totalH;
+  const half = h / 2;
+
+  // Helpers de altura
+  const full  = { minHeight: h,    height: h    };
+  const top   = { minHeight: half, height: half };
+  const bot   = { minHeight: half, height: half };
+
+  switch (layout) {
+
+    /* ── 1 imagem: sempre ocupa tudo ── */
+    case "1-full":
+      return <ImgCard img={imgs[0]} style={full} className="w-full" />;
+
+    /* ── 2 imagens ── */
+    case "2-col": // coluna
+      return (
+        <div className="flex flex-col gap-1 w-full" style={full}>
+          <ImgCard img={imgs[0]} style={{ flex: 1, minHeight: half }} className="w-full" />
+          <ImgCard img={imgs[1] ?? imgs[0]} style={{ flex: 1, minHeight: half }} className="w-full" />
+        </div>
+      );
+    case "2-row": // lado a lado
+      return (
+        <div className="grid grid-cols-2 gap-1 w-full" style={full}>
+          <ImgCard img={imgs[0]} style={full} />
+          <ImgCard img={imgs[1] ?? imgs[0]} style={full} />
+        </div>
+      );
+
+    /* ── 3 imagens ── */
+    case "3-row": // lado a lado (3 colunas)
+      return (
+        <div className="grid grid-cols-3 gap-1 w-full" style={full}>
+          {[0,1,2].map(i => <ImgCard key={i} img={imgs[i] ?? imgs[0]} style={full} />)}
+        </div>
+      );
+    case "3-col": // coluna (3 linhas)
+      return (
+        <div className="flex flex-col gap-1 w-full" style={full}>
+          {[0,1,2].map(i => <ImgCard key={i} img={imgs[i] ?? imgs[0]} style={{ flex: 1, minHeight: h/3 }} className="w-full" />)}
+        </div>
+      );
+    case "3-2cima-1baixo": // [ A | B ] / [   C   ]
+      return (
+        <div className="flex flex-col gap-1 w-full" style={full}>
+          <div className="grid grid-cols-2 gap-1" style={top}>
+            <ImgCard img={imgs[0]} style={top} />
+            <ImgCard img={imgs[1] ?? imgs[0]} style={top} />
+          </div>
+          <ImgCard img={imgs[2] ?? imgs[0]} style={bot} className="w-full" />
+        </div>
+      );
+    case "3-1cima-2baixo": // [   A   ] / [ B | C ]
+      return (
+        <div className="flex flex-col gap-1 w-full" style={full}>
+          <ImgCard img={imgs[0]} style={top} className="w-full" />
+          <div className="grid grid-cols-2 gap-1" style={bot}>
+            <ImgCard img={imgs[1] ?? imgs[0]} style={bot} />
+            <ImgCard img={imgs[2] ?? imgs[0]} style={bot} />
+          </div>
+        </div>
+      );
+    case "3-2esq-1dir": // [ A ] [ C ]
+                        // [ B ] [   ]
+      return (
+        <div className="grid grid-cols-2 gap-1 w-full" style={full}>
+          <div className="flex flex-col gap-1" style={full}>
+            <ImgCard img={imgs[0]} style={{ flex: 1, minHeight: half }} className="w-full" />
+            <ImgCard img={imgs[1] ?? imgs[0]} style={{ flex: 1, minHeight: half }} className="w-full" />
+          </div>
+          <ImgCard img={imgs[2] ?? imgs[0]} style={full} />
+        </div>
+      );
+    case "3-1esq-2dir": // [ A ] [ B ]
+                        // [   ] [ C ]
+      return (
+        <div className="grid grid-cols-2 gap-1 w-full" style={full}>
+          <ImgCard img={imgs[0]} style={full} />
+          <div className="flex flex-col gap-1" style={full}>
+            <ImgCard img={imgs[1] ?? imgs[0]} style={{ flex: 1, minHeight: half }} className="w-full" />
+            <ImgCard img={imgs[2] ?? imgs[0]} style={{ flex: 1, minHeight: half }} className="w-full" />
+          </div>
+        </div>
+      );
+
+    /* ── 4 imagens ── */
+    case "4-2x2": // grelha 2×2
+      return (
+        <div className="grid grid-cols-2 gap-1 w-full" style={full}>
+          {[0,1,2,3].map(i => <ImgCard key={i} img={imgs[i] ?? imgs[0]} style={{ minHeight: half }} />)}
+        </div>
+      );
+    case "4-row": // 4 lado a lado
+      return (
+        <div className="grid grid-cols-4 gap-1 w-full" style={full}>
+          {[0,1,2,3].map(i => <ImgCard key={i} img={imgs[i] ?? imgs[0]} style={full} />)}
+        </div>
+      );
+    case "4-col": // 4 em coluna
+      return (
+        <div className="flex flex-col gap-1 w-full" style={full}>
+          {[0,1,2,3].map(i => <ImgCard key={i} img={imgs[i] ?? imgs[0]} style={{ flex: 1, minHeight: h/4 }} className="w-full" />)}
+        </div>
+      );
+    case "4-1cima-3baixo": // [      A      ] / [ B | C | D ]
+      return (
+        <div className="flex flex-col gap-1 w-full" style={full}>
+          <ImgCard img={imgs[0]} style={top} className="w-full" />
+          <div className="grid grid-cols-3 gap-1" style={bot}>
+            {[1,2,3].map(i => <ImgCard key={i} img={imgs[i] ?? imgs[0]} style={bot} />)}
+          </div>
+        </div>
+      );
+    case "4-3cima-1baixo": // [ A | B | C ] / [      D      ]
+      return (
+        <div className="flex flex-col gap-1 w-full" style={full}>
+          <div className="grid grid-cols-3 gap-1" style={top}>
+            {[0,1,2].map(i => <ImgCard key={i} img={imgs[i] ?? imgs[0]} style={top} />)}
+          </div>
+          <ImgCard img={imgs[3] ?? imgs[0]} style={bot} className="w-full" />
+        </div>
+      );
+    case "4-1esq-3dir": // [ A ] [ B ]
+                        // [   ] [ C ]
+                        // [   ] [ D ]
+      return (
+        <div className="grid grid-cols-2 gap-1 w-full" style={full}>
+          <ImgCard img={imgs[0]} style={full} />
+          <div className="flex flex-col gap-1" style={full}>
+            {[1,2,3].map(i => <ImgCard key={i} img={imgs[i] ?? imgs[0]} style={{ flex: 1, minHeight: h/3 }} className="w-full" />)}
+          </div>
+        </div>
+      );
+    case "4-3esq-1dir": // [ A ] [ D ]
+                        // [ B ] [   ]
+                        // [ C ] [   ]
+      return (
+        <div className="grid grid-cols-2 gap-1 w-full" style={full}>
+          <div className="flex flex-col gap-1" style={full}>
+            {[0,1,2].map(i => <ImgCard key={i} img={imgs[i] ?? imgs[0]} style={{ flex: 1, minHeight: h/3 }} className="w-full" />)}
+          </div>
+          <ImgCard img={imgs[3] ?? imgs[0]} style={full} />
+        </div>
+      );
+
+    /* fallback: coluna */
+    default:
+      return (
+        <div className="flex flex-col gap-1 w-full" style={full}>
+          {imgs.map((img, i) => <ImgCard key={i} img={img} style={{ flex: 1, minHeight: h / imgs.length }} className="w-full" />)}
+        </div>
+      );
+  }
+};
+
+/* ─── Altura total baseada no layout ─── */
+const calcRows = (layout: string): number => {
+  if (layout.includes("2x2") || layout.includes("cima") || layout.includes("baixo")) return 2;
+  if (layout === "3-col") return 3;
+  if (layout === "4-col") return 4;
+  return 1;
 };
 
 const HomeBannerSlot = ({
@@ -179,7 +257,6 @@ const HomeBannerSlot = ({
     [banners, slot, device],
   );
 
-  // ── SPLIT ──
   const splitLeftBanners = useMemo(
     () => slotBanners.filter((b: any) => b.format === "split" && b.split_side === "left"),
     [slotBanners],
@@ -189,34 +266,24 @@ const HomeBannerSlot = ({
     [slotBanners],
   );
 
-  // split_layout vem do 1º registo de cada lado
-  const splitLeftLayout  = (splitLeftBanners[0] as any)?.split_layout  || "stack";
-  const splitRightLayout = (splitRightBanners[0] as any)?.split_layout || "stack";
+  const splitLeftLayout  = (splitLeftBanners[0] as any)?.split_layout  || "2-col";
+  const splitRightLayout = (splitRightBanners[0] as any)?.split_layout || "1-full";
 
   const splitLeftImages = useMemo<SplitImage[]>(
     () => splitLeftBanners.flatMap((b: any) =>
       [b.image_url, ...(b.extra_images || [])].filter(Boolean).map((url: string) => ({
-        url,
-        cta_link: b.cta_link || "#",
-        title: b.title || null,
-        text_position: b.text_position,
+        url, cta_link: b.cta_link || "#", title: b.title || null, text_position: b.text_position,
       }))
-    ),
-    [splitLeftBanners],
+    ), [splitLeftBanners],
   );
   const splitRightImages = useMemo<SplitImage[]>(
     () => splitRightBanners.flatMap((b: any) =>
       [b.image_url, ...(b.extra_images || [])].filter(Boolean).map((url: string) => ({
-        url,
-        cta_link: b.cta_link || "#",
-        title: b.title || null,
-        text_position: b.text_position,
+        url, cta_link: b.cta_link || "#", title: b.title || null, text_position: b.text_position,
       }))
-    ),
-    [splitRightBanners],
+    ), [splitRightBanners],
   );
 
-  // ── Banner normal ──
   const banner = useMemo(
     () => slotBanners.find((b: any) => !b.split_side),
     [slotBanners],
@@ -236,11 +303,9 @@ const HomeBannerSlot = ({
   }, [banner, images.length]);
 
   const sectionCls =
-    sidebar || compact
-      ? "w-full"
-      : device === "mobile"
-        ? "container mx-auto px-3 pt-3"
-        : "w-full pt-3";
+    sidebar || compact ? "w-full"
+    : device === "mobile" ? "container mx-auto px-3 pt-3"
+    : "w-full pt-3";
 
   /* ── SPLIT ── */
   const isSplitSlot = splitLeftBanners.length > 0 || splitRightBanners.length > 0;
@@ -248,13 +313,10 @@ const HomeBannerSlot = ({
   if (isSplitSlot) {
     if (splitLeftImages.length === 0 && splitRightImages.length === 0) return null;
 
-    const heightPerImg = sidebar ? 140 : compact ? 110 : 180;
-
-    // altura total: lado com mais imagens × heightPerImg
-    // para grid-2 e auto, conta as linhas em vez das imagens
-    const rowsLeft  = splitLeftLayout  === "stack" ? splitLeftImages.length  : Math.ceil(splitLeftImages.length  / 2);
-    const rowsRight = splitRightLayout === "stack" ? splitRightImages.length : Math.ceil(splitRightImages.length / 2);
-    const totalMinH = Math.max(rowsLeft, rowsRight, 1) * heightPerImg;
+    const heightPerRow = sidebar ? 140 : compact ? 110 : 180;
+    const rowsLeft  = calcRows(splitLeftLayout);
+    const rowsRight = calcRows(splitRightLayout);
+    const totalMinH = Math.max(rowsLeft, rowsRight, 1) * heightPerRow;
 
     const hasBoth = splitLeftImages.length > 0 && splitRightImages.length > 0;
 
@@ -262,12 +324,8 @@ const HomeBannerSlot = ({
       <section className={sectionCls}>
         {hasBoth ? (
           <div className="flex gap-1 w-full" style={{ minHeight: totalMinH }}>
-            <div className="flex-1 min-w-0">
-              {renderSide(splitLeftImages,  splitLeftLayout,  totalMinH)}
-            </div>
-            <div className="flex-1 min-w-0">
-              {renderSide(splitRightImages, splitRightLayout, totalMinH)}
-            </div>
+            <div className="flex-1 min-w-0">{renderSide(splitLeftImages,  splitLeftLayout,  totalMinH)}</div>
+            <div className="flex-1 min-w-0">{renderSide(splitRightImages, splitRightLayout, totalMinH)}</div>
           </div>
         ) : (
           <div className="w-full" style={{ minHeight: totalMinH }}>
@@ -279,7 +337,6 @@ const HomeBannerSlot = ({
     );
   }
 
-  /* ── BANNER NORMAL ── */
   if (!banner) return null;
 
   const image   = images[currentImage] || images[0];
@@ -288,23 +345,11 @@ const HomeBannerSlot = ({
   const pos     = getPos(banner.text_position);
   const hasText = !!(banner.title || banner.subtitle || banner.cta_text);
 
-  const heroH = sidebar
-    ? "min-h-[320px]"
-    : compact
-      ? "min-h-[140px] sm:min-h-[180px]"
-      : "min-h-[200px] sm:min-h-[280px] md:min-h-[340px]";
-
-  const heroFullH = sidebar
-    ? "min-h-[400px]"
-    : compact
-      ? "min-h-[160px] sm:min-h-[200px]"
-      : "min-h-[260px] sm:min-h-[320px] md:min-h-[380px]";
+  const heroH = sidebar ? "min-h-[320px]" : compact ? "min-h-[140px] sm:min-h-[180px]" : "min-h-[200px] sm:min-h-[280px] md:min-h-[340px]";
+  const heroFullH = sidebar ? "min-h-[400px]" : compact ? "min-h-[160px] sm:min-h-[200px]" : "min-h-[260px] sm:min-h-[320px] md:min-h-[380px]";
 
   const withCategoryProducts = (children: React.ReactNode) => (
-    <>
-      {children}
-      {banner.category_id && <BannerCategoryProducts categoryId={banner.category_id} />}
-    </>
+    <>{children}{banner.category_id && <BannerCategoryProducts categoryId={banner.category_id} />}</>
   );
 
   if (banner.format === "hero" || banner.format === "hero-full") {
@@ -313,28 +358,20 @@ const HomeBannerSlot = ({
       <section className={sectionCls}>
         <a href={href} className="block rounded-card overflow-hidden border border-border">
           <div className={`relative ${h}`}>
-            <img src={image} alt={banner.title || "Banner"}
-              className="absolute inset-0 h-full w-full object-cover" />
+            <img src={image} alt={banner.title || "Banner"} className="absolute inset-0 h-full w-full object-cover" />
             {hasText && <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />}
             {hasText && (
               <div className={`relative flex h-full flex-col p-5 sm:p-8 ${pos.wrapper} ${h}`}>
                 <div className={`max-w-[72%] space-y-1.5 ${pos.align}`}>
                   {banner.subtitle && <p className="text-xs font-bold text-white/80 drop-shadow-md">{banner.subtitle}</p>}
-                  {banner.title && (
-                    <h2 className={`font-black leading-tight text-white whitespace-pre-line drop-shadow-lg ${compact ? "text-sm sm:text-base" : "text-xl sm:text-3xl"}`}>
-                      {banner.title}
-                    </h2>
-                  )}
+                  {banner.title && <h2 className={`font-black leading-tight text-white whitespace-pre-line drop-shadow-lg ${compact ? "text-sm sm:text-base" : "text-xl sm:text-3xl"}`}>{banner.title}</h2>}
                   {banner.cta_text && <span className="inline-block pt-1 text-sm font-semibold text-white drop-shadow-md">{banner.cta_text}</span>}
                 </div>
               </div>
             )}
             {images.length > 1 && (
               <div className="absolute bottom-3 right-3 flex gap-1.5">
-                {images.map((_, i) => (
-                  <span key={`${banner.id}-${i}`}
-                    className={`h-1.5 w-1.5 rounded-full ${i === currentImage ? "bg-white" : "bg-white/35"}`} />
-                ))}
+                {images.map((_, i) => <span key={i} className={`h-1.5 w-1.5 rounded-full ${i === currentImage ? "bg-white" : "bg-white/35"}`} />)}
               </div>
             )}
           </div>
@@ -361,18 +398,14 @@ const HomeBannerSlot = ({
       <section className={sectionCls}>
         <div className="grid grid-cols-2 gap-2.5">
           {[0, 1].map((i) => (
-            <a key={`${banner.id}-${i}`} href={linkFor(i)}
-              className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
-              <img src={images[i] || images[0]} alt={banner.title || "Banner"}
-                className="aspect-square sm:aspect-[5/4] w-full object-cover" loading="lazy" />
+            <a key={i} href={linkFor(i)} className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
+              <img src={images[i] || images[0]} alt={banner.title || "Banner"} className="aspect-square sm:aspect-[5/4] w-full object-cover" loading="lazy" />
               {i === 0 && banner.title && (
-                <>
-                  <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
-                  <div className={`absolute inset-0 flex flex-col p-3 ${pos.wrapper}`}>
-                    <h3 className={`text-xs sm:text-sm font-bold text-white drop-shadow-lg ${pos.align}`}>{banner.title}</h3>
-                    {banner.cta_text && <span className={`text-[10px] font-semibold text-white/90 drop-shadow-md ${pos.align}`}>{banner.cta_text}</span>}
-                  </div>
-                </>
+                <><div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
+                <div className={`absolute inset-0 flex flex-col p-3 ${pos.wrapper}`}>
+                  <h3 className={`text-xs sm:text-sm font-bold text-white drop-shadow-lg ${pos.align}`}>{banner.title}</h3>
+                  {banner.cta_text && <span className={`text-[10px] font-semibold text-white/90 drop-shadow-md ${pos.align}`}>{banner.cta_text}</span>}
+                </div></>
               )}
             </a>
           ))}
@@ -386,17 +419,13 @@ const HomeBannerSlot = ({
       <section className={sectionCls}>
         <div className="grid grid-cols-3 gap-2.5">
           {[0, 1, 2].map((i) => (
-            <a key={`${banner.id}-${i}`} href={linkFor(i)}
-              className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
-              <img src={images[i] || images[0]} alt={banner.title || "Banner"}
-                className="aspect-[4/3] sm:aspect-[5/4] w-full object-cover" loading="lazy" />
+            <a key={i} href={linkFor(i)} className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
+              <img src={images[i] || images[0]} alt={banner.title || "Banner"} className="aspect-[4/3] sm:aspect-[5/4] w-full object-cover" loading="lazy" />
               {i === 0 && banner.title && (
-                <>
-                  <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
-                  <div className={`absolute inset-0 flex flex-col p-2 ${pos.wrapper}`}>
-                    <h3 className={`text-[10px] sm:text-xs font-bold text-white drop-shadow-lg ${pos.align}`}>{banner.title}</h3>
-                  </div>
-                </>
+                <><div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
+                <div className={`absolute inset-0 flex flex-col p-2 ${pos.wrapper}`}>
+                  <h3 className={`text-[10px] sm:text-xs font-bold text-white drop-shadow-lg ${pos.align}`}>{banner.title}</h3>
+                </div></>
               )}
             </a>
           ))}
@@ -413,20 +442,17 @@ const HomeBannerSlot = ({
             <div className="relative h-full min-h-[280px] md:min-h-[340px]">
               <img src={images[0]} alt={banner.title || "Banner"} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
               {(banner.title || banner.cta_text) && (
-                <>
-                  <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
-                  <div className={`absolute inset-0 flex flex-col p-3 ${pos.wrapper}`}>
-                    {banner.title && <h3 className={`text-sm font-bold leading-tight text-white drop-shadow-lg ${pos.align}`}>{banner.title}</h3>}
-                    {banner.cta_text && <span className={`text-[11px] font-semibold text-white/90 drop-shadow-md ${pos.align}`}>{banner.cta_text}</span>}
-                  </div>
-                </>
+                <><div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
+                <div className={`absolute inset-0 flex flex-col p-3 ${pos.wrapper}`}>
+                  {banner.title && <h3 className={`text-sm font-bold leading-tight text-white drop-shadow-lg ${pos.align}`}>{banner.title}</h3>}
+                  {banner.cta_text && <span className={`text-[11px] font-semibold text-white/90 drop-shadow-md ${pos.align}`}>{banner.cta_text}</span>}
+                </div></>
               )}
             </div>
           </a>
           <div className="flex flex-col gap-2.5">
             {[1, 2].map((i) => (
-              <a key={`${banner.id}-${i}`} href={linkFor(i)}
-                className="relative block flex-1 overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
+              <a key={i} href={linkFor(i)} className="relative block flex-1 overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
                 <div className="relative h-full min-h-[130px] md:min-h-[165px]">
                   <img src={images[i] || images[0]} alt={banner.title || "Banner"} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
                 </div>
@@ -444,36 +470,29 @@ const HomeBannerSlot = ({
         {images.length >= 4 ? (
           <div className="grid grid-cols-2 gap-2.5">
             {images.slice(0, 4).map((item, i) => (
-              <a key={`${banner.id}-${i}`} href={linkFor(i)}
-                className="relative block overflow-hidden rounded-card border border-border transition-transform duration-300 hover:scale-[1.01]"
-                style={{ minHeight: compact ? 120 : 180 }}>
-                <img src={item} alt={banner.title || `Banner ${i + 1}`} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
+              <a key={i} href={linkFor(i)} className="relative block overflow-hidden rounded-card border border-border transition-transform duration-300 hover:scale-[1.01]" style={{ minHeight: compact ? 120 : 180 }}>
+                <img src={item} alt={banner.title || `Banner ${i+1}`} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
                 {i === 0 && hasText && (
-                  <>
-                    <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
-                    <div className={`absolute inset-0 flex flex-col p-3 ${pos.wrapper}`}>
-                      {banner.title && <h3 className={`text-xs font-bold leading-tight text-white drop-shadow-lg sm:text-sm ${pos.align}`}>{banner.title}</h3>}
-                      {banner.subtitle && <p className={`text-[10px] text-white/80 drop-shadow-md ${pos.align}`}>{banner.subtitle}</p>}
-                      {banner.cta_text && <span className={`mt-0.5 text-[10px] font-semibold text-white drop-shadow-md ${pos.align}`}>{banner.cta_text}</span>}
-                    </div>
-                  </>
+                  <><div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
+                  <div className={`absolute inset-0 flex flex-col p-3 ${pos.wrapper}`}>
+                    {banner.title && <h3 className={`text-xs font-bold leading-tight text-white drop-shadow-lg sm:text-sm ${pos.align}`}>{banner.title}</h3>}
+                    {banner.subtitle && <p className={`text-[10px] text-white/80 drop-shadow-md ${pos.align}`}>{banner.subtitle}</p>}
+                    {banner.cta_text && <span className={`mt-0.5 text-[10px] font-semibold text-white drop-shadow-md ${pos.align}`}>{banner.cta_text}</span>}
+                  </div></>
                 )}
               </a>
             ))}
           </div>
         ) : (
-          <a href={href} className="relative block overflow-hidden rounded-card border border-border transition-transform duration-300 hover:scale-[1.01]"
-            style={{ minHeight: compact ? 140 : 220 }}>
+          <a href={href} className="relative block overflow-hidden rounded-card border border-border" style={{ minHeight: compact ? 140 : 220 }}>
             <img src={image} alt={banner.title || "Banner promocional"} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
             {hasText && (
-              <>
-                <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
-                <div className={`absolute inset-0 flex flex-col p-4 ${pos.wrapper}`}>
-                  {banner.title && <h3 className={`text-sm font-bold leading-tight text-white drop-shadow-lg sm:text-lg ${pos.align}`}>{banner.title}</h3>}
-                  {banner.subtitle && <p className={`text-[10px] text-white/80 drop-shadow-md ${pos.align}`}>{banner.subtitle}</p>}
-                  {banner.cta_text && <span className={`mt-0.5 text-[10px] font-semibold text-white drop-shadow-md ${pos.align}`}>{banner.cta_text}</span>}
-                </div>
-              </>
+              <><div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
+              <div className={`absolute inset-0 flex flex-col p-4 ${pos.wrapper}`}>
+                {banner.title && <h3 className={`text-sm font-bold leading-tight text-white drop-shadow-lg sm:text-lg ${pos.align}`}>{banner.title}</h3>}
+                {banner.subtitle && <p className={`text-[10px] text-white/80 drop-shadow-md ${pos.align}`}>{banner.subtitle}</p>}
+                {banner.cta_text && <span className={`mt-0.5 text-[10px] font-semibold text-white drop-shadow-md ${pos.align}`}>{banner.cta_text}</span>}
+              </div></>
             )}
           </a>
         )}
@@ -508,16 +527,14 @@ const HomeBannerSlot = ({
         <a href={href} className="relative block overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
           <img src={image} alt={banner.title || "Banner"} className="w-full h-auto object-contain" loading="lazy" />
           {banner.title && (
-            <>
-              <div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
-              <div className={`absolute inset-0 flex flex-col p-4 ${pos.wrapper}`}>
-                <div className={`max-w-[80%] space-y-1 ${pos.align}`}>
-                  {banner.subtitle && <p className="text-xs font-bold text-white/90 drop-shadow-md">{banner.subtitle}</p>}
-                  <h3 className="text-sm sm:text-lg font-black text-white drop-shadow-lg">{banner.title}</h3>
-                  {banner.cta_text && <span className="text-[11px] font-semibold text-white drop-shadow-md">{banner.cta_text}</span>}
-                </div>
+            <><div className={`absolute inset-0 ${gradientDir(banner.text_position)}`} />
+            <div className={`absolute inset-0 flex flex-col p-4 ${pos.wrapper}`}>
+              <div className={`max-w-[80%] space-y-1 ${pos.align}`}>
+                {banner.subtitle && <p className="text-xs font-bold text-white/90 drop-shadow-md">{banner.subtitle}</p>}
+                <h3 className="text-sm sm:text-lg font-black text-white drop-shadow-lg">{banner.title}</h3>
+                {banner.cta_text && <span className="text-[11px] font-semibold text-white drop-shadow-md">{banner.cta_text}</span>}
               </div>
-            </>
+            </div></>
           )}
         </a>
       </section>,
