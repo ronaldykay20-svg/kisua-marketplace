@@ -233,7 +233,7 @@ const GoLiveModal = ({
   onClose,
   auctions,
   products,
-  sellerId, // ✅ CORRECÇÃO: recebe sellerId já resolvido
+  sellerId,
 }: {
   onClose: () => void;
   auctions: any[];
@@ -282,7 +282,6 @@ const GoLiveModal = ({
         setStreamId(null);
         setStep("form");
       } else {
-        // ✅ CORRECÇÃO: força refetch imediato após iniciar
         await qc.refetchQueries({ queryKey: ["live_streams_active"] });
         await qc.refetchQueries({ queryKey: ["live_active_count"] });
         toast.success("Live iniciada com sucesso! 🎉");
@@ -317,7 +316,7 @@ const GoLiveModal = ({
       const { data: inserted, error: dbErr } = await (supabase as any)
         .from("live_streams")
         .insert({
-          seller_id:         sellerId, // ✅ usa o sellerId correcto
+          seller_id:         sellerId,
           title:             title.trim(),
           description:       desc.trim() || null,
           thumbnail_url,
@@ -349,7 +348,6 @@ const GoLiveModal = ({
         .update({ status: "ended" })
         .eq("id", streamId);
     }
-    // ✅ CORRECÇÃO: refetch imediato ao terminar
     await qc.refetchQueries({ queryKey: ["live_streams_active"] });
     await qc.refetchQueries({ queryKey: ["live_active_count"] });
     toast.info("Live encerrada.");
@@ -565,7 +563,7 @@ const ScheduleModal = ({
   onClose,
   auctions,
   products,
-  sellerId, // ✅ CORRECÇÃO: recebe sellerId já resolvido
+  sellerId,
 }: {
   onClose: () => void;
   auctions: any[];
@@ -638,7 +636,7 @@ const ScheduleModal = ({
       setUploadProgress("A guardar agendamento…");
 
       const { error } = await (supabase as any).from("live_streams").insert({
-        seller_id:         sellerId, // ✅ usa o sellerId correcto
+        seller_id:         sellerId,
         title:             title.trim(),
         description:       desc.trim() || null,
         thumbnail_url,
@@ -651,7 +649,6 @@ const ScheduleModal = ({
       });
       if (error) throw error;
 
-      // ✅ CORRECÇÃO: refetch imediato após agendar
       await qc.refetchQueries({ queryKey: ["live_streams_scheduled"] });
       setUploadProgress(null);
       setDone(true);
@@ -946,6 +943,9 @@ const ScheduledCard = ({
   const month = date ? date.toLocaleString("pt-AO", { month: "short" }).toUpperCase() : "---";
   const time  = date ? date.toLocaleString("pt-AO", { hour: "2-digit", minute: "2-digit" }) : "--:--";
 
+  // Verifica se a live já passou (mais de 2h atrás) para mostrar badge
+  const isPast = date ? date.getTime() < Date.now() - 2 * 60 * 60 * 1000 : false;
+
   return (
     <div className="flex items-stretch gap-3 py-3 border-b last:border-0"
       style={{ borderColor: "rgba(74,46,10,0.12)" }}>
@@ -967,6 +967,12 @@ const ScheduledCard = ({
           <div className="flex items-center gap-1 mb-0.5">
             <Clock className="w-3 h-3 flex-shrink-0" style={{ color: sandDark }} />
             <span className="text-[11px] font-bold" style={{ color: sandDark }}>{time}</span>
+            {isPast && (
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full ml-1"
+                style={{ background: "rgba(74,46,10,0.12)", color: sandDark }}>
+                Passou
+              </span>
+            )}
           </div>
           <h3 className="text-sm font-black line-clamp-1 mb-0.5" style={{ color: brown }}>{stream.title}</h3>
           {stream.description && (
@@ -1211,8 +1217,6 @@ const Live = () => {
 
   const { isAdmin } = useUserRole();
 
-  // ✅ CORRECÇÃO PRINCIPAL: busca o seller_id uma única vez na página principal
-  // e passa-o para todos os modais — evita o bug de usar user.id como seller_id
   const { data: sellerData } = useQuery({
     queryKey: ["my_seller_id", user?.id],
     queryFn: async () => {
@@ -1253,7 +1257,7 @@ const Live = () => {
   const { data: liveStreams = [], isLoading: loadingLive } = useQuery({
     queryKey: ["live_streams_active"],
     queryFn: async () => {
-      const { data } = await (supabase as any)
+      const { data, error } = await (supabase as any)
         .from("live_streams")
         .select(`
           *,
@@ -1263,6 +1267,7 @@ const Live = () => {
         `)
         .eq("status", "live")
         .order("viewers_count", { ascending: false });
+      if (error) console.error("Erro ao carregar lives activas:", error);
       return data || [];
     },
     refetchInterval: 10000,
@@ -1271,7 +1276,10 @@ const Live = () => {
   const { data: scheduledStreams = [], isLoading: loadingScheduled } = useQuery({
     queryKey: ["live_streams_scheduled"],
     queryFn: async () => {
-      const { data } = await (supabase as any)
+      // ✅ CORRECÇÃO PRINCIPAL: removido o filtro .gte("starts_at", ...) que excluía
+      // lives cujo starts_at já tinha passado. Agora mostra todas as "scheduled"
+      // ordenadas por data, incluindo as recentes que ainda não foram marcadas como ended.
+      const { data, error } = await (supabase as any)
         .from("live_streams")
         .select(`
           *,
@@ -1279,16 +1287,14 @@ const Live = () => {
           linked_product:products(id,name,title,price,image_url)
         `)
         .eq("status", "scheduled")
-        .gte("starts_at", new Date().toISOString())
         .order("starts_at", { ascending: true })
-        .limit(10);
+        .limit(20);
+      if (error) console.error("Erro ao carregar lives agendadas:", error);
       return data || [];
     },
     refetchInterval: 30000,
   });
 
-  // ✅ CORRECÇÃO: queries de leilões e produtos usam sellerId (da tabela sellers)
-  // e não user.id — antes retornavam sempre vazio
   const { data: myAuctions = [] } = useQuery({
     queryKey: ["my_auctions_active", sellerId],
     queryFn: async () => {
@@ -1573,6 +1579,12 @@ const Live = () => {
                 <div className="flex items-center gap-2">
                   <Calendar className="w-4 h-4" style={{ color: sandDark }} />
                   <h2 className="text-base font-black" style={{ color: brown }}>Próximas lives</h2>
+                  {filteredScheduled.length > 0 && (
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-full"
+                      style={{ background: brownLight, color: brown }}>
+                      {filteredScheduled.length}
+                    </span>
+                  )}
                 </div>
                 {filteredScheduled.length > 5 && (
                   <button className="flex items-center gap-1 text-xs font-bold" style={{ color: sandDark }}>
@@ -1638,7 +1650,7 @@ const Live = () => {
           onClose={() => setShowGoLive(false)}
           auctions={myAuctions}
           products={myProducts}
-          sellerId={sellerId} // ✅ passa o sellerId correcto
+          sellerId={sellerId}
         />
       )}
       {showSchedule && canPublish && (
@@ -1646,7 +1658,7 @@ const Live = () => {
           onClose={() => setShowSchedule(false)}
           auctions={myAuctions}
           products={myProducts}
-          sellerId={sellerId} // ✅ passa o sellerId correcto
+          sellerId={sellerId}
         />
       )}
     </div>
