@@ -161,15 +161,12 @@ const useAgoraStream = () => {
     try {
       setError(null);
       const AgoraRTC = (await import("agora-rtc-sdk-ng")).default;
-
-      // Configuração específica para mobile/Safari
-      AgoraRTC.setLogLevel(4); // suprimir logs desnecessários
-      const client = AgoraRTC.createClient({ mode: "live", codec: "h264" }); // h264 tem melhor suporte em Safari iOS
+      AgoraRTC.setLogLevel(4);
+      const client = AgoraRTC.createClient({ mode: "live", codec: "h264" });
       clientRef.current = client;
       await client.setClientRole("host");
       await client.join(AGORA_APP_ID, channel, null, null);
 
-      // Configurações optimizadas para mobile
       const [micTrack, camTrack] = await AgoraRTC.createMicrophoneAndCameraTracks(
         { encoderConfig: "speech_standard" },
         {
@@ -185,7 +182,6 @@ const useAgoraStream = () => {
       );
       localTracksRef.current = [micTrack, camTrack];
 
-      // Garante que o elemento existe e tem dimensões antes de fazer play
       if (localVideoEl) {
         camTrack.play(localVideoEl);
       }
@@ -232,22 +228,18 @@ const useAgoraStream = () => {
 
 /* ─────────────────────────────────────────────
    MODAL — Iniciar Live agora (com Agora RTC)
-   CORRECÇÕES:
-   1. setStep("live") antes de startStream — garante que o div de vídeo
-      existe no DOM quando o Agora tenta injectar o vídeo (crítico em Safari iOS)
-   2. useEffect com setTimeout(150ms) para aguardar o render do DOM
-   3. codec alterado para h264 (melhor suporte Safari/iOS)
 ───────────────────────────────────────────── */
 const GoLiveModal = ({
   onClose,
   auctions,
   products,
+  sellerId, // ✅ CORRECÇÃO: recebe sellerId já resolvido
 }: {
   onClose: () => void;
   auctions: any[];
   products: any[];
+  sellerId: string | null;
 }) => {
-  const { user } = useAuth();
   const qc = useQueryClient();
   const localVideoRef = useRef<HTMLDivElement>(null);
   const { startStream, stopStream, toggleMic, toggleCam, isStreaming, micOn, camOn, error } = useAgoraStream();
@@ -264,10 +256,8 @@ const GoLiveModal = ({
   const [streamError,  setStreamError]  = useState<string | null>(null);
   const [launching,    setLaunching]    = useState(false);
 
-  const channelName = useRef(`live-${user?.id?.slice(0, 8)}-${Date.now()}`).current;
+  const channelName = useRef(`live-${sellerId?.slice(0, 8) ?? "x"}-${Date.now()}`).current;
 
-  // ── CORRECÇÃO PRINCIPAL: só arranca o Agora DEPOIS do step mudar para "live"
-  // e o div do vídeo estar efectivamente no DOM (setTimeout 150ms para Safari iOS)
   useEffect(() => {
     if (step !== "live" || !streamId) return;
 
@@ -275,7 +265,6 @@ const GoLiveModal = ({
       setLaunching(true);
       setStreamError(null);
 
-      // Aguarda o DOM renderizar (crítico em Safari iOS / mobile)
       await new Promise((res) => setTimeout(res, 150));
 
       if (!localVideoRef.current) {
@@ -287,15 +276,15 @@ const GoLiveModal = ({
       const ok = await startStream(channelName, localVideoRef.current);
 
       if (!ok) {
-        // Rollback da entrada na BD
         await (supabase as any).from("live_streams").delete().eq("id", streamId);
         qc.invalidateQueries({ queryKey: ["live_streams_active"] });
         qc.invalidateQueries({ queryKey: ["live_active_count"] });
         setStreamId(null);
         setStep("form");
       } else {
-        qc.invalidateQueries({ queryKey: ["live_streams_active"] });
-        qc.invalidateQueries({ queryKey: ["live_active_count"] });
+        // ✅ CORRECÇÃO: força refetch imediato após iniciar
+        await qc.refetchQueries({ queryKey: ["live_streams_active"] });
+        await qc.refetchQueries({ queryKey: ["live_active_count"] });
         toast.success("Live iniciada com sucesso! 🎉");
       }
 
@@ -308,22 +297,10 @@ const GoLiveModal = ({
   const handleGoLive = async () => {
     if (!title.trim()) { toast.error("Adiciona um título à live"); return; }
     if (!coverUrl)     { toast.error("A capa é obrigatória"); return; }
+    if (!sellerId)     { toast.error("Não foi encontrado um vendedor associado à tua conta"); return; }
 
     setLoading(true);
     try {
-      const { data: sellerData, error: sellerErr } = await (supabase as any)
-        .from("sellers")
-        .select("id")
-        .eq("user_id", user?.id)
-        .single();
-
-      if (sellerErr || !sellerData) {
-        toast.error("Não foi encontrado um vendedor associado à tua conta");
-        setLoading(false);
-        return;
-      }
-      const sellerId = sellerData.id;
-
       let thumbnail_url: string | null = null;
 
       if (coverFile) {
@@ -340,7 +317,7 @@ const GoLiveModal = ({
       const { data: inserted, error: dbErr } = await (supabase as any)
         .from("live_streams")
         .insert({
-          seller_id:         sellerId,
+          seller_id:         sellerId, // ✅ usa o sellerId correcto
           title:             title.trim(),
           description:       desc.trim() || null,
           thumbnail_url,
@@ -354,12 +331,8 @@ const GoLiveModal = ({
         .single();
       if (dbErr) throw dbErr;
 
-      // 1. Guarda o ID
       setStreamId(inserted.id);
       setLoading(false);
-
-      // 2. Muda para o ecrã "live" — o useEffect acima trata de arrancar o Agora
-      //    depois do DOM estar pronto
       setStep("live");
 
     } catch (err: any) {
@@ -376,8 +349,9 @@ const GoLiveModal = ({
         .update({ status: "ended" })
         .eq("id", streamId);
     }
-    qc.invalidateQueries({ queryKey: ["live_streams_active"] });
-    qc.invalidateQueries({ queryKey: ["live_active_count"] });
+    // ✅ CORRECÇÃO: refetch imediato ao terminar
+    await qc.refetchQueries({ queryKey: ["live_streams_active"] });
+    await qc.refetchQueries({ queryKey: ["live_active_count"] });
     toast.info("Live encerrada.");
     onClose();
   };
@@ -387,14 +361,12 @@ const GoLiveModal = ({
     return (
       <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4">
         <div className="relative w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl bg-black">
-          {/* Container de vídeo — precisa de ter dimensões explícitas para o Agora funcionar em mobile */}
           <div
             ref={localVideoRef}
             className="w-full bg-gray-900"
             style={{ aspectRatio: "16/9", minHeight: 200 }}
           />
 
-          {/* Overlay de loading enquanto o Agora liga */}
           {launching && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70">
               <Loader2 className="w-10 h-10 animate-spin text-white" />
@@ -403,7 +375,6 @@ const GoLiveModal = ({
             </div>
           )}
 
-          {/* Erro de stream */}
           {streamError && !launching && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/80 px-6">
               <p className="text-red-400 text-sm font-semibold text-center">⚠️ {streamError}</p>
@@ -573,9 +544,9 @@ const GoLiveModal = ({
 
           <button
             onClick={handleGoLive}
-            disabled={loading}
+            disabled={loading || !sellerId}
             className="w-full py-3.5 rounded-2xl text-sm font-black text-white flex items-center justify-center gap-2 transition active:scale-95"
-            style={{ background: loading ? "#ccc" : "linear-gradient(135deg, #E53935, #b71c1c)" }}
+            style={{ background: (loading || !sellerId) ? "#ccc" : "linear-gradient(135deg, #E53935, #b71c1c)" }}
           >
             {loading
               ? <><Loader2 className="w-4 h-4 animate-spin" /> A preparar…</>
@@ -589,21 +560,18 @@ const GoLiveModal = ({
 
 /* ─────────────────────────────────────────────
    MODAL — Agendar Live
-   CORRECÇÕES:
-   1. Feedback de progresso de upload (uploadProgress state)
-   2. Validação de tamanho de vídeo mais clara
-   3. Botão desabilitado com mensagem de progresso visível
 ───────────────────────────────────────────── */
 const ScheduleModal = ({
   onClose,
   auctions,
   products,
+  sellerId, // ✅ CORRECÇÃO: recebe sellerId já resolvido
 }: {
   onClose: () => void;
   auctions: any[];
   products: any[];
+  sellerId: string | null;
 }) => {
-  const { user } = useAuth();
   const qc = useQueryClient();
   const [coverUrl,        setCoverUrl]        = useState<string | null>(null);
   const [coverFile,       setCoverFile]       = useState<File | null>(null);
@@ -638,22 +606,10 @@ const ScheduleModal = ({
     if (!coverUrl)     { toast.error("A capa é obrigatória"); return; }
     if (!datetime)     { toast.error("Escolhe data e hora da live"); return; }
     if (new Date(datetime) <= new Date()) { toast.error("A data deve ser no futuro"); return; }
+    if (!sellerId)     { toast.error("Não foi encontrado um vendedor associado à tua conta"); return; }
 
     setLoading(true);
     try {
-      const { data: sellerData, error: sellerErr } = await (supabase as any)
-        .from("sellers")
-        .select("id")
-        .eq("user_id", user?.id)
-        .single();
-
-      if (sellerErr || !sellerData) {
-        toast.error("Não foi encontrado um vendedor associado à tua conta");
-        setLoading(false);
-        return;
-      }
-      const sellerId = sellerData.id;
-
       let thumbnail_url: string | null = null;
       let preview_video_url: string | null = null;
 
@@ -682,7 +638,7 @@ const ScheduleModal = ({
       setUploadProgress("A guardar agendamento…");
 
       const { error } = await (supabase as any).from("live_streams").insert({
-        seller_id:         sellerId,
+        seller_id:         sellerId, // ✅ usa o sellerId correcto
         title:             title.trim(),
         description:       desc.trim() || null,
         thumbnail_url,
@@ -695,7 +651,8 @@ const ScheduleModal = ({
       });
       if (error) throw error;
 
-      qc.invalidateQueries({ queryKey: ["live_streams_scheduled"] });
+      // ✅ CORRECÇÃO: refetch imediato após agendar
+      await qc.refetchQueries({ queryKey: ["live_streams_scheduled"] });
       setUploadProgress(null);
       setDone(true);
       toast.success("Live agendada com sucesso!");
@@ -878,9 +835,9 @@ const ScheduleModal = ({
 
           <button
             onClick={handleSubmit}
-            disabled={loading}
+            disabled={loading || !sellerId}
             className="w-full py-3.5 rounded-2xl text-sm font-black text-white flex items-center justify-center gap-2 transition active:scale-95"
-            style={{ background: loading ? "#ccc" : `linear-gradient(135deg, ${sandDark}, ${brown})` }}
+            style={{ background: (loading || !sellerId) ? "#ccc" : `linear-gradient(135deg, ${sandDark}, ${brown})` }}
           >
             {loading
               ? <><Loader2 className="w-4 h-4 animate-spin" /> {uploadProgress || "A guardar…"}</>
@@ -1054,7 +1011,6 @@ const ScheduledCard = ({
 
 /* ─────────────────────────────────────────────
    MODAL — Assistir live (com Agora viewer)
-   CORRECÇÃO: codec h264, melhor compatibilidade Safari iOS
 ───────────────────────────────────────────── */
 const WatchModal = ({ stream, onClose }: { stream: any; onClose: () => void }) => {
   const navigate = useNavigate();
@@ -1071,7 +1027,7 @@ const WatchModal = ({ stream, onClose }: { stream: any; onClose: () => void }) =
         setConnectError(null);
         const AgoraRTC = (await import("agora-rtc-sdk-ng")).default;
         AgoraRTC.setLogLevel(4);
-        const client = AgoraRTC.createClient({ mode: "live", codec: "h264" }); // h264 para Safari iOS
+        const client = AgoraRTC.createClient({ mode: "live", codec: "h264" });
         clientRef.current = client;
 
         await client.setClientRole("audience");
@@ -1098,7 +1054,6 @@ const WatchModal = ({ stream, onClose }: { stream: any; onClose: () => void }) =
       }
     };
 
-    // Pequeno delay para garantir que o div está no DOM antes do Agora ligar
     const t = setTimeout(joinAsAudience, 100);
     return () => {
       clearTimeout(t);
@@ -1256,6 +1211,23 @@ const Live = () => {
 
   const { isAdmin } = useUserRole();
 
+  // ✅ CORRECÇÃO PRINCIPAL: busca o seller_id uma única vez na página principal
+  // e passa-o para todos os modais — evita o bug de usar user.id como seller_id
+  const { data: sellerData } = useQuery({
+    queryKey: ["my_seller_id", user?.id],
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("sellers")
+        .select("id")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      return data ?? null;
+    },
+    enabled: !!user,
+  });
+
+  const sellerId = sellerData?.id ?? null;
+
   const { data: isSellerData = false } = useQuery({
     queryKey: ["is_seller", user?.id],
     queryFn: async () => {
@@ -1315,33 +1287,35 @@ const Live = () => {
     refetchInterval: 30000,
   });
 
+  // ✅ CORRECÇÃO: queries de leilões e produtos usam sellerId (da tabela sellers)
+  // e não user.id — antes retornavam sempre vazio
   const { data: myAuctions = [] } = useQuery({
-    queryKey: ["my_auctions_active", user?.id],
+    queryKey: ["my_auctions_active", sellerId],
     queryFn: async () => {
-      if (!canPublish || !user?.id) return [];
+      if (!sellerId) return [];
       const { data } = await (supabase as any)
         .from("auctions")
         .select("id, title")
-        .eq("seller_id", user.id)
+        .eq("seller_id", sellerId)
         .eq("status", "active");
       return data || [];
     },
-    enabled: canPublish && !!user?.id,
+    enabled: canPublish && !!sellerId,
   });
 
   const { data: myProducts = [] } = useQuery({
-    queryKey: ["my_products_active", user?.id],
+    queryKey: ["my_products_active", sellerId],
     queryFn: async () => {
-      if (!canPublish || !user?.id) return [];
+      if (!sellerId) return [];
       const { data } = await (supabase as any)
         .from("products")
         .select("id, name, title")
-        .eq("seller_id", user.id)
+        .eq("seller_id", sellerId)
         .eq("status", "active")
         .limit(50);
       return data || [];
     },
-    enabled: canPublish && !!user?.id,
+    enabled: canPublish && !!sellerId,
   });
 
   useEffect(() => {
@@ -1664,6 +1638,7 @@ const Live = () => {
           onClose={() => setShowGoLive(false)}
           auctions={myAuctions}
           products={myProducts}
+          sellerId={sellerId} // ✅ passa o sellerId correcto
         />
       )}
       {showSchedule && canPublish && (
@@ -1671,6 +1646,7 @@ const Live = () => {
           onClose={() => setShowSchedule(false)}
           auctions={myAuctions}
           products={myProducts}
+          sellerId={sellerId} // ✅ passa o sellerId correcto
         />
       )}
     </div>
