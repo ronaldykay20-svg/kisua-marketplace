@@ -161,13 +161,35 @@ const useAgoraStream = () => {
     try {
       setError(null);
       const AgoraRTC = (await import("agora-rtc-sdk-ng")).default;
-      const client = AgoraRTC.createClient({ mode: "live", codec: "vp8" });
+
+      // Configuração específica para mobile/Safari
+      AgoraRTC.setLogLevel(4); // suprimir logs desnecessários
+      const client = AgoraRTC.createClient({ mode: "live", codec: "h264" }); // h264 tem melhor suporte em Safari iOS
       clientRef.current = client;
       await client.setClientRole("host");
       await client.join(AGORA_APP_ID, channel, null, null);
-      const [micTrack, camTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
+
+      // Configurações optimizadas para mobile
+      const [micTrack, camTrack] = await AgoraRTC.createMicrophoneAndCameraTracks(
+        { encoderConfig: "speech_standard" },
+        {
+          encoderConfig: {
+            width: { ideal: 1280, min: 640 },
+            height: { ideal: 720, min: 360 },
+            frameRate: { ideal: 15, min: 10 },
+            bitrateMin: 400,
+            bitrateMax: 1000,
+          },
+          facingMode: "user",
+        }
+      );
       localTracksRef.current = [micTrack, camTrack];
-      camTrack.play(localVideoEl);
+
+      // Garante que o elemento existe e tem dimensões antes de fazer play
+      if (localVideoEl) {
+        camTrack.play(localVideoEl);
+      }
+
       await client.publish([micTrack, camTrack]);
       setIsStreaming(true);
       return true;
@@ -210,6 +232,11 @@ const useAgoraStream = () => {
 
 /* ─────────────────────────────────────────────
    MODAL — Iniciar Live agora (com Agora RTC)
+   CORRECÇÕES:
+   1. setStep("live") antes de startStream — garante que o div de vídeo
+      existe no DOM quando o Agora tenta injectar o vídeo (crítico em Safari iOS)
+   2. useEffect com setTimeout(150ms) para aguardar o render do DOM
+   3. codec alterado para h264 (melhor suporte Safari/iOS)
 ───────────────────────────────────────────── */
 const GoLiveModal = ({
   onClose,
@@ -225,17 +252,58 @@ const GoLiveModal = ({
   const localVideoRef = useRef<HTMLDivElement>(null);
   const { startStream, stopStream, toggleMic, toggleCam, isStreaming, micOn, camOn, error } = useAgoraStream();
 
-  const [coverUrl,   setCoverUrl]   = useState<string | null>(null);
-  const [coverFile,  setCoverFile]  = useState<File | null>(null);
-  const [title,      setTitle]      = useState("");
-  const [desc,       setDesc]       = useState("");
-  const [auctionId,  setAuctionId]  = useState("");
-  const [productId,  setProductId]  = useState("");
-  const [loading,    setLoading]    = useState(false);
-  const [streamId,   setStreamId]   = useState<string | null>(null);
-  const [step,       setStep]       = useState<"form" | "live">("form");
+  const [coverUrl,     setCoverUrl]     = useState<string | null>(null);
+  const [coverFile,    setCoverFile]    = useState<File | null>(null);
+  const [title,        setTitle]        = useState("");
+  const [desc,         setDesc]         = useState("");
+  const [auctionId,    setAuctionId]    = useState("");
+  const [productId,    setProductId]    = useState("");
+  const [loading,      setLoading]      = useState(false);
+  const [streamId,     setStreamId]     = useState<string | null>(null);
+  const [step,         setStep]         = useState<"form" | "live">("form");
+  const [streamError,  setStreamError]  = useState<string | null>(null);
+  const [launching,    setLaunching]    = useState(false);
 
   const channelName = useRef(`live-${user?.id?.slice(0, 8)}-${Date.now()}`).current;
+
+  // ── CORRECÇÃO PRINCIPAL: só arranca o Agora DEPOIS do step mudar para "live"
+  // e o div do vídeo estar efectivamente no DOM (setTimeout 150ms para Safari iOS)
+  useEffect(() => {
+    if (step !== "live" || !streamId) return;
+
+    const launch = async () => {
+      setLaunching(true);
+      setStreamError(null);
+
+      // Aguarda o DOM renderizar (crítico em Safari iOS / mobile)
+      await new Promise((res) => setTimeout(res, 150));
+
+      if (!localVideoRef.current) {
+        setStreamError("Elemento de vídeo não encontrado. Tenta novamente.");
+        setLaunching(false);
+        return;
+      }
+
+      const ok = await startStream(channelName, localVideoRef.current);
+
+      if (!ok) {
+        // Rollback da entrada na BD
+        await (supabase as any).from("live_streams").delete().eq("id", streamId);
+        qc.invalidateQueries({ queryKey: ["live_streams_active"] });
+        qc.invalidateQueries({ queryKey: ["live_active_count"] });
+        setStreamId(null);
+        setStep("form");
+      } else {
+        qc.invalidateQueries({ queryKey: ["live_streams_active"] });
+        qc.invalidateQueries({ queryKey: ["live_active_count"] });
+        toast.success("Live iniciada com sucesso! 🎉");
+      }
+
+      setLaunching(false);
+    };
+
+    launch();
+  }, [step, streamId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleGoLive = async () => {
     if (!title.trim()) { toast.error("Adiciona um título à live"); return; }
@@ -243,7 +311,6 @@ const GoLiveModal = ({
 
     setLoading(true);
     try {
-      // ── CORRECÇÃO: buscar o seller_id real a partir do user_id ──
       const { data: sellerData, error: sellerErr } = await (supabase as any)
         .from("sellers")
         .select("id")
@@ -273,38 +340,30 @@ const GoLiveModal = ({
       const { data: inserted, error: dbErr } = await (supabase as any)
         .from("live_streams")
         .insert({
-          seller_id:          sellerId,   // ← corrigido
-          title:              title.trim(),
-          description:        desc.trim() || null,
+          seller_id:         sellerId,
+          title:             title.trim(),
+          description:       desc.trim() || null,
           thumbnail_url,
-          status:             "live",
-          viewers_count:      0,
-          channel_name:       channelName,
-          linked_auction_id:  auctionId  || null,
-          linked_product_id:  productId  || null,
+          status:            "live",
+          viewers_count:     0,
+          channel_name:      channelName,
+          linked_auction_id: auctionId  || null,
+          linked_product_id: productId  || null,
         })
         .select("id")
         .single();
       if (dbErr) throw dbErr;
 
+      // 1. Guarda o ID
       setStreamId(inserted.id);
+      setLoading(false);
 
-      if (localVideoRef.current) {
-        const ok = await startStream(channelName, localVideoRef.current);
-        if (!ok) {
-          await (supabase as any).from("live_streams").delete().eq("id", inserted.id);
-          setLoading(false);
-          return;
-        }
-      }
-
-      qc.invalidateQueries({ queryKey: ["live_streams_active"] });
-      qc.invalidateQueries({ queryKey: ["live_active_count"] });
-      toast.success("Live iniciada com sucesso! 🎉");
+      // 2. Muda para o ecrã "live" — o useEffect acima trata de arrancar o Agora
+      //    depois do DOM estar pronto
       setStep("live");
+
     } catch (err: any) {
       toast.error(err.message || "Erro ao iniciar a live");
-    } finally {
       setLoading(false);
     }
   };
@@ -328,7 +387,35 @@ const GoLiveModal = ({
     return (
       <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4">
         <div className="relative w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl bg-black">
-          <div ref={localVideoRef} className="w-full aspect-video bg-gray-900" />
+          {/* Container de vídeo — precisa de ter dimensões explícitas para o Agora funcionar em mobile */}
+          <div
+            ref={localVideoRef}
+            className="w-full bg-gray-900"
+            style={{ aspectRatio: "16/9", minHeight: 200 }}
+          />
+
+          {/* Overlay de loading enquanto o Agora liga */}
+          {launching && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70">
+              <Loader2 className="w-10 h-10 animate-spin text-white" />
+              <p className="text-white text-sm font-semibold">A iniciar câmara…</p>
+              <p className="text-white/50 text-xs">Aceita as permissões de câmara e microfone</p>
+            </div>
+          )}
+
+          {/* Erro de stream */}
+          {streamError && !launching && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/80 px-6">
+              <p className="text-red-400 text-sm font-semibold text-center">⚠️ {streamError}</p>
+              <button
+                onClick={handleEndLive}
+                className="px-4 py-2 rounded-xl text-sm font-black text-white"
+                style={{ background: "#E53935" }}
+              >
+                Fechar
+              </button>
+            </div>
+          )}
 
           <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-lg"
             style={{ background: "#E53935" }}>
@@ -336,8 +423,10 @@ const GoLiveModal = ({
             <span className="text-[10px] font-black text-white">AO VIVO</span>
           </div>
 
-          <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center gap-4 py-4"
-            style={{ background: "linear-gradient(to top, rgba(0,0,0,0.85), transparent)" }}>
+          <div
+            className="absolute bottom-0 left-0 right-0 flex items-center justify-center gap-4 py-4"
+            style={{ background: "linear-gradient(to top, rgba(0,0,0,0.85), transparent)" }}
+          >
             <button
               onClick={toggleMic}
               className="w-12 h-12 rounded-full flex items-center justify-center transition"
@@ -489,7 +578,7 @@ const GoLiveModal = ({
             style={{ background: loading ? "#ccc" : "linear-gradient(135deg, #E53935, #b71c1c)" }}
           >
             {loading
-              ? <Loader2 className="w-4 h-4 animate-spin" />
+              ? <><Loader2 className="w-4 h-4 animate-spin" /> A preparar…</>
               : <><Radio className="w-4 h-4" /> Ir ao vivo agora</>}
           </button>
         </div>
@@ -499,7 +588,11 @@ const GoLiveModal = ({
 };
 
 /* ─────────────────────────────────────────────
-   MODAL — Agendar Live (com vídeo e produto)
+   MODAL — Agendar Live
+   CORRECÇÕES:
+   1. Feedback de progresso de upload (uploadProgress state)
+   2. Validação de tamanho de vídeo mais clara
+   3. Botão desabilitado com mensagem de progresso visível
 ───────────────────────────────────────────── */
 const ScheduleModal = ({
   onClose,
@@ -512,17 +605,18 @@ const ScheduleModal = ({
 }) => {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const [coverUrl,   setCoverUrl]   = useState<string | null>(null);
-  const [coverFile,  setCoverFile]  = useState<File | null>(null);
-  const [videoUrl,   setVideoUrl]   = useState<string | null>(null);
-  const [videoFile,  setVideoFile]  = useState<File | null>(null);
-  const [title,      setTitle]      = useState("");
-  const [desc,       setDesc]       = useState("");
-  const [datetime,   setDatetime]   = useState("");
-  const [auctionId,  setAuctionId]  = useState("");
-  const [productId,  setProductId]  = useState("");
-  const [loading,    setLoading]    = useState(false);
-  const [done,       setDone]       = useState(false);
+  const [coverUrl,        setCoverUrl]        = useState<string | null>(null);
+  const [coverFile,       setCoverFile]       = useState<File | null>(null);
+  const [videoUrl,        setVideoUrl]        = useState<string | null>(null);
+  const [videoFile,       setVideoFile]       = useState<File | null>(null);
+  const [title,           setTitle]           = useState("");
+  const [desc,            setDesc]            = useState("");
+  const [datetime,        setDatetime]        = useState("");
+  const [auctionId,       setAuctionId]       = useState("");
+  const [productId,       setProductId]       = useState("");
+  const [loading,         setLoading]         = useState(false);
+  const [uploadProgress,  setUploadProgress]  = useState<string | null>(null);
+  const [done,            setDone]            = useState(false);
   const videoInputRef = useRef<HTMLInputElement>(null);
 
   const minDatetime = new Date(Date.now() + 10 * 60 * 1000).toISOString().slice(0, 16);
@@ -547,7 +641,6 @@ const ScheduleModal = ({
 
     setLoading(true);
     try {
-      // ── CORRECÇÃO: buscar o seller_id real a partir do user_id ──
       const { data: sellerData, error: sellerErr } = await (supabase as any)
         .from("sellers")
         .select("id")
@@ -565,6 +658,7 @@ const ScheduleModal = ({
       let preview_video_url: string | null = null;
 
       if (coverFile) {
+        setUploadProgress("A carregar capa…");
         const ext  = coverFile.name.split(".").pop();
         const path = `live-covers/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
         const { error: upErr } = await (supabase as any).storage
@@ -575,6 +669,7 @@ const ScheduleModal = ({
       }
 
       if (videoFile) {
+        setUploadProgress(`A carregar vídeo (${(videoFile.size / 1024 / 1024).toFixed(1)} MB)…`);
         const ext  = videoFile.name.split(".").pop();
         const path = `live-previews/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
         const { error: vErr } = await (supabase as any).storage
@@ -584,24 +679,28 @@ const ScheduleModal = ({
         preview_video_url = vData?.publicUrl ?? null;
       }
 
+      setUploadProgress("A guardar agendamento…");
+
       const { error } = await (supabase as any).from("live_streams").insert({
-        seller_id:          sellerId,   // ← corrigido
-        title:              title.trim(),
-        description:        desc.trim() || null,
+        seller_id:         sellerId,
+        title:             title.trim(),
+        description:       desc.trim() || null,
         thumbnail_url,
         preview_video_url,
-        status:             "scheduled",
-        starts_at:          new Date(datetime).toISOString(),
-        viewers_count:      0,
-        linked_auction_id:  auctionId || null,
-        linked_product_id:  productId || null,
+        status:            "scheduled",
+        starts_at:         new Date(datetime).toISOString(),
+        viewers_count:     0,
+        linked_auction_id: auctionId || null,
+        linked_product_id: productId || null,
       });
       if (error) throw error;
 
       qc.invalidateQueries({ queryKey: ["live_streams_scheduled"] });
+      setUploadProgress(null);
       setDone(true);
       toast.success("Live agendada com sucesso!");
     } catch (err: any) {
+      setUploadProgress(null);
       toast.error(err.message || "Erro ao agendar a live");
     } finally {
       setLoading(false);
@@ -664,6 +763,12 @@ const ScheduleModal = ({
                 >
                   <X className="w-3.5 h-3.5 text-white" />
                 </button>
+                {videoFile && (
+                  <div className="absolute bottom-2 left-2 px-2 py-1 rounded-lg text-[10px] font-semibold text-white"
+                    style={{ background: "rgba(0,0,0,0.65)" }}>
+                    {(videoFile.size / 1024 / 1024).toFixed(1)} MB
+                  </div>
+                )}
               </div>
             ) : (
               <div
@@ -778,7 +883,7 @@ const ScheduleModal = ({
             style={{ background: loading ? "#ccc" : `linear-gradient(135deg, ${sandDark}, ${brown})` }}
           >
             {loading
-              ? <Loader2 className="w-4 h-4 animate-spin" />
+              ? <><Loader2 className="w-4 h-4 animate-spin" /> {uploadProgress || "A guardar…"}</>
               : <><CalendarClock className="w-4 h-4" /> Confirmar agendamento</>}
           </button>
         </div>
@@ -949,20 +1054,24 @@ const ScheduledCard = ({
 
 /* ─────────────────────────────────────────────
    MODAL — Assistir live (com Agora viewer)
+   CORRECÇÃO: codec h264, melhor compatibilidade Safari iOS
 ───────────────────────────────────────────── */
 const WatchModal = ({ stream, onClose }: { stream: any; onClose: () => void }) => {
   const navigate = useNavigate();
   const remoteVideoRef = useRef<HTMLDivElement>(null);
   const clientRef = useRef<any>(null);
   const [connected, setConnected] = useState(false);
+  const [connectError, setConnectError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!stream.channel_name) return;
 
     const joinAsAudience = async () => {
       try {
+        setConnectError(null);
         const AgoraRTC = (await import("agora-rtc-sdk-ng")).default;
-        const client = AgoraRTC.createClient({ mode: "live", codec: "vp8" });
+        AgoraRTC.setLogLevel(4);
+        const client = AgoraRTC.createClient({ mode: "live", codec: "h264" }); // h264 para Safari iOS
         clientRef.current = client;
 
         await client.setClientRole("audience");
@@ -976,16 +1085,23 @@ const WatchModal = ({ stream, onClose }: { stream: any; onClose: () => void }) =
           if (mediaType === "audio") {
             user.audioTrack?.play();
           }
+          setConnected(true);
         });
 
-        setConnected(true);
-      } catch (err) {
+        client.on("user-unpublished", () => {
+          setConnected(false);
+        });
+
+      } catch (err: any) {
         console.error("Erro ao ligar ao stream Agora:", err);
+        setConnectError(err?.message || "Erro ao ligar ao stream");
       }
     };
 
-    joinAsAudience();
+    // Pequeno delay para garantir que o div está no DOM antes do Agora ligar
+    const t = setTimeout(joinAsAudience, 100);
     return () => {
+      clearTimeout(t);
       clientRef.current?.leave().catch(() => {});
     };
   }, [stream.channel_name]);
@@ -1017,7 +1133,7 @@ const WatchModal = ({ stream, onClose }: { stream: any; onClose: () => void }) =
           </button>
         </div>
 
-        <div className="relative aspect-video bg-gray-900 flex items-center justify-center">
+        <div className="relative bg-gray-900 flex items-center justify-center" style={{ aspectRatio: "16/9" }}>
           {stream.channel_name ? (
             <div ref={remoteVideoRef} className="w-full h-full" />
           ) : stream.stream_url ? (
@@ -1029,7 +1145,7 @@ const WatchModal = ({ stream, onClose }: { stream: any; onClose: () => void }) =
                 <Radio className="w-8 h-8" style={{ color: gold }} />
               </div>
               <p className="text-white font-bold text-sm">A transmissão está em curso</p>
-              <p className="text-white/50 text-xs mt-1">A ligar ao canal Agora RTC…</p>
+              <p className="text-white/50 text-xs mt-1">A ligar ao canal…</p>
             </div>
           )}
 
@@ -1044,7 +1160,14 @@ const WatchModal = ({ stream, onClose }: { stream: any; onClose: () => void }) =
             </div>
           )}
 
-          {!connected && stream.channel_name && (
+          {connectError && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/80 px-6">
+              <p className="text-red-400 text-sm font-semibold text-center">⚠️ {connectError}</p>
+              <p className="text-white/50 text-xs text-center">Verifica a tua ligação e tenta novamente</p>
+            </div>
+          )}
+
+          {!connected && !connectError && stream.channel_name && (
             <div className="absolute bottom-3 right-3 flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl"
               style={{ background: "rgba(0,0,0,0.65)" }}>
               <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
