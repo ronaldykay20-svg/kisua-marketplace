@@ -2,6 +2,9 @@
  * DesktopNavbar — visível apenas em md: (tablet ≥768px) e lg: (desktop)
  * Linha 1: Logo + Pesquisa (sempre visível) + ícones
  * Linha 2: Categorias scroll horizontal + "Mais categorias" + quicklinks (tablet) / nav links (desktop)
+ *
+ * LIVE BADGE: quando há lives ativas, o botão "Live" na navbar mostra
+ * um badge numérico com o total de lives em andamento.
  */
 import { useState, useCallback, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -30,6 +33,26 @@ const staticCategories = [
   { name: "Alimentação",  image: "https://images.unsplash.com/photo-1506617420156-8e4536971650?w=60&h=60&fit=crop" },
 ];
 
+const sand       = "#D4B896";
+const sandDark   = "#B8956A";
+const cream      = "#F7F0E6";
+const brown      = "#4A2E0A";
+const brownLight = "rgba(74,46,10,0.10)";
+
+/* ─── hook: conta lives activas em tempo real ─── */
+const useLiveCount = () =>
+  useQuery({
+    queryKey: ["live_count_active"],
+    queryFn: async () => {
+      const { count } = await (supabase as any)
+        .from("live_streams")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "live");
+      return count || 0;
+    },
+    refetchInterval: 20000, // actualiza a cada 20 s
+  });
+
 const quickLinks = [
   { label: "Leilão",    path: "/leilao",    icon: Gavel },
   { label: "Live",      path: "/live",      icon: Radio },
@@ -37,12 +60,6 @@ const quickLinks = [
   { label: "Empresas",  path: "/empresas",  icon: Store },
   { label: "Vendedores",path: "/vendedores",icon: Users },
 ];
-
-const sand       = "#D4B896";
-const sandDark   = "#B8956A";
-const cream      = "#F7F0E6";
-const brown      = "#4A2E0A";
-const brownLight = "rgba(74,46,10,0.10)";
 
 const useCartCount = (userId?: string) =>
   useQuery({
@@ -99,6 +116,7 @@ const DesktopNavbar = () => {
     : staticCategories;
 
   const { data: cartCount = 0 } = useCartCount(user?.id);
+  const { data: liveCount = 0 } = useLiveCount();
 
   const { data: notifications = [] } = useQuery({
     queryKey: ["navbar_notifications", user?.id],
@@ -138,13 +156,13 @@ const DesktopNavbar = () => {
     { label: "Início",     path: "/" },
     { label: "Ofertas",    path: "/promocoes" },
     { label: "Leilão",     path: "/leilao" },
-    { label: "Live",       path: "/live" },
+    { label: "Live",       path: "/live",    liveBadge: true },
     { label: "Empresas",   path: "/empresas" },
     { label: "Vendedores", path: "/vendedores" },
     { label: "Ranking",    path: "/ranking" },
   ];
 
-  /* ── ícones partilhados ── */
+  /* ── ícone genérico com badge ── */
   const IconBtn = ({ children, onClick, badge }: any) => (
     <div className="relative">
       <button
@@ -162,6 +180,30 @@ const DesktopNavbar = () => {
       )}
     </div>
   );
+
+  /* ── badge de live (pulsante vermelho) ── */
+  const LiveBadge = ({ count }: { count: number }) => {
+    if (count <= 0) return null;
+    return (
+      <>
+        <style>{`
+          @keyframes live-pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(229,57,53,0.55); }
+            50%       { box-shadow: 0 0 0 5px rgba(229,57,53,0); }
+          }
+        `}</style>
+        <span
+          className="absolute -top-1.5 -right-1.5 min-w-[17px] h-[17px] rounded-full text-white text-[9px] font-black flex items-center justify-center px-1"
+          style={{
+            background: "#E53935",
+            animation: "live-pulse 1.5s ease-in-out infinite",
+          }}
+        >
+          {count > 9 ? "9+" : count}
+        </span>
+      </>
+    );
+  };
 
   return (
     <header
@@ -214,7 +256,7 @@ const DesktopNavbar = () => {
           )}
         </div>
 
-        {/* Barra de pesquisa — flex-1, sempre visível */}
+        {/* Barra de pesquisa */}
         <form
           onSubmit={handleSearch}
           className="flex-1 flex items-center rounded-2xl overflow-hidden"
@@ -366,7 +408,7 @@ const DesktopNavbar = () => {
       {/* ══ LINHA 2 ══ */}
       <div className="border-t" style={{ borderColor: "rgba(74,46,10,0.15)" }}>
 
-        {/* ── TABLET (md, não lg): categorias + "Mais categorias" + quicklinks ── */}
+        {/* ── TABLET (md, não lg): categorias + quicklinks ── */}
         <div className="md:flex lg:hidden max-w-screen-xl mx-auto px-5">
           <div className="flex items-center w-full py-2">
 
@@ -424,49 +466,107 @@ const DesktopNavbar = () => {
               style={{ background: "rgba(74,46,10,0.18)" }}
             />
 
-            {/* Quicklinks fixos à direita */}
+            {/* Quicklinks — Live com badge */}
             <div className="flex-shrink-0 flex items-center gap-1">
-              {quickLinks.map(link => (
-                <button
-                  key={link.label}
-                  onClick={() => navigate(link.path)}
-                  className="flex flex-col items-center gap-1 px-2 py-1 rounded-xl transition-all hover:bg-white/40"
-                >
-                  <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center"
-                    style={{ background: brownLight, border: "1px solid rgba(74,46,10,0.15)" }}
+              {quickLinks.map(link => {
+                const isLive = link.path === "/live";
+                return (
+                  <button
+                    key={link.label}
+                    onClick={() => navigate(link.path)}
+                    className="flex flex-col items-center gap-1 px-2 py-1 rounded-xl transition-all hover:bg-white/40 relative"
                   >
-                    <link.icon className="w-4 h-4" style={{ color: brown }} />
-                  </div>
-                  <span className="text-[9px] font-semibold" style={{ color: brown }}>{link.label}</span>
-                </button>
-              ))}
+                    <div
+                      className="relative w-10 h-10 rounded-xl flex items-center justify-center"
+                      style={{ background: brownLight, border: "1px solid rgba(74,46,10,0.15)" }}
+                    >
+                      <link.icon className="w-4 h-4" style={{ color: brown }} />
+                      {/* Badge de live ativa */}
+                      {isLive && liveCount > 0 && (
+                        <>
+                          <style>{`
+                            @keyframes live-pulse-ql {
+                              0%, 100% { box-shadow: 0 0 0 0 rgba(229,57,53,0.55); }
+                              50%       { box-shadow: 0 0 0 4px rgba(229,57,53,0); }
+                            }
+                          `}</style>
+                          <span
+                            className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] rounded-full text-white text-[9px] font-black flex items-center justify-center px-0.5"
+                            style={{
+                              background: "#E53935",
+                              animation: "live-pulse-ql 1.5s ease-in-out infinite",
+                            }}
+                          >
+                            {liveCount > 9 ? "9+" : liveCount}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                    <span className="text-[9px] font-semibold" style={{ color: brown }}>{link.label}</span>
+                  </button>
+                );
+              })}
             </div>
 
           </div>
         </div>
 
-        {/* ── DESKTOP (lg): nav links + quicklinks ── */}
+        {/* ── DESKTOP (lg): nav links ── */}
         <div className="hidden lg:flex max-w-screen-xl mx-auto px-5 items-center gap-1 h-10">
           {navItems.map(item => {
             const active = location.pathname === item.path;
+            const isLive = item.liveBadge;
             return (
-              <button key={item.path} onClick={() => navigate(item.path)}
-                className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
-                style={{ color: active ? "#fff" : brown, background: active ? brown : "transparent" }}>
+              <button
+                key={item.path}
+                onClick={() => navigate(item.path)}
+                className="relative px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+                style={{ color: active ? "#fff" : brown, background: active ? brown : "transparent" }}
+              >
                 {item.label}
+                {/* Badge de live na nav do desktop */}
+                {isLive && liveCount > 0 && (
+                  <>
+                    <style>{`
+                      @keyframes live-pulse-nav {
+                        0%, 100% { box-shadow: 0 0 0 0 rgba(229,57,53,0.6); }
+                        50%       { box-shadow: 0 0 0 4px rgba(229,57,53,0); }
+                      }
+                    `}</style>
+                    <span
+                      className="absolute -top-1.5 -right-1 min-w-[16px] h-[16px] rounded-full text-white text-[8px] font-black flex items-center justify-center px-0.5"
+                      style={{
+                        background: "#E53935",
+                        animation: "live-pulse-nav 1.5s ease-in-out infinite",
+                      }}
+                    >
+                      {liveCount > 9 ? "9+" : liveCount}
+                    </span>
+                  </>
+                )}
               </button>
             );
           })}
           <div className="ml-auto flex items-center gap-3 text-xs" style={{ color: sandDark }}>
-            {quickLinks.map(l => (
-              <button key={l.label} onClick={() => navigate(l.path)}
-                className="flex items-center gap-1 hover:underline transition"
-                style={{ color: sandDark }}>
-                <l.icon className="w-3 h-3" />
-                {l.label}
-              </button>
-            ))}
+            {quickLinks.map(l => {
+              const isLive = l.path === "/live";
+              return (
+                <button key={l.label} onClick={() => navigate(l.path)}
+                  className="relative flex items-center gap-1 hover:underline transition"
+                  style={{ color: sandDark }}>
+                  <l.icon className="w-3 h-3" />
+                  {l.label}
+                  {isLive && liveCount > 0 && (
+                    <span
+                      className="ml-0.5 min-w-[14px] h-[14px] rounded-full text-white text-[8px] font-black flex items-center justify-center px-0.5"
+                      style={{ background: "#E53935" }}
+                    >
+                      {liveCount > 9 ? "9+" : liveCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
 
