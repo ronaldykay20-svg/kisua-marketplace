@@ -1,431 +1,731 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
-import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import Footer from "@/components/Footer";
 import {
-  Radio, Eye, X, Send, MessageCircle, Loader2,
-  Video, ShoppingBag, Bell, PlayCircle, Pin, PinOff, Trash2
+  Radio, Search, SlidersHorizontal, Bell, Play, Eye,
+  Calendar, Clock, ChevronRight, Gavel, Video, X,
+  Loader2, Users, Zap, Star, ShoppingBag,
 } from "lucide-react";
+import { toast } from "sonner";
 
-import AgoraRTC, {
-  AgoraRTCProvider,
-  useLocalCameraTrack,
-  useLocalMicrophoneTrack,
-  usePublish,
-  useJoin,
-  useRemoteUsers,
-  RemoteUser,
-  LocalUser,
-} from "agora-rtc-react";
+/* ─────────────────────────────────────────────
+   CORES DO PROJECTO (igual ao DesktopNavbar)
+───────────────────────────────────────────── */
+const sand       = "#D4B896";
+const sandDark   = "#B8956A";
+const cream      = "#F7F0E6";
+const brown      = "#4A2E0A";
+const brownLight = "rgba(74,46,10,0.10)";
+const gold       = "#f5c842";
 
-const APP_ID = "0503d343fd7e416fb8b594e53470cc1e";
+/* ─────────────────────────────────────────────
+   HOOK: lives ao vivo (partilhado com Navbar)
+───────────────────────────────────────────── */
+export const useLiveCount = () =>
+  useQuery({
+    queryKey: ["live_active_count"],
+    queryFn: async () => {
+      const { count } = await (supabase as any)
+        .from("live_streams")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "live");
+      return count || 0;
+    },
+    refetchInterval: 15000,
+  });
 
-const hostClient = AgoraRTC.createClient({ codec: "vp8", mode: "live", role: "host" });
-const audienceClient = AgoraRTC.createClient({ codec: "vp8", mode: "live", role: "audience" });
+/* ─────────────────────────────────────────────
+   PULSE DOT — ponto vermelho/verde a piscar
+───────────────────────────────────────────── */
+const PulseDot = ({ color = "#E53935" }: { color?: string }) => (
+  <span
+    className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
+    style={{
+      background: color,
+      boxShadow: `0 0 0 0 ${color}`,
+      animation: "livePulse 1.4s ease-in-out infinite",
+    }}
+  />
+);
 
-// ─── Chat ────────────────────────────────────────────────
-const LiveChat = ({ sessionId }: { sessionId: string }) => {
-  const { user, userDisplayName } = useAuth();
-  const [messages, setMessages] = useState<any[]>([]);
-  const [newMessage, setNewMessage] = useState("");
-  const [isSending, setIsSending] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
+/* ─────────────────────────────────────────────
+   BADGE de contagem
+───────────────────────────────────────────── */
+const LiveBadge = ({ count }: { count: number }) =>
+  count > 0 ? (
+    <span
+      className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full text-white text-[9px] font-black flex items-center justify-center px-1"
+      style={{ background: "#E53935" }}
+    >
+      {count > 9 ? "9+" : count}
+    </span>
+  ) : null;
 
-  const scrollToBottom = () =>
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-
-  useEffect(() => {
-    supabase
-      .from("live_messages")
-      .select("*")
-      .eq("session_id", sessionId)
-      .order("created_at", { ascending: true })
-      .limit(100)
-      .then(({ data }) => { setMessages(data || []); setTimeout(scrollToBottom, 200); });
-
-    const channel = supabase
-      .channel(`live_chat_room_${sessionId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "live_messages", filter: `session_id=eq.${sessionId}` }, (payload) => {
-        if (payload.eventType === "INSERT") {
-          setMessages((prev) => prev.some((m) => m.id === payload.new.id) ? prev : [...prev, payload.new]);
-          setTimeout(scrollToBottom, 50);
-        } else if (payload.eventType === "DELETE") {
-          setMessages((prev) => prev.filter((m) => m.id !== payload.old.id));
-        } else if (payload.eventType === "UPDATE") {
-          setMessages((prev) => prev.map((m) => m.id === payload.new.id ? payload.new : m));
-        }
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [sessionId]);
-
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user || !newMessage.trim()) return;
-    const msg = newMessage.trim();
-    setNewMessage("");
-    setIsSending(true);
-    await supabase.from("live_messages").insert({
-      session_id: sessionId,
-      user_id: user.id,
-      user_name: userDisplayName || "Anónimo",
-      content: msg,
-    });
-    setIsSending(false);
-  };
-
-  const handleDelete = async (id: string) => {
-    await supabase.from("live_messages").delete().eq("id", id);
-  };
-
-  const handlePin = async (id: string, pinned: boolean) => {
-    await supabase.from("live_messages").update({ is_pinned: !pinned }).eq("id", id);
-  };
-
-  const pinned = messages.filter((m) => m.is_pinned);
-
-  return (
-    <div className="flex flex-col h-full bg-zinc-950 border-l border-white/5">
-      <div className="hidden lg:flex items-center gap-2 p-4 bg-zinc-900 border-b border-white/5">
-        <MessageCircle size={16} className="text-yellow-400" />
-        <span className="text-[10px] font-black text-white uppercase tracking-widest">Conversa ao Vivo</span>
-      </div>
-
-      {pinned.length > 0 && (
-        <div className="bg-yellow-400/10 border-b border-yellow-400/20 p-2 max-h-[100px] overflow-y-auto">
-          {pinned.map((msg) => (
-            <div key={`pin-${msg.id}`} className="flex items-start gap-2 text-xs mb-1.5 bg-black/20 p-1.5 rounded-lg">
-              <Pin size={12} className="text-yellow-400 shrink-0 mt-0.5 fill-yellow-400" />
-              <div className="flex-1 min-w-0">
-                <span className="font-bold text-yellow-400 text-[10px] mr-1">{msg.user_name}:</span>
-                <span className="text-white text-[10px] opacity-90">{msg.content}</span>
-              </div>
-            </div>
-          ))}
+/* ─────────────────────────────────────────────
+   CARD — Live ao vivo
+───────────────────────────────────────────── */
+const LiveCard = ({ stream, onClick }: { stream: any; onClick: () => void }) => (
+  <div
+    onClick={onClick}
+    className="group relative rounded-2xl overflow-hidden cursor-pointer shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 flex-shrink-0"
+    style={{ minWidth: 0 }}
+  >
+    {/* Thumbnail */}
+    <div className="relative aspect-video bg-gray-900 overflow-hidden">
+      {stream.thumbnail_url ? (
+        <img
+          src={stream.thumbnail_url}
+          alt={stream.title}
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          loading="lazy"
+        />
+      ) : (
+        <div
+          className="w-full h-full flex items-center justify-center"
+          style={{ background: "linear-gradient(135deg, #1a0a00, #3d1f00)" }}
+        >
+          <Video className="w-12 h-12 opacity-30 text-white" />
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2">
-        {messages.length === 0 && (
-          <div className="text-center py-10 opacity-30">
-            <MessageCircle size={32} className="mx-auto mb-2 text-white" />
-            <p className="text-[9px] font-bold text-white uppercase">Seja o primeiro a comentar!</p>
+      {/* Overlay escuro no hover */}
+      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300" />
+
+      {/* Badge AO VIVO */}
+      <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-1 rounded-lg"
+        style={{ background: "#E53935" }}>
+        <PulseDot color="#fff" />
+        <span className="text-[10px] font-black text-white tracking-wider">AO VIVO</span>
+      </div>
+
+      {/* Viewers */}
+      <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-lg"
+        style={{ background: "rgba(0,0,0,0.65)" }}>
+        <Eye className="w-3 h-3 text-white" />
+        <span className="text-[10px] font-bold text-white">
+          {stream.viewers_count >= 1000
+            ? `${(stream.viewers_count / 1000).toFixed(1)}k`
+            : stream.viewers_count}
+        </span>
+      </div>
+
+      {/* Botão play central */}
+      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+        <div className="w-14 h-14 rounded-full flex items-center justify-center shadow-xl"
+          style={{ background: "rgba(255,255,255,0.92)" }}>
+          <Play className="w-6 h-6 ml-1" style={{ color: brown }} />
+        </div>
+      </div>
+
+      {/* Produto leilão vinculado */}
+      {stream.linked_auction && (
+        <div className="absolute bottom-0 left-0 right-0 px-3 py-2 flex items-center gap-2"
+          style={{ background: "linear-gradient(to top, rgba(0,0,0,0.85), transparent)" }}>
+          <Gavel className="w-3.5 h-3.5 flex-shrink-0" style={{ color: gold }} />
+          <span className="text-[10px] font-bold text-white line-clamp-1">{stream.linked_auction.title}</span>
+          <span className="ml-auto text-[10px] font-black px-1.5 py-0.5 rounded-md flex-shrink-0"
+            style={{ background: gold, color: "#1a0a00" }}>
+            {Number(stream.linked_auction.current_price).toLocaleString("pt-AO")} Kz
+          </span>
+        </div>
+      )}
+    </div>
+
+    {/* Info card */}
+    <div className="p-3" style={{ background: cream }}>
+      {/* Seller row */}
+      <div className="flex items-center gap-2 mb-2">
+        {stream.seller?.logo_url ? (
+          <img src={stream.seller.logo_url} alt={stream.seller.name}
+            className="w-7 h-7 rounded-full object-cover border-2"
+            style={{ borderColor: sand }} />
+        ) : (
+          <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black"
+            style={{ background: brownLight, color: brown }}>
+            {(stream.seller?.name || "?").charAt(0).toUpperCase()}
           </div>
         )}
-        {messages.map((msg, i) => {
-          const isOwner = user?.id === msg.user_id;
-          return (
-            <div key={msg.id || i} className="group flex flex-col items-start">
-              <div className="flex items-baseline justify-between w-full mb-0.5">
-                <span className={`text-[10px] font-black uppercase ${isOwner ? "text-yellow-400" : "text-zinc-400"}`}>
-                  {msg.user_name}
-                </span>
-                {isOwner && (
-                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => handlePin(msg.id, msg.is_pinned)} className={`p-1 rounded ${msg.is_pinned ? "text-yellow-400" : "text-zinc-500"}`}>
-                      {msg.is_pinned ? <PinOff size={10} /> : <Pin size={10} />}
-                    </button>
-                    <button onClick={() => handleDelete(msg.id)} className="text-zinc-500 hover:text-red-500 p-1 rounded">
-                      <Trash2 size={10} />
-                    </button>
-                  </div>
-                )}
-              </div>
-              <div className={`px-3 py-2 rounded-2xl rounded-tl-none border max-w-[90%] ${isOwner ? "bg-yellow-400/10 border-yellow-400/20 text-yellow-400" : "bg-white/10 border-white/5 text-white"}`}>
-                <p className="text-xs leading-snug font-medium break-words">{msg.content}</p>
-              </div>
-            </div>
-          );
-        })}
-        <div ref={chatEndRef} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1">
+            <span className="text-xs font-bold truncate" style={{ color: brown }}>
+              {stream.seller?.name || "Vendedor"}
+            </span>
+            {stream.seller?.is_verified && (
+              <Star className="w-3 h-3 flex-shrink-0" style={{ color: sandDark }} />
+            )}
+          </div>
+        </div>
       </div>
-
-      <div className="p-3 bg-zinc-900 border-t border-white/5">
-        {user ? (
-          <form onSubmit={handleSend} className="flex gap-2">
-            <input
-              type="text"
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              placeholder="Comentar..."
-              disabled={isSending}
-              className="flex-1 bg-white/5 border border-white/10 rounded-full px-4 py-2 text-white text-xs font-bold outline-none placeholder:text-white/20"
-            />
-            <button type="submit" disabled={!newMessage.trim() || isSending}
-              className="bg-yellow-400 text-black p-2.5 rounded-full disabled:opacity-50">
-              {isSending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-            </button>
-          </form>
-        ) : (
-          <Link to="/auth" className="block text-center py-2 bg-white/5 rounded-xl text-[9px] font-black text-gray-400 uppercase border border-white/10">
-            Entra para participar do chat
-          </Link>
-        )}
-      </div>
+      <h3 className="text-sm font-black line-clamp-2 mb-2" style={{ color: brown }}>
+        {stream.title}
+      </h3>
+      <button
+        onClick={(e) => { e.stopPropagation(); onClick(); }}
+        className="w-full py-2 rounded-xl text-xs font-black text-white transition active:scale-95"
+        style={{ background: `linear-gradient(135deg, ${sandDark}, ${brown})` }}
+      >
+        ▶ Assistir agora
+      </button>
     </div>
-  );
-};
+  </div>
+);
 
-// ─── Host (vendedor a transmitir) ────────────────────────
-const HostStream = ({ sessionId, onEnd }: { sessionId: string; onEnd: () => void }) => {
-  const { localMicrophoneTrack, isLoading: loadingMic } = useLocalMicrophoneTrack();
-  const { localCameraTrack, isLoading: loadingCam } = useLocalCameraTrack();
-  const remoteUsers = useRemoteUsers();
-
-  useJoin({ appid: APP_ID, channel: sessionId, token: null });
-  usePublish([localMicrophoneTrack, localCameraTrack]);
-
-  if (loadingMic || loadingCam)
-    return <div className="fixed inset-0 bg-black flex items-center justify-center"><Loader2 className="animate-spin text-yellow-400" size={48} /></div>;
+/* ─────────────────────────────────────────────
+   CARD — Próxima live (agendada)
+───────────────────────────────────────────── */
+const ScheduledCard = ({
+  stream, onRemember, remembered,
+}: { stream: any; onRemember: (id: string) => void; remembered: boolean }) => {
+  const date = stream.starts_at ? new Date(stream.starts_at) : null;
+  const day   = date ? String(date.getDate()).padStart(2, "0") : "--";
+  const month = date
+    ? date.toLocaleString("pt-AO", { month: "short" }).toUpperCase()
+    : "---";
+  const time  = date
+    ? date.toLocaleString("pt-AO", { hour: "2-digit", minute: "2-digit" })
+    : "--:--";
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black flex flex-col lg:flex-row overflow-hidden">
-      <div className="flex-1 relative bg-black h-[55vh] lg:h-full">
-        <div className="w-full h-full">
-          <LocalUser audioTrack={localMicrophoneTrack} videoTrack={localCameraTrack} cameraOn micOn playAudio={false} playVideo />
-        </div>
-        <div className="absolute top-6 left-6 flex items-center gap-3 z-50">
-          <div className="bg-red-600 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase flex items-center gap-2 animate-pulse">
-            <span className="w-1.5 h-1.5 bg-white rounded-full" /> EMISSÃO AO VIVO
-          </div>
-          <div className="bg-black/40 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-[10px] font-bold flex items-center gap-2 border border-white/10">
-            <Eye size={14} /> {remoteUsers.length}
-          </div>
-        </div>
-        <button onClick={onEnd} className="absolute top-6 right-6 bg-red-600/20 hover:bg-red-600 text-white p-2 rounded-xl z-50">
-          <X size={24} />
-        </button>
+    <div className="flex items-stretch gap-3 py-3 border-b last:border-0"
+      style={{ borderColor: "rgba(74,46,10,0.12)" }}>
+      {/* Data */}
+      <div className="flex-shrink-0 w-14 h-14 rounded-xl flex flex-col items-center justify-center shadow-sm"
+        style={{ background: brownLight, border: `1px solid rgba(74,46,10,0.18)` }}>
+        <span className="text-lg font-black leading-none" style={{ color: brown }}>{day}</span>
+        <span className="text-[9px] font-bold tracking-widest" style={{ color: sandDark }}>{month}</span>
       </div>
-      <div className="w-full lg:w-[400px] h-[45vh] lg:h-full shrink-0 flex flex-col">
-        <LiveChat sessionId={sessionId} />
+
+      {/* Thumbnail */}
+      <div className="flex-shrink-0 w-20 h-14 rounded-xl overflow-hidden bg-gray-200">
+        {stream.thumbnail_url
+          ? <img src={stream.thumbnail_url} alt={stream.title} className="w-full h-full object-cover" />
+          : <div className="w-full h-full flex items-center justify-center"
+              style={{ background: `linear-gradient(135deg, ${cream}, ${sand})` }}>
+              <Video className="w-5 h-5" style={{ color: sandDark }} />
+            </div>}
+      </div>
+
+      {/* Info */}
+      <div className="flex-1 min-w-0 flex flex-col justify-between">
+        <div>
+          <div className="flex items-center gap-1 mb-0.5">
+            <Clock className="w-3 h-3 flex-shrink-0" style={{ color: sandDark }} />
+            <span className="text-[11px] font-bold" style={{ color: sandDark }}>{time}</span>
+          </div>
+          <h3 className="text-sm font-black line-clamp-1 mb-0.5" style={{ color: brown }}>{stream.title}</h3>
+          {stream.description && (
+            <p className="text-[11px] line-clamp-1" style={{ color: sandDark }}>{stream.description}</p>
+          )}
+          {/* Seller */}
+          <div className="flex items-center gap-1 mt-1">
+            {stream.seller?.logo_url
+              ? <img src={stream.seller.logo_url} alt={stream.seller.name}
+                  className="w-4 h-4 rounded-full object-cover" />
+              : <div className="w-4 h-4 rounded-full" style={{ background: brownLight }} />}
+            <span className="text-[10px] font-semibold" style={{ color: sandDark }}>
+              {stream.seller?.name || "Vendedor"}
+            </span>
+            {stream.seller?.is_verified && (
+              <Star className="w-2.5 h-2.5" style={{ color: sandDark }} />
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Botão Lembrar */}
+      <div className="flex-shrink-0 flex items-center">
+        <button
+          onClick={() => onRemember(stream.id)}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all"
+          style={{
+            background: remembered ? brownLight : "white",
+            border: `1px solid ${remembered ? sandDark : "rgba(74,46,10,0.20)"}`,
+            color: remembered ? brown : sandDark,
+          }}
+        >
+          <Bell className="w-3.5 h-3.5" />
+          {remembered ? "Lembrando" : "Lembrar"}
+        </button>
       </div>
     </div>
   );
 };
 
-// ─── Audience (espectador) ────────────────────────────────
-const AudienceStream = ({ session, onClose }: { session: any; onClose: () => void }) => {
-  const remoteUsers = useRemoteUsers();
-  useJoin({ appid: APP_ID, channel: session.channel_name, token: null });
-  const hostUser = remoteUsers[0];
-
-  return (
-    <div className="fixed inset-0 z-[100] bg-black flex flex-col lg:flex-row overflow-hidden">
-      <div className="flex-1 relative bg-zinc-950 h-[55vh] lg:h-full">
-        {!hostUser ? (
-          <div className="w-full h-full flex flex-col items-center justify-center text-white">
-            <Loader2 className="animate-spin text-yellow-400 mb-4" size={40} />
-            <p className="font-black uppercase text-[10px] opacity-40">Sintonizando emissão...</p>
-          </div>
-        ) : (
-          <div className="w-full h-full">
-            <RemoteUser user={hostUser} playAudio playVideo />
-          </div>
-        )}
-        <div className="absolute top-6 left-6 flex gap-2 z-50">
-          <div className="bg-red-600 text-white px-3 py-1 rounded-lg text-[10px] font-black uppercase animate-pulse">AO VIVO</div>
-          <div className="bg-black/40 backdrop-blur-md text-white px-3 py-1 rounded-lg text-[10px] font-bold flex items-center gap-2 border border-white/10">
-            <Eye size={12} /> {session.viewer_count + remoteUsers.length}
-          </div>
-        </div>
-        <button onClick={onClose} className="absolute top-6 right-6 p-2 bg-black/40 rounded-full text-white z-50">
-          <X size={24} />
-        </button>
-        <div className="absolute bottom-3 left-3">
-          <span className="px-2 py-1 rounded text-[10px] font-black text-white bg-red-600 mb-1 inline-block">AO VIVO</span>
-          <h2 className="text-lg font-black text-white">{session.title}</h2>
-        </div>
-      </div>
-      <div className="w-full lg:w-[400px] h-[45vh] lg:h-full flex flex-col bg-zinc-950 shrink-0">
-        <LiveChat sessionId={session.id} />
-      </div>
-    </div>
-  );
-};
-
-// ─── Página principal ─────────────────────────────────────
-const Live = () => {
+/* ─────────────────────────────────────────────
+   MODAL — Assistir live
+───────────────────────────────────────────── */
+const WatchModal = ({ stream, onClose }: { stream: any; onClose: () => void }) => {
   const navigate = useNavigate();
-  const { user, userDisplayName } = useAuth();
-  const [activeLive, setActiveLive] = useState<any>(null);
-  const [isHostMode, setIsHostMode] = useState(false);
-  const [hostSessionId, setHostSessionId] = useState<string | null>(null);
-  const [liveTitle, setLiveTitle] = useState("");
-
-  // Lives activas
-  const { data: lives = [] } = useQuery({
-    queryKey: ["live_sessions_active"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("live_sessions")
-        .select("*")
-        .eq("status", "live")
-        .order("started_at", { ascending: false });
-      return data || [];
-    },
-    refetchInterval: 20000,
-  });
-
-  // Próximas lives
-  const { data: upcoming = [] } = useQuery({
-    queryKey: ["live_sessions_upcoming"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("live_sessions")
-        .select("*")
-        .eq("status", "scheduled")
-        .order("scheduled_at", { ascending: true })
-        .limit(4);
-      return data || [];
-    },
-  });
-
-  const handleStartLive = async () => {
-    if (!user || !liveTitle.trim()) return;
-    const channelName = `kisua-live-${user.id}-${Date.now()}`;
-    const { data } = await supabase.from("live_sessions").insert({
-      title: liveTitle,
-      channel_name: channelName,
-      seller_id: user.id,
-      status: "live",
-      started_at: new Date().toISOString(),
-    }).select().single();
-    if (data) {
-      setHostSessionId(data.id);
-      setIsHostMode(true);
-    }
-  };
-
-  const handleEndLive = async () => {
-    if (!hostSessionId) return;
-    await supabase.from("live_sessions").update({ status: "ended", ended_at: new Date().toISOString() }).eq("id", hostSessionId);
-    setIsHostMode(false);
-    setHostSessionId(null);
-  };
-
-  // Host a transmitir
-  if (isHostMode && hostSessionId) {
-    return (
-      <AgoraRTCProvider client={hostClient}>
-        <HostStream sessionId={hostSessionId} onEnd={handleEndLive} />
-      </AgoraRTCProvider>
-    );
-  }
-
-  // Espectador a ver live
-  if (activeLive) {
-    return (
-      <AgoraRTCProvider client={audienceClient}>
-        <AudienceStream session={activeLive} onClose={() => setActiveLive(null)} />
-      </AgoraRTCProvider>
-    );
-  }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white pb-20">
-      <div className="max-w-4xl mx-auto px-4 pt-10">
-
-        {/* Título */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <Radio className="text-red-600 animate-pulse" size={20} />
-              <span className="text-red-600 font-black uppercase tracking-widest text-[9px]">Shopping em Directo</span>
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+      onClick={onClose}>
+      <div
+        className="relative w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl"
+        style={{ background: cream }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4"
+          style={{ background: `linear-gradient(135deg, ${cream}, ${sand})` }}>
+          <div className="flex items-center gap-3">
+            {stream.seller?.logo_url
+              ? <img src={stream.seller.logo_url} alt="" className="w-10 h-10 rounded-full object-cover border-2"
+                  style={{ borderColor: sandDark }} />
+              : <div className="w-10 h-10 rounded-full flex items-center justify-center font-black"
+                  style={{ background: brownLight, color: brown }}>
+                  {(stream.seller?.name || "?").charAt(0)}
+                </div>}
+            <div>
+              <p className="text-xs font-bold" style={{ color: sandDark }}>{stream.seller?.name}</p>
+              <h2 className="text-sm font-black" style={{ color: brown }}>{stream.title}</h2>
             </div>
-            <h1 className="text-3xl md:text-5xl font-black uppercase italic tracking-tighter">
-              Transmissões <br /><span className="text-zinc-600">ao Vivo</span>
-            </h1>
           </div>
+          <button onClick={onClose} className="w-9 h-9 rounded-xl flex items-center justify-center"
+            style={{ background: brownLight }}>
+            <X className="w-4 h-4" style={{ color: brown }} />
+          </button>
+        </div>
 
-          {/* Botão iniciar live — apenas utilizadores autenticados */}
-          {user && (
-            <div className="w-full md:w-auto flex flex-col gap-2">
-              <input
-                type="text"
-                value={liveTitle}
-                onChange={(e) => setLiveTitle(e.target.value)}
-                placeholder="Título da live..."
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-2.5 text-white text-sm outline-none"
-              />
-              <button
-                onClick={handleStartLive}
-                disabled={!liveTitle.trim()}
-                className="w-full bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-2xl font-black text-[11px] uppercase tracking-widest disabled:opacity-30"
-              >
-                Iniciar Emissão
-              </button>
+        {/* Área de vídeo */}
+        <div className="relative aspect-video bg-gray-900 flex items-center justify-center">
+          {stream.stream_url ? (
+            <video src={stream.stream_url} controls autoPlay className="w-full h-full" />
+          ) : (
+            <div className="text-center">
+              <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3"
+                style={{ background: "rgba(245,200,66,0.15)" }}>
+                <Radio className="w-8 h-8" style={{ color: gold }} />
+              </div>
+              <p className="text-white font-bold text-sm">A transmissão está em curso</p>
+              <p className="text-white/50 text-xs mt-1">Aguarde a integração AgoraRTC</p>
+            </div>
+          )}
+          {stream.status === "live" && (
+            <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-lg"
+              style={{ background: "#E53935" }}>
+              <PulseDot color="#fff" />
+              <span className="text-[10px] font-black text-white">AO VIVO</span>
+              <span className="text-[10px] text-white/80 ml-1">
+                <Eye className="w-3 h-3 inline mr-0.5" />
+                {stream.viewers_count}
+              </span>
             </div>
           )}
         </div>
 
-        {/* Lives activas */}
-        {lives.length === 0 ? (
-          <div className="text-center py-24 bg-zinc-900/30 rounded-3xl border-2 border-dashed border-zinc-800">
-            <PlayCircle size={60} className="text-zinc-800 mx-auto mb-4" />
-            <h3 className="text-lg font-black text-zinc-700 uppercase italic">Sem directos no momento</h3>
-            <p className="text-zinc-800 text-[10px] mt-1 font-black uppercase tracking-widest">Fique atento às próximas lives</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
-            {lives.map((live: any) => (
-              <div key={live.id} onClick={() => setActiveLive(live)}
-                className="group cursor-pointer relative aspect-[9/16] bg-zinc-900 rounded-3xl overflow-hidden border border-zinc-800 hover:border-red-600 transition-all duration-500">
-                {live.thumbnail_url
-                  ? <img src={live.thumbnail_url} className="w-full h-full object-cover opacity-60 group-hover:opacity-90 transition-all" />
-                  : <div className="w-full h-full flex items-center justify-center bg-zinc-950"><Radio size={60} className="text-zinc-800" /></div>
-                }
-                <div className="absolute top-4 left-4 flex gap-2">
-                  <div className="bg-red-600 text-white px-3 py-1 rounded-lg text-[10px] font-black uppercase animate-pulse">AO VIVO</div>
-                  <div className="bg-black/60 text-white px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1">
-                    <Eye size={12} /> {live.viewer_count || 0}
-                  </div>
-                </div>
-                <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black via-black/80 to-transparent">
-                  <h3 className="font-black text-white text-lg uppercase italic truncate">{live.title}</h3>
-                </div>
+        {/* Produto em leilão vinculado */}
+        {stream.linked_auction && (
+          <div className="px-5 py-3 flex items-center gap-3"
+            style={{ background: "linear-gradient(135deg, #1a0a00, #3d1f00)" }}>
+            {stream.linked_auction.image_url && (
+              <img src={stream.linked_auction.image_url} alt=""
+                className="w-12 h-12 rounded-xl object-cover flex-shrink-0" />
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <Gavel className="w-3.5 h-3.5 flex-shrink-0" style={{ color: gold }} />
+                <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: gold }}>
+                  Leilão em curso
+                </span>
               </div>
-            ))}
+              <p className="text-sm font-bold text-white line-clamp-1">{stream.linked_auction.title}</p>
+              <p className="text-xs font-black" style={{ color: gold }}>
+                Lance actual: {Number(stream.linked_auction.current_price).toLocaleString("pt-AO")} Kz
+              </p>
+            </div>
+            <button
+              onClick={() => { onClose(); navigate("/leilao"); }}
+              className="flex-shrink-0 px-3 py-2 rounded-xl text-xs font-black text-white flex items-center gap-1.5"
+              style={{ background: `linear-gradient(135deg, ${sandDark}, ${brown})` }}
+            >
+              <Gavel className="w-3.5 h-3.5" />
+              Dar lance
+            </button>
           </div>
         )}
 
-        {/* Próximas lives */}
-        {upcoming.length > 0 && (
+        {stream.description && (
+          <div className="px-5 py-3">
+            <p className="text-sm" style={{ color: sandDark }}>{stream.description}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/* ─────────────────────────────────────────────
+   PÁGINA PRINCIPAL — Live
+───────────────────────────────────────────── */
+const Live = () => {
+  const { user } = useAuth();
+  const navigate  = useNavigate();
+  const qc        = useQueryClient();
+
+  const [searchQuery,  setSearchQuery]  = useState("");
+  const [filterOpen,   setFilterOpen]   = useState(false);
+  const [watchStream,  setWatchStream]  = useState<any>(null);
+  const [remembered,   setRemembered]   = useState<Set<string>>(new Set());
+
+  /* ── Fetch lives ao vivo ── */
+  const { data: liveStreams = [], isLoading: loadingLive } = useQuery({
+    queryKey: ["live_streams_active"],
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("live_streams")
+        .select(`
+          *,
+          seller:sellers(id, name, logo_url, is_verified),
+          linked_auction:auctions(id, title, current_price, image_url, status)
+        `)
+        .eq("status", "live")
+        .order("viewers_count", { ascending: false });
+      return data || [];
+    },
+    refetchInterval: 10000,
+  });
+
+  /* ── Fetch próximas lives ── */
+  const { data: scheduledStreams = [], isLoading: loadingScheduled } = useQuery({
+    queryKey: ["live_streams_scheduled"],
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("live_streams")
+        .select(`
+          *,
+          seller:sellers(id, name, logo_url, is_verified)
+        `)
+        .eq("status", "scheduled")
+        .gte("starts_at", new Date().toISOString())
+        .order("starts_at", { ascending: true })
+        .limit(10);
+      return data || [];
+    },
+    refetchInterval: 30000,
+  });
+
+  /* ── Realtime: novos viewers ── */
+  useEffect(() => {
+    const channel = (supabase as any)
+      .channel("live_streams_realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "live_streams" }, () => {
+        qc.invalidateQueries({ queryKey: ["live_streams_active"] });
+        qc.invalidateQueries({ queryKey: ["live_streams_scheduled"] });
+        qc.invalidateQueries({ queryKey: ["live_active_count"] });
+      })
+      .subscribe();
+    return () => { (supabase as any).removeChannel(channel); };
+  }, [qc]);
+
+  const handleRemember = (id: string) => {
+    if (!user) { navigate("/auth"); return; }
+    setRemembered(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) { next.delete(id); toast.info("Lembrete removido"); }
+      else { next.add(id); toast.success("Vais receber um lembrete antes da live!"); }
+      return next;
+    });
+  };
+
+  /* ── Filtro de pesquisa ── */
+  const filteredLive = liveStreams.filter((s: any) =>
+    !searchQuery ||
+    s.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    s.seller?.name?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredScheduled = scheduledStreams.filter((s: any) =>
+    !searchQuery ||
+    s.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    s.seller?.name?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const isLoading = loadingLive || loadingScheduled;
+
+  return (
+    <div className="min-h-screen" style={{ background: "#faf6f0" }}>
+
+      <style>{`
+        @keyframes livePulse {
+          0%   { box-shadow: 0 0 0 0 currentColor; opacity: 1; }
+          50%  { box-shadow: 0 0 0 6px transparent; opacity: 0.7; }
+          100% { box-shadow: 0 0 0 0 transparent; opacity: 1; }
+        }
+        @keyframes liveGlow {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(229,57,53,0.4); }
+          50%       { box-shadow: 0 0 0 8px rgba(229,57,53,0); }
+        }
+      `}</style>
+
+      {/* ══ HEADER DA PÁGINA ══ */}
+      <div className="sticky top-0 z-40" style={{
+        background: `linear-gradient(160deg, ${cream} 0%, ${sand} 60%, #C9A87C 100%)`,
+        borderBottom: `1px solid rgba(74,46,10,0.15)`,
+        boxShadow: "0 2px 16px rgba(74,46,10,0.12)",
+      }}>
+        {/* Só visível em tablet/desktop — mobile usa a navbar existente */}
+        <div className="hidden md:block max-w-screen-xl mx-auto px-6 py-4">
+          <div className="flex items-center gap-4">
+            {/* Título */}
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl flex items-center justify-center"
+                style={{ background: "rgba(229,57,53,0.12)", border: "1px solid rgba(229,57,53,0.25)" }}>
+                <Radio className="w-5 h-5" style={{ color: "#E53935" }} />
+              </div>
+              <div>
+                <h1 className="text-xl font-black" style={{ color: brown }}>Live</h1>
+                <p className="text-xs" style={{ color: sandDark }}>
+                  Assista, interaja e aproveite ofertas exclusivas em tempo real.
+                </p>
+              </div>
+            </div>
+
+            {/* Barra pesquisa */}
+            <div className="flex-1 flex items-center rounded-2xl overflow-hidden ml-4"
+              style={{ background: "#fff", boxShadow: "0 1px 6px rgba(74,46,10,0.12)" }}>
+              <Search className="w-4 h-4 ml-3 flex-shrink-0" style={{ color: sandDark }} />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Buscar lives, produtos ou vendedores..."
+                className="flex-1 py-2.5 px-3 text-sm bg-transparent focus:outline-none"
+                style={{ color: brown }}
+              />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery("")} className="mr-2">
+                  <X className="w-4 h-4" style={{ color: sandDark }} />
+                </button>
+              )}
+            </div>
+
+            {/* Filtros */}
+            <button
+              onClick={() => setFilterOpen(v => !v)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-bold transition-all"
+              style={{
+                background: filterOpen ? brown : "white",
+                color: filterOpen ? "white" : brown,
+                border: `1px solid rgba(74,46,10,0.20)`,
+              }}
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+              Filtros
+            </button>
+          </div>
+        </div>
+
+        {/* Header mobile simplificado */}
+        <div className="md:hidden px-4 py-3">
+          <div className="flex items-center gap-2">
+            <Radio className="w-5 h-5" style={{ color: "#E53935" }} />
+            <h1 className="text-base font-black" style={{ color: brown }}>Live</h1>
+            {liveStreams.length > 0 && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-black text-white"
+                style={{ background: "#E53935" }}>
+                {liveStreams.length} ao vivo
+              </span>
+            )}
+          </div>
+          <div className="mt-2 flex items-center rounded-xl overflow-hidden"
+            style={{ background: "#fff", boxShadow: "0 1px 4px rgba(74,46,10,0.10)" }}>
+            <Search className="w-4 h-4 ml-3 flex-shrink-0" style={{ color: sandDark }} />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Buscar lives, produtos ou vendedores..."
+              className="flex-1 py-2 px-2.5 text-sm bg-transparent focus:outline-none"
+              style={{ color: brown }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* ══ CONTEÚDO ══ */}
+      <div className="max-w-screen-xl mx-auto px-4 md:px-6 py-5">
+
+        {isLoading && (
+          <div className="flex justify-center py-16">
+            <Loader2 className="w-8 h-8 animate-spin" style={{ color: sandDark }} />
+          </div>
+        )}
+
+        {!isLoading && (
           <>
-            <h2 className="text-sm font-black uppercase tracking-widest flex items-center gap-2 mb-4">
-              <Radio size={16} className="text-yellow-400" /> Transmissões em Breve
-            </h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-10">
-              {upcoming.map((s: any) => (
-                <div key={s.id} className="rounded-xl overflow-hidden relative bg-zinc-900 aspect-[4/3]">
-                  {s.thumbnail_url
-                    ? <img src={s.thumbnail_url} className="w-full h-full object-cover opacity-50" />
-                    : <div className="w-full h-full flex items-center justify-center"><Radio size={30} className="text-zinc-700" /></div>
-                  }
-                  <span className="absolute top-2 right-2 px-2 py-0.5 rounded text-[9px] font-black text-black bg-yellow-400">EM BREVE</span>
-                  <div className="absolute bottom-2 left-2">
-                    <h3 className="text-xs font-black text-white">{s.title}</h3>
+            {/* ── SECÇÃO: Ao vivo agora ── */}
+            <section className="mb-8">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  {/* Ícone pulsante */}
+                  <span className="relative flex items-center justify-center">
+                    <span className="w-3 h-3 rounded-full absolute" style={{
+                      background: "#E53935", opacity: 0.4,
+                      animation: "liveGlow 1.4s ease-in-out infinite",
+                    }} />
+                    <span className="w-3 h-3 rounded-full" style={{ background: "#E53935" }} />
+                  </span>
+                  <h2 className="text-base font-black" style={{ color: brown }}>Ao vivo agora</h2>
+                  {filteredLive.length > 0 && (
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-full"
+                      style={{ background: "rgba(229,57,53,0.10)", color: "#E53935" }}>
+                      {filteredLive.length}
+                    </span>
+                  )}
+                </div>
+                {filteredLive.length > 3 && (
+                  <button className="flex items-center gap-1 text-xs font-bold"
+                    style={{ color: sandDark }}>
+                    Ver todas <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {filteredLive.length === 0 ? (
+                <div className="rounded-2xl py-12 text-center"
+                  style={{ background: cream, border: `1px dashed rgba(74,46,10,0.20)` }}>
+                  <Radio className="w-10 h-10 mx-auto mb-3" style={{ color: sandDark, opacity: 0.5 }} />
+                  <p className="text-sm font-bold" style={{ color: sandDark }}>
+                    {searchQuery ? "Sem resultados para a pesquisa" : "Nenhuma live ao vivo agora"}
+                  </p>
+                  <p className="text-xs mt-1" style={{ color: sandDark, opacity: 0.7 }}>
+                    Confira as próximas lives abaixo!
+                  </p>
+                </div>
+              ) : (
+                /* Grid responsivo: 1 col mobile, 2 tablet, 3 desktop */
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredLive.map((stream: any) => (
+                    <LiveCard
+                      key={stream.id}
+                      stream={stream}
+                      onClick={() => setWatchStream(stream)}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* ── Banner CTA vendedor ── */}
+            {user && (
+              <section className="mb-8">
+                <div
+                  className="rounded-2xl p-5 md:p-6 flex flex-col md:flex-row items-start md:items-center gap-4"
+                  style={{ background: `linear-gradient(135deg, ${brown} 0%, #2d1206 100%)` }}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
+                      style={{ background: "rgba(245,200,66,0.15)" }}>
+                      <Video className="w-6 h-6" style={{ color: gold }} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-black text-white">Vai ao vivo agora!</h3>
+                      <p className="text-xs text-white/70 mt-0.5">
+                        Partilha os teus produtos, faz leilões em directo e aumenta as tuas vendas.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 md:ml-auto flex-shrink-0">
+                    <button
+                      onClick={() => navigate("/painel-vendedor")}
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black"
+                      style={{ background: gold, color: brown }}
+                    >
+                      <Zap className="w-3.5 h-3.5" />
+                      Iniciar live
+                    </button>
+                    <button
+                      onClick={() => navigate("/painel-vendedor")}
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white"
+                      style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.20)" }}
+                    >
+                      Agendar
+                    </button>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* ── SECÇÃO: Próximas lives ── */}
+            <section className="mb-8">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4" style={{ color: sandDark }} />
+                  <h2 className="text-base font-black" style={{ color: brown }}>Próximas lives</h2>
+                </div>
+                {filteredScheduled.length > 5 && (
+                  <button className="flex items-center gap-1 text-xs font-bold" style={{ color: sandDark }}>
+                    Ver todas <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {filteredScheduled.length === 0 ? (
+                <div className="rounded-2xl py-10 text-center"
+                  style={{ background: cream, border: `1px dashed rgba(74,46,10,0.20)` }}>
+                  <Calendar className="w-8 h-8 mx-auto mb-2" style={{ color: sandDark, opacity: 0.5 }} />
+                  <p className="text-sm font-bold" style={{ color: sandDark }}>
+                    Sem próximas lives agendadas
+                  </p>
+                </div>
+              ) : (
+                /* Layout 2 colunas em desktop para aproveitar espaço */
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 rounded-2xl px-5 py-2"
+                  style={{ background: cream, border: `1px solid rgba(74,46,10,0.12)` }}>
+                  {filteredScheduled.map((stream: any) => (
+                    <ScheduledCard
+                      key={stream.id}
+                      stream={stream}
+                      onRemember={handleRemember}
+                      remembered={remembered.has(stream.id)}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* ── Estatísticas / info ── */}
+            <section className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+              {[
+                { icon: Radio,      label: "Ao vivo agora",     value: liveStreams.length,    color: "#E53935" },
+                { icon: Calendar,   label: "Próximas lives",    value: scheduledStreams.length, color: sandDark },
+                { icon: Users,      label: "Espectadores total",
+                  value: liveStreams.reduce((acc: number, s: any) => acc + (s.viewers_count || 0), 0),
+                  color: brown },
+                { icon: ShoppingBag, label: "Com leilão activo",
+                  value: liveStreams.filter((s: any) => s.linked_auction).length,
+                  color: gold },
+              ].map(stat => (
+                <div key={stat.label} className="rounded-2xl p-4 flex items-center gap-3"
+                  style={{ background: cream, border: `1px solid rgba(74,46,10,0.12)` }}>
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{ background: `${stat.color}18`, border: `1px solid ${stat.color}30` }}>
+                    <stat.icon className="w-5 h-5" style={{ color: stat.color }} />
+                  </div>
+                  <div>
+                    <p className="text-lg font-black" style={{ color: brown }}>{stat.value}</p>
+                    <p className="text-[10px]" style={{ color: sandDark }}>{stat.label}</p>
                   </div>
                 </div>
               ))}
-            </div>
+            </section>
           </>
         )}
-
-        {/* CTA */}
-        <div className="rounded-2xl p-6 text-center" style={{ background: "linear-gradient(135deg, hsl(30 50% 10%) 0%, hsl(35 60% 18%) 100%)" }}>
-          <Bell className="w-8 h-8 text-yellow-400 mx-auto mb-2" />
-          <h2 className="text-base font-black text-yellow-400 uppercase">Não perca as próximas lives!</h2>
-          {!user && (
-            <button onClick={() => navigate("/auth")} className="mt-3 px-8 py-2.5 rounded-xl text-sm font-black bg-yellow-400 text-black hover:bg-yellow-300 transition">
-              Cadastre-se
-            </button>
-          )}
-        </div>
       </div>
+
+      <Footer />
+
+      {/* ── Modal assistir live ── */}
+      {watchStream && (
+        <WatchModal stream={watchStream} onClose={() => setWatchStream(null)} />
+      )}
     </div>
   );
 };
 
+export { LiveBadge, PulseDot };
 export default Live;
