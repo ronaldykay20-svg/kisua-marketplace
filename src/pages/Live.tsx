@@ -18,9 +18,6 @@ import { toast } from "sonner";
    AGORA CONFIG
 ───────────────────────────────────────────── */
 const AGORA_APP_ID = "0503d343fd7e416fb8b594e53470cc1e";
-// O certificado primário é usado no servidor para gerar tokens.
-// No cliente usamos apenas o APP_ID + canal. Para produção,
-// gera tokens no backend com o certificado: da7e8c601c3149a4ae9169c350862d49
 
 /* ─────────────────────────────────────────────
    CORES DO PROJECTO
@@ -163,29 +160,15 @@ const useAgoraStream = () => {
   const startStream = async (channel: string, localVideoEl: HTMLElement) => {
     try {
       setError(null);
-
-      // Importa o SDK Agora dinamicamente (deve estar instalado: npm i agora-rtc-sdk-ng)
       const AgoraRTC = (await import("agora-rtc-sdk-ng")).default;
-
       const client = AgoraRTC.createClient({ mode: "live", codec: "vp8" });
       clientRef.current = client;
-
-      // Host
       await client.setClientRole("host");
-
-      // Junta-se ao canal — sem token (modo de teste; usa token em produção)
       await client.join(AGORA_APP_ID, channel, null, null);
-
-      // Cria tracks locais de câmara e microfone
       const [micTrack, camTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
       localTracksRef.current = [micTrack, camTrack];
-
-      // Pré-visualiza localmente
       camTrack.play(localVideoEl);
-
-      // Publica no canal
       await client.publish([micTrack, camTrack]);
-
       setIsStreaming(true);
       return true;
     } catch (err: any) {
@@ -252,7 +235,6 @@ const GoLiveModal = ({
   const [streamId,   setStreamId]   = useState<string | null>(null);
   const [step,       setStep]       = useState<"form" | "live">("form");
 
-  // Gera um nome de canal único baseado no user id + timestamp
   const channelName = useRef(`live-${user?.id?.slice(0, 8)}-${Date.now()}`).current;
 
   const handleGoLive = async () => {
@@ -261,6 +243,20 @@ const GoLiveModal = ({
 
     setLoading(true);
     try {
+      // ── CORRECÇÃO: buscar o seller_id real a partir do user_id ──
+      const { data: sellerData, error: sellerErr } = await (supabase as any)
+        .from("sellers")
+        .select("id")
+        .eq("user_id", user?.id)
+        .single();
+
+      if (sellerErr || !sellerData) {
+        toast.error("Não foi encontrado um vendedor associado à tua conta");
+        setLoading(false);
+        return;
+      }
+      const sellerId = sellerData.id;
+
       let thumbnail_url: string | null = null;
 
       if (coverFile) {
@@ -277,7 +273,7 @@ const GoLiveModal = ({
       const { data: inserted, error: dbErr } = await (supabase as any)
         .from("live_streams")
         .insert({
-          seller_id:          user?.id,
+          seller_id:          sellerId,   // ← corrigido
           title:              title.trim(),
           description:        desc.trim() || null,
           thumbnail_url,
@@ -293,11 +289,9 @@ const GoLiveModal = ({
 
       setStreamId(inserted.id);
 
-      // Inicia o stream Agora
       if (localVideoRef.current) {
         const ok = await startStream(channelName, localVideoRef.current);
         if (!ok) {
-          // Reverte o registo se o Agora falhar
           await (supabase as any).from("live_streams").delete().eq("id", inserted.id);
           setLoading(false);
           return;
@@ -334,17 +328,14 @@ const GoLiveModal = ({
     return (
       <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4">
         <div className="relative w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl bg-black">
-          {/* Vídeo local */}
           <div ref={localVideoRef} className="w-full aspect-video bg-gray-900" />
 
-          {/* Badge AO VIVO */}
           <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-lg"
             style={{ background: "#E53935" }}>
             <PulseDot color="#fff" />
             <span className="text-[10px] font-black text-white">AO VIVO</span>
           </div>
 
-          {/* Controlos */}
           <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center gap-4 py-4"
             style={{ background: "linear-gradient(to top, rgba(0,0,0,0.85), transparent)" }}>
             <button
@@ -370,7 +361,6 @@ const GoLiveModal = ({
             </button>
           </div>
 
-          {/* Título no topo */}
           <div className="absolute top-3 right-3 px-3 py-1.5 rounded-xl"
             style={{ background: "rgba(0,0,0,0.65)" }}>
             <p className="text-xs font-bold text-white truncate max-w-[200px]">{title}</p>
@@ -389,7 +379,6 @@ const GoLiveModal = ({
         style={{ background: cream, maxHeight: "90vh", overflowY: "auto" }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4"
           style={{ background: "linear-gradient(135deg, #E53935 0%, #b71c1c 100%)" }}>
           <div className="flex items-center gap-3">
@@ -403,7 +392,6 @@ const GoLiveModal = ({
         </div>
 
         <div className="px-6 py-5">
-          {/* Aviso Agora */}
           <div className="mb-5 px-4 py-3 rounded-2xl flex items-start gap-3"
             style={{ background: "rgba(229,57,53,0.07)", border: "1px solid rgba(229,57,53,0.20)" }}>
             <MonitorPlay className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: "#E53935" }} />
@@ -412,13 +400,11 @@ const GoLiveModal = ({
             </p>
           </div>
 
-          {/* Capa */}
           <CoverUpload
             value={coverUrl}
             onChange={(url, file) => { setCoverUrl(url); setCoverFile(file); }}
           />
 
-          {/* Título */}
           <div className="mb-4">
             <label className="block text-xs font-black mb-1.5 uppercase tracking-wider" style={{ color: brown }}>
               Título <span style={{ color: "#E53935" }}>*</span>
@@ -434,7 +420,6 @@ const GoLiveModal = ({
             />
           </div>
 
-          {/* Descrição */}
           <div className="mb-4">
             <label className="block text-xs font-black mb-1.5 uppercase tracking-wider" style={{ color: brown }}>
               Descrição
@@ -450,7 +435,6 @@ const GoLiveModal = ({
             />
           </div>
 
-          {/* Vincular leilão */}
           {auctions.length > 0 && (
             <div className="mb-4">
               <label className="block text-xs font-black mb-1.5 uppercase tracking-wider" style={{ color: brown }}>
@@ -471,7 +455,6 @@ const GoLiveModal = ({
             </div>
           )}
 
-          {/* Vincular produto */}
           {products.length > 0 && (
             <div className="mb-6">
               <label className="block text-xs font-black mb-1.5 uppercase tracking-wider" style={{ color: brown }}>
@@ -492,7 +475,6 @@ const GoLiveModal = ({
             </div>
           )}
 
-          {/* Erro Agora */}
           {error && (
             <div className="mb-4 px-4 py-3 rounded-2xl text-xs font-semibold"
               style={{ background: "rgba(229,57,53,0.10)", color: "#E53935", border: "1px solid rgba(229,57,53,0.25)" }}>
@@ -500,7 +482,6 @@ const GoLiveModal = ({
             </div>
           )}
 
-          {/* Botão */}
           <button
             onClick={handleGoLive}
             disabled={loading}
@@ -566,10 +547,23 @@ const ScheduleModal = ({
 
     setLoading(true);
     try {
+      // ── CORRECÇÃO: buscar o seller_id real a partir do user_id ──
+      const { data: sellerData, error: sellerErr } = await (supabase as any)
+        .from("sellers")
+        .select("id")
+        .eq("user_id", user?.id)
+        .single();
+
+      if (sellerErr || !sellerData) {
+        toast.error("Não foi encontrado um vendedor associado à tua conta");
+        setLoading(false);
+        return;
+      }
+      const sellerId = sellerData.id;
+
       let thumbnail_url: string | null = null;
       let preview_video_url: string | null = null;
 
-      /* Upload capa */
       if (coverFile) {
         const ext  = coverFile.name.split(".").pop();
         const path = `live-covers/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
@@ -580,7 +574,6 @@ const ScheduleModal = ({
         thumbnail_url = urlData?.publicUrl ?? null;
       }
 
-      /* Upload vídeo de pré-visualização */
       if (videoFile) {
         const ext  = videoFile.name.split(".").pop();
         const path = `live-previews/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
@@ -592,7 +585,7 @@ const ScheduleModal = ({
       }
 
       const { error } = await (supabase as any).from("live_streams").insert({
-        seller_id:          user?.id,
+        seller_id:          sellerId,   // ← corrigido
         title:              title.trim(),
         description:        desc.trim() || null,
         thumbnail_url,
@@ -638,7 +631,6 @@ const ScheduleModal = ({
         style={{ background: cream, maxHeight: "90vh", overflowY: "auto" }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4"
           style={{ background: `linear-gradient(135deg, ${sandDark} 0%, ${brown} 100%)` }}>
           <div className="flex items-center gap-3">
@@ -652,13 +644,11 @@ const ScheduleModal = ({
         </div>
 
         <div className="px-6 py-5">
-          {/* Capa */}
           <CoverUpload
             value={coverUrl}
             onChange={(url, file) => { setCoverUrl(url); setCoverFile(file); }}
           />
 
-          {/* Vídeo de pré-visualização */}
           <div className="mb-5">
             <label className="block text-xs font-black mb-2 uppercase tracking-wider" style={{ color: brown }}>
               Vídeo de pré-visualização <span className="text-[10px] font-normal normal-case" style={{ color: sandDark }}>(opcional)</span>
@@ -697,7 +687,6 @@ const ScheduleModal = ({
             />
           </div>
 
-          {/* Título */}
           <div className="mb-4">
             <label className="block text-xs font-black mb-1.5 uppercase tracking-wider" style={{ color: brown }}>
               Título <span style={{ color: "#E53935" }}>*</span>
@@ -713,7 +702,6 @@ const ScheduleModal = ({
             />
           </div>
 
-          {/* Data e hora */}
           <div className="mb-4">
             <label className="block text-xs font-black mb-1.5 uppercase tracking-wider" style={{ color: brown }}>
               Data e hora <span style={{ color: "#E53935" }}>*</span>
@@ -728,7 +716,6 @@ const ScheduleModal = ({
             />
           </div>
 
-          {/* Descrição */}
           <div className="mb-4">
             <label className="block text-xs font-black mb-1.5 uppercase tracking-wider" style={{ color: brown }}>
               Descrição
@@ -744,7 +731,6 @@ const ScheduleModal = ({
             />
           </div>
 
-          {/* Vincular leilão */}
           {auctions.length > 0 && (
             <div className="mb-4">
               <label className="block text-xs font-black mb-1.5 uppercase tracking-wider" style={{ color: brown }}>
@@ -765,7 +751,6 @@ const ScheduleModal = ({
             </div>
           )}
 
-          {/* Vincular produto */}
           {products.length > 0 && (
             <div className="mb-6">
               <label className="block text-xs font-black mb-1.5 uppercase tracking-wider" style={{ color: brown }}>
@@ -786,7 +771,6 @@ const ScheduleModal = ({
             </div>
           )}
 
-          {/* Botão */}
           <button
             onClick={handleSubmit}
             disabled={loading}
@@ -926,7 +910,6 @@ const ScheduledCard = ({
           {stream.description && (
             <p className="text-[11px] line-clamp-1" style={{ color: sandDark }}>{stream.description}</p>
           )}
-          {/* Produto vinculado */}
           {stream.linked_product && (
             <div className="flex items-center gap-1 mt-0.5">
               <ShoppingBag className="w-3 h-3 flex-shrink-0" style={{ color: sandDark }} />
@@ -1034,7 +1017,6 @@ const WatchModal = ({ stream, onClose }: { stream: any; onClose: () => void }) =
           </button>
         </div>
 
-        {/* Vídeo remoto Agora ou fallback */}
         <div className="relative aspect-video bg-gray-900 flex items-center justify-center">
           {stream.channel_name ? (
             <div ref={remoteVideoRef} className="w-full h-full" />
@@ -1100,7 +1082,6 @@ const WatchModal = ({ stream, onClose }: { stream: any; onClose: () => void }) =
           </div>
         )}
 
-        {/* Produto vinculado */}
         {stream.linked_product && (
           <div className="px-5 py-3 flex items-center gap-3"
             style={{ background: `linear-gradient(135deg, ${brownLight}, rgba(74,46,10,0.05))` }}>
@@ -1174,7 +1155,6 @@ const Live = () => {
   const [showGoLive,     setShowGoLive]     = useState(false);
   const [showSchedule,   setShowSchedule]   = useState(false);
 
-  /* Fetch lives ao vivo */
   const { data: liveStreams = [], isLoading: loadingLive } = useQuery({
     queryKey: ["live_streams_active"],
     queryFn: async () => {
@@ -1193,7 +1173,6 @@ const Live = () => {
     refetchInterval: 10000,
   });
 
-  /* Fetch próximas lives */
   const { data: scheduledStreams = [], isLoading: loadingScheduled } = useQuery({
     queryKey: ["live_streams_scheduled"],
     queryFn: async () => {
@@ -1213,7 +1192,6 @@ const Live = () => {
     refetchInterval: 30000,
   });
 
-  /* Fetch leilões activos do vendedor */
   const { data: myAuctions = [] } = useQuery({
     queryKey: ["my_auctions_active", user?.id],
     queryFn: async () => {
@@ -1228,12 +1206,10 @@ const Live = () => {
     enabled: canPublish && !!user?.id,
   });
 
-  /* Fetch produtos activos do vendedor */
   const { data: myProducts = [] } = useQuery({
     queryKey: ["my_products_active", user?.id],
     queryFn: async () => {
       if (!canPublish || !user?.id) return [];
-      // Tenta primeiro pela tabela "products", depois "listings" se não houver dados
       const { data } = await (supabase as any)
         .from("products")
         .select("id, name, title")
@@ -1245,7 +1221,6 @@ const Live = () => {
     enabled: canPublish && !!user?.id,
   });
 
-  /* Realtime */
   useEffect(() => {
     const channel = (supabase as any)
       .channel("live_streams_realtime")
@@ -1415,7 +1390,6 @@ const Live = () => {
 
         {!isLoading && (
           <>
-            {/* Secção: Ao vivo agora */}
             <section className="mb-8">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
@@ -1461,7 +1435,6 @@ const Live = () => {
               )}
             </section>
 
-            {/* Banner CTA — APENAS vendedores/admins */}
             {canPublish && (
               <section className="mb-8">
                 <div className="rounded-2xl p-5 md:p-6 flex flex-col md:flex-row items-start md:items-center gap-4"
@@ -1498,7 +1471,6 @@ const Live = () => {
               </section>
             )}
 
-            {/* Secção: Próximas lives */}
             <section className="mb-8">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
@@ -1533,7 +1505,6 @@ const Live = () => {
               )}
             </section>
 
-            {/* Estatísticas */}
             <section className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
               {[
                 { icon: Radio,       label: "Ao vivo agora",      value: liveStreams.length,    color: "#E53935" },
@@ -1564,7 +1535,6 @@ const Live = () => {
 
       <Footer />
 
-      {/* Modais */}
       {watchStream  && <WatchModal stream={watchStream} onClose={() => setWatchStream(null)} />}
       {showGoLive   && canPublish && (
         <GoLiveModal
