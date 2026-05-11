@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserRole } from "@/hooks/useUserRole";
 import Footer from "@/components/Footer";
 import {
   Radio, Search, SlidersHorizontal, Bell, Play, Eye,
@@ -21,17 +22,6 @@ const cream      = "#F7F0E6";
 const brown      = "#4A2E0A";
 const brownLight = "rgba(74,46,10,0.10)";
 const gold       = "#f5c842";
-
-/* ─────────────────────────────────────────────
-   HELPER — verifica se é vendedor ou admin
-   Ajusta os campos conforme o teu schema real.
-───────────────────────────────────────────── */
-const isSeller = (user: any) =>
-  user?.role === "seller" ||
-  user?.role === "admin" ||
-  user?.is_seller === true ||
-  user?.user_metadata?.role === "seller" ||
-  user?.user_metadata?.role === "admin";
 
 /* ─────────────────────────────────────────────
    HOOK: contagem de lives ao vivo
@@ -800,7 +790,25 @@ const Live = () => {
   const { user }  = useAuth();
   const navigate  = useNavigate();
   const qc        = useQueryClient();
-  const canPublish = isSeller(user); // ← guard central
+
+  // ── VERIFICAÇÃO REAL: consulta a tabela sellers (igual ao MinhaConta) ──
+  const { isAdmin } = useUserRole();
+
+  const { data: isSellerData = false } = useQuery({
+    queryKey: ["is_seller", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("sellers")
+        .select("id")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      return !!data;
+    },
+    enabled: !!user,
+  });
+
+  const canPublish = isSellerData || isAdmin;
+  // ────────────────────────────────────────────────────────────────────────
 
   const [searchQuery,    setSearchQuery]    = useState("");
   const [filterOpen,     setFilterOpen]     = useState(false);
@@ -990,7 +998,7 @@ const Live = () => {
                 </span>
               )}
             </div>
-            {/* Botões mobile — só vendedores */}
+            {/* Botões mobile — só vendedores/admins */}
             {canPublish && (
               <div className="flex items-center gap-2">
                 <button
