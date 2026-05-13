@@ -55,9 +55,8 @@ export const useLiveCount = () =>
 ───────────────────────────────────────────── */
 const VIDEO_EXPIRY_DAYS = 7;
 
-/** true se o vídeo ainda não expirou */
+/** true se o vídeo ainda não expirou — permite "ended" com vídeo */
 const videoStillAvailable = (stream: any): boolean => {
-  if (stream.status === "ended") return false;
   if (!stream.preview_video_url) return false;
   const base = stream.starts_at ?? stream.created_at;
   if (!base) return true;
@@ -224,13 +223,11 @@ const ScheduleModal = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Tamanho máximo: 500 MB (10 min de vídeo razoável)
     if (file.size > 500 * 1024 * 1024) {
       toast.error("O vídeo não pode ter mais de 500 MB");
       return;
     }
 
-    // Verifica duração antes de aceitar o ficheiro
     try {
       const duration = await getVideoDuration(file);
       if (duration > MAX_VIDEO_SECONDS) {
@@ -238,7 +235,6 @@ const ScheduleModal = ({
           `O vídeo tem ${formatDuration(duration)} — o limite é 10 minutos. Por favor, usa um vídeo mais curto.`,
           { duration: 5000 }
         );
-        // Limpa o input para permitir nova selecção
         if (videoInputRef.current) videoInputRef.current.value = "";
         return;
       }
@@ -319,7 +315,6 @@ const ScheduleModal = ({
     }
   };
 
-  /* Ecrã de sucesso */
   if (done) return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={onClose}>
       <div className="w-full max-w-sm rounded-3xl p-8 text-center shadow-2xl" style={{ background: cream }} onClick={(e) => e.stopPropagation()}>
@@ -345,7 +340,6 @@ const ScheduleModal = ({
         style={{ background: cream, maxHeight: "90vh", overflowY: "auto" }}
         onClick={(e) => e.stopPropagation()}>
 
-        {/* header */}
         <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4"
           style={{ background: `linear-gradient(135deg, ${sandDark} 0%, ${brown} 100%)` }}>
           <div className="flex items-center gap-3">
@@ -361,20 +355,18 @@ const ScheduleModal = ({
         <div className="px-6 py-5">
           <CoverUpload value={coverUrl} onChange={(url, file) => { setCoverUrl(url); setCoverFile(file); }} />
 
-          {/* vídeo de pré-visualização */}
           <div className="mb-5">
             <label className="block text-xs font-black mb-2 uppercase tracking-wider" style={{ color: brown }}>
               Vídeo de pré-visualização{" "}
               <span className="text-[10px] font-normal normal-case" style={{ color: sandDark }}>(opcional · máx. 10 min)</span>
             </label>
 
-            {/* aviso sobre o vídeo desaparecer após a live */}
             <div className="mb-3 px-3 py-2.5 rounded-xl flex items-start gap-2"
               style={{ background: "rgba(74,46,10,0.07)", border: "1px solid rgba(74,46,10,0.15)" }}>
               <VideoOff className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" style={{ color: sandDark }} />
               <p className="text-[11px]" style={{ color: brown }}>
-                Este vídeo será exibido apenas enquanto a live estiver agendada.
-                <strong> Após a live terminar, o vídeo não será mais visível.</strong>
+                Este vídeo será exibido enquanto a live estiver agendada e também após terminar.
+                <strong> Ficará disponível durante 7 dias a contar da data do lançamento.</strong>
               </p>
             </div>
 
@@ -416,7 +408,6 @@ const ScheduleModal = ({
               className="hidden" onChange={handleVideoFile} />
           </div>
 
-          {/* título */}
           <div className="mb-4">
             <label className="block text-xs font-black mb-1.5 uppercase tracking-wider" style={{ color: brown }}>
               Título <span style={{ color: "#E53935" }}>*</span>
@@ -427,7 +418,6 @@ const ScheduleModal = ({
               style={{ background: "#fff", border: `1.5px solid rgba(74,46,10,0.18)`, color: brown }} />
           </div>
 
-          {/* data/hora */}
           <div className="mb-4">
             <label className="block text-xs font-black mb-1.5 uppercase tracking-wider" style={{ color: brown }}>
               Data e hora <span style={{ color: "#E53935" }}>*</span>
@@ -438,7 +428,6 @@ const ScheduleModal = ({
               style={{ background: "#fff", border: `1.5px solid rgba(74,46,10,0.18)`, color: brown }} />
           </div>
 
-          {/* descrição */}
           <div className="mb-4">
             <label className="block text-xs font-black mb-1.5 uppercase tracking-wider" style={{ color: brown }}>Descrição</label>
             <textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={3} maxLength={300}
@@ -447,7 +436,6 @@ const ScheduleModal = ({
               style={{ background: "#fff", border: `1.5px solid rgba(74,46,10,0.18)`, color: brown }} />
           </div>
 
-          {/* leilão */}
           {auctions.length > 0 && (
             <div className="mb-4">
               <label className="block text-xs font-black mb-1.5 uppercase tracking-wider" style={{ color: brown }}>
@@ -463,7 +451,6 @@ const ScheduleModal = ({
             </div>
           )}
 
-          {/* produto */}
           {products.length > 0 && (
             <div className="mb-6">
               <label className="block text-xs font-black mb-1.5 uppercase tracking-wider" style={{ color: brown }}>
@@ -508,13 +495,11 @@ const LiveCard = ({ stream, onClick }: { stream: any; onClick: () => void }) => 
 
       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300" />
 
-      {/* badge AO VIVO */}
       <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-1 rounded-lg" style={{ background: "#E53935" }}>
         <PulseDot color="#fff" />
         <span className="text-[10px] font-black text-white tracking-wider">AO VIVO</span>
       </div>
 
-      {/* espectadores */}
       <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-lg" style={{ background: "rgba(0,0,0,0.65)" }}>
         <Eye className="w-3 h-3 text-white" />
         <span className="text-[10px] font-bold text-white">
@@ -522,14 +507,12 @@ const LiveCard = ({ stream, onClick }: { stream: any; onClick: () => void }) => 
         </span>
       </div>
 
-      {/* play hover */}
       <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
         <div className="w-14 h-14 rounded-full flex items-center justify-center shadow-xl" style={{ background: "rgba(255,255,255,0.92)" }}>
           <Play className="w-6 h-6 ml-1" style={{ color: brown }} />
         </div>
       </div>
 
-      {/* leilão vinculado */}
       {stream.linked_auction && (
         <div className="absolute bottom-0 left-0 right-0 px-3 py-2 flex items-center gap-2"
           style={{ background: "linear-gradient(to top,rgba(0,0,0,0.85),transparent)" }}>
@@ -580,13 +563,11 @@ const ScheduledCard = ({
 
   return (
     <div className="flex items-stretch gap-3 py-3 border-b last:border-0" style={{ borderColor: "rgba(74,46,10,0.12)" }}>
-      {/* data */}
       <div className="flex-shrink-0 w-14 h-14 rounded-xl flex flex-col items-center justify-center shadow-sm"
         style={{ background: brownLight, border: `1px solid rgba(74,46,10,0.18)` }}>
         <span className="text-lg font-black leading-none" style={{ color: brown }}>{day}</span>
         <span className="text-[9px] font-bold tracking-widest" style={{ color: sandDark }}>{month}</span>
       </div>
-      {/* thumbnail clicável se tiver vídeo */}
       <div
         className={`flex-shrink-0 w-20 h-14 rounded-xl overflow-hidden relative ${hasVideo ? "cursor-pointer group" : ""}`}
         onClick={hasVideo ? onClick : undefined}>
@@ -601,7 +582,6 @@ const ScheduledCard = ({
           </div>
         )}
       </div>
-      {/* info */}
       <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
         <div className="flex items-center gap-1 flex-wrap">
           <Clock className="w-3 h-3 flex-shrink-0" style={{ color: sandDark }} />
@@ -634,7 +614,6 @@ const ScheduledCard = ({
           {stream.seller?.is_verified && <Star className="w-2.5 h-2.5" style={{ color: sandDark }} />}
         </div>
       </div>
-      {/* acções */}
       <div className="flex-shrink-0 flex flex-col items-end justify-center gap-1.5">
         {hasVideo && (
           <button onClick={onClick}
@@ -659,47 +638,64 @@ const ScheduledCard = ({
 };
 
 /* ─────────────────────────────────────────────
-   CARD — Live terminada
+   CARD — Live terminada — agora clicável se tiver vídeo
 ───────────────────────────────────────────── */
-const EndedCard = ({ stream }: { stream: any }) => (
-  <div className="rounded-2xl overflow-hidden border bg-card" style={{ borderColor: "rgba(74,46,10,0.12)", opacity: 0.82 }}>
-    <div className="relative aspect-video overflow-hidden bg-muted">
-      {stream.thumbnail_url
-        ? <img src={stream.thumbnail_url} alt={stream.title} className="w-full h-full object-cover grayscale" loading="lazy" />
-        : <div className="w-full h-full flex items-center justify-center" style={{ background: "linear-gradient(135deg,#1a0a00,#3d1f00)" }}>
-            <Video className="w-8 h-8 opacity-20 text-white" />
-          </div>}
-      <span className="absolute top-2 left-2 px-2 py-0.5 rounded-lg text-[9px] font-black text-white"
-        style={{ background: "rgba(60,60,60,0.85)" }}>TERMINADA</span>
-    </div>
-    <div className="p-3" style={{ background: cream }}>
-      <div className="flex items-center gap-1.5 mb-1">
-        {stream.seller?.logo_url
-          ? <img src={stream.seller.logo_url} alt="" className="w-5 h-5 rounded-full object-cover" />
-          : <div className="w-5 h-5 rounded-full" style={{ background: brownLight }} />}
-        <span className="text-[10px] font-semibold" style={{ color: sandDark }}>{stream.seller?.name || "Vendedor"}</span>
+const EndedCard = ({ stream, onClick }: { stream: any; onClick: () => void }) => {
+  const hasVideo = videoStillAvailable(stream);
+  return (
+    <div
+      onClick={hasVideo ? onClick : undefined}
+      className={`rounded-2xl overflow-hidden border bg-card transition-all duration-200 ${hasVideo ? "cursor-pointer hover:shadow-lg hover:-translate-y-0.5" : ""}`}
+      style={{ borderColor: "rgba(74,46,10,0.12)", opacity: hasVideo ? 1 : 0.75 }}>
+      <div className="relative aspect-video overflow-hidden bg-muted">
+        {stream.thumbnail_url
+          ? <img src={stream.thumbnail_url} alt={stream.title} className={`w-full h-full object-cover ${hasVideo ? "" : "grayscale"}`} loading="lazy" />
+          : <div className="w-full h-full flex items-center justify-center" style={{ background: "linear-gradient(135deg,#1a0a00,#3d1f00)" }}>
+              <Video className="w-8 h-8 opacity-20 text-white" />
+            </div>}
+
+        {/* overlay de play ao hover se tiver vídeo */}
+        {hasVideo && (
+          <div className="absolute inset-0 bg-black/30 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
+            <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: "rgba(255,255,255,0.90)" }}>
+              <Play className="w-5 h-5 ml-0.5" style={{ color: brown }} />
+            </div>
+          </div>
+        )}
+
+        <span className="absolute top-2 left-2 px-2 py-0.5 rounded-lg text-[9px] font-black text-white"
+          style={{ background: hasVideo ? "rgba(74,46,10,0.80)" : "rgba(60,60,60,0.85)" }}>
+          {hasVideo ? "▶ VER VÍDEO" : "TERMINADA"}
+        </span>
       </div>
-      <h3 className="text-xs font-black line-clamp-2" style={{ color: brown }}>{stream.title}</h3>
-      {stream.ended_at && (
-        <p className="text-[10px] mt-1" style={{ color: sandDark }}>
-          {new Date(stream.ended_at).toLocaleString("pt-AO", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
-        </p>
-      )}
+      <div className="p-3" style={{ background: cream }}>
+        <div className="flex items-center gap-1.5 mb-1">
+          {stream.seller?.logo_url
+            ? <img src={stream.seller.logo_url} alt="" className="w-5 h-5 rounded-full object-cover" />
+            : <div className="w-5 h-5 rounded-full" style={{ background: brownLight }} />}
+          <span className="text-[10px] font-semibold" style={{ color: sandDark }}>{stream.seller?.name || "Vendedor"}</span>
+        </div>
+        <h3 className="text-xs font-black line-clamp-2" style={{ color: brown }}>{stream.title}</h3>
+        {stream.ended_at && (
+          <p className="text-[10px] mt-1" style={{ color: sandDark }}>
+            {new Date(stream.ended_at).toLocaleString("pt-AO", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+          </p>
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 /* ─────────────────────────────────────────────
-   MODAL — Assistir live agendada (vídeo preview)
-   O vídeo APENAS é exibido se status !== "ended"
+   MODAL — Assistir live / lançamento / terminada
 ───────────────────────────────────────────── */
 const WatchModal = ({ stream, onClose }: { stream: any; onClose: () => void }) => {
   const navigate = useNavigate();
 
   const isLive       = stream.status === "live";
   const isEnded      = stream.status === "ended";
-  const hasVideo     = videoStillAvailable(stream);   // tem vídeo E ainda não expirou
-  const videoExpired = !!stream.preview_video_url && !hasVideo && !isEnded; // tinha vídeo mas expirou
+  const hasVideo     = videoStillAvailable(stream);
+  const videoExpired = !!stream.preview_video_url && !hasVideo;
   const expiry       = hasVideo ? expiryLabel(stream) : null;
 
   return (
@@ -707,7 +703,6 @@ const WatchModal = ({ stream, onClose }: { stream: any; onClose: () => void }) =
       <div className="relative w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl" style={{ background: cream }}
         onClick={(e) => e.stopPropagation()}>
 
-        {/* header */}
         <div className="flex items-center justify-between px-5 py-4" style={{ background: `linear-gradient(135deg,${cream},${sand})` }}>
           <div className="flex items-center gap-3">
             {stream.seller?.logo_url
@@ -728,10 +723,9 @@ const WatchModal = ({ stream, onClose }: { stream: any; onClose: () => void }) =
           </button>
         </div>
 
-        {/* área de vídeo / estado */}
         <div className="relative bg-gray-900 flex items-center justify-center" style={{ aspectRatio: "16/9" }}>
 
-          {/* 1 — Vídeo do lançamento disponível (scheduled com vídeo dentro dos 7 dias) */}
+          {/* 1 — Vídeo disponível (scheduled ou ended com vídeo dentro dos 7 dias) */}
           {hasVideo && !isLive && (
             <video src={stream.preview_video_url} controls autoPlay className="w-full h-full" />
           )}
@@ -750,7 +744,7 @@ const WatchModal = ({ stream, onClose }: { stream: any; onClose: () => void }) =
             </div>
           )}
 
-          {/* 4 — Lançamento sem vídeo (ainda não fez upload) */}
+          {/* 4 — Lançamento agendado sem vídeo */}
           {!isLive && !isEnded && !hasVideo && !videoExpired && (
             <div className="text-center px-6">
               {stream.thumbnail_url && (
@@ -785,8 +779,8 @@ const WatchModal = ({ stream, onClose }: { stream: any; onClose: () => void }) =
             </div>
           )}
 
-          {/* 6 — Live encerrada manualmente */}
-          {isEnded && (
+          {/* 6 — Live encerrada sem vídeo (nunca teve preview ou já expirou) */}
+          {isEnded && !hasVideo && !videoExpired && (
             <div className="text-center px-6 flex flex-col items-center gap-3">
               {stream.thumbnail_url && (
                 <img src={stream.thumbnail_url} alt="" className="absolute inset-0 w-full h-full object-cover opacity-20 grayscale" />
@@ -794,12 +788,11 @@ const WatchModal = ({ stream, onClose }: { stream: any; onClose: () => void }) =
               <div className="relative z-10 flex flex-col items-center gap-2">
                 <VideoOff className="w-10 h-10 text-white/50" />
                 <p className="text-white/70 font-bold text-sm">Esta live já terminou</p>
-                <p className="text-white/40 text-xs">O vídeo não está disponível.</p>
+                <p className="text-white/40 text-xs">Não existe vídeo disponível.</p>
               </div>
             </div>
           )}
 
-          {/* badge AO VIVO */}
           {isLive && (
             <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-lg" style={{ background: "#E53935" }}>
               <PulseDot color="#fff" />
@@ -810,7 +803,6 @@ const WatchModal = ({ stream, onClose }: { stream: any; onClose: () => void }) =
           )}
         </div>
 
-        {/* leilão vinculado */}
         {stream.linked_auction && (
           <div className="px-5 py-3 flex items-center gap-3" style={{ background: "linear-gradient(135deg,#1a0a00,#3d1f00)" }}>
             {stream.linked_auction.image_url && (
@@ -834,7 +826,6 @@ const WatchModal = ({ stream, onClose }: { stream: any; onClose: () => void }) =
           </div>
         )}
 
-        {/* produto vinculado */}
         {stream.linked_product && (
           <div className="px-5 py-3 flex items-center gap-3" style={{ background: `linear-gradient(135deg,${brownLight},rgba(74,46,10,0.05))` }}>
             {stream.linked_product.image_url && (
@@ -879,7 +870,6 @@ const Live = () => {
   const qc          = useQueryClient();
   const { isAdmin } = useUserRole();
 
-  /* vendedor */
   const { data: sellerData } = useQuery({
     queryKey: ["my_seller_id", user?.id],
     queryFn: async () => {
@@ -901,14 +891,12 @@ const Live = () => {
   });
   const canPublish = isSeller || isAdmin;
 
-  /* UI */
   const [searchQuery,  setSearchQuery]  = useState("");
   const [filterOpen,   setFilterOpen]   = useState(false);
   const [watchStream,  setWatchStream]  = useState<any>(null);
   const [remembered,   setRemembered]   = useState<Set<string>>(new Set());
   const [showSchedule, setShowSchedule] = useState(false);
 
-  /* ── Lives ao vivo ── */
   const { data: liveStreams = [], isLoading: loadingLive } = useQuery({
     queryKey: ["live_streams_active"],
     queryFn: async () => {
@@ -928,11 +916,9 @@ const Live = () => {
     refetchInterval: 10000,
   });
 
-  /* ── Lançamentos — todos os scheduled (passados e futuros com vídeo ainda válido) ── */
   const { data: scheduledStreams = [], isLoading: loadingScheduled } = useQuery({
     queryKey: ["live_streams_scheduled"],
     queryFn: async () => {
-      // Calcula a data de corte: starts_at + 7 dias no passado
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - VIDEO_EXPIRY_DAYS);
       const { data, error } = await (supabase as any)
@@ -944,7 +930,6 @@ const Live = () => {
           linked_product:products(id, title, price, image_url)
         `)
         .eq("status", "scheduled")
-        // mostra lançamentos cuja data ainda está dentro da janela de 7 dias, ou sem data
         .or(`starts_at.gte.${cutoff.toISOString()},starts_at.is.null`)
         .order("starts_at", { ascending: false })
         .limit(30);
@@ -954,7 +939,6 @@ const Live = () => {
     refetchInterval: 30000,
   });
 
-  /* ── Lives terminadas ── */
   const { data: endedStreams = [], isLoading: loadingEnded } = useQuery({
     queryKey: ["live_streams_ended"],
     queryFn: async () => {
@@ -963,7 +947,9 @@ const Live = () => {
         .from("live_streams")
         .select(`
           *,
-          seller:sellers(id, name, logo_url, is_verified)
+          seller:sellers(id, name, logo_url, is_verified),
+          linked_auction:auctions(id, title, current_bid, image_url, status),
+          linked_product:products(id, title, price, image_url)
         `)
         .or(`status.eq.ended,and(status.eq.scheduled,starts_at.lt.${now})`)
         .order("created_at", { ascending: false })
@@ -974,7 +960,6 @@ const Live = () => {
     refetchInterval: 60000,
   });
 
-  /* leilões e produtos do vendedor (para modal de agendamento) */
   const { data: myAuctions = [] } = useQuery({
     queryKey: ["my_auctions_active", sellerId],
     queryFn: async () => {
@@ -995,7 +980,6 @@ const Live = () => {
     enabled: canPublish && !!sellerId,
   });
 
-  /* realtime */
   useEffect(() => {
     const ch = (supabase as any)
       .channel("live_page_realtime")
@@ -1040,7 +1024,6 @@ const Live = () => {
         borderBottom: `1px solid rgba(74,46,10,0.15)`,
         boxShadow: "0 2px 16px rgba(74,46,10,0.12)",
       }}>
-        {/* Desktop */}
         <div className="hidden md:block max-w-screen-xl mx-auto px-6 py-4">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-3">
@@ -1083,7 +1066,6 @@ const Live = () => {
           </div>
         </div>
 
-        {/* Mobile */}
         <div className="md:hidden px-4 py-3">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
@@ -1208,7 +1190,7 @@ const Live = () => {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 rounded-2xl px-5 py-2"
                   style={{ background: cream, border: `1px solid rgba(74,46,10,0.12)` }}>
                   {filteredScheduled.map((s: any) => (
-                    <ScheduledCard key={s.id} stream={s} onRemember={handleRemember} remembered={remembered.has(s.id)} />
+                    <ScheduledCard key={s.id} stream={s} onRemember={handleRemember} remembered={remembered.has(s.id)} onClick={() => setWatchStream(s)} />
                   ))}
                 </div>
               )}
@@ -1247,7 +1229,9 @@ const Live = () => {
                   </span>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {endedStreams.map((s: any) => <EndedCard key={s.id} stream={s} />)}
+                  {endedStreams.map((s: any) => (
+                    <EndedCard key={s.id} stream={s} onClick={() => setWatchStream(s)} />
+                  ))}
                 </div>
               </section>
             )}
