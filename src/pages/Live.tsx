@@ -288,7 +288,7 @@ const ScheduleModal = ({
       const videoExpiresAt = new Date(startsAt);
       videoExpiresAt.setDate(videoExpiresAt.getDate() + VIDEO_EXPIRY_DAYS);
 
-      const { error } = await (supabase as any).from("live_streams").insert({
+      const { error, data: insertedData } = await (supabase as any).from("live_streams").insert({
         seller_id:         sellerId,
         title:             title.trim(),
         description:       desc.trim() || null,
@@ -300,10 +300,18 @@ const ScheduleModal = ({
         viewers_count:     0,
         linked_auction_id: auctionId || null,
         linked_product_id: productId || null,
-      });
+      }).select();
+
       if (error) throw new Error(error.message);
 
-      qc.refetchQueries({ queryKey: ["live_streams_scheduled"] });
+      // FIX: Invalidar TODAS as queries relevantes para forçar refetch imediato
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["live_streams_scheduled"] }),
+        qc.invalidateQueries({ queryKey: ["live_streams_active"] }),
+        qc.invalidateQueries({ queryKey: ["live_streams_ended"] }),
+        qc.invalidateQueries({ queryKey: ["live_active_count"] }),
+      ]);
+
       setUploadProgress(null);
       setDone(true);
       toast.success("Lançamento publicado!");
@@ -654,7 +662,6 @@ const EndedCard = ({ stream, onClick }: { stream: any; onClick: () => void }) =>
               <Video className="w-8 h-8 opacity-20 text-white" />
             </div>}
 
-        {/* overlay de play ao hover se tiver vídeo */}
         {hasVideo && (
           <div className="absolute inset-0 bg-black/30 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
             <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ background: "rgba(255,255,255,0.90)" }}>
@@ -897,6 +904,7 @@ const Live = () => {
   const [remembered,   setRemembered]   = useState<Set<string>>(new Set());
   const [showSchedule, setShowSchedule] = useState(false);
 
+  /* ── Lives ao vivo ── */
   const { data: liveStreams = [], isLoading: loadingLive } = useQuery({
     queryKey: ["live_streams_active"],
     queryFn: async () => {
@@ -916,11 +924,14 @@ const Live = () => {
     refetchInterval: 10000,
   });
 
+  /* ── Lançamentos agendados ──
+     FIX: query simplificada sem cutoff — busca TODOS os scheduled,
+     independentemente da data, ordenados pelos mais recentes primeiro.
+     O filtro de expiração visual é feito no lado do cliente via videoStillAvailable().
+  ── */
   const { data: scheduledStreams = [], isLoading: loadingScheduled } = useQuery({
     queryKey: ["live_streams_scheduled"],
     queryFn: async () => {
-      const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() - VIDEO_EXPIRY_DAYS);
       const { data, error } = await (supabase as any)
         .from("live_streams")
         .select(`
@@ -930,19 +941,24 @@ const Live = () => {
           linked_product:products(id, title, price, image_url)
         `)
         .eq("status", "scheduled")
-        .or(`starts_at.gte.${cutoff.toISOString()},starts_at.is.null`)
-        .order("starts_at", { ascending: false })
-        .limit(30);
+        .order("created_at", { ascending: false })
+        .limit(50);
       if (error) console.error("live_streams_scheduled:", error.message);
       return data || [];
     },
     refetchInterval: 30000,
+    // FIX: staleTime 0 garante que qualquer invalidação force refetch imediato
+    staleTime: 0,
   });
 
+  /* ── Lives terminadas ──
+     FIX: query separada e limpa — só busca status "ended",
+     sem misturar com scheduled. Lives scheduled com data passada
+     devem ser tratadas na lógica da app ou via trigger na BD.
+  ── */
   const { data: endedStreams = [], isLoading: loadingEnded } = useQuery({
     queryKey: ["live_streams_ended"],
     queryFn: async () => {
-      const now = new Date().toISOString();
       const { data, error } = await (supabase as any)
         .from("live_streams")
         .select(`
@@ -951,13 +967,14 @@ const Live = () => {
           linked_auction:auctions(id, title, current_bid, image_url, status),
           linked_product:products(id, title, price, image_url)
         `)
-        .or(`status.eq.ended,and(status.eq.scheduled,starts_at.lt.${now})`)
+        .eq("status", "ended")
         .order("created_at", { ascending: false })
         .limit(12);
       if (error) console.error("live_streams_ended:", error.message);
       return data || [];
     },
     refetchInterval: 60000,
+    staleTime: 0,
   });
 
   const { data: myAuctions = [] } = useQuery({
@@ -980,6 +997,7 @@ const Live = () => {
     enabled: canPublish && !!sellerId,
   });
 
+  /* ── Realtime ── */
   useEffect(() => {
     const ch = (supabase as any)
       .channel("live_page_realtime")
@@ -1200,7 +1218,7 @@ const Live = () => {
             <section className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
               {[
                 { icon: Radio,       label: "Ao vivo agora",      value: liveStreams.length,                                                   color: "#E53935" },
-                { icon: Calendar,    label: "Lançamentos",     value: scheduledStreams.length,                                              color: sandDark  },
+                { icon: Calendar,    label: "Lançamentos",        value: scheduledStreams.length,                                              color: sandDark  },
                 { icon: Users,       label: "Espectadores total", value: liveStreams.reduce((a: number, s: any) => a + (s.viewers_count || 0), 0), color: brown  },
                 { icon: ShoppingBag, label: "Com leilão activo",  value: liveStreams.filter((s: any) => s.linked_auction).length,              color: gold      },
               ].map(stat => (
