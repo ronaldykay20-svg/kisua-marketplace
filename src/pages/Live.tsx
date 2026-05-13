@@ -304,6 +304,16 @@ const ScheduleModal = ({
 
       if (error) throw new Error(error.message);
 
+      console.log("✅ INSERT resultado:", insertedData);
+
+      // Verificação directa após insert — confirma que o registo existe na BD
+      const { data: checkData, error: checkErr } = await (supabase as any)
+        .from("live_streams")
+        .select("id, status, title, seller_id")
+        .order("created_at", { ascending: false })
+        .limit(5);
+      console.log("🔍 CHECK após insert:", checkData, "erro:", checkErr);
+
       // FIX: Invalidar TODAS as queries relevantes para forçar refetch imediato
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["live_streams_scheduled"] }),
@@ -924,14 +934,19 @@ const Live = () => {
     refetchInterval: 10000,
   });
 
-  /* ── Lançamentos agendados ──
-     FIX: query simplificada sem cutoff — busca TODOS os scheduled,
-     independentemente da data, ordenados pelos mais recentes primeiro.
-     O filtro de expiração visual é feito no lado do cliente via videoStillAvailable().
-  ── */
+  /* ── Lançamentos agendados ── */
   const { data: scheduledStreams = [], isLoading: loadingScheduled } = useQuery({
     queryKey: ["live_streams_scheduled"],
     queryFn: async () => {
+      // DEBUG: primeiro verifica quantos registos existem SEM filtros
+      const { data: allRaw, error: allErr } = await (supabase as any)
+        .from("live_streams")
+        .select("id, status, title, seller_id, created_at")
+        .order("created_at", { ascending: false })
+        .limit(20);
+      console.log("🔍 DEBUG — todos os live_streams (sem filtro):", allRaw, "erro:", allErr);
+
+      // Query real com filtro de status
       const { data, error } = await (supabase as any)
         .from("live_streams")
         .select(`
@@ -943,11 +958,11 @@ const Live = () => {
         .eq("status", "scheduled")
         .order("created_at", { ascending: false })
         .limit(50);
+      console.log("🔍 DEBUG — scheduled streams:", data, "erro:", error);
       if (error) console.error("live_streams_scheduled:", error.message);
       return data || [];
     },
     refetchInterval: 30000,
-    // FIX: staleTime 0 garante que qualquer invalidação force refetch imediato
     staleTime: 0,
   });
 
