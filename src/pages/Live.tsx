@@ -9,22 +9,12 @@ import {
   Radio, Search, SlidersHorizontal, Bell, Play, Eye,
   Calendar, Clock, ChevronRight, Gavel, Video, X,
   Loader2, Users, Zap, Star, ShoppingBag, Upload,
-  Image as ImageIcon, CalendarClock, Check, Mic, MicOff,
-  VideoOff, PhoneOff, MonitorPlay,
+  Image as ImageIcon, CalendarClock, Check, VideoOff,
 } from "lucide-react";
 import { toast } from "sonner";
 
 /* ─────────────────────────────────────────────
-   AGORA CONFIG
-   ⚠️  Substitui AGORA_APP_ID pelo teu App ID real
-       se ainda não estiver correcto.
-───────────────────────────────────────────── */
-const AGORA_APP_ID = "0503d343fd7e416fb8b594e53470cc1e";
-
-/* ─────────────────────────────────────────────
    STORAGE BUCKET
-   Muda esta constante se o teu bucket tiver
-   outro nome (ex: "public", "uploads", etc.)
 ───────────────────────────────────────────── */
 const STORAGE_BUCKET = "media";
 
@@ -37,6 +27,11 @@ const cream      = "#F7F0E6";
 const brown      = "#4A2E0A";
 const brownLight = "rgba(74,46,10,0.10)";
 const gold       = "#f5c842";
+
+/* ─────────────────────────────────────────────
+   CONSTANTE — duração máxima do vídeo (segundos)
+───────────────────────────────────────────── */
+const MAX_VIDEO_SECONDS = 10 * 60; // 10 minutos
 
 /* ─────────────────────────────────────────────
    HOOK — contagem de lives ao vivo
@@ -142,366 +137,24 @@ const CoverUpload = ({
 };
 
 /* ─────────────────────────────────────────────
-   HOOK — Agora RTC (transmissão)
+   HELPER — valida duração do vídeo
+   Retorna a duração em segundos (ou lança erro)
 ───────────────────────────────────────────── */
-const useAgoraStream = () => {
-  const clientRef      = useRef<any>(null);
-  const localTracksRef = useRef<any[]>([]);
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [micOn,  setMicOn]  = useState(true);
-  const [camOn,  setCamOn]  = useState(true);
-  const [error,  setError]  = useState<string | null>(null);
-
-  const startStream = async (channel: string, localVideoEl: HTMLElement) => {
-    try {
-      setError(null);
-      const AgoraRTC = (await import("agora-rtc-sdk-ng")).default;
-      AgoraRTC.setLogLevel(4);
-      const client = AgoraRTC.createClient({ mode: "live", codec: "h264" });
-      clientRef.current = client;
-      await client.setClientRole("host");
-      await client.join(AGORA_APP_ID, channel, null, null);
-
-      const [micTrack, camTrack] = await AgoraRTC.createMicrophoneAndCameraTracks(
-        { encoderConfig: "speech_standard" },
-        {
-          encoderConfig: {
-            width: { ideal: 1280, min: 640 },
-            height: { ideal: 720, min: 360 },
-            frameRate: { ideal: 15, min: 10 },
-            bitrateMin: 400,
-            bitrateMax: 1000,
-          },
-          facingMode: "user",
-        }
-      );
-      localTracksRef.current = [micTrack, camTrack];
-      camTrack.play(localVideoEl);
-      await client.publish([micTrack, camTrack]);
-      setIsStreaming(true);
-      return true;
-    } catch (err: any) {
-      const msg = err?.message || "Erro ao iniciar a transmissão";
-      setError(msg);
-      toast.error(`Falha ao iniciar live: ${msg}`);
-      return false;
-    }
-  };
-
-  const stopStream = async () => {
-    try {
-      localTracksRef.current.forEach((t) => { t.stop(); t.close(); });
-      localTracksRef.current = [];
-      if (clientRef.current) { await clientRef.current.leave(); clientRef.current = null; }
-    } catch (_) {}
-    setIsStreaming(false);
-  };
-
-  const toggleMic = async () => {
-    const [mic] = localTracksRef.current;
-    if (!mic) return;
-    await mic.setEnabled(!micOn);
-    setMicOn((v) => !v);
-  };
-
-  const toggleCam = async () => {
-    const [, cam] = localTracksRef.current;
-    if (!cam) return;
-    await cam.setEnabled(!camOn);
-    setCamOn((v) => !v);
-  };
-
-  return { startStream, stopStream, toggleMic, toggleCam, isStreaming, micOn, camOn, error };
-};
-
-/* ─────────────────────────────────────────────
-   MODAL — Iniciar Live agora
-───────────────────────────────────────────── */
-const GoLiveModal = ({
-  onClose, auctions, products, sellerId,
-}: {
-  onClose: () => void;
-  auctions: any[];
-  products: any[];
-  sellerId: string | null;
-}) => {
-  const qc = useQueryClient();
-  const localVideoRef = useRef<HTMLDivElement>(null);
-  const { startStream, stopStream, toggleMic, toggleCam, micOn, camOn, error } = useAgoraStream();
-
-  const [coverUrl,    setCoverUrl]    = useState<string | null>(null);
-  const [coverFile,   setCoverFile]   = useState<File | null>(null);
-  const [title,       setTitle]       = useState("");
-  const [desc,        setDesc]        = useState("");
-  const [auctionId,   setAuctionId]   = useState("");
-  const [productId,   setProductId]   = useState("");
-  const [loading,     setLoading]     = useState(false);
-  const [streamId,    setStreamId]    = useState<string | null>(null);
-  const [step,        setStep]        = useState<"form" | "live">("form");
-  const [streamError, setStreamError] = useState<string | null>(null);
-  const [launching,   setLaunching]   = useState(false);
-
-  const channelName = useRef(
-    `live-${(sellerId ?? "x").slice(0, 8)}-${Date.now()}`
-  ).current;
-
-  /* Lança Agora assim que entra no step "live" */
-  useEffect(() => {
-    if (step !== "live" || !streamId) return;
-    const launch = async () => {
-      setLaunching(true);
-      setStreamError(null);
-      await new Promise((res) => setTimeout(res, 200));
-
-      if (!localVideoRef.current) {
-        setStreamError("Elemento de vídeo não encontrado. Tenta novamente.");
-        setLaunching(false);
-        return;
-      }
-
-      const ok = await startStream(channelName, localVideoRef.current);
-      if (!ok) {
-        /* rollback: apaga o registo e volta ao formulário */
-        await (supabase as any).from("live_streams").delete().eq("id", streamId);
-        qc.invalidateQueries({ queryKey: ["live_streams_active"] });
-        qc.invalidateQueries({ queryKey: ["live_active_count"] });
-        setStreamId(null);
-        setStep("form");
-      } else {
-        qc.refetchQueries({ queryKey: ["live_streams_active"] });
-        qc.refetchQueries({ queryKey: ["live_active_count"] });
-        toast.success("Live iniciada! 🎉");
-      }
-      setLaunching(false);
+const getVideoDuration = (file: File): Promise<number> =>
+  new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    video.onloadedmetadata = () => {
+      URL.revokeObjectURL(url);
+      resolve(video.duration);
     };
-    launch();
-  }, [step, streamId]); // eslint-disable-line
-
-  const handleGoLive = async () => {
-    if (!title.trim()) { toast.error("Adiciona um título à live"); return; }
-    if (!coverUrl)     { toast.error("A capa é obrigatória"); return; }
-    if (!sellerId)     { toast.error("Não foi encontrado um vendedor associado à tua conta"); return; }
-
-    setLoading(true);
-    try {
-      let thumbnail_url: string | null = null;
-
-      if (coverFile) {
-        const ext  = coverFile.name.split(".").pop();
-        const path = `live-covers/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-        const { error: upErr } = await (supabase as any).storage
-          .from(STORAGE_BUCKET).upload(path, coverFile, { upsert: false });
-        if (upErr) throw new Error(`Upload capa: ${upErr.message}`);
-        const { data: urlData } = (supabase as any).storage.from(STORAGE_BUCKET).getPublicUrl(path);
-        thumbnail_url = urlData?.publicUrl ?? null;
-      }
-
-      const { data: inserted, error: dbErr } = await (supabase as any)
-        .from("live_streams")
-        .insert({
-          seller_id:         sellerId,
-          title:             title.trim(),
-          description:       desc.trim() || null,
-          thumbnail_url,
-          status:            "live",
-          viewers_count:     0,
-          channel_name:      channelName,
-          linked_auction_id: auctionId  || null,
-          linked_product_id: productId  || null,
-        })
-        .select("id")
-        .single();
-      if (dbErr) throw new Error(dbErr.message);
-
-      setStreamId(inserted.id);
-      setLoading(false);
-      setStep("live");
-    } catch (err: any) {
-      toast.error(err.message || "Erro ao iniciar a live");
-      setLoading(false);
-    }
-  };
-
-  const handleEndLive = async () => {
-    await stopStream();
-    if (streamId) {
-      await (supabase as any)
-        .from("live_streams")
-        .update({ status: "ended", ended_at: new Date().toISOString() })
-        .eq("id", streamId);
-    }
-    qc.refetchQueries({ queryKey: ["live_streams_active"] });
-    qc.refetchQueries({ queryKey: ["live_streams_ended"] });
-    qc.refetchQueries({ queryKey: ["live_active_count"] });
-    toast.info("Live encerrada.");
-    onClose();
-  };
-
-  /* ────── Ecrã ao vivo ────── */
-  if (step === "live") {
-    return (
-      <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4">
-        <div className="relative w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl bg-black">
-
-          {/* vídeo local */}
-          <div ref={localVideoRef} className="w-full bg-gray-900" style={{ aspectRatio: "16/9", minHeight: 240 }} />
-
-          {/* a lançar câmara */}
-          {launching && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/75">
-              <Loader2 className="w-10 h-10 animate-spin text-white" />
-              <p className="text-white text-sm font-semibold">A iniciar câmara…</p>
-              <p className="text-white/50 text-xs">Aceita as permissões de câmara e microfone no browser</p>
-            </div>
-          )}
-
-          {/* erro de stream */}
-          {streamError && !launching && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/80 px-6">
-              <p className="text-red-400 text-sm font-semibold text-center">⚠️ {streamError}</p>
-              <button onClick={handleEndLive} className="px-4 py-2 rounded-xl text-sm font-black text-white" style={{ background: "#E53935" }}>
-                Fechar
-              </button>
-            </div>
-          )}
-
-          {/* badge AO VIVO */}
-          <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-lg" style={{ background: "#E53935" }}>
-            <PulseDot color="#fff" />
-            <span className="text-[10px] font-black text-white">AO VIVO</span>
-          </div>
-
-          {/* título */}
-          <div className="absolute top-3 right-3 px-3 py-1.5 rounded-xl" style={{ background: "rgba(0,0,0,0.65)" }}>
-            <p className="text-xs font-bold text-white truncate max-w-[200px]">{title}</p>
-          </div>
-
-          {/* controlos */}
-          <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center gap-4 py-4"
-            style={{ background: "linear-gradient(to top, rgba(0,0,0,0.85), transparent)" }}>
-            <button onClick={toggleMic} className="w-12 h-12 rounded-full flex items-center justify-center transition"
-              style={{ background: micOn ? "rgba(255,255,255,0.15)" : "#E53935" }}>
-              {micOn ? <Mic className="w-5 h-5 text-white" /> : <MicOff className="w-5 h-5 text-white" />}
-            </button>
-            <button onClick={toggleCam} className="w-12 h-12 rounded-full flex items-center justify-center transition"
-              style={{ background: camOn ? "rgba(255,255,255,0.15)" : "#E53935" }}>
-              {camOn ? <Video className="w-5 h-5 text-white" /> : <VideoOff className="w-5 h-5 text-white" />}
-            </button>
-            <button onClick={handleEndLive} className="flex items-center gap-2 px-5 py-3 rounded-2xl text-sm font-black text-white"
-              style={{ background: "#E53935" }}>
-              <PhoneOff className="w-4 h-4" /> Terminar live
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  /* ────── Formulário ────── */
-  return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={onClose}>
-      <div
-        className="relative w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl"
-        style={{ background: cream, maxHeight: "90vh", overflowY: "auto" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4"
-          style={{ background: "linear-gradient(135deg, #E53935 0%, #b71c1c 100%)" }}>
-          <div className="flex items-center gap-3">
-            <PulseDot color="#fff" />
-            <h2 className="text-base font-black text-white">Iniciar live agora</h2>
-          </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-xl flex items-center justify-center"
-            style={{ background: "rgba(255,255,255,0.18)" }}>
-            <X className="w-4 h-4 text-white" />
-          </button>
-        </div>
-
-        <div className="px-6 py-5">
-          {/* info Agora */}
-          <div className="mb-5 px-4 py-3 rounded-2xl flex items-start gap-3"
-            style={{ background: "rgba(229,57,53,0.07)", border: "1px solid rgba(229,57,53,0.20)" }}>
-            <MonitorPlay className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: "#E53935" }} />
-            <p className="text-xs" style={{ color: brown }}>
-              A transmissão usa <strong>Agora RTC</strong>. O browser vai pedir permissão de câmara e microfone ao iniciar.
-            </p>
-          </div>
-
-          <CoverUpload value={coverUrl} onChange={(url, file) => { setCoverUrl(url); setCoverFile(file); }} />
-
-          {/* título */}
-          <div className="mb-4">
-            <label className="block text-xs font-black mb-1.5 uppercase tracking-wider" style={{ color: brown }}>
-              Título <span style={{ color: "#E53935" }}>*</span>
-            </label>
-            <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={80}
-              placeholder="Ex: Promoção relâmpago — Tênis Nike Air Max"
-              className="w-full px-4 py-3 rounded-2xl text-sm focus:outline-none focus:ring-2"
-              style={{ background: "#fff", border: `1.5px solid rgba(74,46,10,0.18)`, color: brown }} />
-          </div>
-
-          {/* descrição */}
-          <div className="mb-4">
-            <label className="block text-xs font-black mb-1.5 uppercase tracking-wider" style={{ color: brown }}>Descrição</label>
-            <textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={3} maxLength={300}
-              placeholder="Conta o que vais apresentar nesta live..."
-              className="w-full px-4 py-3 rounded-2xl text-sm resize-none focus:outline-none"
-              style={{ background: "#fff", border: `1.5px solid rgba(74,46,10,0.18)`, color: brown }} />
-          </div>
-
-          {/* leilão */}
-          {auctions.length > 0 && (
-            <div className="mb-4">
-              <label className="block text-xs font-black mb-1.5 uppercase tracking-wider" style={{ color: brown }}>
-                <Gavel className="w-3.5 h-3.5 inline mr-1" style={{ color: sandDark }} />
-                Vincular leilão <span className="font-normal normal-case text-[10px]" style={{ color: sandDark }}>(opcional)</span>
-              </label>
-              <select value={auctionId} onChange={(e) => setAuctionId(e.target.value)}
-                className="w-full px-4 py-3 rounded-2xl text-sm focus:outline-none appearance-none"
-                style={{ background: "#fff", border: `1.5px solid rgba(74,46,10,0.18)`, color: auctionId ? brown : sandDark }}>
-                <option value="">— Sem leilão vinculado —</option>
-                {auctions.map((a: any) => <option key={a.id} value={a.id}>{a.title}</option>)}
-              </select>
-            </div>
-          )}
-
-          {/* produto */}
-          {products.length > 0 && (
-            <div className="mb-6">
-              <label className="block text-xs font-black mb-1.5 uppercase tracking-wider" style={{ color: brown }}>
-                <ShoppingBag className="w-3.5 h-3.5 inline mr-1" style={{ color: sandDark }} />
-                Vincular produto <span className="font-normal normal-case text-[10px]" style={{ color: sandDark }}>(opcional)</span>
-              </label>
-              <select value={productId} onChange={(e) => setProductId(e.target.value)}
-                className="w-full px-4 py-3 rounded-2xl text-sm focus:outline-none appearance-none"
-                style={{ background: "#fff", border: `1.5px solid rgba(74,46,10,0.18)`, color: productId ? brown : sandDark }}>
-                <option value="">— Sem produto vinculado —</option>
-                {products.map((p: any) => <option key={p.id} value={p.id}>{p.title}</option>)}
-              </select>
-            </div>
-          )}
-
-          {/* erro Agora */}
-          {error && (
-            <div className="mb-4 px-4 py-3 rounded-2xl text-xs font-semibold"
-              style={{ background: "rgba(229,57,53,0.10)", color: "#E53935", border: "1px solid rgba(229,57,53,0.25)" }}>
-              ⚠️ {error}
-            </div>
-          )}
-
-          <button onClick={handleGoLive} disabled={loading || !sellerId}
-            className="w-full py-3.5 rounded-2xl text-sm font-black text-white flex items-center justify-center gap-2 transition active:scale-95"
-            style={{ background: (loading || !sellerId) ? "#ccc" : "linear-gradient(135deg, #E53935, #b71c1c)" }}>
-            {loading
-              ? <><Loader2 className="w-4 h-4 animate-spin" /> A preparar…</>
-              : <><Radio className="w-4 h-4" /> Ir ao vivo agora</>}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
+    video.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Não foi possível ler o vídeo"));
+    };
+    video.src = url;
+  });
 
 /* ─────────────────────────────────────────────
    MODAL — Agendar Live
@@ -519,6 +172,7 @@ const ScheduleModal = ({
   const [coverFile,      setCoverFile]      = useState<File | null>(null);
   const [videoUrl,       setVideoUrl]       = useState<string | null>(null);
   const [videoFile,      setVideoFile]      = useState<File | null>(null);
+  const [videoDuration,  setVideoDuration]  = useState<number | null>(null);
   const [title,          setTitle]          = useState("");
   const [desc,           setDesc]           = useState("");
   const [datetime,       setDatetime]       = useState("");
@@ -531,10 +185,40 @@ const ScheduleModal = ({
 
   const minDatetime = new Date(Date.now() + 10 * 60 * 1000).toISOString().slice(0, 16);
 
-  const handleVideoFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const formatDuration = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m}m ${s}s`;
+  };
+
+  const handleVideoFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 200 * 1024 * 1024) { toast.error("O vídeo não pode ter mais de 200 MB"); return; }
+
+    // Tamanho máximo: 500 MB (10 min de vídeo razoável)
+    if (file.size > 500 * 1024 * 1024) {
+      toast.error("O vídeo não pode ter mais de 500 MB");
+      return;
+    }
+
+    // Verifica duração antes de aceitar o ficheiro
+    try {
+      const duration = await getVideoDuration(file);
+      if (duration > MAX_VIDEO_SECONDS) {
+        toast.error(
+          `O vídeo tem ${formatDuration(duration)} — o limite é 10 minutos. Por favor, usa um vídeo mais curto.`,
+          { duration: 5000 }
+        );
+        // Limpa o input para permitir nova selecção
+        if (videoInputRef.current) videoInputRef.current.value = "";
+        return;
+      }
+      setVideoDuration(duration);
+    } catch {
+      toast.error("Não foi possível verificar a duração do vídeo. Tenta outro ficheiro.");
+      return;
+    }
+
     setVideoUrl(URL.createObjectURL(file));
     setVideoFile(file);
   };
@@ -644,20 +328,39 @@ const ScheduleModal = ({
           <div className="mb-5">
             <label className="block text-xs font-black mb-2 uppercase tracking-wider" style={{ color: brown }}>
               Vídeo de pré-visualização{" "}
-              <span className="text-[10px] font-normal normal-case" style={{ color: sandDark }}>(opcional)</span>
+              <span className="text-[10px] font-normal normal-case" style={{ color: sandDark }}>(opcional · máx. 10 min)</span>
             </label>
+
+            {/* aviso sobre o vídeo desaparecer após a live */}
+            <div className="mb-3 px-3 py-2.5 rounded-xl flex items-start gap-2"
+              style={{ background: "rgba(74,46,10,0.07)", border: "1px solid rgba(74,46,10,0.15)" }}>
+              <VideoOff className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" style={{ color: sandDark }} />
+              <p className="text-[11px]" style={{ color: brown }}>
+                Este vídeo será exibido apenas enquanto a live estiver agendada.
+                <strong> Após a live terminar, o vídeo não será mais visível.</strong>
+              </p>
+            </div>
+
             {videoUrl ? (
               <div className="relative w-full rounded-2xl overflow-hidden" style={{ background: "#000" }}>
                 <video src={videoUrl} controls className="w-full max-h-44 object-contain" />
-                <button type="button" onClick={() => { setVideoUrl(null); setVideoFile(null); }}
+                <button type="button" onClick={() => { setVideoUrl(null); setVideoFile(null); setVideoDuration(null); }}
                   className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center"
                   style={{ background: "rgba(0,0,0,0.65)" }}>
                   <X className="w-3.5 h-3.5 text-white" />
                 </button>
                 {videoFile && (
-                  <div className="absolute bottom-2 left-2 px-2 py-1 rounded-lg text-[10px] font-semibold text-white"
-                    style={{ background: "rgba(0,0,0,0.65)" }}>
-                    {(videoFile.size / 1024 / 1024).toFixed(1)} MB
+                  <div className="absolute bottom-2 left-2 flex items-center gap-2">
+                    <span className="px-2 py-1 rounded-lg text-[10px] font-semibold text-white"
+                      style={{ background: "rgba(0,0,0,0.65)" }}>
+                      {(videoFile.size / 1024 / 1024).toFixed(1)} MB
+                    </span>
+                    {videoDuration !== null && (
+                      <span className="px-2 py-1 rounded-lg text-[10px] font-semibold text-white"
+                        style={{ background: "rgba(0,0,0,0.65)" }}>
+                        {formatDuration(videoDuration)}
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
@@ -669,7 +372,7 @@ const ScheduleModal = ({
                   <Video className="w-5 h-5" style={{ color: sandDark }} />
                 </div>
                 <p className="text-xs font-bold" style={{ color: brown }}>Carregar vídeo de pré-visualização</p>
-                <p className="text-[10px]" style={{ color: sandDark }}>MP4, MOV ou WebM · Máx. 200 MB</p>
+                <p className="text-[10px]" style={{ color: sandDark }}>MP4, MOV ou WebM · Máx. 10 minutos · Máx. 500 MB</p>
               </div>
             )}
             <input ref={videoInputRef} type="file" accept="video/mp4,video/quicktime,video/webm"
@@ -753,7 +456,7 @@ const ScheduleModal = ({
 };
 
 /* ─────────────────────────────────────────────
-   CARD — Live ao vivo
+   CARD — Live ao vivo (status "live" da BD)
 ───────────────────────────────────────────── */
 const LiveCard = ({ stream, onClick }: { stream: any; onClick: () => void }) => (
   <div onClick={onClick}
@@ -917,40 +620,16 @@ const EndedCard = ({ stream }: { stream: any }) => (
 );
 
 /* ─────────────────────────────────────────────
-   MODAL — Assistir live (Agora audience)
+   MODAL — Assistir live agendada (vídeo preview)
+   O vídeo APENAS é exibido se status !== "ended"
 ───────────────────────────────────────────── */
 const WatchModal = ({ stream, onClose }: { stream: any; onClose: () => void }) => {
-  const navigate       = useNavigate();
-  const remoteVideoRef = useRef<HTMLDivElement>(null);
-  const clientRef      = useRef<any>(null);
-  const [connected,    setConnected]    = useState(false);
-  const [connectError, setConnectError] = useState<string | null>(null);
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    if (!stream.channel_name) return;
-    const join = async () => {
-      try {
-        setConnectError(null);
-        const AgoraRTC = (await import("agora-rtc-sdk-ng")).default;
-        AgoraRTC.setLogLevel(4);
-        const client = AgoraRTC.createClient({ mode: "live", codec: "h264" });
-        clientRef.current = client;
-        await client.setClientRole("audience");
-        await client.join(AGORA_APP_ID, stream.channel_name, null, null);
-        client.on("user-published", async (user: any, mediaType: "audio" | "video") => {
-          await client.subscribe(user, mediaType);
-          if (mediaType === "video" && remoteVideoRef.current) user.videoTrack?.play(remoteVideoRef.current);
-          if (mediaType === "audio") user.audioTrack?.play();
-          setConnected(true);
-        });
-        client.on("user-unpublished", () => setConnected(false));
-      } catch (err: any) {
-        setConnectError(err?.message || "Erro ao ligar ao stream");
-      }
-    };
-    const t = setTimeout(join, 100);
-    return () => { clearTimeout(t); clientRef.current?.leave().catch(() => {}); };
-  }, [stream.channel_name]);
+  // Se a live já terminou, nunca mostra o vídeo
+  const isEnded   = stream.status === "ended";
+  const isLive    = stream.status === "live";
+  const hasVideo  = !!stream.preview_video_url && !isEnded;
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={onClose}>
@@ -975,38 +654,70 @@ const WatchModal = ({ stream, onClose }: { stream: any; onClose: () => void }) =
           </button>
         </div>
 
-        {/* vídeo */}
+        {/* área de vídeo / estado */}
         <div className="relative bg-gray-900 flex items-center justify-center" style={{ aspectRatio: "16/9" }}>
-          {stream.channel_name
-            ? <div ref={remoteVideoRef} className="w-full h-full" />
-            : stream.stream_url
-              ? <video src={stream.stream_url} controls autoPlay className="w-full h-full" />
-              : <div className="text-center px-6">
-                  <Radio className="w-10 h-10 mx-auto mb-2" style={{ color: gold }} />
-                  <p className="text-white font-bold text-sm">A transmissão está em curso</p>
-                  <p className="text-white/50 text-xs mt-1">A ligar ao canal…</p>
-                </div>}
 
-          {stream.status === "live" && (
+          {/* Live em curso via stream_url legado */}
+          {isLive && stream.stream_url && !stream.channel_name && (
+            <video src={stream.stream_url} controls autoPlay className="w-full h-full" />
+          )}
+
+          {/* Vídeo de preview (apenas scheduled e não ended) */}
+          {hasVideo && !isLive && (
+            <video src={stream.preview_video_url} controls className="w-full h-full" />
+          )}
+
+          {/* Live ao vivo sem URL — placeholder */}
+          {isLive && !stream.stream_url && (
+            <div className="text-center px-6">
+              <Radio className="w-10 h-10 mx-auto mb-2" style={{ color: gold }} />
+              <p className="text-white font-bold text-sm">Transmissão em curso</p>
+              <p className="text-white/50 text-xs mt-1">Utiliza a aplicação oficial para assistir</p>
+            </div>
+          )}
+
+          {/* Agendada sem vídeo */}
+          {!isLive && !isEnded && !hasVideo && (
+            <div className="text-center px-6">
+              {stream.thumbnail_url && (
+                <img src={stream.thumbnail_url} alt="" className="absolute inset-0 w-full h-full object-cover opacity-30" />
+              )}
+              <div className="relative z-10 flex flex-col items-center gap-3">
+                <CalendarClock className="w-12 h-12 text-white/70" />
+                <p className="text-white font-bold text-sm">Live ainda não começou</p>
+                {stream.starts_at && (
+                  <p className="text-white/60 text-xs">
+                    {new Date(stream.starts_at).toLocaleString("pt-AO", {
+                      weekday: "long", day: "2-digit", month: "long",
+                      hour: "2-digit", minute: "2-digit",
+                    })}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Live terminada — sem vídeo, só mensagem */}
+          {isEnded && (
+            <div className="text-center px-6 flex flex-col items-center gap-3">
+              {stream.thumbnail_url && (
+                <img src={stream.thumbnail_url} alt="" className="absolute inset-0 w-full h-full object-cover opacity-20 grayscale" />
+              )}
+              <div className="relative z-10 flex flex-col items-center gap-2">
+                <VideoOff className="w-10 h-10 text-white/50" />
+                <p className="text-white/70 font-bold text-sm">Esta live já terminou</p>
+                <p className="text-white/40 text-xs">O vídeo não está disponível.</p>
+              </div>
+            </div>
+          )}
+
+          {/* badge AO VIVO */}
+          {isLive && (
             <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-lg" style={{ background: "#E53935" }}>
               <PulseDot color="#fff" />
               <span className="text-[10px] font-black text-white">AO VIVO</span>
               <Eye className="w-3 h-3 text-white/80 ml-1" />
               <span className="text-[10px] text-white/80">{stream.viewers_count}</span>
-            </div>
-          )}
-
-          {connectError && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/80 px-6">
-              <p className="text-red-400 text-sm font-semibold text-center">⚠️ {connectError}</p>
-              <p className="text-white/50 text-xs text-center">Verifica a tua ligação e tenta novamente</p>
-            </div>
-          )}
-
-          {!connected && !connectError && stream.channel_name && (
-            <div className="absolute bottom-3 right-3 flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl" style={{ background: "rgba(0,0,0,0.65)" }}>
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
-              <span className="text-[10px] text-white font-semibold">A ligar…</span>
             </div>
           )}
         </div>
@@ -1107,7 +818,6 @@ const Live = () => {
   const [filterOpen,   setFilterOpen]   = useState(false);
   const [watchStream,  setWatchStream]  = useState<any>(null);
   const [remembered,   setRemembered]   = useState<Set<string>>(new Set());
-  const [showGoLive,   setShowGoLive]   = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
 
   /* ── Lives ao vivo ── */
@@ -1130,7 +840,7 @@ const Live = () => {
     refetchInterval: 10000,
   });
 
-  /* ── Próximas lives: scheduled COM starts_at no futuro, OU sem data ── */
+  /* ── Próximas lives ── */
   const { data: scheduledStreams = [], isLoading: loadingScheduled } = useQuery({
     queryKey: ["live_streams_scheduled"],
     queryFn: async () => {
@@ -1151,7 +861,7 @@ const Live = () => {
     refetchInterval: 30000,
   });
 
-  /* ── Lives terminadas: status ended  OU  scheduled cuja data já passou ── */
+  /* ── Lives terminadas ── */
   const { data: endedStreams = [], isLoading: loadingEnded } = useQuery({
     queryKey: ["live_streams_ended"],
     queryFn: async () => {
@@ -1171,7 +881,7 @@ const Live = () => {
     refetchInterval: 60000,
   });
 
-  /* leilões e produtos do vendedor (para modais) */
+  /* leilões e produtos do vendedor (para modal de agendamento) */
   const { data: myAuctions = [] } = useQuery({
     queryKey: ["my_auctions_active", sellerId],
     queryFn: async () => {
@@ -1229,10 +939,6 @@ const Live = () => {
           0%,100% { box-shadow: 0 0 0 0 currentColor; opacity:1; }
           50%      { box-shadow: 0 0 0 6px transparent; opacity:0.7; }
         }
-        @keyframes liveGlow {
-          0%,100% { box-shadow: 0 0 0 0 rgba(229,57,53,0.4); }
-          50%      { box-shadow: 0 0 0 8px rgba(229,57,53,0); }
-        }
       `}</style>
 
       {/* ══ HEADER ══ */}
@@ -1269,18 +975,11 @@ const Live = () => {
             </div>
 
             {canPublish && (
-              <div className="flex items-center gap-2">
-                <button onClick={() => setShowGoLive(true)}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-black text-white transition active:scale-95"
-                  style={{ background: "linear-gradient(135deg,#E53935,#b71c1c)" }}>
-                  <Radio className="w-4 h-4" /> Iniciar live
-                </button>
-                <button onClick={() => setShowSchedule(true)}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-bold transition"
-                  style={{ background: "white", border: `1px solid rgba(74,46,10,0.20)`, color: brown }}>
-                  <CalendarClock className="w-4 h-4" /> Agendar
-                </button>
-              </div>
+              <button onClick={() => setShowSchedule(true)}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-black text-white transition active:scale-95"
+                style={{ background: `linear-gradient(135deg, ${sandDark}, ${brown})` }}>
+                <CalendarClock className="w-4 h-4" /> Agendar live
+              </button>
             )}
 
             <button onClick={() => setFilterOpen(v => !v)}
@@ -1304,18 +1003,11 @@ const Live = () => {
               )}
             </div>
             {canPublish && (
-              <div className="flex items-center gap-2">
-                <button onClick={() => setShowGoLive(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black text-white"
-                  style={{ background: "#E53935" }}>
-                  <Radio className="w-3.5 h-3.5" /> Live
-                </button>
-                <button onClick={() => setShowSchedule(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold"
-                  style={{ background: "white", border: `1px solid rgba(74,46,10,0.20)`, color: brown }}>
-                  <CalendarClock className="w-3.5 h-3.5" />
-                </button>
-              </div>
+              <button onClick={() => setShowSchedule(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black text-white"
+                style={{ background: `linear-gradient(135deg, ${sandDark}, ${brown})` }}>
+                <CalendarClock className="w-3.5 h-3.5" /> Agendar
+              </button>
             )}
           </div>
           <div className="mt-2 flex items-center rounded-xl overflow-hidden"
@@ -1383,21 +1075,17 @@ const Live = () => {
                   style={{ background: `linear-gradient(135deg,${brown} 0%,#2d1206 100%)` }}>
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(245,200,66,0.15)" }}>
-                      <Video className="w-6 h-6" style={{ color: gold }} />
+                      <CalendarClock className="w-6 h-6" style={{ color: gold }} />
                     </div>
                     <div>
-                      <h3 className="text-sm font-black text-white">Vai ao vivo agora!</h3>
-                      <p className="text-xs text-white/70 mt-0.5">Partilha os teus produtos, faz leilões em directo e aumenta as tuas vendas.</p>
+                      <h3 className="text-sm font-black text-white">Agenda a tua próxima live!</h3>
+                      <p className="text-xs text-white/70 mt-0.5">Cria um agendamento com capa e vídeo de preview. Os teus seguidores serão notificados.</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 md:ml-auto flex-shrink-0">
-                    <button onClick={() => setShowGoLive(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black"
+                    <button onClick={() => setShowSchedule(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black"
                       style={{ background: gold, color: brown }}>
-                      <Zap className="w-3.5 h-3.5" /> Iniciar live
-                    </button>
-                    <button onClick={() => setShowSchedule(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white"
-                      style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.20)" }}>
-                      Agendar
+                      <Zap className="w-3.5 h-3.5" /> Agendar live
                     </button>
                   </div>
                 </div>
@@ -1436,10 +1124,10 @@ const Live = () => {
             {/* ── Estatísticas ── */}
             <section className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
               {[
-                { icon: Radio,       label: "Ao vivo agora",     value: liveStreams.length,                                              color: "#E53935" },
-                { icon: Calendar,    label: "Próximas lives",    value: scheduledStreams.length,                                         color: sandDark },
-                { icon: Users,       label: "Espectadores total",value: liveStreams.reduce((a: number, s: any) => a + (s.viewers_count || 0), 0), color: brown },
-                { icon: ShoppingBag, label: "Com leilão activo", value: liveStreams.filter((s: any) => s.linked_auction).length,         color: gold },
+                { icon: Radio,       label: "Ao vivo agora",      value: liveStreams.length,                                                   color: "#E53935" },
+                { icon: Calendar,    label: "Próximas lives",     value: scheduledStreams.length,                                              color: sandDark  },
+                { icon: Users,       label: "Espectadores total", value: liveStreams.reduce((a: number, s: any) => a + (s.viewers_count || 0), 0), color: brown  },
+                { icon: ShoppingBag, label: "Com leilão activo",  value: liveStreams.filter((s: any) => s.linked_auction).length,              color: gold      },
               ].map(stat => (
                 <div key={stat.label} className="rounded-2xl p-4 flex items-center gap-3"
                   style={{ background: cream, border: `1px solid rgba(74,46,10,0.12)` }}>
@@ -1476,11 +1164,8 @@ const Live = () => {
 
       <Footer />
 
-      {watchStream   && <WatchModal stream={watchStream} onClose={() => setWatchStream(null)} />}
-      {showGoLive    && canPublish && (
-        <GoLiveModal onClose={() => setShowGoLive(false)} auctions={myAuctions} products={myProducts} sellerId={sellerId} />
-      )}
-      {showSchedule  && canPublish && (
+      {watchStream  && <WatchModal stream={watchStream} onClose={() => setWatchStream(null)} />}
+      {showSchedule && canPublish && (
         <ScheduleModal onClose={() => setShowSchedule(false)} auctions={myAuctions} products={myProducts} sellerId={sellerId} />
       )}
     </div>
