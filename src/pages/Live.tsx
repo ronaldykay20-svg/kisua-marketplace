@@ -288,7 +288,7 @@ const ScheduleModal = ({
       const videoExpiresAt = new Date(startsAt);
       videoExpiresAt.setDate(videoExpiresAt.getDate() + VIDEO_EXPIRY_DAYS);
 
-      const { error, data: insertedData } = await (supabase as any).from("live_streams").insert({
+      const insertPayload = {
         seller_id:         sellerId,
         title:             title.trim(),
         description:       desc.trim() || null,
@@ -300,27 +300,45 @@ const ScheduleModal = ({
         viewers_count:     0,
         linked_auction_id: auctionId || null,
         linked_product_id: productId || null,
-      }).select();
+      };
+
+      const { error, data: insertedRows } = await (supabase as any)
+        .from("live_streams")
+        .insert(insertPayload)
+        .select(`
+          *,
+          seller:sellers(id, name, logo_url, is_verified),
+          linked_auction:auctions(id, title, current_bid, image_url, status),
+          linked_product:products(id, title, price, image_url)
+        `);
 
       if (error) throw new Error(error.message);
 
-      console.log("✅ INSERT resultado:", insertedData);
+      // FIX PRINCIPAL: independentemente de RLS bloquear o SELECT global,
+      // o INSERT com .select() devolve sempre o registo criado (row-level ownership).
+      // Injectamos directamente no cache do React Query — aparece imediatamente sem
+      // depender de um refetch que a RLS pode bloquear.
+      const newRecord = insertedRows?.[0] ?? {
+        ...insertPayload,
+        id: `temp-${Date.now()}`,
+        created_at: new Date().toISOString(),
+        ended_at: null,
+        stream_url: null,
+        channel_name: null,
+        seller: null,
+        linked_auction: null,
+        linked_product: null,
+      };
 
-      // Verificação directa após insert — confirma que o registo existe na BD
-      const { data: checkData, error: checkErr } = await (supabase as any)
-        .from("live_streams")
-        .select("id, status, title, seller_id")
-        .order("created_at", { ascending: false })
-        .limit(5);
-      console.log("🔍 CHECK após insert:", checkData, "erro:", checkErr);
+      qc.setQueryData(["live_streams_scheduled"], (old: any[] = []) =>
+        [newRecord, ...old.filter((s: any) => s.id !== newRecord.id)]
+      );
 
-      // FIX: Invalidar TODAS as queries relevantes para forçar refetch imediato
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ["live_streams_scheduled"] }),
-        qc.invalidateQueries({ queryKey: ["live_streams_active"] }),
-        qc.invalidateQueries({ queryKey: ["live_streams_ended"] }),
-        qc.invalidateQueries({ queryKey: ["live_active_count"] }),
-      ]);
+      // Invalidar em background para sincronizar com a BD
+      setTimeout(() => {
+        qc.invalidateQueries({ queryKey: ["live_streams_scheduled"] });
+        qc.invalidateQueries({ queryKey: ["live_active_count"] });
+      }, 2000);
 
       setUploadProgress(null);
       setDone(true);
@@ -938,15 +956,6 @@ const Live = () => {
   const { data: scheduledStreams = [], isLoading: loadingScheduled } = useQuery({
     queryKey: ["live_streams_scheduled"],
     queryFn: async () => {
-      // DEBUG: primeiro verifica quantos registos existem SEM filtros
-      const { data: allRaw, error: allErr } = await (supabase as any)
-        .from("live_streams")
-        .select("id, status, title, seller_id, created_at")
-        .order("created_at", { ascending: false })
-        .limit(20);
-      console.log("🔍 DEBUG — todos os live_streams (sem filtro):", allRaw, "erro:", allErr);
-
-      // Query real com filtro de status
       const { data, error } = await (supabase as any)
         .from("live_streams")
         .select(`
@@ -958,7 +967,6 @@ const Live = () => {
         .eq("status", "scheduled")
         .order("created_at", { ascending: false })
         .limit(50);
-      console.log("🔍 DEBUG — scheduled streams:", data, "erro:", error);
       if (error) console.error("live_streams_scheduled:", error.message);
       return data || [];
     },
@@ -966,7 +974,7 @@ const Live = () => {
     staleTime: 0,
   });
 
-  /* ── Lives terminadas ──
+    /* ── Lives terminadas ──
      FIX: query separada e limpa — só busca status "ended",
      sem misturar com scheduled. Lives scheduled com data passada
      devem ser tratadas na lógica da app ou via trigger na BD.
