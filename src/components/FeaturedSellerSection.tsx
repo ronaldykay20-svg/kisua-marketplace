@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Star, Package, ShieldCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const FeaturedSellerSection = () => {
@@ -69,6 +69,21 @@ const FeaturedSellerSection = () => {
     enabled: !!seller?.id,
   });
 
+  // Busca avaliações reais do vendedor e calcula % positivas (rating >= 4)
+  const { data: positiveReviewPct } = useQuery({
+    queryKey: ["featured_seller_review_pct", seller?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("seller_reviews")
+        .select("rating")
+        .eq("seller_id", seller!.id);
+      if (error || !data || data.length === 0) return null;
+      const positive = data.filter((r: any) => r.rating >= 4).length;
+      return Math.round((positive / data.length) * 100);
+    },
+    enabled: !!seller?.id,
+  });
+
   if (!seller || products.length === 0) return null;
 
   return (
@@ -88,6 +103,24 @@ const FeaturedSellerSection = () => {
           />
         </div>
       )}
+
+      {/* Badges de confiança */}
+      <div className="flex items-center gap-4 text-xs text-muted-foreground mb-3 flex-wrap">
+        {positiveReviewPct !== null && positiveReviewPct !== undefined && (
+          <span className="flex items-center gap-1">
+            <Star className="w-3.5 h-3.5 text-secondary fill-secondary" />
+            <span className="font-semibold text-foreground">{positiveReviewPct}%</span> Avaliações positivas
+          </span>
+        )}
+        <span className="flex items-center gap-1">
+          <Package className="w-3.5 h-3.5 text-primary" />
+          Envio rápido
+        </span>
+        <span className="flex items-center gap-1">
+          <ShieldCheck className="w-3.5 h-3.5 text-primary" />
+          Compra segura
+        </span>
+      </div>
 
       {/* Título com linha — "Produtos da loja" */}
       <div className="flex items-center justify-between mb-3">
