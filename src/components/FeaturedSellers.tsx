@@ -5,14 +5,19 @@ import { ChevronLeft, ChevronRight, CheckCircle, ShoppingCart } from "lucide-rea
 import { useNavigate } from "react-router-dom";
 
 interface FeaturedSellersProps {
-  /** No tablet mostra 2 lojas lado a lado em vez de carrossel */
   layout?: "mobile" | "tablet" | "desktop";
 }
 
 const FeaturedSellers = ({ layout = "mobile" }: FeaturedSellersProps) => {
   const navigate = useNavigate();
-  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Mobile carousel
+  const mobileScrollRef = useRef<HTMLDivElement>(null);
   const [currentIdx, setCurrentIdx] = useState(0);
+
+  // Tablet / Desktop carousel
+  const wideScrollRef = useRef<HTMLDivElement>(null);
+  const [widePage, setWidePage] = useState(0);
 
   const { data: sellers = [] } = useQuery({
     queryKey: ["featured_sellers_home"],
@@ -66,7 +71,6 @@ const FeaturedSellers = ({ layout = "mobile" }: FeaturedSellersProps) => {
     enabled: sellerIds.length > 0,
   });
 
-  // Busca avaliações reais de todos os vendedores em destaque de uma só vez
   const { data: reviewsMap = {} } = useQuery({
     queryKey: ["featured_sellers_reviews", sellerIds],
     queryFn: async () => {
@@ -77,12 +81,11 @@ const FeaturedSellers = ({ layout = "mobile" }: FeaturedSellersProps) => {
         .in("seller_id", sellerIds);
       if (error || !data) return {};
 
-      // Agrupa por seller_id e calcula % positivas (rating >= 4)
       const map: Record<string, number | null> = {};
       sellerIds.forEach((id: string) => {
         const reviews = data.filter((r: any) => r.seller_id === id);
         if (reviews.length === 0) {
-          map[id] = null; // sem avaliações — não exibe
+          map[id] = null;
         } else {
           const positive = reviews.filter((r: any) => r.rating >= 4).length;
           map[id] = Math.round((positive / reviews.length) * 100);
@@ -95,8 +98,32 @@ const FeaturedSellers = ({ layout = "mobile" }: FeaturedSellersProps) => {
 
   if (sellers.length === 0) return null;
 
-  const scrollTo = (dir: "left" | "right") => {
-    const el = scrollRef.current;
+  // Agrupa lojas em pares para o carrossel tablet/desktop
+  const sellerPairs: any[][] = [];
+  for (let i = 0; i < sellers.length; i += 2) {
+    sellerPairs.push(sellers.slice(i, i + 2));
+  }
+  const totalWidePages = sellerPairs.length;
+
+  const handleWideScroll = () => {
+    const el = wideScrollRef.current;
+    if (!el) return;
+    const page = Math.round(el.scrollLeft / el.offsetWidth);
+    setWidePage(page);
+  };
+
+  const scrollWide = (dir: "left" | "right") => {
+    const el = wideScrollRef.current;
+    if (!el) return;
+    const newPage = dir === "left"
+      ? Math.max(0, widePage - 1)
+      : Math.min(totalWidePages - 1, widePage + 1);
+    setWidePage(newPage);
+    el.scrollTo({ left: newPage * el.offsetWidth, behavior: "smooth" });
+  };
+
+  const scrollMobile = (dir: "left" | "right") => {
+    const el = mobileScrollRef.current;
     if (!el) return;
     const newIdx = dir === "left"
       ? Math.max(0, currentIdx - 1)
@@ -112,7 +139,6 @@ const FeaturedSellers = ({ layout = "mobile" }: FeaturedSellersProps) => {
       .filter((p: any) => p.seller_id === seller.id)
       .slice(0, productsLimit);
 
-    // Percentagem real de avaliações positivas (null = sem avaliações)
     const positivePct: number | null = reviewsMap[seller.id] ?? null;
 
     return (
@@ -153,7 +179,7 @@ const FeaturedSellers = ({ layout = "mobile" }: FeaturedSellersProps) => {
           </button>
         </div>
 
-        {/* Estatísticas da loja */}
+        {/* Estatísticas */}
         <div className="flex items-center justify-around px-3 py-2 border-b border-border text-[10px] text-muted-foreground">
           {positivePct !== null ? (
             <div className="flex items-center gap-1">
@@ -242,48 +268,160 @@ const FeaturedSellers = ({ layout = "mobile" }: FeaturedSellersProps) => {
     );
   };
 
-  /* ══ TABLET — 2 lojas lado a lado, produtos 3 por loja ══ */
+  /* ══ TABLET ══ */
   if (layout === "tablet") {
-    const pair = sellers.slice(0, 2);
+    // 2 lojas ou menos — grelha estática
+    if (sellers.length <= 2) {
+      return (
+        <section className="pt-4">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-bold text-foreground">Lojas em destaque</h2>
+            <button onClick={() => navigate("/vendedores")} className="text-xs font-semibold text-primary">
+              Ver todas →
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {sellers.map((seller: any) => (
+              <SellerCard key={seller.id} seller={seller} productsLimit={3} />
+            ))}
+          </div>
+        </section>
+      );
+    }
+
+    // Mais de 2 lojas — carrossel de pares com pontos
     return (
       <section className="pt-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-bold text-foreground">Lojas em destaque</h2>
-          <button
-            onClick={() => navigate("/vendedores")}
-            className="text-xs font-semibold text-primary"
-          >
-            Ver todas →
-          </button>
+          <div className="flex items-center gap-2">
+            <div className="flex gap-1">
+              {widePage > 0 && (
+                <button
+                  onClick={() => scrollWide("left")}
+                  className="w-7 h-7 rounded-full bg-muted flex items-center justify-center hover:bg-border transition"
+                >
+                  <ChevronLeft className="w-4 h-4 text-foreground" />
+                </button>
+              )}
+              {widePage < totalWidePages - 1 && (
+                <button
+                  onClick={() => scrollWide("right")}
+                  className="w-7 h-7 rounded-full bg-muted flex items-center justify-center hover:bg-border transition"
+                >
+                  <ChevronRight className="w-4 h-4 text-foreground" />
+                </button>
+              )}
+            </div>
+            <button onClick={() => navigate("/vendedores")} className="text-xs font-semibold text-primary">
+              Ver todas →
+            </button>
+          </div>
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          {pair.map((seller: any) => (
-            <SellerCard key={seller.id} seller={seller} productsLimit={3} />
+
+        <div
+          ref={wideScrollRef}
+          onScroll={handleWideScroll}
+          className="flex overflow-x-auto scrollbar-hide snap-x snap-mandatory"
+        >
+          {sellerPairs.map((pair, pageIdx) => (
+            <div key={pageIdx} className="flex-shrink-0 w-full snap-start grid grid-cols-2 gap-3">
+              {pair.map((seller: any) => (
+                <SellerCard key={seller.id} seller={seller} productsLimit={3} />
+              ))}
+            </div>
           ))}
         </div>
+
+        {totalWidePages > 1 && (
+          <div className="flex justify-center gap-1.5 mt-3">
+            {Array.from({ length: totalWidePages }).map((_, i) => (
+              <div
+                key={i}
+                className={`h-1.5 rounded-full transition-all duration-300 ${i === widePage ? "w-5 bg-primary" : "w-1.5 bg-muted-foreground/30"}`}
+              />
+            ))}
+          </div>
+        )}
       </section>
     );
   }
 
-  /* ══ DESKTOP — 2 lojas lado a lado com 6 produtos cada ══ */
+  /* ══ DESKTOP ══ */
   if (layout === "desktop") {
-    const pair = sellers.slice(0, 2);
+    // 2 lojas ou menos — grelha estática
+    if (sellers.length <= 2) {
+      return (
+        <section className="pt-4">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-bold text-foreground">Lojas em destaque</h2>
+            <button onClick={() => navigate("/vendedores")} className="text-xs font-semibold text-primary">
+              Ver todas →
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            {sellers.map((seller: any) => (
+              <SellerCard key={seller.id} seller={seller} productsLimit={6} />
+            ))}
+          </div>
+        </section>
+      );
+    }
+
+    // Mais de 2 lojas — carrossel de pares com pontos
     return (
       <section className="pt-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-bold text-foreground">Lojas em destaque</h2>
-          <button
-            onClick={() => navigate("/vendedores")}
-            className="text-xs font-semibold text-primary"
-          >
-            Ver todas →
-          </button>
+          <div className="flex items-center gap-2">
+            <div className="flex gap-1">
+              {widePage > 0 && (
+                <button
+                  onClick={() => scrollWide("left")}
+                  className="w-7 h-7 rounded-full bg-muted flex items-center justify-center hover:bg-border transition"
+                >
+                  <ChevronLeft className="w-4 h-4 text-foreground" />
+                </button>
+              )}
+              {widePage < totalWidePages - 1 && (
+                <button
+                  onClick={() => scrollWide("right")}
+                  className="w-7 h-7 rounded-full bg-muted flex items-center justify-center hover:bg-border transition"
+                >
+                  <ChevronRight className="w-4 h-4 text-foreground" />
+                </button>
+              )}
+            </div>
+            <button onClick={() => navigate("/vendedores")} className="text-xs font-semibold text-primary">
+              Ver todas →
+            </button>
+          </div>
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          {pair.map((seller: any) => (
-            <SellerCard key={seller.id} seller={seller} productsLimit={6} />
+
+        <div
+          ref={wideScrollRef}
+          onScroll={handleWideScroll}
+          className="flex overflow-x-auto scrollbar-hide snap-x snap-mandatory"
+        >
+          {sellerPairs.map((pair, pageIdx) => (
+            <div key={pageIdx} className="flex-shrink-0 w-full snap-start grid grid-cols-2 gap-4">
+              {pair.map((seller: any) => (
+                <SellerCard key={seller.id} seller={seller} productsLimit={6} />
+              ))}
+            </div>
           ))}
         </div>
+
+        {totalWidePages > 1 && (
+          <div className="flex justify-center gap-1.5 mt-3">
+            {Array.from({ length: totalWidePages }).map((_, i) => (
+              <div
+                key={i}
+                className={`h-1.5 rounded-full transition-all duration-300 ${i === widePage ? "w-5 bg-primary" : "w-1.5 bg-muted-foreground/30"}`}
+              />
+            ))}
+          </div>
+        )}
       </section>
     );
   }
@@ -296,7 +434,7 @@ const FeaturedSellers = ({ layout = "mobile" }: FeaturedSellersProps) => {
         <div className="flex gap-1">
           {currentIdx > 0 && (
             <button
-              onClick={() => scrollTo("left")}
+              onClick={() => scrollMobile("left")}
               className="w-7 h-7 rounded-full bg-muted flex items-center justify-center hover:bg-border transition"
             >
               <ChevronLeft className="w-4 h-4 text-foreground" />
@@ -304,7 +442,7 @@ const FeaturedSellers = ({ layout = "mobile" }: FeaturedSellersProps) => {
           )}
           {currentIdx < sellers.length - 1 && (
             <button
-              onClick={() => scrollTo("right")}
+              onClick={() => scrollMobile("right")}
               className="w-7 h-7 rounded-full bg-muted flex items-center justify-center hover:bg-border transition"
             >
               <ChevronRight className="w-4 h-4 text-foreground" />
@@ -312,7 +450,7 @@ const FeaturedSellers = ({ layout = "mobile" }: FeaturedSellersProps) => {
           )}
         </div>
       </div>
-      <div ref={scrollRef} className="flex gap-3 overflow-x-auto scrollbar-hide snap-x snap-mandatory">
+      <div ref={mobileScrollRef} className="flex gap-3 overflow-x-auto scrollbar-hide snap-x snap-mandatory">
         {sellers.map((seller: any) => (
           <div key={seller.id} className="flex-shrink-0 w-full snap-start">
             <SellerCard seller={seller} productsLimit={3} />
