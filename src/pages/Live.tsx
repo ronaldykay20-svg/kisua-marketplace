@@ -53,11 +53,11 @@ const fmtDate = (iso: string) =>
     hour: "2-digit", minute: "2-digit",
   });
 
-// ALTERAÇÃO: ao vivo APENAS durante a janela da primeira transmissão
+// AO VIVO apenas durante a janela da primeira transmissão
 // e apenas enquanto first_broadcast_ended_at não estiver preenchido
 const isLive = (r: any) => {
   if (r.status !== "scheduled") return false;
-  if (r.first_broadcast_ended_at) return false; // transmissão já terminou, nunca mais é live
+  if (r.first_broadcast_ended_at) return false;
   const now = Date.now();
   const start = new Date(r.broadcasts_at).getTime();
   return now >= start && now < start + (r.broadcast_duration_ms ?? 3 * 3600_000);
@@ -66,11 +66,16 @@ const isLive = (r: any) => {
 const isUpcoming = (r: any) =>
   r.status === "scheduled" && new Date(r.broadcasts_at).getTime() > Date.now();
 
-const isExpired = (r: any) =>
-  r.status === "expired" ||
-  !!r.first_broadcast_ended_at || // já foi transmitido — considera terminado
-  (r.status === "scheduled" &&
-    Date.now() >= new Date(r.broadcasts_at).getTime() + (r.broadcast_duration_ms ?? 3 * 3600_000));
+// CORREÇÃO: isExpired simplificada — não depende de first_broadcast_ended_at.
+// Um lançamento é "terminado" assim que a janela de tempo passa, mesmo que
+// ninguém tenha assistido e o campo first_broadcast_ended_at nunca seja preenchido.
+const isExpired = (r: any) => {
+  if (r.status === "expired") return true;
+  const windowEnd =
+    new Date(r.broadcasts_at).getTime() +
+    (r.broadcast_duration_ms ?? 3 * 3600_000);
+  return Date.now() >= windowEnd;
+};
 
 const getVideoDuration = (file: File): Promise<number> =>
   new Promise((resolve, reject) => {
@@ -144,6 +149,9 @@ const CoverUpload = ({
 
 /* ═══════════════════════════════════════════════════
    PRODUCT PICKER (até 5 produtos)
+   CORREÇÃO: os produtos são recebidos via prop (já carregados pela query
+   "my_products_active" na página principal, igual ao padrão usado nos Stories
+   — não faz query própria, evita chamadas duplicadas e erros de contexto).
 ═══════════════════════════════════════════════════ */
 const ProductPicker = ({
   products, selected, onChange,
@@ -309,7 +317,7 @@ const CreateModal = ({
 
       if (error) throw new Error(error.message);
 
-      // Buscar produtos
+      // Buscar produtos vinculados para popular o cache imediatamente
       let linkedProducts: any[] = [];
       if (selectedProds.length) {
         const { data: prods } = await (supabase as any)
@@ -467,7 +475,7 @@ const CreateModal = ({
               style={{ background: "#fff", border: "1.5px solid rgba(74,46,10,0.18)", color: brown }} />
           </div>
 
-          {/* Produtos */}
+          {/* Produtos — recebidos via prop, sem query própria */}
           <ProductPicker products={products} selected={selectedProds} onChange={setSelectedProds} />
 
           <button onClick={handleSubmit}
@@ -489,13 +497,12 @@ const CreateModal = ({
 };
 
 /* ═══════════════════════════════════════════════════
-   COMMENT ITEM — ALTERADO
+   COMMENT ITEM
    · Sem anónimos: mostra sempre user_name
    · Badge "dono da publicação" se isOwner = true
 ═══════════════════════════════════════════════════ */
 const CommentItem = ({ comment, isOwner }: { comment: any; isOwner?: boolean }) => (
   <div className="flex items-start gap-2.5 py-3 border-b last:border-0" style={{ borderColor: "rgba(74,46,10,0.10)" }}>
-    {/* Avatar */}
     {comment.user_avatar
       ? <img src={comment.user_avatar} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
       : <div
@@ -508,7 +515,6 @@ const CommentItem = ({ comment, isOwner }: { comment: any; isOwner?: boolean }) 
         </div>}
 
     <div className="flex-1 min-w-0">
-      {/* Nome + badge dono + hora */}
       <div className="flex items-center flex-wrap gap-1.5 mb-0.5">
         <span className="text-xs font-black" style={{ color: brown }}>
           {comment.user_name || "Utilizador"}
@@ -525,10 +531,8 @@ const CommentItem = ({ comment, isOwner }: { comment: any; isOwner?: boolean }) 
         </span>
       </div>
 
-      {/* Texto */}
       <p className="text-xs leading-relaxed" style={{ color: brown }}>{comment.content}</p>
 
-      {/* Likes estilo YouTube */}
       <div className="flex items-center gap-3 mt-1.5">
         <button className="flex items-center gap-1 text-[10px]" style={{ color: sandDark }}>
           <Heart className="w-3 h-3" />
@@ -543,12 +547,10 @@ const CommentItem = ({ comment, isOwner }: { comment: any; isOwner?: boolean }) 
 );
 
 /* ═══════════════════════════════════════════════════
-   MODAL — ASSISTIR / DETALHES — ALTERADO
-   · Vídeo só ao vivo na 1ª transmissão (nunca replay)
-   · Produtos em micro carrossel horizontal
-   · Comentários sem anónimos, com badge de dono
-   · Vídeo sempre dentro da moldura
-   · Quando live termina, grava first_broadcast_ended_at
+   MODAL — ASSISTIR / DETALHES
+   CORREÇÃO: <video> com playsInline para não sair da moldura no iOS/Android.
+   O container tem position:relative + overflow:hidden e o vídeo usa
+   position:absolute + inset-0 para ficar sempre contido.
 ═══════════════════════════════════════════════════ */
 const WatchModal = ({
   release, onClose, userId,
@@ -564,7 +566,6 @@ const WatchModal = ({
   const upcoming = isUpcoming(release);
   const expired  = isExpired(release);
 
-  // Buscar nome e avatar do utilizador actual para comentários
   const { data: profile } = useQuery({
     queryKey: ["profile", userId],
     queryFn: async () => {
@@ -578,10 +579,8 @@ const WatchModal = ({
     enabled: !!userId,
   });
 
-  // Determinar se o utilizador actual é dono da publicação
   const isReleaseOwner = !!userId && userId === release.seller?.user_id;
 
-  /* Registo de visualização */
   useEffect(() => {
     if (!release?.id || (!live && upcoming)) return;
     (supabase as any).from("release_views").insert({ release_id: release.id, user_id: userId });
@@ -589,8 +588,7 @@ const WatchModal = ({
       .eq("id", release.id);
   }, [release?.id]);
 
-  /* Quando o vídeo ao vivo terminar, grava first_broadcast_ended_at para
-     impedir que volte a aparecer como "ao vivo" em sessões futuras */
+  /* Quando o vídeo ao vivo terminar, grava first_broadcast_ended_at */
   const handleVideoEnded = useCallback(async () => {
     if (!live || !release?.id) return;
     await (supabase as any)
@@ -600,7 +598,6 @@ const WatchModal = ({
     qc.invalidateQueries({ queryKey: ["releases_all"] });
   }, [live, release?.id, qc]);
 
-  /* Buscar comentários em realtime */
   const { data: comments = [] } = useQuery({
     queryKey: ["release_comments", release.id],
     queryFn: async () => {
@@ -628,7 +625,6 @@ const WatchModal = ({
     if (!text) return;
     setComment("");
 
-    // ALTERAÇÃO: sempre passa user_name e user_avatar — nunca anónimo
     const userName   = profile?.full_name || "Utilizador";
     const userAvatar = profile?.avatar_url || null;
 
@@ -676,17 +672,28 @@ const WatchModal = ({
             </button>
           </div>
 
-          {/* ── Vídeo player — SEMPRE dentro da moldura ── */}
-          <div className="relative flex-shrink-0 bg-black" style={{ aspectRatio: "16/9" }}>
-
+          {/* ── Vídeo player — sempre dentro da moldura ──
+              CORREÇÃO: overflow:hidden no container + position:absolute no vídeo
+              + playsInline para bloquear fullscreen nativo no iOS Safari       */}
+          <div
+            className="relative flex-shrink-0 bg-black overflow-hidden"
+            style={{ aspectRatio: "16/9" }}
+          >
             {/* AO VIVO: apenas na primeira transmissão */}
             {live && release.video_url && (
               <video
                 src={release.video_url}
                 controls
                 autoPlay
+                playsInline
                 onEnded={handleVideoEnded}
-                className="absolute inset-0 w-full h-full object-contain"
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "contain",
+                }}
               />
             )}
 
@@ -765,7 +772,7 @@ const WatchModal = ({
             )}
           </div>
 
-          {/* ── Micro carrossel de produtos (mobile + desktop) ── */}
+          {/* Micro carrossel de produtos */}
           {release.linked_products?.length > 0 && (
             <div className="px-4 py-3 border-b" style={{ borderColor: "rgba(74,46,10,0.12)" }}>
               <p className="text-[10px] font-black uppercase tracking-wider mb-2" style={{ color: sandDark }}>
@@ -801,8 +808,6 @@ const WatchModal = ({
 
         {/* ── Coluna direita — comentários (desktop) ── */}
         <div className="hidden md:flex flex-col flex-1 min-h-0" style={{ borderLeft: "1px solid rgba(74,46,10,0.12)" }}>
-
-          {/* Comentários */}
           <div className="flex flex-col flex-1 min-h-0">
             <p className="px-4 pt-3 pb-1 text-[10px] font-black uppercase tracking-wider flex-shrink-0" style={{ color: sandDark }}>
               Comentários {comments.length > 0 && `(${comments.length})`}
@@ -828,11 +833,9 @@ const WatchModal = ({
               )}
             </div>
 
-            {/* Input comentário */}
             {!upcoming && !expired && (
               <div className="flex items-center gap-2 px-3 py-3 flex-shrink-0"
                 style={{ borderTop: "1px solid rgba(74,46,10,0.12)" }}>
-                {/* Avatar do utilizador actual */}
                 {profile?.avatar_url
                   ? <img src={profile.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
                   : <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0"
@@ -916,7 +919,6 @@ const ReleaseCard = ({
       className="group relative rounded-2xl overflow-hidden cursor-pointer shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
       style={{ background: cream }}>
 
-      {/* Capa */}
       <div className="relative aspect-video overflow-hidden bg-gray-900">
         {release.thumbnail_url
           ? <img src={release.thumbnail_url} alt={release.title}
@@ -928,7 +930,6 @@ const ReleaseCard = ({
 
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300" />
 
-        {/* Badge status */}
         {live && (
           <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-1 rounded-lg" style={{ background: "#E53935" }}>
             <PulseDot color="#fff" />
@@ -949,7 +950,6 @@ const ReleaseCard = ({
           </div>
         )}
 
-        {/* Duração */}
         {release.video_duration_s && (
           <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded-md"
             style={{ background: "rgba(0,0,0,0.72)" }}>
@@ -957,7 +957,6 @@ const ReleaseCard = ({
           </div>
         )}
 
-        {/* Play hover — só aparece se não for upcoming e não for expired */}
         {!upcoming && !expired && (
           <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
             <div className="w-14 h-14 rounded-full flex items-center justify-center shadow-xl" style={{ background: "rgba(255,255,255,0.92)" }}>
@@ -966,7 +965,6 @@ const ReleaseCard = ({
           </div>
         )}
 
-        {/* Produtos badge */}
         {release.linked_products?.length > 0 && (
           <div className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-1 rounded-lg"
             style={{ background: "rgba(0,0,0,0.65)" }}>
@@ -975,7 +973,6 @@ const ReleaseCard = ({
           </div>
         )}
 
-        {/* Botão eliminar */}
         {canDelete && onDelete && (
           <button
             onClick={e => { e.stopPropagation(); onDelete(); }}
@@ -986,7 +983,6 @@ const ReleaseCard = ({
         )}
       </div>
 
-      {/* Info */}
       <div className="p-3">
         <div className="flex items-center gap-2 mb-1.5">
           {release.seller?.logo_url
@@ -1070,28 +1066,42 @@ const Lancamentos = () => {
         .limit(60);
       if (error) console.error("releases:", error.message);
       if (!data?.length) return [];
+
+      // Recolher todos os IDs de produtos vinculados de todos os lançamentos
+      // e fazer UMA única query à tabela products — igual ao padrão dos Stories
+      // que carrega todos os dados de uma vez em vez de query por query.
       const allProdIds = [...new Set(data.flatMap((r: any) => r.linked_product_ids || []))];
       let prodMap: Record<string, any> = {};
       if (allProdIds.length) {
         const { data: prods } = await (supabase as any)
-          .from("products").select("id, title, price, image_url, slug").in("id", allProdIds);
+          .from("products")
+          .select("id, title, price, image_url, slug")
+          .in("id", allProdIds);
         (prods || []).forEach((p: any) => { prodMap[p.id] = p; });
       }
+
       return data.map((r: any) => ({
         ...r,
-        linked_products: (r.linked_product_ids || []).map((id: string) => prodMap[id]).filter(Boolean),
+        linked_products: (r.linked_product_ids || [])
+          .map((id: string) => prodMap[id])
+          .filter(Boolean),
       }));
     },
     refetchInterval: 15000,
     staleTime: 0,
   });
 
-  /* Meus produtos */
+  /* Meus produtos — carregados uma vez aqui e passados como prop ao CreateModal,
+     evitando que o modal faça a sua própria query (que pode falhar por contexto) */
   const { data: myProducts = [] } = useQuery({
     queryKey: ["my_products_active", sellerId],
     queryFn: async () => {
       const { data } = await (supabase as any)
-        .from("products").select("id, title, price, image_url").eq("seller_id", sellerId).eq("is_active", true).limit(50);
+        .from("products")
+        .select("id, title, price, image_url")
+        .eq("seller_id", sellerId)
+        .eq("is_active", true)
+        .limit(50);
       return data || [];
     },
     enabled: canPublish && !!sellerId,
@@ -1242,7 +1252,7 @@ const Lancamentos = () => {
 
         {!isLoading && (
           <>
-            {/* ─── Banner vendedor ─── */}
+            {/* Banner vendedor */}
             {canPublish && (
               <div className="mb-6 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4"
                 style={{ background: `linear-gradient(135deg,${brown} 0%,#2d1206 100%)` }}>
@@ -1276,7 +1286,7 @@ const Lancamentos = () => {
               </div>
             )}
 
-            {/* ─── Live agora ─── */}
+            {/* Live agora */}
             {filter === "all" && liveNow.length > 0 && (
               <section className="mb-8">
                 <div className="flex items-center gap-2 mb-3">
@@ -1299,7 +1309,7 @@ const Lancamentos = () => {
               </section>
             )}
 
-            {/* ─── Grid principal ─── */}
+            {/* Grid principal */}
             {filtered.length === 0 ? (
               <div className="rounded-2xl py-16 text-center" style={{ background: cream, border: `1px dashed rgba(74,46,10,0.20)` }}>
                 <Film className="w-10 h-10 mx-auto mb-3" style={{ color: sandDark, opacity: 0.4 }} />
