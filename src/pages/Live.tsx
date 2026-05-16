@@ -10,7 +10,7 @@ import {
   VideoOff, Image as ImageIcon, Clock, Send, Trash2,
   Eye, MessageCircle, Heart, Bell, BellOff, Package,
   ChevronRight, AlertTriangle, Plus, Film, Zap,
-  ExternalLink, Radio, Calendar, Hash,
+  ExternalLink, Radio, Calendar, Hash, Tag, DollarSign,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -26,21 +26,10 @@ const brownLight = "rgba(74,46,10,0.10)";
 const gold       = "#f5c842";
 
 /* ─── LIMITES ─── */
-const MAX_VIDEO_SECONDS   = 7 * 60;   // 7 minutos
-const MAX_RELEASES        = 5;         // máximo por vendedor
-const MAX_PRODUCTS_LINKED = 5;         // produtos vinculados
+const MAX_VIDEO_SECONDS   = 7 * 60;
+const MAX_RELEASES        = 5;
+const MAX_PRODUCTS_LINKED = 5;
 
-/* ─── SQL MIGRATION — cole no Supabase SQL editor ─── */
-// Ver ficheiro: releases_schema.sql
-// NOTA: Adicionar coluna à tabela releases:
-//   ALTER TABLE releases ADD COLUMN IF NOT EXISTS first_broadcast_ended_at timestamptz;
-// Adicionar coluna à tabela release_comments:
-//   ALTER TABLE release_comments ADD COLUMN IF NOT EXISTS user_name text;
-//   ALTER TABLE release_comments ADD COLUMN IF NOT EXISTS user_avatar text;
-
-/* ═══════════════════════════════════════════════════
-   HELPERS
-═══════════════════════════════════════════════════ */
 const fmtDuration = (s: number) => {
   const m = Math.floor(s / 60);
   const sec = Math.floor(s % 60);
@@ -53,8 +42,6 @@ const fmtDate = (iso: string) =>
     hour: "2-digit", minute: "2-digit",
   });
 
-// AO VIVO apenas durante a janela da primeira transmissão
-// e apenas enquanto first_broadcast_ended_at não estiver preenchido
 const isLive = (r: any) => {
   if (r.status !== "scheduled") return false;
   if (r.first_broadcast_ended_at) return false;
@@ -66,9 +53,6 @@ const isLive = (r: any) => {
 const isUpcoming = (r: any) =>
   r.status === "scheduled" && new Date(r.broadcasts_at).getTime() > Date.now();
 
-// CORREÇÃO: isExpired simplificada — não depende de first_broadcast_ended_at.
-// Um lançamento é "terminado" assim que a janela de tempo passa, mesmo que
-// ninguém tenha assistido e o campo first_broadcast_ended_at nunca seja preenchido.
 const isExpired = (r: any) => {
   if (r.status === "expired") return true;
   const windowEnd =
@@ -148,10 +132,7 @@ const CoverUpload = ({
 };
 
 /* ═══════════════════════════════════════════════════
-   PRODUCT PICKER (até 5 produtos)
-   CORREÇÃO: os produtos são recebidos via prop (já carregados pela query
-   "my_products_active" na página principal, igual ao padrão usado nos Stories
-   — não faz query própria, evita chamadas duplicadas e erros de contexto).
+   PRODUCT PICKER
 ═══════════════════════════════════════════════════ */
 const ProductPicker = ({
   products, selected, onChange,
@@ -210,10 +191,210 @@ const ProductPicker = ({
 };
 
 /* ═══════════════════════════════════════════════════
+   NEW PRODUCT FORM — embutido no CreateModal
+   Cria um produto novo associado ao seller/empresa
+   e automaticamente adiciona à lista de linked products.
+═══════════════════════════════════════════════════ */
+const NewProductInline = ({
+  sellerId,
+  onCreated,
+  onCancel,
+}: {
+  sellerId: string | null;
+  onCreated: (product: { id: string; title: string; price: number; image_url: string | null }) => void;
+  onCancel: () => void;
+}) => {
+  const imgRef = useRef<HTMLInputElement>(null);
+  const [title, setTitle]       = useState("");
+  const [price, setPrice]       = useState("");
+  const [category, setCategory] = useState("");
+  const [desc, setDesc]         = useState("");
+  const [imgFile, setImgFile]   = useState<File | null>(null);
+  const [imgPreview, setImgPreview] = useState<string | null>(null);
+  const [loading, setLoading]   = useState(false);
+
+  const handleImg = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    if (f.size > 5 * 1024 * 1024) { toast.error("Imagem máx. 5 MB"); return; }
+    setImgFile(f);
+    setImgPreview(URL.createObjectURL(f));
+  };
+
+  const handleCreate = async () => {
+    if (!title.trim()) { toast.error("Título obrigatório"); return; }
+    const priceNum = parseFloat(price.replace(",", "."));
+    if (!price || isNaN(priceNum) || priceNum <= 0) { toast.error("Preço inválido"); return; }
+    if (!sellerId) { toast.error("Conta de vendedor não encontrada"); return; }
+
+    setLoading(true);
+    try {
+      let image_url: string | null = null;
+
+      if (imgFile) {
+        const ext = imgFile.name.split(".").pop();
+        const path = `product-images/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const { error: upErr } = await (supabase as any).storage.from(STORAGE_BUCKET).upload(path, imgFile);
+        if (upErr) throw new Error(`Upload imagem: ${upErr.message}`);
+        const { data: urlData } = (supabase as any).storage.from(STORAGE_BUCKET).getPublicUrl(path);
+        image_url = urlData?.publicUrl ?? null;
+      }
+
+      const slug = title.trim().toLowerCase()
+        .replace(/\s+/g, "-")
+        .replace(/[^a-z0-9\-]/g, "")
+        .slice(0, 80);
+
+      const { data: rows, error } = await (supabase as any)
+        .from("products")
+        .insert({
+          seller_id:   sellerId,
+          title:       title.trim(),
+          description: desc.trim() || null,
+          price:       priceNum,
+          category:    category.trim() || null,
+          image_url,
+          slug:        `${slug}-${Date.now()}`,
+          is_active:   true,
+          sales_count: 0,
+        })
+        .select("id, title, price, image_url")
+        .single();
+
+      if (error) throw new Error(error.message);
+      toast.success("Produto criado e vinculado!");
+      onCreated(rows);
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao criar produto");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="mb-5 rounded-2xl overflow-hidden" style={{ border: `1.5px solid ${sandDark}`, background: "#fff" }}>
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3"
+        style={{ background: `linear-gradient(135deg,${brownLight},rgba(74,46,10,0.05))`, borderBottom: `1px solid rgba(74,46,10,0.12)` }}>
+        <div className="flex items-center gap-2">
+          <ShoppingBag className="w-4 h-4" style={{ color: sandDark }} />
+          <span className="text-xs font-black uppercase tracking-wider" style={{ color: brown }}>Novo produto</span>
+        </div>
+        <button onClick={onCancel} className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: brownLight }}>
+          <X className="w-3.5 h-3.5" style={{ color: brown }} />
+        </button>
+      </div>
+
+      <div className="p-4 space-y-3">
+        {/* Imagem do produto */}
+        <div>
+          <label className="block text-[10px] font-black uppercase tracking-wider mb-1.5" style={{ color: brown }}>
+            Imagem do produto
+          </label>
+          <div
+            onClick={() => imgRef.current?.click()}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all"
+            style={{ background: brownLight, border: `1.5px dashed rgba(74,46,10,0.25)` }}>
+            {imgPreview
+              ? <img src={imgPreview} alt="" className="w-14 h-14 rounded-lg object-cover flex-shrink-0" />
+              : <div className="w-14 h-14 rounded-lg flex items-center justify-center flex-shrink-0"
+                  style={{ background: "rgba(74,46,10,0.08)" }}>
+                  <ImageIcon className="w-5 h-5" style={{ color: sandDark }} />
+                </div>}
+            <div>
+              <p className="text-xs font-bold" style={{ color: brown }}>
+                {imgPreview ? "Alterar imagem" : "Clique para carregar"}
+              </p>
+              <p className="text-[10px]" style={{ color: sandDark }}>JPG, PNG · Máx. 5 MB</p>
+            </div>
+            {imgPreview && (
+              <button type="button"
+                onClick={e => { e.stopPropagation(); setImgFile(null); setImgPreview(null); }}
+                className="ml-auto w-6 h-6 rounded-full flex items-center justify-center"
+                style={{ background: "rgba(229,57,53,0.12)" }}>
+                <X className="w-3 h-3" style={{ color: "#E53935" }} />
+              </button>
+            )}
+          </div>
+          <input ref={imgRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleImg} />
+        </div>
+
+        {/* Título */}
+        <div>
+          <label className="block text-[10px] font-black uppercase tracking-wider mb-1" style={{ color: brown }}>
+            Título <span style={{ color: "#E53935" }}>*</span>
+          </label>
+          <input
+            type="text" value={title} onChange={e => setTitle(e.target.value)} maxLength={120}
+            placeholder="Ex: Vestido de linho bege"
+            className="w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none"
+            style={{ background: cream, border: "1.5px solid rgba(74,46,10,0.18)", color: brown }}
+          />
+        </div>
+
+        {/* Preço + Categoria lado a lado */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-[10px] font-black uppercase tracking-wider mb-1" style={{ color: brown }}>
+              Preço (Kz) <span style={{ color: "#E53935" }}>*</span>
+            </label>
+            <input
+              type="number" value={price} onChange={e => setPrice(e.target.value)} min="1"
+              placeholder="0"
+              className="w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none"
+              style={{ background: cream, border: "1.5px solid rgba(74,46,10,0.18)", color: brown }}
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] font-black uppercase tracking-wider mb-1" style={{ color: brown }}>
+              Categoria
+            </label>
+            <input
+              type="text" value={category} onChange={e => setCategory(e.target.value)} maxLength={60}
+              placeholder="Ex: Moda feminina"
+              className="w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none"
+              style={{ background: cream, border: "1.5px solid rgba(74,46,10,0.18)", color: brown }}
+            />
+          </div>
+        </div>
+
+        {/* Descrição curta */}
+        <div>
+          <label className="block text-[10px] font-black uppercase tracking-wider mb-1" style={{ color: brown }}>
+            Descrição curta
+          </label>
+          <textarea
+            value={desc} onChange={e => setDesc(e.target.value)} rows={2} maxLength={300}
+            placeholder="Breve descrição do produto…"
+            className="w-full px-3 py-2.5 rounded-xl text-sm resize-none focus:outline-none"
+            style={{ background: cream, border: "1.5px solid rgba(74,46,10,0.18)", color: brown }}
+          />
+        </div>
+
+        {/* Botão criar */}
+        <button
+          onClick={handleCreate}
+          disabled={loading || !title.trim() || !price}
+          className="w-full py-2.5 rounded-xl text-sm font-black text-white flex items-center justify-center gap-2 transition active:scale-95"
+          style={{
+            background: (loading || !title.trim() || !price)
+              ? "#ccc"
+              : `linear-gradient(135deg, ${sandDark}, ${brown})`,
+          }}>
+          {loading
+            ? <><Loader2 className="w-4 h-4 animate-spin" />A criar produto…</>
+            : <><Plus className="w-4 h-4" />Criar e vincular ao lançamento</>}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+/* ═══════════════════════════════════════════════════
    MODAL — CRIAR LANÇAMENTO
 ═══════════════════════════════════════════════════ */
 const CreateModal = ({
-  onClose, products, sellerId, currentCount,
+  onClose, products: initialProducts, sellerId, currentCount,
 }: {
   onClose: () => void;
   products: any[];
@@ -233,6 +414,11 @@ const CreateModal = ({
   const [loading,       setLoading]       = useState(false);
   const [progress,      setProgress]      = useState<string | null>(null);
   const [done,          setDone]          = useState(false);
+  const [showNewProduct, setShowNewProduct] = useState(false);
+
+  // Lista de produtos disponíveis — começa com os existentes e cresce ao criar novos
+  const [availableProducts, setAvailableProducts] = useState<any[]>(initialProducts);
+
   const videoRef = useRef<HTMLInputElement>(null);
 
   const minDatetime = new Date(Date.now() + 10 * 60 * 1000).toISOString().slice(0, 16);
@@ -256,6 +442,17 @@ const CreateModal = ({
     }
     setVideoUrl(URL.createObjectURL(f));
     setVideoFile(f);
+  };
+
+  // Callback quando um produto novo é criado inline
+  const handleNewProductCreated = (product: { id: string; title: string; price: number; image_url: string | null }) => {
+    setAvailableProducts(prev => [product, ...prev]);
+    if (selectedProds.length < MAX_PRODUCTS_LINKED) {
+      setSelectedProds(prev => [product.id, ...prev]);
+    }
+    setShowNewProduct(false);
+    // Invalidate products query so they appear in future sessions
+    qc.invalidateQueries({ queryKey: ["my_products_active", sellerId] });
   };
 
   const handleSubmit = async () => {
@@ -310,14 +507,10 @@ const CreateModal = ({
           likes_count:          0,
           comments_count:       0,
         })
-        .select(`
-          *,
-          seller:sellers(id, name, logo_url, is_verified)
-        `);
+        .select(`*, seller:sellers(id, name, logo_url, is_verified)`);
 
       if (error) throw new Error(error.message);
 
-      // Buscar produtos vinculados para popular o cache imediatamente
       let linkedProducts: any[] = [];
       if (selectedProds.length) {
         const { data: prods } = await (supabase as any)
@@ -475,19 +668,73 @@ const CreateModal = ({
               style={{ background: "#fff", border: "1.5px solid rgba(74,46,10,0.18)", color: brown }} />
           </div>
 
-          {/* Produtos — recebidos via prop, sem query própria */}
-          <ProductPicker products={products} selected={selectedProds} onChange={setSelectedProds} />
+          {/* ─── SECÇÃO PRODUTOS ─── */}
+          <div className="mb-5">
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-xs font-black uppercase tracking-wider" style={{ color: brown }}>
+                <Package className="w-3.5 h-3.5 inline mr-1" style={{ color: sandDark }} />
+                Produtos do lançamento
+              </label>
+              {!showNewProduct && (
+                <button
+                  onClick={() => setShowNewProduct(true)}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black transition active:scale-95"
+                  style={{ background: `linear-gradient(135deg,${sandDark},${brown})`, color: "#fff" }}>
+                  <Plus className="w-3 h-3" /> Novo produto
+                </button>
+              )}
+            </div>
+
+            {/* Formulário de criação inline */}
+            {showNewProduct && (
+              <NewProductInline
+                sellerId={sellerId}
+                onCreated={handleNewProductCreated}
+                onCancel={() => setShowNewProduct(false)}
+              />
+            )}
+
+            {/* Picker de produtos existentes */}
+            {availableProducts.length > 0 && !showNewProduct && (
+              <ProductPicker
+                products={availableProducts}
+                selected={selectedProds}
+                onChange={setSelectedProds}
+              />
+            )}
+
+            {availableProducts.length === 0 && !showNewProduct && (
+              <div className="px-4 py-5 rounded-2xl text-center"
+                style={{ background: brownLight, border: "1.5px dashed rgba(74,46,10,0.20)" }}>
+                <Package className="w-6 h-6 mx-auto mb-2" style={{ color: sandDark, opacity: 0.6 }} />
+                <p className="text-xs font-bold mb-1" style={{ color: brown }}>Sem produtos ainda</p>
+                <p className="text-[10px]" style={{ color: sandDark }}>
+                  Cria um produto novo ou adiciona existentes para destacar no lançamento.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {!showNewProduct && (
+            <>
+              <div className="mb-4 h-px" style={{ background: "rgba(74,46,10,0.12)" }} />
+              <input placeholder="URL de destino ao clicar (opcional)" value={""} readOnly
+                className="hidden" />
+            </>
+          )}
 
           <button onClick={handleSubmit}
-            disabled={loading || !sellerId || currentCount >= MAX_RELEASES}
+            disabled={loading || !sellerId || currentCount >= MAX_RELEASES || showNewProduct}
             className="w-full py-3.5 rounded-2xl text-sm font-black text-white flex items-center justify-center gap-2 transition active:scale-95"
             style={{
-              background: (loading || !sellerId || currentCount >= MAX_RELEASES)
+              background: (loading || !sellerId || currentCount >= MAX_RELEASES || showNewProduct)
                 ? "#ccc"
                 : `linear-gradient(135deg, ${sandDark}, ${brown})`,
             }}>
             {loading
               ? <><Loader2 className="w-4 h-4 animate-spin" />{progress || "A guardar…"}</>
+              : showNewProduct
+              ? "Finaliza o produto antes de publicar"
               : <><Film className="w-4 h-4" />Publicar lançamento</>}
           </button>
         </div>
@@ -498,8 +745,6 @@ const CreateModal = ({
 
 /* ═══════════════════════════════════════════════════
    COMMENT ITEM
-   · Sem anónimos: mostra sempre user_name
-   · Badge "dono da publicação" se isOwner = true
 ═══════════════════════════════════════════════════ */
 const CommentItem = ({ comment, isOwner }: { comment: any; isOwner?: boolean }) => (
   <div className="flex items-start gap-2.5 py-3 border-b last:border-0" style={{ borderColor: "rgba(74,46,10,0.10)" }}>
@@ -507,10 +752,7 @@ const CommentItem = ({ comment, isOwner }: { comment: any; isOwner?: boolean }) 
       ? <img src={comment.user_avatar} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
       : <div
           className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0"
-          style={{
-            background: isOwner ? brown : brownLight,
-            color: isOwner ? cream : brown,
-          }}>
+          style={{ background: isOwner ? brown : brownLight, color: isOwner ? cream : brown }}>
           {(comment.user_name || "?").charAt(0).toUpperCase()}
         </div>}
 
@@ -520,8 +762,7 @@ const CommentItem = ({ comment, isOwner }: { comment: any; isOwner?: boolean }) 
           {comment.user_name || "Utilizador"}
         </span>
         {isOwner && (
-          <span
-            className="text-[9px] font-bold px-1.5 py-0.5 rounded"
+          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded"
             style={{ background: brown, color: cream, letterSpacing: "0.03em" }}>
             dono da publicação
           </span>
@@ -530,17 +771,12 @@ const CommentItem = ({ comment, isOwner }: { comment: any; isOwner?: boolean }) 
           {new Date(comment.created_at).toLocaleTimeString("pt-AO", { hour: "2-digit", minute: "2-digit" })}
         </span>
       </div>
-
       <p className="text-xs leading-relaxed" style={{ color: brown }}>{comment.content}</p>
-
       <div className="flex items-center gap-3 mt-1.5">
         <button className="flex items-center gap-1 text-[10px]" style={{ color: sandDark }}>
-          <Heart className="w-3 h-3" />
-          {comment.likes_count || 0}
+          <Heart className="w-3 h-3" />{comment.likes_count || 0}
         </button>
-        <button className="text-[10px] font-bold" style={{ color: sandDark }}>
-          Responder
-        </button>
+        <button className="text-[10px] font-bold" style={{ color: sandDark }}>Responder</button>
       </div>
     </div>
   </div>
@@ -548,9 +784,8 @@ const CommentItem = ({ comment, isOwner }: { comment: any; isOwner?: boolean }) 
 
 /* ═══════════════════════════════════════════════════
    MODAL — ASSISTIR / DETALHES
-   CORREÇÃO: <video> com playsInline para não sair da moldura no iOS/Android.
-   O container tem position:relative + overflow:hidden e o vídeo usa
-   position:absolute + inset-0 para ficar sempre contido.
+   ALTERAÇÃO: "terminados" agora reproduzem o vídeo normalmente.
+   Apenas os "agendados" continuam bloqueados.
 ═══════════════════════════════════════════════════ */
 const WatchModal = ({
   release, onClose, userId,
@@ -562,9 +797,12 @@ const WatchModal = ({
   const [notified, setNotified] = useState(false);
   const commentListRef = useRef<HTMLDivElement>(null);
 
-  const live    = isLive(release);
+  const live     = isLive(release);
   const upcoming = isUpcoming(release);
   const expired  = isExpired(release);
+
+  // Um lançamento tem vídeo reproduzível se estiver ao vivo OU se já terminou mas tem video_url
+  const canPlayVideo = (live || expired) && !!release.video_url;
 
   const { data: profile } = useQuery({
     queryKey: ["profile", userId],
@@ -582,13 +820,11 @@ const WatchModal = ({
   const isReleaseOwner = !!userId && userId === release.seller?.user_id;
 
   useEffect(() => {
-    if (!release?.id || (!live && upcoming)) return;
+    if (!release?.id || upcoming) return;
     (supabase as any).from("release_views").insert({ release_id: release.id, user_id: userId });
-    (supabase as any).from("releases").update({ views_count: (release.views_count || 0) + 1 })
-      .eq("id", release.id);
+    (supabase as any).from("releases").update({ views_count: (release.views_count || 0) + 1 }).eq("id", release.id);
   }, [release?.id]);
 
-  /* Quando o vídeo ao vivo terminar, grava first_broadcast_ended_at */
   const handleVideoEnded = useCallback(async () => {
     if (!live || !release?.id) return;
     await (supabase as any)
@@ -624,10 +860,8 @@ const WatchModal = ({
     const text = comment.trim();
     if (!text) return;
     setComment("");
-
     const userName   = profile?.full_name || "Utilizador";
     const userAvatar = profile?.avatar_url || null;
-
     const { error } = await (supabase as any).from("release_comments").insert({
       release_id:   release.id,
       user_id:      userId,
@@ -666,35 +900,44 @@ const WatchModal = ({
               <p className="text-[10px] font-bold" style={{ color: sandDark }}>{release.seller?.name}</p>
               <h2 className="text-sm font-black truncate" style={{ color: brown }}>{release.title}</h2>
             </div>
+            {/* Views no header do modal */}
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg mr-2 flex-shrink-0"
+              style={{ background: brownLight }}>
+              <Eye className="w-3.5 h-3.5" style={{ color: sandDark }} />
+              <span className="text-xs font-black" style={{ color: brown }}>
+                {(release.views_count || 0).toLocaleString("pt-AO")}
+              </span>
+            </div>
             <button onClick={onClose} className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{ background: brownLight }}>
               <X className="w-4 h-4" style={{ color: brown }} />
             </button>
           </div>
 
-          {/* ── Vídeo player — sempre dentro da moldura ──
-              CORREÇÃO: overflow:hidden no container + position:absolute no vídeo
-              + playsInline para bloquear fullscreen nativo no iOS Safari       */}
-          <div
-            className="relative flex-shrink-0 bg-black overflow-hidden"
-            style={{ aspectRatio: "16/9" }}
-          >
-            {/* AO VIVO: apenas na primeira transmissão */}
-            {live && release.video_url && (
+          {/* Player — ALTERAÇÃO: expired com video_url reproduz normalmente */}
+          <div className="relative flex-shrink-0 bg-black overflow-hidden" style={{ aspectRatio: "16/9" }}>
+
+            {/* AO VIVO ou TERMINADO com vídeo — reproduz */}
+            {canPlayVideo && (
               <video
                 src={release.video_url}
                 controls
-                autoPlay
+                autoPlay={live}
                 playsInline
                 onEnded={handleVideoEnded}
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "contain",
-                }}
+                style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain" }}
               />
+            )}
+
+            {/* TERMINADO sem vídeo */}
+            {expired && !release.video_url && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+                {release.thumbnail_url && (
+                  <img src={release.thumbnail_url} alt="" className="absolute inset-0 w-full h-full object-cover opacity-20 grayscale" />
+                )}
+                <VideoOff className="relative z-10 w-10 h-10 text-white/50" />
+                <p className="relative z-10 text-white/60 text-sm font-bold">Vídeo não disponível</p>
+              </div>
             )}
 
             {/* AGENDADO: capa + data */}
@@ -718,17 +961,6 @@ const WatchModal = ({
               </div>
             )}
 
-            {/* TERMINADO: capa desbotada — sem vídeo, sem replay */}
-            {expired && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
-                {release.thumbnail_url && (
-                  <img src={release.thumbnail_url} alt="" className="absolute inset-0 w-full h-full object-cover opacity-20 grayscale" />
-                )}
-                <VideoOff className="relative z-10 w-10 h-10 text-white/50" />
-                <p className="relative z-10 text-white/60 text-sm font-bold">Transmissão já terminou</p>
-              </div>
-            )}
-
             {/* Badge AO VIVO */}
             {live && (
               <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-lg z-10"
@@ -738,11 +970,19 @@ const WatchModal = ({
               </div>
             )}
 
-            {/* Stats */}
+            {/* Badge TERMINADO sobre o vídeo (não bloqueia, só informa) */}
+            {expired && release.video_url && (
+              <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-lg z-10"
+                style={{ background: "rgba(40,40,40,0.80)" }}>
+                <span className="text-[10px] font-black text-white/80">TERMINADO</span>
+              </div>
+            )}
+
+            {/* Stats overlay */}
             <div className="absolute bottom-3 right-3 flex items-center gap-2 z-10">
               <span className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] text-white"
                 style={{ background: "rgba(0,0,0,0.65)" }}>
-                <Eye className="w-3 h-3" />{release.views_count || 0}
+                <Eye className="w-3 h-3" />{(release.views_count || 0).toLocaleString("pt-AO")}
               </span>
             </div>
           </div>
@@ -759,12 +999,17 @@ const WatchModal = ({
               <Heart className={`w-3.5 h-3.5 ${liked ? "fill-current" : ""}`} />
               {(release.likes_count || 0) + (liked ? 1 : 0)}
             </button>
-            <button
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold"
+            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold"
               style={{ background: brownLight, color: brown }}>
               <MessageCircle className="w-3.5 h-3.5" />
               {comments.length}
             </button>
+            {/* Views inline nas acções */}
+            <span className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold"
+              style={{ background: brownLight, color: brown }}>
+              <Eye className="w-3.5 h-3.5" />
+              {(release.views_count || 0).toLocaleString("pt-AO")} vens
+            </span>
             {release.description && (
               <p className="text-[11px] ml-2 line-clamp-1 flex-1" style={{ color: sandDark }}>
                 {release.description}
@@ -779,12 +1024,9 @@ const WatchModal = ({
                 <Package className="w-3 h-3 inline mr-1" style={{ color: sandDark }} />
                 Produtos em destaque
               </p>
-              <div
-                className="flex gap-2 overflow-x-auto pb-1"
-                style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+              <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
                 {release.linked_products.map((p: any) => (
-                  <div
-                    key={p.id}
+                  <div key={p.id}
                     onClick={() => { onClose(); navigate(`/produto/${p.id}`); }}
                     className="flex-shrink-0 cursor-pointer rounded-xl overflow-hidden border hover:shadow-md transition-all"
                     style={{ width: 100, background: "#fff", border: "1px solid rgba(74,46,10,0.12)" }}>
@@ -820,11 +1062,7 @@ const WatchModal = ({
                 </div>
               )}
               {!upcoming && comments.map((c: any) => (
-                <CommentItem
-                  key={c.id}
-                  comment={c}
-                  isOwner={c.user_id === release.seller?.user_id}
-                />
+                <CommentItem key={c.id} comment={c} isOwner={c.user_id === release.seller?.user_id} />
               ))}
               {upcoming && (
                 <div className="py-6 text-center">
@@ -833,7 +1071,7 @@ const WatchModal = ({
               )}
             </div>
 
-            {!upcoming && !expired && (
+            {!upcoming && (
               <div className="flex items-center gap-2 px-3 py-3 flex-shrink-0"
                 style={{ borderTop: "1px solid rgba(74,46,10,0.12)" }}>
                 {profile?.avatar_url
@@ -842,8 +1080,7 @@ const WatchModal = ({
                       style={{ background: brownLight, color: brown }}>
                       {(profile?.full_name || "?").charAt(0).toUpperCase()}
                     </div>}
-                <input
-                  type="text" value={comment}
+                <input type="text" value={comment}
                   onChange={e => setComment(e.target.value)}
                   onKeyDown={e => e.key === "Enter" && sendComment()}
                   placeholder="Escreve um comentário…"
@@ -866,17 +1103,13 @@ const WatchModal = ({
               <p className="text-center text-xs py-4" style={{ color: sandDark }}>Nenhum comentário ainda</p>
             )}
             {!upcoming && comments.map((c: any) => (
-              <CommentItem
-                key={c.id}
-                comment={c}
-                isOwner={c.user_id === release.seller?.user_id}
-              />
+              <CommentItem key={c.id} comment={c} isOwner={c.user_id === release.seller?.user_id} />
             ))}
             {upcoming && (
               <p className="text-center text-xs py-4" style={{ color: sandDark }}>Os comentários abrem na transmissão</p>
             )}
           </div>
-          {!upcoming && !expired && (
+          {!upcoming && (
             <div className="flex items-center gap-2 p-2 border-t flex-shrink-0" style={{ borderColor: "rgba(74,46,10,0.12)" }}>
               {profile?.avatar_url
                 ? <img src={profile.avatar_url} alt="" className="w-6 h-6 rounded-full object-cover flex-shrink-0" />
@@ -905,13 +1138,15 @@ const WatchModal = ({
 
 /* ═══════════════════════════════════════════════════
    CARD — lançamento
+   ALTERAÇÃO: views_count exibido de forma destacada,
+   terminados mostram ícone de play (não de bloqueio).
 ═══════════════════════════════════════════════════ */
 const ReleaseCard = ({
   release, onClick, onDelete, canDelete,
 }: { release: any; onClick: () => void; onDelete?: () => void; canDelete?: boolean }) => {
-  const live = isLive(release);
+  const live     = isLive(release);
   const upcoming = isUpcoming(release);
-  const expired = isExpired(release);
+  const expired  = isExpired(release);
 
   return (
     <div
@@ -922,7 +1157,7 @@ const ReleaseCard = ({
       <div className="relative aspect-video overflow-hidden bg-gray-900">
         {release.thumbnail_url
           ? <img src={release.thumbnail_url} alt={release.title}
-              className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ${expired ? "grayscale opacity-60" : ""}`}
+              className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ${expired ? "opacity-75" : ""}`}
               loading="lazy" />
           : <div className="w-full h-full flex items-center justify-center" style={{ background: "linear-gradient(135deg,#1a0a00,#3d1f00)" }}>
               <Film className="w-10 h-10 opacity-20 text-white" />
@@ -945,7 +1180,7 @@ const ReleaseCard = ({
         )}
         {expired && (
           <div className="absolute top-2 left-2 px-2 py-1 rounded-lg"
-            style={{ background: "rgba(60,60,60,0.80)" }}>
+            style={{ background: "rgba(40,40,40,0.80)" }}>
             <span className="text-[10px] font-bold text-white">TERMINADO</span>
           </div>
         )}
@@ -957,7 +1192,8 @@ const ReleaseCard = ({
           </div>
         )}
 
-        {!upcoming && !expired && (
+        {/* Play sempre visível para ao vivo e terminados com vídeo */}
+        {!upcoming && (
           <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
             <div className="w-14 h-14 rounded-full flex items-center justify-center shadow-xl" style={{ background: "rgba(255,255,255,0.92)" }}>
               <Play className="w-6 h-6 ml-1" style={{ color: brown }} />
@@ -994,8 +1230,15 @@ const ReleaseCard = ({
           {release.seller?.is_verified && <Star className="w-3 h-3 flex-shrink-0" style={{ color: sandDark }} />}
         </div>
         <h3 className="text-sm font-black line-clamp-2 mb-2" style={{ color: brown }}>{release.title}</h3>
-        <div className="flex items-center gap-3 text-[11px]" style={{ color: sandDark }}>
-          <span className="flex items-center gap-1"><Eye className="w-3 h-3" />{release.views_count || 0}</span>
+
+        {/* Stats com views em destaque */}
+        <div className="flex items-center gap-2 text-[11px]" style={{ color: sandDark }}>
+          {/* Views destacado */}
+          <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg font-black"
+            style={{ background: brownLight, color: brown }}>
+            <Eye className="w-3 h-3" />
+            {(release.views_count || 0).toLocaleString("pt-AO")}
+          </span>
           <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3" />{release.comments_count || 0}</span>
           <span className="flex items-center gap-1"><Heart className="w-3 h-3" />{release.likes_count || 0}</span>
         </div>
@@ -1018,7 +1261,6 @@ const Lancamentos = () => {
   const [search,       setSearch]       = useState("");
   const [filter,       setFilter]       = useState<"all" | "live" | "upcoming" | "ended">("all");
 
-  /* Seller ID */
   const { data: sellerData } = useQuery({
     queryKey: ["my_seller_id", user?.id],
     queryFn: async () => {
@@ -1039,7 +1281,6 @@ const Lancamentos = () => {
   });
   const canPublish = isSeller || isAdmin;
 
-  /* Contagem dos meus lançamentos */
   const { data: myCount = 0 } = useQuery({
     queryKey: ["my_releases_count", sellerId],
     queryFn: async () => {
@@ -1051,25 +1292,18 @@ const Lancamentos = () => {
     enabled: !!sellerId,
   });
 
-  /* Todos os lançamentos */
   const { data: releases = [], isLoading } = useQuery({
     queryKey: ["releases_all"],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("releases")
-        .select(`
-          *,
-          seller:sellers(id, name, logo_url, is_verified, user_id)
-        `)
+        .select(`*, seller:sellers(id, name, logo_url, is_verified, user_id)`)
         .neq("status", "deleted")
         .order("broadcasts_at", { ascending: true })
         .limit(60);
       if (error) console.error("releases:", error.message);
       if (!data?.length) return [];
 
-      // Recolher todos os IDs de produtos vinculados de todos os lançamentos
-      // e fazer UMA única query à tabela products — igual ao padrão dos Stories
-      // que carrega todos os dados de uma vez em vez de query por query.
       const allProdIds = [...new Set(data.flatMap((r: any) => r.linked_product_ids || []))];
       let prodMap: Record<string, any> = {};
       if (allProdIds.length) {
@@ -1091,8 +1325,6 @@ const Lancamentos = () => {
     staleTime: 0,
   });
 
-  /* Meus produtos — carregados uma vez aqui e passados como prop ao CreateModal,
-     evitando que o modal faça a sua própria query (que pode falhar por contexto) */
   const { data: myProducts = [] } = useQuery({
     queryKey: ["my_products_active", sellerId],
     queryFn: async () => {
@@ -1107,7 +1339,6 @@ const Lancamentos = () => {
     enabled: canPublish && !!sellerId,
   });
 
-  /* Realtime */
   useEffect(() => {
     const ch = (supabase as any)
       .channel("releases_realtime")
@@ -1119,7 +1350,6 @@ const Lancamentos = () => {
     return () => { (supabase as any).removeChannel(ch); };
   }, [qc, sellerId]);
 
-  /* Eliminar lançamento */
   const handleDelete = async (id: string) => {
     if (!confirm("Eliminar este lançamento? Esta acção é irreversível.")) return;
     const { error } = await (supabase as any).from("releases").update({ status: "deleted" }).eq("id", id);
@@ -1129,7 +1359,6 @@ const Lancamentos = () => {
     toast.success("Lançamento eliminado");
   };
 
-  /* Filtros */
   const q = search.toLowerCase();
   const filtered = releases.filter((r: any) => {
     if (q && !r.title?.toLowerCase().includes(q) && !r.seller?.name?.toLowerCase().includes(q)) return false;
@@ -1172,7 +1401,6 @@ const Lancamentos = () => {
               <h1 className="md:hidden text-base font-black" style={{ color: brown }}>Lançamentos</h1>
             </div>
 
-            {/* Busca */}
             <div className="flex-1 flex items-center rounded-2xl overflow-hidden"
               style={{ background: "#fff", boxShadow: "0 1px 6px rgba(74,46,10,0.10)" }}>
               <Hash className="w-4 h-4 ml-3 flex-shrink-0" style={{ color: sandDark }} />
@@ -1186,7 +1414,6 @@ const Lancamentos = () => {
               )}
             </div>
 
-            {/* CTA publicar */}
             {canPublish && (
               <button onClick={() => setShowCreate(true)}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-black text-white flex-shrink-0 transition active:scale-95"
@@ -1208,7 +1435,6 @@ const Lancamentos = () => {
             )}
           </div>
 
-          {/* Filter chips */}
           <div className="flex items-center gap-2 mt-3 pb-1 overflow-x-auto no-scrollbar">
             {[
               { key: "all",      label: "Todos",          count: releases.length },
@@ -1252,7 +1478,6 @@ const Lancamentos = () => {
 
         {!isLoading && (
           <>
-            {/* Banner vendedor */}
             {canPublish && (
               <div className="mb-6 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4"
                 style={{ background: `linear-gradient(135deg,${brown} 0%,#2d1206 100%)` }}>
@@ -1267,7 +1492,7 @@ const Lancamentos = () => {
                         : `${MAX_RELEASES - myCount} slot${MAX_RELEASES - myCount !== 1 ? "s" : ""} disponível${MAX_RELEASES - myCount !== 1 ? "s" : ""} para novos lançamentos`}
                     </p>
                     <p className="text-[11px] text-white/60 mt-0.5">
-                      Cada lançamento pode ter até 5 produtos · vídeo máx. 7 min
+                      Cada lançamento pode ter até 5 produtos · vídeo máx. 7 min · podes criar produtos novos no formulário
                     </p>
                   </div>
                 </div>
@@ -1286,7 +1511,6 @@ const Lancamentos = () => {
               </div>
             )}
 
-            {/* Live agora */}
             {filter === "all" && liveNow.length > 0 && (
               <section className="mb-8">
                 <div className="flex items-center gap-2 mb-3">
@@ -1309,7 +1533,6 @@ const Lancamentos = () => {
               </section>
             )}
 
-            {/* Grid principal */}
             {filtered.length === 0 ? (
               <div className="rounded-2xl py-16 text-center" style={{ background: cream, border: `1px dashed rgba(74,46,10,0.20)` }}>
                 <Film className="w-10 h-10 mx-auto mb-3" style={{ color: sandDark, opacity: 0.4 }} />
