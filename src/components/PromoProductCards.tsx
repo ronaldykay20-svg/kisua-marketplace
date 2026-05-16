@@ -11,6 +11,7 @@ const PromoProductCards = () => {
   const { user } = useAuth();
   const { isFavorite, toggleFavorite } = useFavorites();
   const [activeIndex, setActiveIndex] = useState(0);
+  const [itemsPerView, setItemsPerView] = useState(1);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const { data: products = [] } = useQuery({
@@ -45,10 +46,16 @@ const PromoProductCards = () => {
   const handleScroll = () => {
     if (!scrollRef.current) return;
     const el = scrollRef.current;
-    const cardWidth = el.offsetWidth;
+    const firstCard = el.firstElementChild as HTMLElement;
+    const cardWidth = firstCard?.offsetWidth || el.offsetWidth;
+    const perView = Math.max(1, Math.round(el.offsetWidth / cardWidth));
+    setItemsPerView(perView);
     const index = Math.round(el.scrollLeft / cardWidth);
     setActiveIndex(index);
   };
+
+  const totalPages = Math.ceil(products.length / itemsPerView);
+  const activePage = Math.floor(activeIndex / itemsPerView);
 
   const handleHeart = (e: React.MouseEvent, productId: string) => {
     e.stopPropagation();
@@ -162,8 +169,8 @@ const PromoProductCards = () => {
         </div>
 
         <div className="flex justify-center gap-1.5 mt-3">
-          {products.map((_: any, i: number) => (
-            <div key={i} className={`h-1.5 rounded-full transition-all duration-300 ${i === activeIndex ? "w-5 bg-primary" : "w-1.5 bg-muted-foreground/30"}`} />
+          {Array.from({ length: totalPages }).map((_, i) => (
+            <div key={i} className={`h-1.5 rounded-full transition-all duration-300 ${i === activePage ? "w-5 bg-primary" : "w-1.5 bg-muted-foreground/30"}`} />
           ))}
         </div>
 
