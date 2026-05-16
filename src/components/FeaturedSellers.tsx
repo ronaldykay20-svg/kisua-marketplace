@@ -38,6 +38,7 @@ const FeaturedSellers = ({ layout = "mobile" }: FeaturedSellersProps) => {
   });
 
   const sellerIds = sellers.map((s: any) => s.id);
+
   const { data: allProducts = [] } = useQuery({
     queryKey: ["featured_sellers_products", sellerIds],
     queryFn: async () => {
@@ -65,6 +66,33 @@ const FeaturedSellers = ({ layout = "mobile" }: FeaturedSellersProps) => {
     enabled: sellerIds.length > 0,
   });
 
+  // Busca avaliações reais de todos os vendedores em destaque de uma só vez
+  const { data: reviewsMap = {} } = useQuery({
+    queryKey: ["featured_sellers_reviews", sellerIds],
+    queryFn: async () => {
+      if (sellerIds.length === 0) return {};
+      const { data, error } = await supabase
+        .from("seller_reviews")
+        .select("seller_id, rating")
+        .in("seller_id", sellerIds);
+      if (error || !data) return {};
+
+      // Agrupa por seller_id e calcula % positivas (rating >= 4)
+      const map: Record<string, number | null> = {};
+      sellerIds.forEach((id: string) => {
+        const reviews = data.filter((r: any) => r.seller_id === id);
+        if (reviews.length === 0) {
+          map[id] = null; // sem avaliações — não exibe
+        } else {
+          const positive = reviews.filter((r: any) => r.rating >= 4).length;
+          map[id] = Math.round((positive / reviews.length) * 100);
+        }
+      });
+      return map;
+    },
+    enabled: sellerIds.length > 0,
+  });
+
   if (sellers.length === 0) return null;
 
   const scrollTo = (dir: "left" | "right") => {
@@ -84,7 +112,8 @@ const FeaturedSellers = ({ layout = "mobile" }: FeaturedSellersProps) => {
       .filter((p: any) => p.seller_id === seller.id)
       .slice(0, productsLimit);
 
-    const rating = seller.positive_rating ?? 98;
+    // Percentagem real de avaliações positivas (null = sem avaliações)
+    const positivePct: number | null = reviewsMap[seller.id] ?? null;
 
     return (
       <div className="border border-border rounded-2xl overflow-hidden flex flex-col bg-card">
@@ -126,11 +155,18 @@ const FeaturedSellers = ({ layout = "mobile" }: FeaturedSellersProps) => {
 
         {/* Estatísticas da loja */}
         <div className="flex items-center justify-around px-3 py-2 border-b border-border text-[10px] text-muted-foreground">
-          <div className="flex items-center gap-1">
-            <span>☆</span>
-            <span className="font-bold text-foreground">{rating}%</span>
-            <span>Avaliações positivas</span>
-          </div>
+          {positivePct !== null ? (
+            <div className="flex items-center gap-1">
+              <span>☆</span>
+              <span className="font-bold text-foreground">{positivePct}%</span>
+              <span>Avaliações positivas</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1">
+              <span>☆</span>
+              <span>Sem avaliações ainda</span>
+            </div>
+          )}
           <div className="flex items-center gap-1">
             <span>📦</span>
             <span>Envio rápido</span>
