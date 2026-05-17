@@ -57,11 +57,14 @@ export const useProducts = (options?: { featured?: boolean; freeShipping?: boole
       const { data, error } = await query;
       if (error) throw error;
 
-      // Load cover images for all products
       const productIds = (data || []).map((p: any) => p.id);
       let coverMap: Record<string, string> = {};
       if (productIds.length > 0) {
-        const { data: mediaData } = await supabase.from("product_media").select("product_id, url").in("product_id", productIds).eq("is_cover", true);
+        const { data: mediaData } = await supabase
+          .from("product_media")
+          .select("product_id, url")
+          .in("product_id", productIds)
+          .eq("is_cover", true);
         (mediaData || []).forEach((m: any) => { coverMap[m.product_id] = m.url; });
       }
 
@@ -69,7 +72,7 @@ export const useProducts = (options?: { featured?: boolean; freeShipping?: boole
     },
   });
 
-// ── CORRIGIDO: inclui company_id + join com companies para produtos de empresa ──
+// ── Product (detalhe) ──
 export const useProduct = (id: string) =>
   useQuery({
     queryKey: ["product", id],
@@ -78,10 +81,8 @@ export const useProduct = (id: string) =>
         .from("products")
         .select(`
           *,
-          seller_id,
-          company_id,
-          sellers(id, name, slug, logo_url, avatar_url, rating, total_sales, is_verified, province),
-          companies(id, name, logo_url, cover_url, is_verified, province, rating, total_reviews)
+          sellers(id, name, slug, logo_url, rating, total_sales, is_verified, province),
+          companies(id, name, slug, logo_url, is_verified, province, rating, total_reviews, total_sales)
         `)
         .eq("id", id)
         .maybeSingle();
@@ -89,16 +90,16 @@ export const useProduct = (id: string) =>
       if (error) throw error;
       if (!data) return null;
 
-      // Busca a imagem de capa via product_media
       const { data: mediaData } = await supabase
         .from("product_media")
         .select("url, is_cover, type, sort_order")
         .eq("product_id", id)
         .order("sort_order");
 
-      const cover = (mediaData || []).find((m: any) => m.is_cover)?.url
-        || (mediaData || [])[0]?.url
-        || null;
+      const cover =
+        (mediaData || []).find((m: any) => m.is_cover)?.url ||
+        (mediaData || [])[0]?.url ||
+        null;
 
       return { ...data, cover_url: cover, _media: mediaData || [] };
     },
