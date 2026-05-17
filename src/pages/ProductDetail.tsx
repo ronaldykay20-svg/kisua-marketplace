@@ -20,6 +20,7 @@ const fmt = (n: number) =>
   Number(n).toLocaleString("pt-AO").replace(/,/g, ".") + " Kz";
 
 // ─── ShareSheet ───────────────────────────────────────────────────────────────
+// Modal de partilha visual (mostra imagem + texto + dois botões)
 const ShareSheet = ({
   title,
   imageUrl,
@@ -62,10 +63,14 @@ const ShareSheet = ({
         className="bg-card w-full max-w-md rounded-t-2xl pb-8 pt-4 px-4 shadow-2xl"
         onClick={e => e.stopPropagation()}
       >
+        {/* Handle */}
         <div className="w-10 h-1 rounded-full bg-muted mx-auto mb-4" />
+
         <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-3">
           Partilhar produto
         </p>
+
+        {/* Card de pré-visualização */}
         <div className="flex items-center gap-3 p-3 bg-muted rounded-xl border border-border mb-5">
           <img
             src={imageUrl}
@@ -77,7 +82,10 @@ const ShareSheet = ({
             <p className="text-[10px] text-muted-foreground mt-1 truncate">{url.replace(/^https?:\/\//, "")}</p>
           </div>
         </div>
+
+        {/* Botões */}
         <div className="grid grid-cols-2 gap-3">
+          {/* Botão 1 – Partilha nativa (menu do sistema) */}
           <button
             onClick={handleNative}
             className="flex flex-col items-center gap-2 py-4 rounded-xl bg-primary/5 border border-primary/20 hover:bg-primary/10 active:scale-95 transition"
@@ -90,6 +98,8 @@ const ShareSheet = ({
               Usar app do dispositivo
             </span>
           </button>
+
+          {/* Botão 2 – Copiar link */}
           <button
             onClick={handleCopyLink}
             className="flex flex-col items-center gap-2 py-4 rounded-xl bg-muted border border-border hover:bg-accent active:scale-95 transition"
@@ -103,6 +113,7 @@ const ShareSheet = ({
             </span>
           </button>
         </div>
+
         <button
           onClick={onClose}
           className="w-full mt-4 py-3 rounded-xl bg-muted text-sm font-bold text-muted-foreground hover:text-foreground transition"
@@ -194,6 +205,7 @@ const ZoomLightbox = ({
 };
 
 // ─── AvatarWithFallback ───────────────────────────────────────────────────────
+// Mostra imagem se carrega, senão mostra ícone. Evita o problema de style toggle.
 const AvatarWithFallback = ({
   src,
   name,
@@ -235,17 +247,23 @@ const SellerCard = ({
   onNavigate: () => void;
   isLoading?: boolean;
 }) => {
-  if (isLoading) return (
-    <div className="bg-card mt-0.5 md:mt-0 md:mb-3 px-4 py-3 md:rounded-card md:border md:border-border flex items-center gap-3 animate-pulse">
-      <div className="w-12 h-12 rounded-full bg-muted flex-shrink-0" />
-      <div className="flex-1 space-y-2">
-        <div className="h-3 bg-muted rounded w-32" />
-        <div className="h-2.5 bg-muted rounded w-20" />
+  if (isLoading || (!seller && (isLoading === false))) {
+    // skeleton enquanto carrega
+    if (isLoading) return (
+      <div className="bg-card mt-0.5 md:mt-0 md:mb-3 px-4 py-3 md:rounded-card md:border md:border-border flex items-center gap-3 animate-pulse">
+        <div className="w-12 h-12 rounded-full bg-muted flex-shrink-0" />
+        <div className="flex-1 space-y-2">
+          <div className="h-3 bg-muted rounded w-32" />
+          <div className="h-2.5 bg-muted rounded w-20" />
+        </div>
       </div>
-    </div>
-  );
-  if (!seller) return null;
+    );
+    if (!seller) return null;
+  }
 
+  // suporta sellers (avatar_url) e companies (logo_url / cover_url)
+  // Todos os campos possíveis de avatar/logo nas tabelas sellers e companies
+  // logo_url é o campo principal em sellers (igual ao GroupedVideoStories)
   const avatar: string | null =
     seller.logo_url ||
     seller.avatar_url ||
@@ -268,6 +286,7 @@ const SellerCard = ({
                  flex items-center gap-3 cursor-pointer
                  hover:bg-muted/60 active:bg-muted transition-colors group text-left"
     >
+      {/* Avatar */}
       <div className="relative flex-shrink-0">
         <AvatarWithFallback
           src={avatar}
@@ -281,6 +300,7 @@ const SellerCard = ({
         )}
       </div>
 
+      {/* Info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 flex-wrap">
           <p className="text-sm font-bold text-foreground truncate">{seller.name}</p>
@@ -377,6 +397,7 @@ const ProductDetail = () => {
   });
 
   // ── Publicador: vendedor ou empresa ───────────────────────────────────────
+  // seller_id pode vir direto no produto ou via join sellers.id
   const rawSellerId  =
     (dbProduct as any)?.seller_id ||
     (dbProduct as any)?.sellers?.id ||
@@ -392,7 +413,7 @@ const ProductDetail = () => {
         .eq("id", rawSellerId!).maybeSingle();
       return data ? { ...data, __type: "seller" } : null;
     },
-    enabled: !!rawSellerId && !rawCompanyId, // ✅ CORRIGIDO: só busca seller se não houver empresa
+    enabled: !!rawSellerId,
   });
 
   const { data: companyFull, isLoading: loadingCompany } = useQuery({
@@ -407,9 +428,9 @@ const ProductDetail = () => {
     enabled: !!rawCompanyId,
   });
 
-  // ✅ CORRIGIDO: empresa tem sempre prioridade sobre seller individual
-  const loadingPublisher = (!!rawCompanyId && loadingCompany) || (!rawCompanyId && !!rawSellerId && loadingSeller);
-  const publisher: any = companyFull || sellerFull || null;
+  const loadingPublisher = (!!rawSellerId && loadingSeller) || (!!rawCompanyId && loadingCompany);
+  // Nunca usar fallback sem avatar — esperar a query dedicada
+  const publisher: any = sellerFull || companyFull || null;
 
   const handlePublisherNavigate = () => {
     if (!publisher) return;
@@ -689,6 +710,7 @@ const ProductDetail = () => {
   return (
     <div className="min-h-screen bg-background pb-28 md:pb-0">
 
+      {/* Share sheet */}
       {shareOpen && (
         <ShareSheet
           title={product.title}
@@ -698,6 +720,7 @@ const ProductDetail = () => {
         />
       )}
 
+      {/* Zoom lightbox */}
       {zoomOpen && (
         <ZoomLightbox
           images={displayImages}
@@ -768,6 +791,7 @@ const ProductDetail = () => {
                   : <img src={displayImages[selectedImage]?.url} alt={product.title} className="w-full h-full object-cover" />
                 }
 
+                {/* Dots */}
                 {displayImages.length > 1 && (
                   <div className="absolute bottom-10 left-0 right-0 flex justify-center gap-1.5 pointer-events-none">
                     {displayImages.map((_, i) => (
@@ -780,22 +804,26 @@ const ProductDetail = () => {
                   </div>
                 )}
 
+                {/* 3 action buttons */}
                 <div className="absolute right-3 top-1/3 flex flex-col gap-2">
                   <button
                     onClick={() => setShareOpen(true)}
                     className="w-9 h-9 rounded-full bg-card/90 shadow-md flex items-center justify-center active:scale-95 transition"
+                    title="Partilhar"
                   >
                     <Share2 className="w-4 h-4 text-foreground" />
                   </button>
                   <button
                     onClick={handleFavorite}
                     className="w-9 h-9 rounded-full bg-card/90 shadow-md flex items-center justify-center active:scale-95 transition"
+                    title={isFavorited ? "Remover dos favoritos" : "Adicionar aos favoritos"}
                   >
                     <Heart className={`w-4 h-4 transition-colors ${isFavorited ? "text-red-500 fill-red-500" : "text-foreground"}`} />
                   </button>
                   <button
                     onClick={() => setZoomOpen(true)}
                     className="w-9 h-9 rounded-full bg-card/90 shadow-md flex items-center justify-center active:scale-95 transition"
+                    title="Zoom"
                   >
                     <ZoomIn className="w-4 h-4 text-foreground" />
                   </button>
