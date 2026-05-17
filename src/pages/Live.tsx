@@ -165,24 +165,39 @@ const ProductPicker = ({
 };
 
 /* ═══════════════════════════════════════════════════
-   PRODUCT FORM — reutilizado na página e no modal
+   PRODUCT FORM — idêntico ao painel administrativo
+   Apenas aparece na página de Lançamentos.
+   Campos: imagem, título, preço, categoria (dropdown),
+   condição (dropdown), stock, descrição, activo.
 ═══════════════════════════════════════════════════ */
+
+const CATEGORIAS = [
+  "Moda feminina", "Moda masculina", "Moda infantil",
+  "Calçado", "Acessórios", "Electrónica", "Telemóveis",
+  "Informática", "Electrodomésticos", "Casa & Decoração",
+  "Desporto", "Beleza & Saúde", "Alimentação", "Veículos",
+  "Imóveis", "Serviços", "Brinquedos", "Livros", "Outro",
+] as const;
+
 const ProductForm = ({
-  sellerId, onCreated, onCancel, compact = false,
+  sellerId, onCreated, onCancel,
 }: {
   sellerId: string | null;
   onCreated: (p: { id: string; title: string; price: number; image_url: string | null }) => void;
   onCancel?: () => void;
-  compact?: boolean;
 }) => {
   const imgRef = useRef<HTMLInputElement>(null);
-  const [title,    setTitle]    = useState("");
-  const [price,    setPrice]    = useState("");
-  const [category, setCategory] = useState("");
-  const [desc,     setDesc]     = useState("");
-  const [imgFile,  setImgFile]  = useState<File | null>(null);
-  const [imgPrev,  setImgPrev]  = useState<string | null>(null);
-  const [loading,  setLoading]  = useState(false);
+  const [title,     setTitle]     = useState("");
+  const [price,     setPrice]     = useState("");
+  const [oldPrice,  setOldPrice]  = useState("");       // preço original / riscado
+  const [category,  setCategory]  = useState("");
+  const [condition, setCondition] = useState("novo");   // novo | usado | recondicionado
+  const [stock,     setStock]     = useState("1");
+  const [desc,      setDesc]      = useState("");
+  const [isActive,  setIsActive]  = useState(true);
+  const [imgFile,   setImgFile]   = useState<File | null>(null);
+  const [imgPrev,   setImgPrev]   = useState<string | null>(null);
+  const [loading,   setLoading]   = useState(false);
 
   const handleImg = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -196,11 +211,13 @@ const ProductForm = ({
     const priceNum = parseFloat(price.replace(",", "."));
     if (!price || isNaN(priceNum) || priceNum <= 0) { toast.error("Preço inválido"); return; }
     if (!sellerId) { toast.error("Conta de vendedor não encontrada"); return; }
+    const stockNum = parseInt(stock) || 0;
+
     setLoading(true);
     try {
       let image_url: string | null = null;
       if (imgFile) {
-        const ext = imgFile.name.split(".").pop();
+        const ext  = imgFile.name.split(".").pop();
         const path = `product-images/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
         const { error: upErr } = await (supabase as any).storage.from(STORAGE_BUCKET).upload(path, imgFile);
         if (upErr) throw new Error(upErr.message);
@@ -208,91 +225,172 @@ const ProductForm = ({
         image_url = urlData?.publicUrl ?? null;
       }
       const slug = `${title.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "").slice(0, 80)}-${Date.now()}`;
+      const oldPriceNum = oldPrice ? parseFloat(oldPrice.replace(",", ".")) : null;
+
       const { data: row, error } = await (supabase as any)
         .from("products")
-        .insert({ seller_id: sellerId, title: title.trim(), description: desc.trim() || null,
-          price: priceNum, category: category.trim() || null, image_url, slug, is_active: true, sales_count: 0 })
-        .select("id, title, price, image_url").single();
+        .insert({
+          seller_id:   sellerId,
+          title:       title.trim(),
+          description: desc.trim() || null,
+          price:       priceNum,
+          old_price:   oldPriceNum && oldPriceNum > priceNum ? oldPriceNum : null,
+          category:    category || null,
+          condition:   condition,
+          stock:       stockNum,
+          image_url,
+          slug,
+          is_active:   isActive,
+          sales_count: 0,
+        })
+        .select("id, title, price, image_url")
+        .single();
+
       if (error) throw new Error(error.message);
-      toast.success("Produto criado!");
-      setTitle(""); setPrice(""); setCategory(""); setDesc(""); setImgFile(null); setImgPrev(null);
+      toast.success("Produto criado e vinculado ao lançamento!");
+      // reset
+      setTitle(""); setPrice(""); setOldPrice(""); setCategory(""); setCondition("novo");
+      setStock("1"); setDesc(""); setIsActive(true); setImgFile(null); setImgPrev(null);
       onCreated(row);
     } catch (err: any) {
-      toast.error(err.message || "Erro");
+      toast.error(err.message || "Erro ao criar produto");
     } finally { setLoading(false); }
   };
 
-  return (
-    <div className="space-y-3">
-      <div onClick={() => imgRef.current?.click()}
-        className="flex items-center gap-3 px-3 py-3 rounded-2xl cursor-pointer"
-        style={{ background: brownLight, border: "1.5px dashed rgba(74,46,10,0.28)" }}>
-        {imgPrev
-          ? <img src={imgPrev} alt="" className="w-16 h-16 rounded-xl object-cover flex-shrink-0" />
-          : <div className="w-16 h-16 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(74,46,10,0.08)" }}>
-              <ImageIcon className="w-6 h-6" style={{ color: sandDark }} />
-            </div>}
-        <div className="flex-1">
-          <p className="text-sm font-bold" style={{ color: brown }}>{imgPrev ? "Alterar imagem" : "Foto do produto"}</p>
-          <p className="text-[11px]" style={{ color: sandDark }}>JPG, PNG · máx. 5 MB</p>
-        </div>
-        {imgPrev && (
-          <button type="button" onClick={e => { e.stopPropagation(); setImgFile(null); setImgPrev(null); }}
-            className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
-            style={{ background: "rgba(229,57,53,0.15)" }}>
-            <X className="w-3.5 h-3.5" style={{ color: "#E53935" }} />
-          </button>
-        )}
-      </div>
-      <input ref={imgRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleImg} />
+  const inputStyle = { background: cream, border: "1.5px solid rgba(74,46,10,0.18)", color: brown };
+  const labelStyle = "block text-[10px] font-black uppercase tracking-wider mb-1";
 
+  return (
+    <div className="space-y-4">
+
+      {/* ── Imagem ── */}
       <div>
-        <label className="block text-[11px] font-black uppercase tracking-wider mb-1" style={{ color: brown }}>
-          Nome do produto <span style={{ color: "#E53935" }}>*</span>
+        <label className={labelStyle} style={{ color: brown }}>Imagem do produto</label>
+        <div onClick={() => imgRef.current?.click()}
+          className="flex items-center gap-3 px-3 py-3 rounded-2xl cursor-pointer transition-all"
+          style={{ background: brownLight, border: "1.5px dashed rgba(74,46,10,0.25)" }}>
+          {imgPrev
+            ? <img src={imgPrev} alt="" className="w-16 h-16 rounded-xl object-cover flex-shrink-0 shadow" />
+            : <div className="w-16 h-16 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ background: "rgba(74,46,10,0.08)" }}>
+                <ImageIcon className="w-6 h-6" style={{ color: sandDark }} />
+              </div>}
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold" style={{ color: brown }}>{imgPrev ? "Alterar imagem" : "Clique para carregar"}</p>
+            <p className="text-[11px]" style={{ color: sandDark }}>JPG, PNG, WebP · máx. 5 MB</p>
+          </div>
+          {imgPrev && (
+            <button type="button" onClick={e => { e.stopPropagation(); setImgFile(null); setImgPrev(null); }}
+              className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
+              style={{ background: "rgba(229,57,53,0.15)" }}>
+              <X className="w-3.5 h-3.5" style={{ color: "#E53935" }} />
+            </button>
+          )}
+        </div>
+        <input ref={imgRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleImg} />
+      </div>
+
+      {/* ── Título ── */}
+      <div>
+        <label className={labelStyle} style={{ color: brown }}>
+          Título <span style={{ color: "#E53935" }}>*</span>
         </label>
         <input type="text" value={title} onChange={e => setTitle(e.target.value)} maxLength={120}
           placeholder="Ex: Vestido de linho bege"
           className="w-full px-4 py-3 rounded-2xl text-sm focus:outline-none"
-          style={{ background: "#fff", border: "1.5px solid rgba(74,46,10,0.18)", color: brown }} />
+          style={inputStyle} />
       </div>
 
+      {/* ── Preço + Preço original ── */}
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-[11px] font-black uppercase tracking-wider mb-1" style={{ color: brown }}>
+          <label className={labelStyle} style={{ color: brown }}>
             Preço (Kz) <span style={{ color: "#E53935" }}>*</span>
           </label>
           <input type="number" value={price} onChange={e => setPrice(e.target.value)} min="1" placeholder="0"
             className="w-full px-4 py-3 rounded-2xl text-sm focus:outline-none"
-            style={{ background: "#fff", border: "1.5px solid rgba(74,46,10,0.18)", color: brown }} />
+            style={inputStyle} />
         </div>
         <div>
-          <label className="block text-[11px] font-black uppercase tracking-wider mb-1" style={{ color: brown }}>Categoria</label>
-          <input type="text" value={category} onChange={e => setCategory(e.target.value)} maxLength={60}
-            placeholder="Ex: Moda"
+          <label className={labelStyle} style={{ color: brown }}>Preço original (riscado)</label>
+          <input type="number" value={oldPrice} onChange={e => setOldPrice(e.target.value)} min="1" placeholder="Opcional"
             className="w-full px-4 py-3 rounded-2xl text-sm focus:outline-none"
-            style={{ background: "#fff", border: "1.5px solid rgba(74,46,10,0.18)", color: brown }} />
+            style={inputStyle} />
         </div>
       </div>
 
-      {!compact && (
-        <div>
-          <label className="block text-[11px] font-black uppercase tracking-wider mb-1" style={{ color: brown }}>Descrição</label>
-          <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={2} maxLength={300}
-            placeholder="Breve descrição…"
-            className="w-full px-4 py-3 rounded-2xl text-sm resize-none focus:outline-none"
-            style={{ background: "#fff", border: "1.5px solid rgba(74,46,10,0.18)", color: brown }} />
-        </div>
-      )}
+      {/* ── Categoria ── */}
+      <div>
+        <label className={labelStyle} style={{ color: brown }}>Categoria</label>
+        <select value={category} onChange={e => setCategory(e.target.value)}
+          className="w-full px-4 py-3 rounded-2xl text-sm focus:outline-none appearance-none"
+          style={inputStyle}>
+          <option value="">— Seleccionar categoria —</option>
+          {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+      </div>
 
+      {/* ── Condição + Stock ── */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={labelStyle} style={{ color: brown }}>Condição</label>
+          <select value={condition} onChange={e => setCondition(e.target.value)}
+            className="w-full px-4 py-3 rounded-2xl text-sm focus:outline-none appearance-none"
+            style={inputStyle}>
+            <option value="novo">Novo</option>
+            <option value="usado">Usado</option>
+            <option value="recondicionado">Recondicionado</option>
+          </select>
+        </div>
+        <div>
+          <label className={labelStyle} style={{ color: brown }}>Stock</label>
+          <input type="number" value={stock} onChange={e => setStock(e.target.value)} min="0"
+            placeholder="1"
+            className="w-full px-4 py-3 rounded-2xl text-sm focus:outline-none"
+            style={inputStyle} />
+        </div>
+      </div>
+
+      {/* ── Descrição ── */}
+      <div>
+        <label className={labelStyle} style={{ color: brown }}>Descrição do produto</label>
+        <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={3} maxLength={500}
+          placeholder="Descreve o produto em detalhe…"
+          className="w-full px-4 py-3 rounded-2xl text-sm resize-none focus:outline-none"
+          style={inputStyle} />
+      </div>
+
+      {/* ── Activo ── */}
+      <div className="flex items-center justify-between px-4 py-3 rounded-2xl"
+        style={{ background: brownLight, border: "1.5px solid rgba(74,46,10,0.15)" }}>
+        <div>
+          <p className="text-sm font-bold" style={{ color: brown }}>Produto activo</p>
+          <p className="text-[11px]" style={{ color: sandDark }}>Visível na loja ao publicar</p>
+        </div>
+        <button
+          onClick={() => setIsActive(v => !v)}
+          className="w-12 h-6 rounded-full transition-all flex-shrink-0 relative"
+          style={{ background: isActive ? sandDark : "rgba(74,46,10,0.20)" }}>
+          <span className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all"
+            style={{ left: isActive ? "calc(100% - 22px)" : "2px" }} />
+        </button>
+      </div>
+
+      {/* ── Botões ── */}
       <div className="flex gap-2 pt-1">
         {onCancel && (
-          <button onClick={onCancel} className="flex-1 py-3 rounded-2xl text-sm font-black transition active:scale-95"
-            style={{ background: brownLight, color: brown }}>Cancelar</button>
+          <button onClick={onCancel}
+            className="flex-1 py-3 rounded-2xl text-sm font-black transition active:scale-95"
+            style={{ background: brownLight, color: brown }}>
+            Cancelar
+          </button>
         )}
         <button onClick={handleCreate} disabled={loading || !title.trim() || !price}
           className="flex-1 py-3 rounded-2xl text-sm font-black text-white flex items-center justify-center gap-2 transition active:scale-95"
           style={{ background: (loading || !title.trim() || !price) ? "#ccc" : `linear-gradient(135deg, ${sandDark}, ${brown})` }}>
-          {loading ? <><Loader2 className="w-4 h-4 animate-spin" />A criar…</> : <><ShoppingBag className="w-4 h-4" />Cadastrar produto</>}
+          {loading
+            ? <><Loader2 className="w-4 h-4 animate-spin" />A criar…</>
+            : <><ShoppingBag className="w-4 h-4" />Criar produto</>}
         </button>
       </div>
     </div>
@@ -619,7 +717,7 @@ const CreateModal = ({
                   </button>
                 </div>
                 <div className="p-4">
-                  <ProductForm sellerId={sellerId} compact onCreated={handleNewProductCreated} onCancel={() => setShowNewProd(false)} />
+                  <ProductForm sellerId={sellerId} onCreated={handleNewProductCreated} onCancel={() => setShowNewProd(false)} />
                 </div>
               </div>
             )}
@@ -826,28 +924,45 @@ const FullscreenPlayer = ({
         style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, transparent 20%, transparent 60%, rgba(0,0,0,0.75) 100%)" }} />
 
       {/* ════════════════════════════════════════════
-          MOLDURA SUPERIOR — topo
+          MOLDURA SUPERIOR — topo (SEMPRE VISÍVEL)
       ════════════════════════════════════════════ */}
-      <div className={`absolute top-0 left-0 right-0 px-4 pt-safe-top pt-4 pb-3 flex items-center gap-3 transition-opacity duration-300 ${controlsVis ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
+      <div className="absolute top-0 left-0 right-0 px-4 pb-3 flex items-center gap-3 z-20"
+        style={{ paddingTop: "max(env(safe-area-inset-top, 0px), 16px)", background: `linear-gradient(to bottom, ${brown}ee 0%, ${brown}99 60%, transparent 100%)` }}>
         {/* Fechar */}
         <button onClick={onClose}
-          className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
-          style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(8px)" }}>
+          className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 transition active:scale-90"
+          style={{ background: "rgba(255,255,255,0.15)", border: `1px solid rgba(255,255,255,0.25)` }}>
           <ArrowLeft className="w-5 h-5 text-white" />
         </button>
 
         {/* Info do lançamento */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            {release.seller?.logo_url
-              ? <img src={release.seller.logo_url} alt="" className="w-8 h-8 rounded-full object-cover border border-white/30 flex-shrink-0" />
-              : <div className="w-8 h-8 rounded-full flex items-center justify-center font-black text-sm flex-shrink-0"
-                  style={{ background: "rgba(255,255,255,0.20)", color: "#fff" }}>
-                  {(release.seller?.name || "?").charAt(0)}
-                </div>}
+            <div className="relative flex-shrink-0">
+              {release.seller?.logo_url
+                ? <img src={release.seller.logo_url} alt="" className="w-9 h-9 rounded-full object-cover border-2" style={{ borderColor: sandDark }} />
+                : <div className="w-9 h-9 rounded-full flex items-center justify-center font-black text-sm"
+                    style={{ background: brownLight, color: cream }}>
+                    {(release.seller?.name || "?").charAt(0)}
+                  </div>}
+              {/* Selo azul de verificação */}
+              {release.seller?.is_verified && (
+                <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center"
+                  style={{ background: "#1d9bf0", border: "1.5px solid #000" }}>
+                  <Check className="w-2.5 h-2.5 text-white" />
+                </div>
+              )}
+            </div>
             <div className="min-w-0">
-              <p className="text-[11px] text-white/70 font-bold truncate">{release.seller?.name}</p>
-              <p className="text-sm font-black text-white truncate leading-tight">{release.title}</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-[12px] font-black text-white truncate">{release.seller?.name}</p>
+                {release.seller?.is_verified && (
+                  <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="#1d9bf0">
+                    <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke="white" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                )}
+              </div>
+              <p className="text-sm font-black text-white/80 truncate leading-tight">{release.title}</p>
             </div>
           </div>
         </div>
@@ -890,7 +1005,7 @@ const FullscreenPlayer = ({
       {/* ════════════════════════════════════════════
           BARRA LATERAL DIREITA — acções
       ════════════════════════════════════════════ */}
-      <div className={`absolute right-4 flex flex-col items-center gap-5 transition-opacity duration-300 ${controlsVis ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+      <div className="absolute right-4 z-20 flex flex-col items-center gap-5"
         style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 100px)" }}>
 
         {/* Like */}
@@ -960,8 +1075,8 @@ const FullscreenPlayer = ({
       {/* ════════════════════════════════════════════
           RODAPÉ — descrição + progressão
       ════════════════════════════════════════════ */}
-      <div className={`absolute left-0 right-0 px-4 transition-opacity duration-300 ${controlsVis ? "opacity-100" : "opacity-0 pointer-events-none"}`}
-        style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)" }}>
+      <div className="absolute left-0 right-0 z-20 px-4"
+        style={{ bottom: 0, paddingBottom: "max(env(safe-area-inset-bottom, 0px), 16px)", background: `linear-gradient(to top, ${brown}f0 0%, ${brown}99 60%, transparent 100%)` }}>
 
         {/* Descrição */}
         {release.description && (
