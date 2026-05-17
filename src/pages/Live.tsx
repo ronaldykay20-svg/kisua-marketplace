@@ -1273,8 +1273,8 @@ const ProductsOverlay = ({
    TIKTOK-STYLE WATCH MODAL
 ═══════════════════════════════════════════════════ */
 const WatchModal = ({
-  release, onClose, userId,
-}: { release: any; onClose: () => void; userId: string | null }) => {
+  release, onClose, userId, sellerId, onDeleted,
+}: { release: any; onClose: () => void; userId: string | null; sellerId: string | null; onDeleted: (id: string) => void }) => {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [comment, setComment] = useState("");
@@ -1282,13 +1282,17 @@ const WatchModal = ({
   const [notified, setNotified] = useState(false);
   const [showProducts, setShowProducts] = useState(false);
   const [muted, setMuted] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const commentListRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const live     = isLive(release);
   const upcoming = isUpcoming(release);
   const expired  = isExpired(release);
-  const canPlayVideo = (live || expired) && !!release.video_url;
+  /* Reproduz sempre que existir URL de vídeo */
+  const canPlayVideo = !!release.video_url;
+  /* O utilizador actual é o dono deste lançamento? */
+  const isOwner = !!sellerId && sellerId === release.seller_id;
 
   const { data: profile } = useQuery({
     queryKey: ["profile", userId],
@@ -1298,6 +1302,17 @@ const WatchModal = ({
     },
     enabled: !!userId,
   });
+
+  const handleDelete = async () => {
+    if (!confirm("Eliminar este lançamento? Esta acção é irreversível.")) return;
+    setDeleting(true);
+    const { error } = await (supabase as any).from("releases").update({ status: "deleted" }).eq("id", release.id);
+    setDeleting(false);
+    if (error) { toast.error("Erro ao eliminar"); return; }
+    toast.success("Lançamento eliminado");
+    onDeleted(release.id);
+    onClose();
+  };
 
   /* Contagem de visualizações */
   useEffect(() => {
@@ -1380,48 +1395,54 @@ const WatchModal = ({
     >
       {/* Container principal — moldura TikTok */}
       <div
-        className="relative flex w-full max-w-[420px] flex-col overflow-hidden"
+        className="relative flex w-full max-w-[420px] flex-col"
         style={{
           background: "#0d0603",
           maxHeight: "100vh",
-          /* Moldura castanha característica */
+          overflowY: "hidden",
           boxShadow: `0 0 0 2px ${sandDark}, 0 0 60px rgba(74,46,10,0.6)`,
         }}
         onClick={e => e.stopPropagation()}
       >
-        {/* ── ZONA DE VÍDEO ── */}
-        <div className="relative flex-1 bg-black overflow-hidden" style={{ minHeight: 0 }}>
-
-          {/* Vídeo */}
-          {canPlayVideo && (
-            <video
-              ref={videoRef}
-              src={release.video_url}
-              autoPlay={live}
-              playsInline
-              loop={!live}
-              onEnded={handleVideoEnded}
-              className="absolute inset-0 w-full h-full object-cover"
-            />
-          )}
-
-          {/* Thumbnail / estado de espera */}
-          {release.thumbnail_url && !canPlayVideo && (
+        {/* ── ZONA DE VÍDEO — ocupa o espaço livre entre topo e comentários ── */}
+        <div
+          className="relative overflow-hidden flex-shrink-0"
+          style={{ flex: "1 1 0", minHeight: 0, background: "#000" }}
+        >
+          {/* Thumbnail de fundo (sempre visível enquanto vídeo carrega / upcoming) */}
+          {release.thumbnail_url && (
             <img
               src={release.thumbnail_url}
               alt=""
               className="absolute inset-0 w-full h-full object-cover"
-              style={{ opacity: upcoming ? 0.35 : 0.6, filter: expired && !release.video_url ? "grayscale(1)" : "none" }}
+              style={{
+                opacity: canPlayVideo ? 0.15 : upcoming ? 0.35 : 0.55,
+                filter: expired && !release.video_url ? "grayscale(1)" : "none",
+              }}
             />
           )}
 
-          {/* Gradiente inferior */}
+          {/* Vídeo — reproduz sempre que existir URL */}
+          {canPlayVideo && (
+            <video
+              ref={videoRef}
+              src={release.video_url}
+              autoPlay
+              playsInline
+              controls
+              onEnded={handleVideoEnded}
+              className="absolute inset-0 w-full h-full object-contain"
+              style={{ background: "transparent" }}
+            />
+          )}
+
+          {/* Gradiente inferior sobre o vídeo */}
           <div className="absolute inset-0 pointer-events-none"
-            style={{ background: "linear-gradient(to top, rgba(13,6,3,0.98) 0%, rgba(13,6,3,0.4) 45%, transparent 70%)" }} />
+            style={{ background: "linear-gradient(to top, rgba(13,6,3,0.95) 0%, rgba(13,6,3,0.2) 40%, transparent 65%)" }} />
 
           {/* Gradiente superior */}
           <div className="absolute inset-0 pointer-events-none"
-            style={{ background: "linear-gradient(to bottom, rgba(13,6,3,0.6) 0%, transparent 30%)" }} />
+            style={{ background: "linear-gradient(to bottom, rgba(13,6,3,0.7) 0%, transparent 28%)" }} />
 
           {/* Overlay de produtos */}
           {showProducts && release.linked_products?.length > 0 && (
@@ -1432,8 +1453,8 @@ const WatchModal = ({
             />
           )}
 
-          {/* ── TOPO: vendedor + fechar ── */}
-          <div className="absolute top-0 left-0 right-0 z-20 flex items-center gap-3 px-4 pt-safe pt-4 pb-2">
+          {/* ── TOPO: vendedor + botões ── */}
+          <div className="absolute top-0 left-0 right-0 z-20 flex items-center gap-3 px-4 pt-4 pb-2">
             <div className="flex items-center gap-2 flex-1 min-w-0">
               {release.seller?.logo_url
                 ? <img src={release.seller.logo_url} alt=""
@@ -1453,6 +1474,20 @@ const WatchModal = ({
                 <p className="text-[10px] truncate" style={{ color: sand }}>{release.title}</p>
               </div>
             </div>
+            {/* Botão apagar — só para o dono */}
+            {isOwner && (
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition"
+                style={{ background: "rgba(229,57,53,0.75)", border: "1px solid rgba(229,57,53,0.5)" }}
+                title="Eliminar lançamento"
+              >
+                {deleting
+                  ? <Loader2 className="w-4 h-4 text-white animate-spin" />
+                  : <Trash2 className="w-4 h-4 text-white" />}
+              </button>
+            )}
             <button onClick={onClose}
               className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
               style={{ background: "rgba(0,0,0,0.55)", border: "1px solid rgba(212,184,150,0.25)" }}>
@@ -1477,6 +1512,14 @@ const WatchModal = ({
             </div>
           )}
 
+          {/* Sem vídeo disponível */}
+          {!canPlayVideo && !upcoming && (
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2">
+              <VideoOff className="w-10 h-10 text-white/30" />
+              <p className="text-white/40 text-sm font-bold">Vídeo não disponível</p>
+            </div>
+          )}
+
           {/* Estado UPCOMING */}
           {upcoming && !showProducts && (
             <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 px-8 text-center">
@@ -1494,21 +1537,13 @@ const WatchModal = ({
             </div>
           )}
 
-          {/* Estado SEM VÍDEO */}
-          {expired && !release.video_url && !showProducts && (
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2">
-              <VideoOff className="w-10 h-10 text-white/30" />
-              <p className="text-white/40 text-sm font-bold">Vídeo não disponível</p>
-            </div>
-          )}
-
           {/* ── BARRA LATERAL DIREITA (estilo TikTok) ── */}
           {!showProducts && (
-            <div className="absolute right-3 bottom-32 z-20 flex flex-col items-center gap-5">
+            <div className="absolute right-3 bottom-20 z-20 flex flex-col items-center gap-4">
               {/* Like */}
               <button onClick={() => setLiked(v => !v)} className="flex flex-col items-center gap-1">
                 <div className="w-10 h-10 rounded-full flex items-center justify-center"
-                  style={{ background: liked ? "rgba(229,57,53,0.25)" : "rgba(0,0,0,0.45)" }}>
+                  style={{ background: liked ? "rgba(229,57,53,0.25)" : "rgba(0,0,0,0.55)" }}>
                   <Heart className={`w-5 h-5 ${liked ? "fill-current" : ""}`}
                     style={{ color: liked ? "#E53935" : "white" }} />
                 </div>
@@ -1520,7 +1555,7 @@ const WatchModal = ({
               {/* Visualizações */}
               <div className="flex flex-col items-center gap-1">
                 <div className="w-10 h-10 rounded-full flex items-center justify-center"
-                  style={{ background: "rgba(0,0,0,0.45)" }}>
+                  style={{ background: "rgba(0,0,0,0.55)" }}>
                   <Eye className="w-5 h-5 text-white" />
                 </div>
                 <span className="text-[10px] font-bold text-white">
@@ -1528,11 +1563,11 @@ const WatchModal = ({
                 </span>
               </div>
 
-              {/* Mute */}
+              {/* Mute/Unmute */}
               {canPlayVideo && (
                 <button onClick={toggleMute} className="flex flex-col items-center gap-1">
                   <div className="w-10 h-10 rounded-full flex items-center justify-center"
-                    style={{ background: "rgba(0,0,0,0.45)" }}>
+                    style={{ background: "rgba(0,0,0,0.55)" }}>
                     {muted
                       ? <VolumeX className="w-5 h-5 text-white" />
                       : <Volume2 className="w-5 h-5 text-white" />}
@@ -1555,20 +1590,21 @@ const WatchModal = ({
             </div>
           )}
 
-          {/* ── INFO INFERIOR (título + duração) ── */}
+          {/* ── INFO INFERIOR: legenda + botão produtos ── */}
           {!showProducts && (
-            <div className="absolute bottom-28 left-0 right-16 z-20 px-4">
+            <div className="absolute bottom-3 left-0 right-16 z-20 px-4">
+              <p className="text-sm font-black text-white mb-1 line-clamp-1">{release.title}</p>
               {release.description && (
-                <p className="text-[11px] text-white/70 mb-1 line-clamp-2">{release.description}</p>
+                <p className="text-[11px] text-white/60 mb-1.5 line-clamp-2">{release.description}</p>
               )}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 {release.video_duration_s && (
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded"
-                    style={{ background: "rgba(0,0,0,0.55)", color: sand }}>
+                    style={{ background: "rgba(0,0,0,0.60)", color: sand }}>
                     {fmtDuration(release.video_duration_s)}
                   </span>
                 )}
-                {release.linked_products?.length > 0 && !showProducts && (
+                {release.linked_products?.length > 0 && (
                   <button
                     onClick={() => setShowProducts(true)}
                     className="flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-full transition active:scale-95"
@@ -1583,21 +1619,21 @@ const WatchModal = ({
           )}
         </div>
 
-        {/* ── ZONA DE COMENTÁRIOS ── */}
+        {/* ── ZONA DE COMENTÁRIOS — altura fixa, sempre visível ── */}
         {!showProducts && (
-          <div className="flex flex-col flex-shrink-0"
+          <div
+            className="flex flex-col flex-shrink-0"
             style={{
-              height: 220,
-              background: `linear-gradient(180deg, #0d0603 0%, #1a0a02 100%)`,
-              borderTop: `1px solid rgba(212,184,150,0.12)`,
-            }}>
-            <div className="flex items-center justify-between px-4 pt-3 pb-1 flex-shrink-0">
-              <div className="flex items-center gap-1.5">
-                <MessageCircle className="w-3.5 h-3.5" style={{ color: sand }} />
-                <span className="text-[11px] font-black" style={{ color: sand }}>
-                  Comentários {comments.length > 0 && `· ${comments.length}`}
-                </span>
-              </div>
+              height: 230,
+              background: `linear-gradient(180deg, #110703 0%, #1a0a02 100%)`,
+              borderTop: `1px solid rgba(212,184,150,0.15)`,
+            }}
+          >
+            <div className="flex items-center px-4 pt-3 pb-1 flex-shrink-0">
+              <MessageCircle className="w-3.5 h-3.5 mr-1.5" style={{ color: sand }} />
+              <span className="text-[11px] font-black" style={{ color: sand }}>
+                Comentários {comments.length > 0 && `· ${comments.length}`}
+              </span>
             </div>
 
             <div ref={commentListRef} className="flex-1 overflow-y-auto px-4 py-1 space-y-2"
@@ -1619,7 +1655,6 @@ const WatchModal = ({
 
                 return (
                   <div key={c.id} className="flex items-start gap-2">
-                    {/* Avatar */}
                     {(c.user?.avatar_url || c.user_avatar)
                       ? <img src={c.user?.avatar_url || c.user_avatar} alt=""
                           className="w-7 h-7 rounded-full object-cover flex-shrink-0"
@@ -1631,11 +1666,7 @@ const WatchModal = ({
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center flex-wrap gap-1 mb-0.5">
                         <span className="text-[11px] font-black text-white">{displayName}</span>
-                        {/* Celo de verificação */}
-                        {verified && (
-                          <BadgeCheck className="w-3 h-3 flex-shrink-0" style={{ color: gold }} />
-                        )}
-                        {/* Badge AUTOR */}
+                        {verified && <BadgeCheck className="w-3 h-3 flex-shrink-0" style={{ color: gold }} />}
                         {author && (
                           <span className="text-[9px] font-black px-1.5 py-0.5 rounded"
                             style={{ background: sandDark, color: cream }}>
@@ -1659,7 +1690,7 @@ const WatchModal = ({
             {!upcoming && (
               <div className="flex items-center gap-2 px-3 py-2.5 flex-shrink-0"
                 style={{ borderTop: "1px solid rgba(212,184,150,0.08)" }}>
-                {(profile?.avatar_url)
+                {profile?.avatar_url
                   ? <img src={profile.avatar_url} alt=""
                       className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
                   : <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0"
