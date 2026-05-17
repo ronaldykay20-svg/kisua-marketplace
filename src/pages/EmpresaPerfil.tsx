@@ -82,29 +82,18 @@ const EmpresaPerfil = () => {
     },
   });
 
-  // Products
+  // ✅ CORRIGIDO: produtos apenas por company_id — sem ir buscar por seller_id
   const { data: products = [] } = useQuery({
     queryKey: ["company_products_profile", id],
     queryFn: async () => {
-      // Find sellers linked to this company
-      const { data: sellers } = await supabase.from("sellers").select("id").eq("company_id", id!);
-      const sellerIds = (sellers || []).map((s: any) => s.id);
-      
-      // Also get products directly linked
-      let allProducts: any[] = [];
-      
-      const { data: directProducts } = await supabase.from("products").select("*, product_media(url, is_cover)").eq("company_id", id!).eq("is_active", true);
-      if (directProducts) allProducts = [...allProducts, ...directProducts];
-      
-      if (sellerIds.length > 0) {
-        const { data: sellerProducts } = await supabase.from("products").select("*, product_media(url, is_cover)").in("seller_id", sellerIds).eq("is_active", true);
-        if (sellerProducts) {
-          const existingIds = new Set(allProducts.map(p => p.id));
-          allProducts = [...allProducts, ...sellerProducts.filter((p: any) => !existingIds.has(p.id))];
-        }
-      }
-      
-      return allProducts;
+      const { data, error } = await supabase
+        .from("products")
+        .select("*, product_media(url, is_cover)")
+        .eq("company_id", id!)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
     },
     enabled: !!id,
   });
