@@ -13,6 +13,8 @@ import {
   ChevronRight, AlertTriangle, Plus, Film, Zap,
   ExternalLink, Radio, Calendar, Hash, Tag, DollarSign,
   Save, Palette, Ruler, ChevronDown, Film as FilmIcon,
+  Volume2, VolumeX, Maximize2, Share2, ShoppingCart,
+  BadgeCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -251,7 +253,7 @@ const CoverUpload = ({
 };
 
 /* ═══════════════════════════════════════════════════
-   PRODUCT PICKER
+   PRODUCT PICKER — apenas novos (criados agora)
 ═══════════════════════════════════════════════════ */
 const ProductPicker = ({
   products, selected, onChange,
@@ -270,7 +272,7 @@ const ProductPicker = ({
     <div className="mb-5">
       <label className="block text-xs font-black mb-2 uppercase tracking-wider" style={{ color: brown }}>
         <Package className="w-3.5 h-3.5 inline mr-1" style={{ color: sandDark }} />
-        Produtos em destaque{" "}
+        Produtos criados neste lançamento{" "}
         <span className="font-normal normal-case text-[10px]" style={{ color: sandDark }}>
           ({selected.length}/{MAX_PRODUCTS_LINKED} seleccionados)
         </span>
@@ -310,8 +312,7 @@ const ProductPicker = ({
 };
 
 /* ═══════════════════════════════════════════════════
-   NEW PRODUCT INLINE — formulário completo igual ao
-   SellerProductForm, adaptado ao tema da página
+   NEW PRODUCT INLINE
 ═══════════════════════════════════════════════════ */
 const NewProductInline = ({
   sellerId,
@@ -332,7 +333,6 @@ const NewProductInline = ({
 
   const set = (key: keyof ProductFormData, value: any) => setForm(f => ({ ...f, [key]: value }));
 
-  /* ── Categorias ── */
   const { data: allCategories = [] } = useQuery({
     queryKey: ["categories_with_subs"],
     queryFn: async () => {
@@ -344,7 +344,6 @@ const NewProductInline = ({
   const parentCategories = allCategories.filter((c: any) => !c.parent_id);
   const getSubcategories = (parentId: string) => allCategories.filter((c: any) => c.parent_id === parentId);
 
-  /* ── Variações ── */
   const parentVariants = useMemo(() => variants.filter(v => !v.parent_id), [variants]);
   const getChildren = (parentTempId: string) => variants.filter(v => v.parent_id === parentTempId);
 
@@ -364,7 +363,6 @@ const NewProductInline = ({
   const productStock = parseInt(form.stock) || 0;
   const stockExceeded = variants.length > 0 && totalVariantStock > productStock;
 
-  /* ── Upload media ── */
   const handleFilesUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: "image" | "video") => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -413,7 +411,6 @@ const NewProductInline = ({
 
   const setCover = (index: number) => setMedia(prev => prev.map((m, i) => ({ ...m, is_cover: i === index })));
 
-  /* ── Variações helpers ── */
   const addVariant = () => setVariants(prev => [...prev, createEmptyVariant()]);
   const addSubVariant = (parentTempId: string) => setVariants(prev => [...prev, createEmptyVariant(parentTempId)]);
   const updateVariant = (tempId: string, key: keyof VariantItem, value: any) =>
@@ -423,7 +420,6 @@ const NewProductInline = ({
   const toggleExpanded = (tempId: string) =>
     setVariants(prev => prev.map(v => v._tempId === tempId ? { ...v, _expanded: !v._expanded } : v));
 
-  /* ── Submeter ── */
   const handleCreate = async () => {
     if (!form.title.trim()) { toast.error("Título obrigatório"); return; }
     const priceNum = parseFloat(form.price.replace(",", "."));
@@ -435,7 +431,6 @@ const NewProductInline = ({
     try {
       const coverMedia = media.find(m => m.is_cover) || media[0] || null;
       const image_url = coverMedia?.url ?? null;
-
       const slug = `${form.title.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "").slice(0, 80)}-${Date.now()}`;
 
       const payload: any = {
@@ -468,7 +463,6 @@ const NewProductInline = ({
 
       if (error) throw new Error(error.message);
 
-      /* Guardar media adicional */
       if (media.length > 0) {
         await (supabase as any).from("product_media").insert(
           media.map((m, i) => ({
@@ -481,7 +475,6 @@ const NewProductInline = ({
         );
       }
 
-      /* Guardar variações */
       if (variants.length > 0) {
         const variantsToInsert = variants.map((v, i) => ({
           product_id:     row.id,
@@ -493,7 +486,7 @@ const NewProductInline = ({
           image_url:      v.image_url || null,
           sort_order:     i,
           is_active:      v.is_active,
-          parent_id:      null, // simplificado — ligação por tempId tratada separadamente se necessário
+          parent_id:      null,
         }));
         await (supabase as any).from("product_variants").insert(variantsToInsert);
       }
@@ -507,7 +500,6 @@ const NewProductInline = ({
     }
   };
 
-  /* ── Estilos reutilizáveis ── */
   const inputStyle = {
     background: "#fff",
     border: "1.5px solid rgba(74,46,10,0.18)",
@@ -515,7 +507,6 @@ const NewProductInline = ({
   };
   const labelCls = "block text-[10px] font-black uppercase tracking-wider mb-1";
 
-  /* ── Render variação ── */
   const renderVariantCard = (variant: VariantItem, isChild: boolean) => {
     const children = isChild ? [] : getChildren(variant._tempId);
     const childrenStock = children.reduce((s, c) => s + (parseInt(c.stock) || 0), 0);
@@ -579,7 +570,7 @@ const NewProductInline = ({
 
         <div className="grid grid-cols-2 gap-2 mb-2">
           <div>
-            <label className={labelCls} style={{ color: brown }}>Preço (Kz) — vazio = base</label>
+            <label className={labelCls} style={{ color: brown }}>Preço (Kz)</label>
             <input type="number" value={variant.price_override} onChange={e => updateVariant(variant._tempId, "price_override", e.target.value)}
               placeholder={form.price || "Preço base"} className="w-full px-2 py-1.5 rounded-lg text-xs focus:outline-none" style={inputStyle} />
           </div>
@@ -593,7 +584,6 @@ const NewProductInline = ({
           </div>
         </div>
 
-        {/* Imagem da variação */}
         <div className="mb-2">
           <label className={labelCls} style={{ color: brown }}>Imagem</label>
           <div className="flex items-center gap-2">
@@ -618,7 +608,6 @@ const NewProductInline = ({
           </div>
         </div>
 
-        {/* Sub-variações */}
         {!isChild && variant._expanded && (
           <div className="mt-2 space-y-2">
             {children.map(child => renderVariantCard(child, true))}
@@ -635,7 +624,6 @@ const NewProductInline = ({
 
   return (
     <div className="mb-5 rounded-2xl overflow-hidden" style={{ border: `1.5px solid ${sandDark}`, background: "#fff" }}>
-      {/* Header */}
       <div className="flex items-center justify-between px-4 py-3"
         style={{ background: `linear-gradient(135deg,${brownLight},rgba(74,46,10,0.05))`, borderBottom: `1px solid rgba(74,46,10,0.12)` }}>
         <div className="flex items-center gap-2">
@@ -648,15 +636,12 @@ const NewProductInline = ({
       </div>
 
       <div className="p-4 space-y-4">
-
-        {/* ── Título ── */}
         <div>
           <label className={labelCls} style={{ color: brown }}>Nome do produto *</label>
           <input value={form.title} onChange={e => set("title", e.target.value)} placeholder="Ex: iPhone 15 Pro Max 256GB"
             className="w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none" style={inputStyle} />
         </div>
 
-        {/* ── Descrição ── */}
         <div>
           <label className={labelCls} style={{ color: brown }}>Descrição</label>
           <textarea value={form.description} onChange={e => set("description", e.target.value)}
@@ -664,7 +649,6 @@ const NewProductInline = ({
             className="w-full px-3 py-2.5 rounded-xl text-sm resize-none focus:outline-none" style={inputStyle} />
         </div>
 
-        {/* ── Preços ── */}
         <div className="grid grid-cols-3 gap-2">
           <div>
             <label className={labelCls} style={{ color: brown }}>Preço (Kz) *</label>
@@ -683,7 +667,6 @@ const NewProductInline = ({
           </div>
         </div>
 
-        {/* ── Stock + SKU ── */}
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label className={labelCls} style={{ color: brown }}>Stock total</label>
@@ -704,7 +687,6 @@ const NewProductInline = ({
           </div>
         </div>
 
-        {/* ── Categoria ── */}
         <div>
           <label className={labelCls} style={{ color: brown }}>Categoria</label>
           <select value={form.category_id} onChange={e => set("category_id", e.target.value)}
@@ -722,7 +704,6 @@ const NewProductInline = ({
           </select>
         </div>
 
-        {/* ── Condição ── */}
         <div>
           <label className={labelCls} style={{ color: brown }}>Condição</label>
           <select value={form.condition} onChange={e => set("condition", e.target.value)}
@@ -731,7 +712,6 @@ const NewProductInline = ({
           </select>
         </div>
 
-        {/* ── Localização ── */}
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label className={labelCls} style={{ color: brown }}>Província</label>
@@ -748,7 +728,6 @@ const NewProductInline = ({
           </div>
         </div>
 
-        {/* ── Badge ── */}
         <div>
           <label className={labelCls} style={{ color: brown }}>Badge / Destaque</label>
           <div className="flex gap-2 flex-wrap">
@@ -766,7 +745,6 @@ const NewProductInline = ({
           </div>
         </div>
 
-        {/* ── Imagens e Vídeos ── */}
         <div>
           <label className={labelCls} style={{ color: brown }}>Imagens e Vídeos</label>
           <div className="flex gap-2 mb-2">
@@ -807,16 +785,12 @@ const NewProductInline = ({
               ))}
             </div>
           )}
-          {media.length === 0 && (
-            <p className="text-[10px]" style={{ color: sandDark }}>Nenhuma imagem. Faça upload de pelo menos uma.</p>
-          )}
         </div>
 
-        {/* ── Variações ── */}
         <div>
           <div className="flex items-center justify-between mb-2">
             <div>
-              <label className={labelCls} style={{ color: brown }}>Variações (cor, tamanho, etc.)</label>
+              <label className={labelCls} style={{ color: brown }}>Variações</label>
               {variants.length > 0 && (
                 <p className="text-[10px]" style={{ color: sandDark }}>
                   Stock total: {productStock} · Usado: {totalVariantStock}
@@ -830,31 +804,24 @@ const NewProductInline = ({
               <Plus className="w-3 h-3" /> Variação
             </button>
           </div>
-          {variants.length === 0 && (
-            <p className="text-[10px]" style={{ color: sandDark }}>Sem variações. Adicione cores, tamanhos ou outros atributos.</p>
-          )}
           <div className="space-y-3">
             {parentVariants.map(variant => renderVariantCard(variant, false))}
           </div>
         </div>
 
-        {/* ── Frete grátis ── */}
         <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: brown }}>
           <input type="checkbox" checked={form.free_shipping} onChange={e => set("free_shipping", e.target.checked)} className="rounded" />
           Frete grátis
         </label>
 
-        {/* ── Patrocinado (só admin) ── */}
         {isAdmin && (
           <label className="flex items-center gap-2 text-sm cursor-pointer px-3 py-2 rounded-xl"
             style={{ color: brown, background: "rgba(245,200,66,0.10)", border: "1.5px solid rgba(245,200,66,0.30)" }}>
             <input type="checkbox" checked={form.is_sponsored} onChange={e => set("is_sponsored", e.target.checked)} className="rounded" />
             <span className="font-bold">⭐ Patrocinado</span>
-            <span className="text-xs" style={{ color: sandDark }}>— aparecerá nas secções patrocinadas</span>
           </label>
         )}
 
-        {/* ── Botões ── */}
         <div className="flex gap-2 pt-1">
           <button onClick={onCancel}
             className="flex-1 py-2.5 rounded-2xl text-sm font-black transition active:scale-95"
@@ -881,12 +848,12 @@ const NewProductInline = ({
 
 /* ═══════════════════════════════════════════════════
    MODAL — CRIAR LANÇAMENTO
+   AVISO: só aceita produtos NOVOS criados no form
 ═══════════════════════════════════════════════════ */
 const CreateModal = ({
-  onClose, products: initialProducts, sellerId, currentCount,
+  onClose, sellerId, currentCount,
 }: {
   onClose: () => void;
-  products: any[];
   sellerId: string | null;
   currentCount: number;
 }) => {
@@ -905,10 +872,10 @@ const CreateModal = ({
   const [done,          setDone]          = useState(false);
   const [showNewProduct, setShowNewProduct] = useState(false);
 
-  const [availableProducts, setAvailableProducts] = useState<any[]>(initialProducts);
+  /* Apenas produtos criados nesta sessão — sem produtos pré-existentes */
+  const [newProducts, setNewProducts] = useState<any[]>([]);
 
   const videoRef = useRef<HTMLInputElement>(null);
-
   const minDatetime = new Date(Date.now() + 10 * 60 * 1000).toISOString().slice(0, 16);
   const slotsLeft = MAX_RELEASES - currentCount;
 
@@ -933,7 +900,7 @@ const CreateModal = ({
   };
 
   const handleNewProductCreated = (product: { id: string; title: string; price: number; image_url: string | null }) => {
-    setAvailableProducts(prev => [product, ...prev]);
+    setNewProducts(prev => [product, ...prev]);
     if (selectedProds.length < MAX_PRODUCTS_LINKED) {
       setSelectedProds(prev => [product.id, ...prev]);
     }
@@ -948,7 +915,7 @@ const CreateModal = ({
     if (!datetime)      { toast.error("Define a data de transmissão"); return; }
     if (new Date(datetime) <= new Date()) { toast.error("A data deve ser no futuro"); return; }
     if (!sellerId)      { toast.error("Conta de vendedor não encontrada"); return; }
-    if (currentCount >= MAX_RELEASES) { toast.error("Atingiste o limite de 5 lançamentos. Elimina um antes de publicar."); return; }
+    if (currentCount >= MAX_RELEASES) { toast.error("Atingiste o limite de 5 lançamentos."); return; }
 
     setLoading(true);
     try {
@@ -1007,11 +974,9 @@ const CreateModal = ({
       }
 
       const newRecord = { ...(rows?.[0] ?? {}), linked_products: linkedProducts };
-
       qc.setQueryData(["releases_all"], (old: any[] = []) =>
         [newRecord, ...old.filter((r: any) => r.id !== newRecord.id)]
       );
-
       setTimeout(() => {
         qc.invalidateQueries({ queryKey: ["releases_all"] });
         qc.invalidateQueries({ queryKey: ["my_releases_count", sellerId] });
@@ -1035,9 +1000,7 @@ const CreateModal = ({
           <Check className="w-8 h-8" style={{ color: brown }} />
         </div>
         <h3 className="text-lg font-black mb-1" style={{ color: brown }}>Lançamento publicado!</h3>
-        <p className="text-sm mb-6" style={{ color: sandDark }}>
-          O teu lançamento será transmitido na data e hora agendada.
-        </p>
+        <p className="text-sm mb-6" style={{ color: sandDark }}>O teu lançamento será transmitido na data agendada.</p>
         <button onClick={onClose} className="w-full py-3 rounded-2xl text-sm font-black text-white"
           style={{ background: `linear-gradient(135deg, ${sandDark}, ${brown})` }}>
           Fechar
@@ -1052,7 +1015,6 @@ const CreateModal = ({
         style={{ background: cream, maxHeight: "92vh", overflowY: "auto" }}
         onClick={e => e.stopPropagation()}>
 
-        {/* Header */}
         <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4"
           style={{ background: `linear-gradient(135deg, ${sandDark} 0%, ${brown} 100%)` }}>
           <div className="flex items-center gap-3">
@@ -1072,7 +1034,6 @@ const CreateModal = ({
           </button>
         </div>
 
-        {/* Aviso limite */}
         {currentCount >= MAX_RELEASES && (
           <div className="mx-6 mt-4 px-4 py-3 rounded-2xl flex items-center gap-2"
             style={{ background: "rgba(229,57,53,0.10)", border: "1px solid rgba(229,57,53,0.25)" }}>
@@ -1086,7 +1047,6 @@ const CreateModal = ({
         <div className="px-6 py-5">
           <CoverUpload value={coverUrl} onChange={(u, f) => { setCoverUrl(u); setCoverFile(f); }} />
 
-          {/* Vídeo */}
           <div className="mb-5">
             <label className="block text-xs font-black mb-2 uppercase tracking-wider" style={{ color: brown }}>
               Vídeo <span style={{ color: "#E53935" }}>*</span>{" "}
@@ -1123,7 +1083,6 @@ const CreateModal = ({
               className="hidden" onChange={handleVideoFile} />
           </div>
 
-          {/* Título */}
           <div className="mb-4">
             <label className="block text-xs font-black mb-1.5 uppercase tracking-wider" style={{ color: brown }}>
               Título <span style={{ color: "#E53935" }}>*</span>
@@ -1134,7 +1093,6 @@ const CreateModal = ({
               style={{ background: "#fff", border: "1.5px solid rgba(74,46,10,0.18)", color: brown }} />
           </div>
 
-          {/* Data */}
           <div className="mb-4">
             <label className="block text-xs font-black mb-1.5 uppercase tracking-wider" style={{ color: brown }}>
               Data de transmissão <span style={{ color: "#E53935" }}>*</span>
@@ -1145,7 +1103,6 @@ const CreateModal = ({
               style={{ background: "#fff", border: "1.5px solid rgba(74,46,10,0.18)", color: brown }} />
           </div>
 
-          {/* Descrição */}
           <div className="mb-4">
             <label className="block text-xs font-black mb-1.5 uppercase tracking-wider" style={{ color: brown }}>Descrição</label>
             <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={3} maxLength={500}
@@ -1154,16 +1111,20 @@ const CreateModal = ({
               style={{ background: "#fff", border: "1.5px solid rgba(74,46,10,0.18)", color: brown }} />
           </div>
 
-          {/* ─── SECÇÃO PRODUTOS ─── */}
+          {/* PRODUTOS — apenas novos criados agora */}
           <div className="mb-5">
             <div className="flex items-center justify-between mb-2">
-              <label className="block text-xs font-black uppercase tracking-wider" style={{ color: brown }}>
-                <Package className="w-3.5 h-3.5 inline mr-1" style={{ color: sandDark }} />
-                Produtos do lançamento
-              </label>
+              <div>
+                <label className="block text-xs font-black uppercase tracking-wider" style={{ color: brown }}>
+                  <Package className="w-3.5 h-3.5 inline mr-1" style={{ color: sandDark }} />
+                  Produtos do lançamento
+                </label>
+                <p className="text-[10px] mt-0.5" style={{ color: sandDark }}>
+                  Apenas produtos criados neste formulário podem ser vinculados
+                </p>
+              </div>
               {!showNewProduct && (
-                <button
-                  onClick={() => setShowNewProduct(true)}
+                <button onClick={() => setShowNewProduct(true)}
                   className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black transition active:scale-95"
                   style={{ background: `linear-gradient(135deg,${sandDark},${brown})`, color: "#fff" }}>
                   <Plus className="w-3 h-3" /> Novo produto
@@ -1179,21 +1140,21 @@ const CreateModal = ({
               />
             )}
 
-            {availableProducts.length > 0 && !showNewProduct && (
+            {newProducts.length > 0 && !showNewProduct && (
               <ProductPicker
-                products={availableProducts}
+                products={newProducts}
                 selected={selectedProds}
                 onChange={setSelectedProds}
               />
             )}
 
-            {availableProducts.length === 0 && !showNewProduct && (
+            {newProducts.length === 0 && !showNewProduct && (
               <div className="px-4 py-5 rounded-2xl text-center"
                 style={{ background: brownLight, border: "1.5px dashed rgba(74,46,10,0.20)" }}>
                 <Package className="w-6 h-6 mx-auto mb-2" style={{ color: sandDark, opacity: 0.6 }} />
                 <p className="text-xs font-bold mb-1" style={{ color: brown }}>Sem produtos ainda</p>
                 <p className="text-[10px]" style={{ color: sandDark }}>
-                  Cria um produto novo ou adiciona existentes para destacar no lançamento.
+                  Cria um produto novo para destacar neste lançamento.
                 </p>
               </div>
             )}
@@ -1220,41 +1181,96 @@ const CreateModal = ({
 };
 
 /* ═══════════════════════════════════════════════════
-   COMMENT ITEM
+   PRODUCT OVERLAY — ecrã completo sobre o vídeo
 ═══════════════════════════════════════════════════ */
-const CommentItem = ({ comment, isOwner }: { comment: any; isOwner?: boolean }) => (
-  <div className="flex items-start gap-2.5 py-3 border-b last:border-0" style={{ borderColor: "rgba(74,46,10,0.10)" }}>
-    {comment.user_avatar
-      ? <img src={comment.user_avatar} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
-      : <div
-          className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0"
-          style={{ background: isOwner ? brown : brownLight, color: isOwner ? cream : brown }}>
-          {(comment.user_name || "?").charAt(0).toUpperCase()}
-        </div>}
-    <div className="flex-1 min-w-0">
-      <div className="flex items-center flex-wrap gap-1.5 mb-0.5">
-        <span className="text-xs font-black" style={{ color: brown }}>{comment.user_name || "Utilizador"}</span>
-        {isOwner && (
-          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded"
-            style={{ background: brown, color: cream }}>dono da publicação</span>
-        )}
-        <span className="text-[10px]" style={{ color: sandDark }}>
-          {new Date(comment.created_at).toLocaleTimeString("pt-AO", { hour: "2-digit", minute: "2-digit" })}
-        </span>
-      </div>
-      <p className="text-xs leading-relaxed" style={{ color: brown }}>{comment.content}</p>
-      <div className="flex items-center gap-3 mt-1.5">
-        <button className="flex items-center gap-1 text-[10px]" style={{ color: sandDark }}>
-          <Heart className="w-3 h-3" />{comment.likes_count || 0}
+const ProductsOverlay = ({
+  products,
+  onClose,
+  onNavigate,
+}: {
+  products: any[];
+  onClose: () => void;
+  onNavigate: (slug: string, id: string) => void;
+}) => {
+  return (
+    <div
+      className="absolute inset-0 z-30 flex flex-col"
+      style={{ background: `linear-gradient(180deg, rgba(74,46,10,0.92) 0%, rgba(30,14,2,0.97) 100%)` }}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-4 flex-shrink-0"
+        style={{ borderBottom: "1px solid rgba(212,184,150,0.15)" }}>
+        <div className="flex items-center gap-2">
+          <ShoppingBag className="w-5 h-5" style={{ color: sand }} />
+          <span className="text-sm font-black text-white">Produtos em destaque</span>
+          <span className="text-[11px] px-2 py-0.5 rounded-full font-bold"
+            style={{ background: "rgba(212,184,150,0.15)", color: sand }}>
+            {products.length}
+          </span>
+        </div>
+        <button onClick={onClose}
+          className="w-8 h-8 rounded-full flex items-center justify-center transition"
+          style={{ background: "rgba(212,184,150,0.15)" }}>
+          <X className="w-4 h-4 text-white" />
         </button>
-        <button className="text-[10px] font-bold" style={{ color: sandDark }}>Responder</button>
+      </div>
+
+      {/* Products list */}
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+        {products.map((p: any) => (
+          <div
+            key={p.id}
+            onClick={() => onNavigate(p.slug, p.id)}
+            className="flex items-center gap-4 p-3 rounded-2xl cursor-pointer transition-all active:scale-95"
+            style={{
+              background: "rgba(212,184,150,0.08)",
+              border: "1px solid rgba(212,184,150,0.18)",
+            }}
+          >
+            <div className="w-20 h-20 rounded-xl overflow-hidden flex-shrink-0"
+              style={{ border: "1.5px solid rgba(212,184,150,0.25)" }}>
+              {p.image_url
+                ? <img src={p.image_url} alt={p.title} className="w-full h-full object-cover" />
+                : <div className="w-full h-full flex items-center justify-center" style={{ background: "rgba(74,46,10,0.4)" }}>
+                    <Package className="w-6 h-6" style={{ color: sand }} />
+                  </div>
+              }
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-black text-white truncate mb-1">{p.title}</p>
+              <p className="text-lg font-black" style={{ color: gold }}>
+                {Number(p.price).toLocaleString("pt-AO")} Kz
+              </p>
+              {p.old_price && (
+                <p className="text-[11px] line-through" style={{ color: "rgba(212,184,150,0.5)" }}>
+                  {Number(p.old_price).toLocaleString("pt-AO")} Kz
+                </p>
+              )}
+            </div>
+            <div className="flex flex-col items-center gap-2">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition"
+                style={{ background: `linear-gradient(135deg, ${sandDark}, ${brown})` }}>
+                <ExternalLink className="w-4 h-4 text-white" />
+              </div>
+              <span className="text-[9px] font-bold text-center" style={{ color: sand }}>Ver produto</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Footer hint */}
+      <div className="px-5 py-3 flex-shrink-0 text-center"
+        style={{ borderTop: "1px solid rgba(212,184,150,0.10)" }}>
+        <p className="text-[11px]" style={{ color: "rgba(212,184,150,0.5)" }}>
+          Toca num produto para abrir a página completa
+        </p>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 /* ═══════════════════════════════════════════════════
-   WATCH MODAL
+   TIKTOK-STYLE WATCH MODAL
 ═══════════════════════════════════════════════════ */
 const WatchModal = ({
   release, onClose, userId,
@@ -1264,7 +1280,10 @@ const WatchModal = ({
   const [comment, setComment] = useState("");
   const [liked, setLiked] = useState(false);
   const [notified, setNotified] = useState(false);
+  const [showProducts, setShowProducts] = useState(false);
+  const [muted, setMuted] = useState(false);
   const commentListRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   const live     = isLive(release);
   const upcoming = isUpcoming(release);
@@ -1274,16 +1293,28 @@ const WatchModal = ({
   const { data: profile } = useQuery({
     queryKey: ["profile", userId],
     queryFn: async () => {
-      const { data } = await (supabase as any).from("profiles").select("full_name, avatar_url").eq("id", userId).maybeSingle();
+      const { data } = await (supabase as any).from("profiles").select("full_name, avatar_url, is_verified").eq("id", userId).maybeSingle();
       return data ?? null;
     },
     enabled: !!userId,
   });
 
+  /* Contagem de visualizações */
   useEffect(() => {
     if (!release?.id || upcoming) return;
-    (supabase as any).from("release_views").insert({ release_id: release.id, user_id: userId });
-    (supabase as any).from("releases").update({ views_count: (release.views_count || 0) + 1 }).eq("id", release.id);
+    const trackView = async () => {
+      await (supabase as any)
+        .from("release_views")
+        .upsert(
+          { release_id: release.id, user_id: userId ?? null, viewed_at: new Date().toISOString() },
+          { onConflict: "release_id,user_id", ignoreDuplicates: true }
+        );
+      await (supabase as any)
+        .from("releases")
+        .update({ views_count: (release.views_count || 0) + 1 })
+        .eq("id", release.id);
+    };
+    trackView();
   }, [release?.id]);
 
   const handleVideoEnded = useCallback(async () => {
@@ -1295,8 +1326,12 @@ const WatchModal = ({
   const { data: comments = [] } = useQuery({
     queryKey: ["release_comments", release.id],
     queryFn: async () => {
-      const { data } = await (supabase as any).from("release_comments").select("*").eq("release_id", release.id)
-        .order("created_at", { ascending: true }).limit(200);
+      const { data } = await (supabase as any)
+        .from("release_comments")
+        .select("*, user:profiles(full_name, avatar_url, is_verified)")
+        .eq("release_id", release.id)
+        .order("created_at", { ascending: true })
+        .limit(200);
       return data || [];
     },
     enabled: !upcoming,
@@ -1313,7 +1348,8 @@ const WatchModal = ({
     if (!text) return;
     setComment("");
     await (supabase as any).from("release_comments").insert({
-      release_id: release.id, user_id: userId,
+      release_id: release.id,
+      user_id: userId,
       user_name: profile?.full_name || "Utilizador",
       user_avatar: profile?.avatar_url || null,
       content: text,
@@ -1321,165 +1357,347 @@ const WatchModal = ({
     qc.invalidateQueries({ queryKey: ["release_comments", release.id] });
   };
 
+  const toggleMute = () => {
+    if (videoRef.current) {
+      videoRef.current.muted = !muted;
+      setMuted(!muted);
+    }
+  };
+
+  const isAuthor = (comment: any) => comment.user_id === release.seller?.user_id;
+
+  /* Navegação para produto */
+  const handleProductNavigate = (slug: string, id: string) => {
+    onClose();
+    navigate(`/produto/${id}`);
+  };
+
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className="relative w-full rounded-3xl overflow-hidden shadow-2xl flex flex-col md:flex-row"
-        style={{ background: cream, maxHeight: "92vh", maxWidth: "900px", width: "100%" }}
-        onClick={e => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-[70] flex items-stretch justify-center"
+      style={{ background: "rgba(0,0,0,0.92)" }}
+      onClick={onClose}
+    >
+      {/* Container principal — moldura TikTok */}
+      <div
+        className="relative flex w-full max-w-[420px] flex-col overflow-hidden"
+        style={{
+          background: "#0d0603",
+          maxHeight: "100vh",
+          /* Moldura castanha característica */
+          boxShadow: `0 0 0 2px ${sandDark}, 0 0 60px rgba(74,46,10,0.6)`,
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* ── ZONA DE VÍDEO ── */}
+        <div className="relative flex-1 bg-black overflow-hidden" style={{ minHeight: 0 }}>
 
-        <div className="flex flex-col" style={{ flex: "0 0 auto", width: "100%", maxWidth: "560px" }}>
-          <div className="flex items-center gap-3 px-4 py-3" style={{ background: `linear-gradient(135deg,${cream},${sand})` }}>
-            {release.seller?.logo_url
-              ? <img src={release.seller.logo_url} alt="" className="w-9 h-9 rounded-full object-cover border-2" style={{ borderColor: sandDark }} />
-              : <div className="w-9 h-9 rounded-full flex items-center justify-center font-black text-sm" style={{ background: brownLight, color: brown }}>
-                  {(release.seller?.name || "?").charAt(0)}
-                </div>}
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-bold" style={{ color: sandDark }}>{release.seller?.name}</p>
-              <h2 className="text-sm font-black truncate" style={{ color: brown }}>{release.title}</h2>
-            </div>
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg mr-2 flex-shrink-0" style={{ background: brownLight }}>
-              <Eye className="w-3.5 h-3.5" style={{ color: sandDark }} />
-              <span className="text-xs font-black" style={{ color: brown }}>{(release.views_count || 0).toLocaleString("pt-AO")}</span>
-            </div>
-            <button onClick={onClose} className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: brownLight }}>
-              <X className="w-4 h-4" style={{ color: brown }} />
-            </button>
-          </div>
+          {/* Vídeo */}
+          {canPlayVideo && (
+            <video
+              ref={videoRef}
+              src={release.video_url}
+              autoPlay={live}
+              playsInline
+              loop={!live}
+              onEnded={handleVideoEnded}
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          )}
 
-          <div className="relative flex-shrink-0 bg-black overflow-hidden" style={{ aspectRatio: "16/9" }}>
-            {canPlayVideo && (
-              <video src={release.video_url} controls autoPlay={live} playsInline onEnded={handleVideoEnded}
-                style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain" }} />
-            )}
-            {expired && !release.video_url && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
-                {release.thumbnail_url && <img src={release.thumbnail_url} alt="" className="absolute inset-0 w-full h-full object-cover opacity-20 grayscale" />}
-                <VideoOff className="relative z-10 w-10 h-10 text-white/50" />
-                <p className="relative z-10 text-white/60 text-sm font-bold">Vídeo não disponível</p>
-              </div>
-            )}
-            {upcoming && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
-                {release.thumbnail_url && <img src={release.thumbnail_url} alt="" className="absolute inset-0 w-full h-full object-cover opacity-25" />}
-                <div className="relative z-10 text-center px-6">
-                  <Calendar className="w-10 h-10 text-white/60 mx-auto mb-3" />
-                  <p className="text-white font-bold text-sm mb-1">Transmissão agendada</p>
-                  <p className="text-white/60 text-xs">{fmtDate(release.broadcasts_at)}</p>
-                  <button onClick={() => { setNotified(v => !v); toast.success(notified ? "Lembrete removido" : "Vais ser notificado!"); }}
-                    className="mt-4 flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white mx-auto"
-                    style={{ background: notified ? brownLight : "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)" }}>
-                    {notified ? <BellOff className="w-3.5 h-3.5" /> : <Bell className="w-3.5 h-3.5" />}
-                    {notified ? "Lembrete activo" : "Lembrar-me"}
-                  </button>
+          {/* Thumbnail / estado de espera */}
+          {release.thumbnail_url && !canPlayVideo && (
+            <img
+              src={release.thumbnail_url}
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover"
+              style={{ opacity: upcoming ? 0.35 : 0.6, filter: expired && !release.video_url ? "grayscale(1)" : "none" }}
+            />
+          )}
+
+          {/* Gradiente inferior */}
+          <div className="absolute inset-0 pointer-events-none"
+            style={{ background: "linear-gradient(to top, rgba(13,6,3,0.98) 0%, rgba(13,6,3,0.4) 45%, transparent 70%)" }} />
+
+          {/* Gradiente superior */}
+          <div className="absolute inset-0 pointer-events-none"
+            style={{ background: "linear-gradient(to bottom, rgba(13,6,3,0.6) 0%, transparent 30%)" }} />
+
+          {/* Overlay de produtos */}
+          {showProducts && release.linked_products?.length > 0 && (
+            <ProductsOverlay
+              products={release.linked_products}
+              onClose={() => setShowProducts(false)}
+              onNavigate={handleProductNavigate}
+            />
+          )}
+
+          {/* ── TOPO: vendedor + fechar ── */}
+          <div className="absolute top-0 left-0 right-0 z-20 flex items-center gap-3 px-4 pt-safe pt-4 pb-2">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              {release.seller?.logo_url
+                ? <img src={release.seller.logo_url} alt=""
+                    className="w-9 h-9 rounded-full object-cover flex-shrink-0"
+                    style={{ border: `2px solid ${sandDark}` }} />
+                : <div className="w-9 h-9 rounded-full flex items-center justify-center font-black text-sm flex-shrink-0"
+                    style={{ background: sandDark, color: cream }}>
+                    {(release.seller?.name || "?").charAt(0).toUpperCase()}
+                  </div>}
+              <div className="min-w-0">
+                <div className="flex items-center gap-1">
+                  <span className="text-xs font-black text-white truncate">{release.seller?.name || "Vendedor"}</span>
+                  {release.seller?.is_verified && (
+                    <BadgeCheck className="w-3.5 h-3.5 flex-shrink-0" style={{ color: gold }} />
+                  )}
                 </div>
+                <p className="text-[10px] truncate" style={{ color: sand }}>{release.title}</p>
               </div>
-            )}
-            {live && (
-              <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-lg z-10" style={{ background: "#E53935" }}>
-                <PulseDot color="#fff" /><span className="text-[10px] font-black text-white">AO VIVO</span>
-              </div>
-            )}
-            {expired && release.video_url && (
-              <div className="absolute top-3 left-3 px-2.5 py-1 rounded-lg z-10" style={{ background: "rgba(40,40,40,0.80)" }}>
-                <span className="text-[10px] font-black text-white/80">TERMINADO</span>
-              </div>
-            )}
+            </div>
+            <button onClick={onClose}
+              className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+              style={{ background: "rgba(0,0,0,0.55)", border: "1px solid rgba(212,184,150,0.25)" }}>
+              <X className="w-4 h-4 text-white" />
+            </button>
           </div>
 
-          <div className="flex items-center gap-2 px-4 py-2.5 border-b" style={{ borderColor: "rgba(74,46,10,0.12)" }}>
-            <button onClick={() => setLiked(v => !v)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all"
-              style={{ background: liked ? "rgba(229,57,53,0.12)" : brownLight, color: liked ? "#E53935" : brown, border: `1px solid ${liked ? "rgba(229,57,53,0.30)" : "rgba(74,46,10,0.15)"}` }}>
-              <Heart className={`w-3.5 h-3.5 ${liked ? "fill-current" : ""}`} />
-              {(release.likes_count || 0) + (liked ? 1 : 0)}
-            </button>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold" style={{ background: brownLight, color: brown }}>
-              <MessageCircle className="w-3.5 h-3.5" />{comments.length}
-            </button>
-            {release.description && <p className="text-[11px] ml-2 line-clamp-1 flex-1" style={{ color: sandDark }}>{release.description}</p>}
-          </div>
+          {/* Badge LIVE */}
+          {live && (
+            <div className="absolute top-16 left-4 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-lg"
+              style={{ background: "#E53935" }}>
+              <PulseDot color="#fff" />
+              <span className="text-[10px] font-black text-white">AO VIVO</span>
+            </div>
+          )}
 
-          {release.linked_products?.length > 0 && (
-            <div className="px-4 py-3 border-b" style={{ borderColor: "rgba(74,46,10,0.12)" }}>
-              <p className="text-[10px] font-black uppercase tracking-wider mb-2" style={{ color: sandDark }}>
-                <Package className="w-3 h-3 inline mr-1" />Produtos em destaque
-              </p>
-              <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
-                {release.linked_products.map((p: any) => (
-                  <div key={p.id} onClick={() => { onClose(); navigate(`/produto/${p.id}`); }}
-                    className="flex-shrink-0 cursor-pointer rounded-xl overflow-hidden border hover:shadow-md transition-all"
-                    style={{ width: 100, background: "#fff", border: "1px solid rgba(74,46,10,0.12)" }}>
-                    {p.image_url
-                      ? <img src={p.image_url} alt={p.title} className="w-full object-cover" style={{ height: 68 }} />
-                      : <div className="flex items-center justify-center" style={{ height: 68, background: brownLight }}>
-                          <Package className="w-5 h-5" style={{ color: sandDark }} />
+          {/* Badge TERMINADO */}
+          {expired && !live && (
+            <div className="absolute top-16 left-4 z-20 px-2.5 py-1 rounded-lg"
+              style={{ background: "rgba(40,40,40,0.85)" }}>
+              <span className="text-[10px] font-bold text-white/70">TERMINADO</span>
+            </div>
+          )}
+
+          {/* Estado UPCOMING */}
+          {upcoming && !showProducts && (
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 px-8 text-center">
+              <Calendar className="w-12 h-12 text-white/50 mx-auto" />
+              <div>
+                <p className="text-white font-black text-lg mb-1">Transmissão agendada</p>
+                <p className="text-white/60 text-sm mb-4">{fmtDate(release.broadcasts_at)}</p>
+                <button onClick={() => { setNotified(v => !v); toast.success(notified ? "Lembrete removido" : "Vais ser notificado!"); }}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white mx-auto"
+                  style={{ background: notified ? `rgba(184,149,106,0.3)` : "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)" }}>
+                  {notified ? <BellOff className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
+                  {notified ? "Lembrete activo" : "Lembrar-me"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Estado SEM VÍDEO */}
+          {expired && !release.video_url && !showProducts && (
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2">
+              <VideoOff className="w-10 h-10 text-white/30" />
+              <p className="text-white/40 text-sm font-bold">Vídeo não disponível</p>
+            </div>
+          )}
+
+          {/* ── BARRA LATERAL DIREITA (estilo TikTok) ── */}
+          {!showProducts && (
+            <div className="absolute right-3 bottom-32 z-20 flex flex-col items-center gap-5">
+              {/* Like */}
+              <button onClick={() => setLiked(v => !v)} className="flex flex-col items-center gap-1">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center"
+                  style={{ background: liked ? "rgba(229,57,53,0.25)" : "rgba(0,0,0,0.45)" }}>
+                  <Heart className={`w-5 h-5 ${liked ? "fill-current" : ""}`}
+                    style={{ color: liked ? "#E53935" : "white" }} />
+                </div>
+                <span className="text-[10px] font-bold text-white">
+                  {(release.likes_count || 0) + (liked ? 1 : 0)}
+                </span>
+              </button>
+
+              {/* Visualizações */}
+              <div className="flex flex-col items-center gap-1">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center"
+                  style={{ background: "rgba(0,0,0,0.45)" }}>
+                  <Eye className="w-5 h-5 text-white" />
+                </div>
+                <span className="text-[10px] font-bold text-white">
+                  {(release.views_count || 0).toLocaleString("pt-AO")}
+                </span>
+              </div>
+
+              {/* Mute */}
+              {canPlayVideo && (
+                <button onClick={toggleMute} className="flex flex-col items-center gap-1">
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center"
+                    style={{ background: "rgba(0,0,0,0.45)" }}>
+                    {muted
+                      ? <VolumeX className="w-5 h-5 text-white" />
+                      : <Volume2 className="w-5 h-5 text-white" />}
+                  </div>
+                </button>
+              )}
+
+              {/* Produtos */}
+              {release.linked_products?.length > 0 && (
+                <button onClick={() => setShowProducts(true)} className="flex flex-col items-center gap-1">
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center"
+                    style={{ background: `linear-gradient(135deg, ${sandDark}, ${brown})` }}>
+                    <ShoppingBag className="w-5 h-5 text-white" />
+                  </div>
+                  <span className="text-[10px] font-bold" style={{ color: sand }}>
+                    {release.linked_products.length} prod.
+                  </span>
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* ── INFO INFERIOR (título + duração) ── */}
+          {!showProducts && (
+            <div className="absolute bottom-28 left-0 right-16 z-20 px-4">
+              {release.description && (
+                <p className="text-[11px] text-white/70 mb-1 line-clamp-2">{release.description}</p>
+              )}
+              <div className="flex items-center gap-2">
+                {release.video_duration_s && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded"
+                    style={{ background: "rgba(0,0,0,0.55)", color: sand }}>
+                    {fmtDuration(release.video_duration_s)}
+                  </span>
+                )}
+                {release.linked_products?.length > 0 && !showProducts && (
+                  <button
+                    onClick={() => setShowProducts(true)}
+                    className="flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-full transition active:scale-95"
+                    style={{ background: `linear-gradient(135deg, ${sandDark}, ${brown})`, color: "#fff" }}
+                  >
+                    <ShoppingCart className="w-3.5 h-3.5" />
+                    Ver {release.linked_products.length} produto{release.linked_products.length !== 1 ? "s" : ""}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── ZONA DE COMENTÁRIOS ── */}
+        {!showProducts && (
+          <div className="flex flex-col flex-shrink-0"
+            style={{
+              height: 220,
+              background: `linear-gradient(180deg, #0d0603 0%, #1a0a02 100%)`,
+              borderTop: `1px solid rgba(212,184,150,0.12)`,
+            }}>
+            <div className="flex items-center justify-between px-4 pt-3 pb-1 flex-shrink-0">
+              <div className="flex items-center gap-1.5">
+                <MessageCircle className="w-3.5 h-3.5" style={{ color: sand }} />
+                <span className="text-[11px] font-black" style={{ color: sand }}>
+                  Comentários {comments.length > 0 && `· ${comments.length}`}
+                </span>
+              </div>
+            </div>
+
+            <div ref={commentListRef} className="flex-1 overflow-y-auto px-4 py-1 space-y-2"
+              style={{ scrollbarWidth: "none" }}>
+              {!upcoming && comments.length === 0 && (
+                <div className="py-4 text-center">
+                  <p className="text-[11px]" style={{ color: "rgba(212,184,150,0.4)" }}>Nenhum comentário ainda</p>
+                </div>
+              )}
+              {upcoming && (
+                <p className="text-center text-[11px] py-4" style={{ color: "rgba(212,184,150,0.4)" }}>
+                  Comentários abrem na transmissão
+                </p>
+              )}
+              {!upcoming && comments.map((c: any) => {
+                const author = isAuthor(c);
+                const verified = c.user?.is_verified || false;
+                const displayName = c.user?.full_name || c.user_name || "Utilizador";
+
+                return (
+                  <div key={c.id} className="flex items-start gap-2">
+                    {/* Avatar */}
+                    {(c.user?.avatar_url || c.user_avatar)
+                      ? <img src={c.user?.avatar_url || c.user_avatar} alt=""
+                          className="w-7 h-7 rounded-full object-cover flex-shrink-0"
+                          style={{ border: author ? `1.5px solid ${sandDark}` : "1.5px solid rgba(212,184,150,0.2)" }} />
+                      : <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0"
+                          style={{ background: author ? sandDark : "rgba(74,46,10,0.5)", color: cream }}>
+                          {displayName.charAt(0).toUpperCase()}
                         </div>}
-                    <div className="px-2 py-1.5">
-                      <p className="text-[10px] font-bold truncate" style={{ color: brown }}>{p.title}</p>
-                      <p className="text-[10px] font-black" style={{ color: sandDark }}>{Number(p.price).toLocaleString("pt-AO")} Kz</p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center flex-wrap gap-1 mb-0.5">
+                        <span className="text-[11px] font-black text-white">{displayName}</span>
+                        {/* Celo de verificação */}
+                        {verified && (
+                          <BadgeCheck className="w-3 h-3 flex-shrink-0" style={{ color: gold }} />
+                        )}
+                        {/* Badge AUTOR */}
+                        {author && (
+                          <span className="text-[9px] font-black px-1.5 py-0.5 rounded"
+                            style={{ background: sandDark, color: cream }}>
+                            autor
+                          </span>
+                        )}
+                        <span className="text-[9px]" style={{ color: "rgba(212,184,150,0.4)" }}>
+                          {new Date(c.created_at).toLocaleTimeString("pt-AO", { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      </div>
+                      <p className="text-[11px] leading-relaxed" style={{ color: "rgba(255,255,255,0.85)" }}>
+                        {c.content}
+                      </p>
                     </div>
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
-          )}
-        </div>
 
-        {/* Comentários desktop */}
-        <div className="hidden md:flex flex-col flex-1 min-h-0" style={{ borderLeft: "1px solid rgba(74,46,10,0.12)" }}>
-          <p className="px-4 pt-3 pb-1 text-[10px] font-black uppercase tracking-wider flex-shrink-0" style={{ color: sandDark }}>
-            Comentários {comments.length > 0 && `(${comments.length})`}
-          </p>
-          <div ref={commentListRef} className="flex-1 overflow-y-auto px-4 pb-2" style={{ minHeight: 0 }}>
-            {!upcoming && comments.length === 0 && (
-              <div className="py-8 text-center">
-                <MessageCircle className="w-8 h-8 mx-auto mb-2" style={{ color: sandDark, opacity: 0.4 }} />
-                <p className="text-xs" style={{ color: sandDark }}>Nenhum comentário ainda</p>
+            {/* Input comentário */}
+            {!upcoming && (
+              <div className="flex items-center gap-2 px-3 py-2.5 flex-shrink-0"
+                style={{ borderTop: "1px solid rgba(212,184,150,0.08)" }}>
+                {(profile?.avatar_url)
+                  ? <img src={profile.avatar_url} alt=""
+                      className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
+                  : <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0"
+                      style={{ background: sandDark, color: cream }}>
+                      {(profile?.full_name || "?").charAt(0).toUpperCase()}
+                    </div>}
+                <input
+                  type="text"
+                  value={comment}
+                  onChange={e => setComment(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && sendComment()}
+                  placeholder="Adiciona um comentário…"
+                  className="flex-1 px-3 py-2 rounded-full text-xs focus:outline-none"
+                  style={{
+                    background: "rgba(212,184,150,0.08)",
+                    border: "1px solid rgba(212,184,150,0.18)",
+                    color: "white",
+                  }}
+                />
+                <button onClick={sendComment} disabled={!comment.trim()}
+                  className="w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-95 flex-shrink-0"
+                  style={{ background: comment.trim() ? `linear-gradient(135deg,${sandDark},${brown})` : "rgba(74,46,10,0.3)" }}>
+                  <Send className="w-3.5 h-3.5 text-white" />
+                </button>
               </div>
             )}
-            {!upcoming && comments.map((c: any) => <CommentItem key={c.id} comment={c} isOwner={c.user_id === release.seller?.user_id} />)}
-            {upcoming && <div className="py-6 text-center"><p className="text-xs" style={{ color: sandDark }}>Os comentários abrem na transmissão</p></div>}
           </div>
-          {!upcoming && (
-            <div className="flex items-center gap-2 px-3 py-3 flex-shrink-0" style={{ borderTop: "1px solid rgba(74,46,10,0.12)" }}>
-              {profile?.avatar_url
-                ? <img src={profile.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
-                : <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0" style={{ background: brownLight, color: brown }}>
-                    {(profile?.full_name || "?").charAt(0).toUpperCase()}
-                  </div>}
-              <input type="text" value={comment} onChange={e => setComment(e.target.value)} onKeyDown={e => e.key === "Enter" && sendComment()}
-                placeholder="Escreve um comentário…" className="flex-1 px-3 py-2 rounded-xl text-xs focus:outline-none"
-                style={{ background: "#fff", border: "1.5px solid rgba(74,46,10,0.18)", color: brown }} />
-              <button onClick={sendComment} disabled={!comment.trim()}
-                className="w-8 h-8 rounded-xl flex items-center justify-center transition-all active:scale-95"
-                style={{ background: comment.trim() ? `linear-gradient(135deg,${sandDark},${brown})` : "#e5e5e5" }}>
-                <Send className="w-3.5 h-3.5 text-white" />
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Comentários mobile */}
-        <div className="md:hidden flex flex-col border-t" style={{ borderColor: "rgba(74,46,10,0.12)", maxHeight: 240 }}>
-          <div ref={commentListRef} className="flex-1 overflow-y-auto px-3 py-1">
-            {!upcoming && comments.length === 0 && <p className="text-center text-xs py-4" style={{ color: sandDark }}>Nenhum comentário ainda</p>}
-            {!upcoming && comments.map((c: any) => <CommentItem key={c.id} comment={c} isOwner={c.user_id === release.seller?.user_id} />)}
-            {upcoming && <p className="text-center text-xs py-4" style={{ color: sandDark }}>Os comentários abrem na transmissão</p>}
-          </div>
-          {!upcoming && (
-            <div className="flex items-center gap-2 p-2 border-t flex-shrink-0" style={{ borderColor: "rgba(74,46,10,0.12)" }}>
-              <input type="text" value={comment} onChange={e => setComment(e.target.value)} onKeyDown={e => e.key === "Enter" && sendComment()}
-                placeholder="Comentar…" className="flex-1 px-3 py-2 rounded-xl text-xs focus:outline-none"
-                style={{ background: "#fff", border: "1.5px solid rgba(74,46,10,0.18)", color: brown }} />
-              <button onClick={sendComment} className="w-8 h-8 rounded-xl flex items-center justify-center"
-                style={{ background: `linear-gradient(135deg,${sandDark},${brown})` }}>
-                <Send className="w-3.5 h-3.5 text-white" />
-              </button>
-            </div>
-          )}
-        </div>
+        )}
       </div>
+
+      {/* Botão fechar lateral (desktop) */}
+      <button
+        onClick={onClose}
+        className="hidden md:flex absolute right-6 top-6 w-10 h-10 rounded-full items-center justify-center"
+        style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)" }}
+      >
+        <X className="w-5 h-5 text-white" />
+      </button>
     </div>
   );
 };
@@ -1556,7 +1774,7 @@ const ReleaseCard = ({
                 {(release.seller?.name || "?").charAt(0)}
               </div>}
           <span className="text-[11px] font-bold truncate" style={{ color: sandDark }}>{release.seller?.name || "Vendedor"}</span>
-          {release.seller?.is_verified && <Star className="w-3 h-3 flex-shrink-0" style={{ color: sandDark }} />}
+          {release.seller?.is_verified && <BadgeCheck className="w-3.5 h-3.5 flex-shrink-0" style={{ color: sandDark }} />}
         </div>
         <h3 className="text-sm font-black line-clamp-2 mb-2" style={{ color: brown }}>{release.title}</h3>
         <div className="flex items-center gap-2 text-[11px]" style={{ color: sandDark }}>
@@ -1582,7 +1800,6 @@ const Lancamentos = () => {
 
   const [watchRelease, setWatchRelease] = useState<any>(null);
   const [showCreate,   setShowCreate]   = useState(false);
-  const [search,       setSearch]       = useState("");
   const [filter,       setFilter]       = useState<"all" | "live" | "upcoming" | "ended">("all");
 
   const { data: sellerData } = useQuery({
@@ -1626,7 +1843,7 @@ const Lancamentos = () => {
       const allProdIds = [...new Set(data.flatMap((r: any) => r.linked_product_ids || []))];
       let prodMap: Record<string, any> = {};
       if (allProdIds.length) {
-        const { data: prods } = await (supabase as any).from("products").select("id, title, price, image_url, slug").in("id", allProdIds);
+        const { data: prods } = await (supabase as any).from("products").select("id, title, price, old_price, image_url, slug").in("id", allProdIds);
         (prods || []).forEach((p: any) => { prodMap[p.id] = p; });
       }
       return data.map((r: any) => ({
@@ -1636,16 +1853,6 @@ const Lancamentos = () => {
     },
     refetchInterval: 15000,
     staleTime: 0,
-  });
-
-  const { data: myProducts = [] } = useQuery({
-    queryKey: ["my_products_active", sellerId],
-    queryFn: async () => {
-      const { data } = await (supabase as any).from("products").select("id, title, price, image_url")
-        .eq("seller_id", sellerId).eq("is_active", true).limit(50);
-      return data || [];
-    },
-    enabled: canPublish && !!sellerId,
   });
 
   useEffect(() => {
@@ -1666,9 +1873,7 @@ const Lancamentos = () => {
     toast.success("Lançamento eliminado");
   };
 
-  const q = search.toLowerCase();
   const filtered = releases.filter((r: any) => {
-    if (q && !r.title?.toLowerCase().includes(q) && !r.seller?.name?.toLowerCase().includes(q)) return false;
     if (filter === "live")     return isLive(r);
     if (filter === "upcoming") return isUpcoming(r) && !isLive(r);
     if (filter === "ended")    return isExpired(r);
@@ -1707,14 +1912,7 @@ const Lancamentos = () => {
               </div>
               <h1 className="md:hidden text-base font-black" style={{ color: brown }}>Lançamentos</h1>
             </div>
-            <div className="flex-1 flex items-center rounded-2xl overflow-hidden"
-              style={{ background: "#fff", boxShadow: "0 1px 6px rgba(74,46,10,0.10)" }}>
-              <Hash className="w-4 h-4 ml-3 flex-shrink-0" style={{ color: sandDark }} />
-              <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Pesquisar lançamentos…"
-                className="flex-1 py-2.5 px-2.5 text-sm bg-transparent focus:outline-none" style={{ color: brown }} />
-              {search && <button onClick={() => setSearch("")} className="mr-2"><X className="w-4 h-4" style={{ color: sandDark }} /></button>}
-            </div>
+            <div className="flex-1" />
             {canPublish && (
               <button onClick={() => setShowCreate(true)}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-sm font-black text-white flex-shrink-0 transition active:scale-95"
@@ -1777,10 +1975,10 @@ const Lancamentos = () => {
                     <p className="text-sm font-black text-white">
                       {myCount >= MAX_RELEASES
                         ? "Limite atingido — elimina um lançamento para publicar novo"
-                        : `${MAX_RELEASES - myCount} slot${MAX_RELEASES - myCount !== 1 ? "s" : ""} disponível${MAX_RELEASES - myCount !== 1 ? "s" : ""} para novos lançamentos`}
+                        : `${MAX_RELEASES - myCount} slot${MAX_RELEASES - myCount !== 1 ? "s" : ""} disponível${MAX_RELEASES - myCount !== 1 ? "s" : ""}`}
                     </p>
                     <p className="text-[11px] text-white/60 mt-0.5">
-                      Cada lançamento pode ter até 5 produtos · vídeo máx. 7 min · podes criar produtos novos no formulário
+                      Cada lançamento pode ter até 5 produtos novos · vídeo máx. 7 min
                     </p>
                   </div>
                 </div>
@@ -1819,8 +2017,8 @@ const Lancamentos = () => {
             {filtered.length === 0 ? (
               <div className="rounded-2xl py-16 text-center" style={{ background: cream, border: `1px dashed rgba(74,46,10,0.20)` }}>
                 <Film className="w-10 h-10 mx-auto mb-3" style={{ color: sandDark, opacity: 0.4 }} />
-                <p className="text-sm font-bold" style={{ color: sandDark }}>{search ? "Sem resultados" : "Nenhum lançamento"}</p>
-                {canPublish && !search && (
+                <p className="text-sm font-bold" style={{ color: sandDark }}>Nenhum lançamento</p>
+                {canPublish && (
                   <button onClick={() => setShowCreate(true)}
                     className="mt-4 flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-black text-white mx-auto"
                     style={{ background: `linear-gradient(135deg, ${sandDark}, ${brown})` }}>
@@ -1842,11 +2040,16 @@ const Lancamentos = () => {
 
       <Footer />
 
-      {watchRelease && <WatchModal release={watchRelease} onClose={() => setWatchRelease(null)} userId={user?.id ?? null} />}
+      {watchRelease && (
+        <WatchModal
+          release={watchRelease}
+          onClose={() => setWatchRelease(null)}
+          userId={user?.id ?? null}
+        />
+      )}
       {showCreate && canPublish && (
         <CreateModal
           onClose={() => setShowCreate(false)}
-          products={myProducts}
           sellerId={sellerId}
           currentCount={myCount}
         />
