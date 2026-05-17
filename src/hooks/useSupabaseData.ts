@@ -73,7 +73,9 @@ export const useProducts = (options?: { featured?: boolean; freeShipping?: boole
     },
   });
 
-// ── CORRIGIDO: useProduct agora inclui company_id e faz join com companies ──
+// ── CORRIGIDO: useProduct usa maybeSingle() em vez de single()
+// para evitar erro PGRST116 que fazia a página mostrar "Produto não encontrado"
+// mesmo quando o produto existe mas a query ainda está a carregar ──
 export const useProduct = (id: string) =>
   useQuery({
     queryKey: ["product", id],
@@ -86,8 +88,10 @@ export const useProduct = (id: string) =>
           companies(id, name, logo_url, cover_url, is_verified, province, rating, total_reviews)
         `)
         .eq("id", id)
-        .single();
+        .maybeSingle(); // ← CORRIGIDO: era .single() que lançava erro quando não encontrava
+
       if (error) throw error;
+      if (!data) return null;
 
       // Busca a imagem de capa via product_media
       const { data: mediaData } = await supabase
@@ -103,6 +107,7 @@ export const useProduct = (id: string) =>
       return { ...data, cover_url: cover, _media: mediaData || [] };
     },
     enabled: !!id && id.length > 10,
+    retry: 1, // tenta apenas 1 vez extra em caso de falha de rede
   });
 
 // ── Sellers ──
