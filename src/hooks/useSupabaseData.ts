@@ -69,19 +69,41 @@ export const useProducts = (options?: { featured?: boolean; freeShipping?: boole
     },
   });
 
+// ── CORRIGIDO: inclui company_id + join com companies para produtos de empresa ──
 export const useProduct = (id: string) =>
   useQuery({
     queryKey: ["product", id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select("*, sellers(name, slug, logo_url, rating, total_sales, is_verified)")
+        .select(`
+          *,
+          seller_id,
+          company_id,
+          sellers(id, name, slug, logo_url, avatar_url, rating, total_sales, is_verified, province),
+          companies(id, name, logo_url, cover_url, is_verified, province, rating, total_reviews)
+        `)
         .eq("id", id)
-        .single();
+        .maybeSingle();
+
       if (error) throw error;
-      return data;
+      if (!data) return null;
+
+      // Busca a imagem de capa via product_media
+      const { data: mediaData } = await supabase
+        .from("product_media")
+        .select("url, is_cover, type, sort_order")
+        .eq("product_id", id)
+        .order("sort_order");
+
+      const cover = (mediaData || []).find((m: any) => m.is_cover)?.url
+        || (mediaData || [])[0]?.url
+        || null;
+
+      return { ...data, cover_url: cover, _media: mediaData || [] };
     },
     enabled: !!id && id.length > 10,
+    retry: 1,
   });
 
 // ── Sellers ──
@@ -103,7 +125,6 @@ export const useSellers = (options?: { type?: "individual" | "company"; verified
       const { data, error } = await query;
       if (error) throw error;
 
-      // Fetch real average ratings from reviews for each seller
       const sellerIds = (data || []).map((s: any) => s.id);
       let ratingsMap: Record<string, { avg: number; count: number }> = {};
       let productsCountMap: Record<string, number> = {};
@@ -269,7 +290,6 @@ export const useCart = () => {
   return useQuery({
     queryKey: ["cart", user?.id],
     queryFn: async () => {
-      // 1. Busca itens do carrinho com todos os campos do produto (incluindo category_id)
       const { data, error } = await supabase
         .from("cart_items")
         .select("*, products(*)")
@@ -279,7 +299,6 @@ export const useCart = () => {
       const cartItems = data || [];
       if (cartItems.length === 0) return cartItems;
 
-      // 2. Busca covers reais via product_media (igual ao useProducts)
       const productIds = cartItems
         .map((item: any) => item.products?.id)
         .filter(Boolean);
@@ -296,7 +315,6 @@ export const useCart = () => {
         });
       }
 
-      // 3. Injeta cover_url no produto de cada item do carrinho
       return cartItems.map((item: any) => ({
         ...item,
         products: item.products
