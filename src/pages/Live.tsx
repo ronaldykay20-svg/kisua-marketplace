@@ -1368,9 +1368,8 @@ const CommentsPanel = ({
             </p>
           )}
           {!upcoming && comments.map((c: any) => {
-            const verified = c.user?.is_verified || false;
-            const displayName = c.user?.full_name || c.user_name || "Utilizador";
-            const avatar = c.user?.avatar_url || c.user_avatar;
+            const displayName = c.user_name || "Utilizador";
+            const avatar = c.user_avatar || null;
 
             return (
               <div key={c.id} className="flex items-start gap-2">
@@ -1385,7 +1384,6 @@ const CommentsPanel = ({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center flex-wrap gap-1 mb-0.5">
                     <span className="text-[11px] font-black text-white">{displayName}</span>
-                    {verified && <BadgeCheck className="w-3 h-3 flex-shrink-0" style={{ color: verifiedBlue }} />}
                     <span className="text-[9px]" style={{ color: "rgba(212,184,150,0.4)" }}>
                       {new Date(c.created_at).toLocaleTimeString("pt-AO", { hour: "2-digit", minute: "2-digit" })}
                     </span>
@@ -1484,7 +1482,6 @@ const WatchModal = ({
     enabled: !!userId,
   });
 
-  // ✅ FIX: usa /vendedor/ em vez de /loja/
   const handleSellerClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     if (release.seller?.id) {
@@ -1527,12 +1524,13 @@ const WatchModal = ({
     qc.invalidateQueries({ queryKey: ["releases_all"] });
   }, [live, release?.id, qc]);
 
+  // ✅ CORRIGIDO: removido join user:profiles que causava erro e retornava []
   const { data: serverComments = [], refetch: refetchComments } = useQuery({
     queryKey: ["release_comments", release.id],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("release_comments")
-        .select("id, release_id, user_id, user_name, user_avatar, content, created_at, user:profiles(full_name, avatar_url, is_verified)")
+        .select("id, release_id, user_id, user_name, user_avatar, content, created_at")
         .eq("release_id", release.id)
         .order("created_at", { ascending: true })
         .limit(200);
@@ -1572,7 +1570,6 @@ const WatchModal = ({
       user_avatar: profile?.avatar_url || null,
       content: text,
       created_at: new Date().toISOString(),
-      user: profile,
     };
     setOptimisticComments(prev => [...prev, optimisticComment]);
 
@@ -1848,7 +1845,6 @@ const WatchModal = ({
 
         {!showProducts && !showComments && (
           <div className="absolute bottom-0 left-0 right-16 z-20 px-4 pb-6">
-            {/* ✅ FIX: usa /vendedor/ em vez de /loja/ */}
             <button
               onClick={handleSellerClick}
               className="flex items-center gap-1.5 mb-2"
@@ -1916,7 +1912,6 @@ const ReleaseCard = ({
   const upcoming = isUpcoming(release);
   const expired  = isExpired(release);
 
-  // ✅ FIX: usa /vendedor/ em vez de /loja/
   const handleSellerClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (release.seller?.id) {
