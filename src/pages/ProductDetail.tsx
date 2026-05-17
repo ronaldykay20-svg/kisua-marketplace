@@ -334,21 +334,11 @@ const ProductDetail = () => {
 
   const isUuid = id && id.length > 10;
 
-  // ── Produto ───────────────────────────────────────────────────────────────
+  // ── Produto (já inclui sellers e companies via join, e cover_url via _media) ─
   const { data: dbProduct, isLoading: loadingProduct } = useProduct(id || "");
 
-  // ── Media ─────────────────────────────────────────────────────────────────
-  const { data: dbMedia = [] } = useQuery({
-    queryKey: ["product_media_detail", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("product_media").select("*")
-        .eq("product_id", id!).order("sort_order");
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!isUuid,
-  });
+  // ── Media — usa os dados já carregados no useProduct ──────────────────────
+  const dbMedia: any[] = (dbProduct as any)?._media || [];
 
   // ── Variantes ─────────────────────────────────────────────────────────────
   const { data: dbVariants = [] } = useQuery({
@@ -376,40 +366,20 @@ const ProductDetail = () => {
     },
   });
 
-  // ── Publicador: vendedor ou empresa ───────────────────────────────────────
-  const rawSellerId  =
-    (dbProduct as any)?.seller_id ||
-    (dbProduct as any)?.sellers?.id ||
-    null;
+  // ── Publicador: empresa tem SEMPRE prioridade sobre vendedor ─────────────
+  // Os dados já vêm do join no useProduct — sem queries extras
   const rawCompanyId = (dbProduct as any)?.company_id || null;
+  const rawSellerId  = (dbProduct as any)?.seller_id || null;
 
-  const { data: sellerFull, isLoading: loadingSeller } = useQuery({
-    queryKey: ["seller_full", rawSellerId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("sellers")
-        .select("id, name, logo_url, avatar_url, is_verified, province, rating, total_sales, type, user_id")
-        .eq("id", rawSellerId!).maybeSingle();
-      return data ? { ...data, __type: "seller" } : null;
-    },
-    enabled: !!rawSellerId && !rawCompanyId, // ✅ CORRIGIDO: só busca seller se não houver empresa
-  });
+  const publisher: any = (() => {
+    const comp = (dbProduct as any)?.companies;
+    if (comp && rawCompanyId) return { ...comp, __type: "company" };
+    const sell = (dbProduct as any)?.sellers;
+    if (sell && rawSellerId) return { ...sell, __type: "seller" };
+    return null;
+  })();
 
-  const { data: companyFull, isLoading: loadingCompany } = useQuery({
-    queryKey: ["company_full", rawCompanyId],
-    queryFn: async () => {
-      const { data } = await (supabase as any)
-        .from("companies")
-        .select("id, name, logo_url, cover_url, is_verified, province, rating, total_reviews")
-        .eq("id", rawCompanyId!).maybeSingle();
-      return data ? { ...data, __type: "company" } : null;
-    },
-    enabled: !!rawCompanyId,
-  });
-
-  // ✅ CORRIGIDO: empresa tem sempre prioridade sobre seller individual
-  const loadingPublisher = (!!rawCompanyId && loadingCompany) || (!rawCompanyId && !!rawSellerId && loadingSeller);
-  const publisher: any = companyFull || sellerFull || null;
+  const loadingPublisher = loadingProduct;
 
   const handlePublisherNavigate = () => {
     if (!publisher) return;
@@ -531,7 +501,7 @@ const ProductDetail = () => {
   // ── Relacionados ──────────────────────────────────────────────────────────
   const categoryId = (dbProduct as any)?.category_id;
   const { data: relatedDb = [] } = useQuery({
-    queryKey: ["related_products", id, categoryId, rawSellerId],
+    queryKey: ["related_products", id, categoryId, rawSellerId, rawCompanyId],
     queryFn: async () => {
       const collected: any[] = [];
       const seen = new Set<string>([id!]);
@@ -543,6 +513,7 @@ const ProductDetail = () => {
       };
       if (categoryId) await fetchSet(q => q.eq("category_id", categoryId).order("sales_count", { ascending: false }), 30);
       if (rawSellerId && collected.length < 30) await fetchSet(q => q.eq("seller_id", rawSellerId).order("sales_count", { ascending: false }), 20);
+      if (rawCompanyId && collected.length < 30) await fetchSet(q => q.eq("company_id", rawCompanyId).order("sales_count", { ascending: false }), 20);
       if (collected.length < 30) await fetchSet(q => q.order("sales_count", { ascending: false }), 30);
       const ids = collected.map((p: any) => p.id);
       const cMap: Record<string, string> = {};
@@ -624,9 +595,11 @@ const ProductDetail = () => {
   }
 
   // ── Montar produto ────────────────────────────────────────────────────────
+  // CORRIGIDO: usa _media do useProduct, com fallback para image_url
   const coverUrl =
     dbMedia.find((m: any) => m.is_cover)?.url ||
     dbMedia[0]?.url ||
+    (dbProduct as any)?.cover_url ||
     productBase.image_url ||
     "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&h=600&fit=crop";
 
@@ -765,7 +738,7 @@ const ProductDetail = () => {
               >
                 {displayImages[selectedImage]?.type === "video"
                   ? <video src={displayImages[selectedImage].url} controls className="w-full h-full object-cover" />
-                  : <img src={displayImages[selectedImage]?.url} alt={product.title} className="w-full h-full object-cover" />
+                  : <img src={displayImages[selectedImage]?.url || coverUrl} alt={product.title} className="w-full h-full object-cover" />
                 }
 
                 {displayImages.length > 1 && (
