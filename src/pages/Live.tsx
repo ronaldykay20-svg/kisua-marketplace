@@ -28,6 +28,7 @@ const cream      = "#F7F0E6";
 const brown      = "#4A2E0A";
 const brownLight = "rgba(74,46,10,0.10)";
 const gold       = "#f5c842";
+const verifiedBlue = "#3B82F6"; // FIX 4: azul para conta verificada
 
 /* ─── LIMITES ─── */
 const MAX_VIDEO_SECONDS   = 7 * 60;
@@ -1264,26 +1265,219 @@ const ProductsOverlay = ({
 };
 
 /* ═══════════════════════════════════════════════════
-   TIKTOK-STYLE WATCH MODAL — REDESENHADO
-   FIX 1: comentários na barra lateral (não em zona inferior)
-   FIX 2: input de comentário funcional + SQL seguro
-   FIX 3: vídeo ocupa toda a tela; legenda e produtos na margem inferior
+   COMMENTS PANEL — componente separado para evitar
+   re-mount do input a cada keystroke (FIX 2)
+═══════════════════════════════════════════════════ */
+interface CommentsPanelProps {
+  comments: any[];
+  upcoming: boolean;
+  userId: string | null;
+  profile: any;
+  releaseId: string;
+  onClose: () => void;
+  onSendComment: (text: string) => Promise<void>;
+}
+
+const CommentsPanel = ({
+  comments,
+  upcoming,
+  userId,
+  profile,
+  releaseId,
+  onClose,
+  onSendComment,
+}: CommentsPanelProps) => {
+  // FIX 2: estado local do comentário DENTRO do componente estável
+  const [localComment, setLocalComment] = useState("");
+  const [sendingComment, setSendingComment] = useState(false);
+  const commentListRef = useRef<HTMLDivElement>(null);
+  const commentInputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-scroll para o fim quando chegam novos comentários
+  useEffect(() => {
+    if (commentListRef.current) {
+      commentListRef.current.scrollTop = commentListRef.current.scrollHeight;
+    }
+  }, [comments.length]);
+
+  // FIX 2: foco automático no input ao abrir o painel
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      commentInputRef.current?.focus();
+    }, 150);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const handleSend = async () => {
+    const text = localComment.trim();
+    if (!text || sendingComment || !userId) return;
+    setSendingComment(true);
+    setLocalComment(""); // limpa imediatamente para não bloquear o teclado
+    try {
+      await onSendComment(text);
+    } catch {
+      setLocalComment(text); // restaura se falhou
+    } finally {
+      setSendingComment(false);
+    }
+  };
+
+  const isAuthorComment = (c: any, sellerUserId?: string) => sellerUserId && c.user_id === sellerUserId;
+
+  return (
+    <div
+      className="absolute inset-0 z-30 flex"
+      style={{ background: "rgba(0,0,0,0.5)" }}
+      onClick={onClose}
+    >
+      <div
+        className="absolute right-0 top-0 bottom-0 flex flex-col"
+        style={{
+          width: "85%",
+          maxWidth: 340,
+          background: "linear-gradient(180deg, #110703 0%, #1a0a02 100%)",
+          borderLeft: `1px solid rgba(212,184,150,0.20)`,
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 flex-shrink-0"
+          style={{ borderBottom: "1px solid rgba(212,184,150,0.12)" }}>
+          <div className="flex items-center gap-2">
+            <MessageCircle className="w-4 h-4" style={{ color: sand }} />
+            <span className="text-sm font-black text-white">
+              Comentários {comments.length > 0 && `(${comments.length})`}
+            </span>
+          </div>
+          <button onClick={onClose}
+            className="w-7 h-7 rounded-full flex items-center justify-center"
+            style={{ background: "rgba(212,184,150,0.15)" }}>
+            <X className="w-3.5 h-3.5 text-white" />
+          </button>
+        </div>
+
+        {/* Lista */}
+        <div
+          ref={commentListRef}
+          className="flex-1 overflow-y-auto px-3 py-3 space-y-3"
+          style={{ scrollbarWidth: "none" }}
+        >
+          {!upcoming && comments.length === 0 && (
+            <div className="py-10 text-center">
+              <MessageCircle className="w-8 h-8 mx-auto mb-2" style={{ color: "rgba(212,184,150,0.2)" }} />
+              <p className="text-[12px]" style={{ color: "rgba(212,184,150,0.4)" }}>
+                Nenhum comentário ainda.<br />Sê o primeiro!
+              </p>
+            </div>
+          )}
+          {upcoming && (
+            <p className="text-center text-[11px] py-8" style={{ color: "rgba(212,184,150,0.4)" }}>
+              Comentários abrem na transmissão
+            </p>
+          )}
+          {!upcoming && comments.map((c: any) => {
+            const verified = c.user?.is_verified || false;
+            const displayName = c.user?.full_name || c.user_name || "Utilizador";
+            const avatar = c.user?.avatar_url || c.user_avatar;
+
+            return (
+              <div key={c.id} className="flex items-start gap-2">
+                {avatar
+                  ? <img src={avatar} alt=""
+                      className="w-7 h-7 rounded-full object-cover flex-shrink-0 mt-0.5"
+                      style={{ border: "1.5px solid rgba(212,184,150,0.2)" }} />
+                  : <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0 mt-0.5"
+                      style={{ background: "rgba(74,46,10,0.5)", color: cream }}>
+                      {displayName.charAt(0).toUpperCase()}
+                    </div>}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center flex-wrap gap-1 mb-0.5">
+                    <span className="text-[11px] font-black text-white">{displayName}</span>
+                    {/* FIX 4: badge de verificado em AZUL */}
+                    {verified && <BadgeCheck className="w-3 h-3 flex-shrink-0" style={{ color: verifiedBlue }} />}
+                    <span className="text-[9px]" style={{ color: "rgba(212,184,150,0.4)" }}>
+                      {new Date(c.created_at).toLocaleTimeString("pt-AO", { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
+                  <p className="text-[12px] leading-relaxed" style={{ color: "rgba(255,255,255,0.85)" }}>
+                    {c.content}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Input comentário */}
+        {!upcoming && (
+          <div className="flex items-center gap-2 px-3 py-3 flex-shrink-0"
+            style={{ borderTop: "1px solid rgba(212,184,150,0.10)" }}>
+            {profile?.avatar_url
+              ? <img src={profile.avatar_url} alt=""
+                  className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
+              : <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0"
+                  style={{ background: sandDark, color: cream }}>
+                  {(profile?.full_name || userId || "?").charAt(0).toUpperCase()}
+                </div>}
+            <input
+              ref={commentInputRef}
+              type="text"
+              value={localComment}
+              onChange={e => setLocalComment(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              placeholder={userId ? "Adiciona um comentário…" : "Faz login para comentar"}
+              disabled={!userId || sendingComment}
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
+              className="flex-1 px-3 py-2 rounded-full text-xs focus:outline-none"
+              style={{
+                background: "rgba(212,184,150,0.08)",
+                border: "1px solid rgba(212,184,150,0.18)",
+                color: "white",
+              }}
+            />
+            <button
+              onClick={handleSend}
+              disabled={!localComment.trim() || sendingComment || !userId}
+              className="w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-95 flex-shrink-0"
+              style={{
+                background: (localComment.trim() && !sendingComment && userId)
+                  ? `linear-gradient(135deg,${sandDark},${brown})`
+                  : "rgba(74,46,10,0.3)"
+              }}>
+              {sendingComment
+                ? <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
+                : <Send className="w-3.5 h-3.5 text-white" />}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/* ═══════════════════════════════════════════════════
+   WATCH MODAL
 ═══════════════════════════════════════════════════ */
 const WatchModal = ({
   release, onClose, userId, sellerId, onDeleted,
 }: { release: any; onClose: () => void; userId: string | null; sellerId: string | null; onDeleted?: (id: string) => void }) => {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const [comment, setComment] = useState("");
   const [liked, setLiked] = useState(false);
   const [notified, setNotified] = useState(false);
   const [showProducts, setShowProducts] = useState(false);
-  const [showComments, setShowComments] = useState(false); // FIX 1: comentários abertos num painel lateral
+  const [showComments, setShowComments] = useState(false);
   const [muted, setMuted] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [sendingComment, setSendingComment] = useState(false);
-  const commentListRef = useRef<HTMLDivElement>(null);
-  const commentInputRef = useRef<HTMLInputElement>(null);
+  // FIX 3: lista optimistic de comentários local
+  const [optimisticComments, setOptimisticComments] = useState<any[]>([]);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const live     = isLive(release);
@@ -1300,6 +1494,15 @@ const WatchModal = ({
     },
     enabled: !!userId,
   });
+
+  // FIX 1: navegar para perfil do vendedor ao clicar no nome
+  const handleSellerClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (release.seller?.id) {
+      onClose();
+      navigate(`/loja/${release.seller.id}`);
+    }
+  }, [release.seller?.id, navigate, onClose]);
 
   const handleDelete = async () => {
     if (!confirm("Eliminar este lançamento? Esta acção é irreversível.")) return;
@@ -1336,8 +1539,8 @@ const WatchModal = ({
     qc.invalidateQueries({ queryKey: ["releases_all"] });
   }, [live, release?.id, qc]);
 
-  /* FIX 2: buscar comentários com query correta */
-  const { data: comments = [], refetch: refetchComments } = useQuery({
+  /* FIX 3: buscar comentários */
+  const { data: serverComments = [], refetch: refetchComments } = useQuery({
     queryKey: ["release_comments", release.id],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
@@ -1347,7 +1550,6 @@ const WatchModal = ({
         .order("created_at", { ascending: true })
         .limit(200);
       if (error) {
-        // Se a tabela não existir, retorna vazio sem quebrar
         console.warn("release_comments query error:", error.message);
         return [];
       }
@@ -1357,22 +1559,30 @@ const WatchModal = ({
     refetchInterval: live ? 5000 : 10000,
   });
 
-  /* Auto-scroll comentários para o fim */
+  // FIX 3: merge dos comentários do servidor com os optimísticos (sem duplicar)
+  const comments = useMemo(() => {
+    const serverIds = new Set(serverComments.map((c: any) => c.id));
+    const uniqueOptimistic = optimisticComments.filter(c => !serverIds.has(c.id));
+    return [...serverComments, ...uniqueOptimistic];
+  }, [serverComments, optimisticComments]);
+
+  // Limpar optimistic quando servidor confirmou
   useEffect(() => {
-    if (commentListRef.current) {
-      commentListRef.current.scrollTop = commentListRef.current.scrollHeight;
+    if (serverComments.length > 0) {
+      const serverIds = new Set(serverComments.map((c: any) => c.id));
+      setOptimisticComments(prev => prev.filter(c => !serverIds.has(c.id)));
     }
-  }, [comments.length, showComments]);
+  }, [serverComments]);
 
-  /* FIX 2: enviar comentário de forma robusta */
-  const sendComment = async () => {
-    if (!userId) { navigate("/auth"); return; }
-    const text = comment.trim();
-    if (!text || sendingComment) return;
+  /* FIX 2 + 3: sendComment como callback estável, sem depender de state de comentário */
+  const sendComment = useCallback(async (text: string) => {
+    if (!userId) { navigate("/auth"); throw new Error("not authenticated"); }
+    if (!text) throw new Error("empty");
 
-    setSendingComment(true);
+    // Adicionar optimisticamente ANTES de enviar para a DB
+    const optimisticId = `opt_${Date.now()}`;
     const optimisticComment = {
-      id: `tmp_${Date.now()}`,
+      id: optimisticId,
       release_id: release.id,
       user_id: userId,
       user_name: profile?.full_name || "Utilizador",
@@ -1381,8 +1591,7 @@ const WatchModal = ({
       created_at: new Date().toISOString(),
       user: profile,
     };
-
-    setComment("");
+    setOptimisticComments(prev => [...prev, optimisticComment]);
 
     try {
       const { error } = await (supabase as any).from("release_comments").insert({
@@ -1394,28 +1603,28 @@ const WatchModal = ({
       });
 
       if (error) {
-        // Tenta criar a tabela se não existir (fallback gracioso)
+        // Remover optimistic se falhou
+        setOptimisticComments(prev => prev.filter(c => c.id !== optimisticId));
         if (error.code === "42P01") {
           toast.error("Sistema de comentários não configurado. Contacta o administrador.");
         } else {
           toast.error("Erro ao enviar comentário: " + error.message);
         }
-        setComment(text); // Restaura o texto
-      } else {
-        // Atualizar contagem de comentários
-        await (supabase as any)
-          .from("releases")
-          .update({ comments_count: (release.comments_count || 0) + 1 })
-          .eq("id", release.id);
-        refetchComments();
+        throw error;
       }
-    } catch (err: any) {
-      toast.error("Erro ao enviar comentário");
-      setComment(text);
-    } finally {
-      setSendingComment(false);
+
+      // Atualizar contagem de comentários
+      await (supabase as any)
+        .from("releases")
+        .update({ comments_count: (release.comments_count || 0) + 1 })
+        .eq("id", release.id);
+
+      // Recarregar comentários do servidor após breve delay
+      setTimeout(() => refetchComments(), 500);
+    } catch (err) {
+      throw err;
     }
-  };
+  }, [userId, profile, release.id, release.comments_count, navigate, refetchComments]);
 
   const toggleMute = () => {
     if (videoRef.current) {
@@ -1425,148 +1634,10 @@ const WatchModal = ({
     }
   };
 
-  const isAuthor = (c: any) => c.user_id === release.seller?.user_id;
-
   const handleProductNavigate = (slug: string, id: string) => {
     onClose();
     navigate(`/produto/${id}`);
   };
-
-  /* FIX 1: Painel de comentários deslizante — sobrepõe o vídeo pelo lado direito */
-  const CommentsPanel = () => (
-    <div
-      className="absolute inset-0 z-30 flex"
-      style={{ background: "rgba(0,0,0,0.5)" }}
-      onClick={() => setShowComments(false)}
-    >
-      <div
-        className="absolute right-0 top-0 bottom-0 flex flex-col"
-        style={{
-          width: "85%",
-          maxWidth: 340,
-          background: "linear-gradient(180deg, #110703 0%, #1a0a02 100%)",
-          borderLeft: `1px solid rgba(212,184,150,0.20)`,
-        }}
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 flex-shrink-0"
-          style={{ borderBottom: "1px solid rgba(212,184,150,0.12)" }}>
-          <div className="flex items-center gap-2">
-            <MessageCircle className="w-4 h-4" style={{ color: sand }} />
-            <span className="text-sm font-black text-white">
-              Comentários {comments.length > 0 && `(${comments.length})`}
-            </span>
-          </div>
-          <button onClick={() => setShowComments(false)}
-            className="w-7 h-7 rounded-full flex items-center justify-center"
-            style={{ background: "rgba(212,184,150,0.15)" }}>
-            <X className="w-3.5 h-3.5 text-white" />
-          </button>
-        </div>
-
-        {/* Lista */}
-        <div
-          ref={commentListRef}
-          className="flex-1 overflow-y-auto px-3 py-3 space-y-3"
-          style={{ scrollbarWidth: "none" }}
-        >
-          {!upcoming && comments.length === 0 && (
-            <div className="py-10 text-center">
-              <MessageCircle className="w-8 h-8 mx-auto mb-2" style={{ color: "rgba(212,184,150,0.2)" }} />
-              <p className="text-[12px]" style={{ color: "rgba(212,184,150,0.4)" }}>
-                Nenhum comentário ainda.<br />Sê o primeiro!
-              </p>
-            </div>
-          )}
-          {upcoming && (
-            <p className="text-center text-[11px] py-8" style={{ color: "rgba(212,184,150,0.4)" }}>
-              Comentários abrem na transmissão
-            </p>
-          )}
-          {!upcoming && comments.map((c: any) => {
-            const author = isAuthor(c);
-            const verified = c.user?.is_verified || false;
-            const displayName = c.user?.full_name || c.user_name || "Utilizador";
-            const avatar = c.user?.avatar_url || c.user_avatar;
-
-            return (
-              <div key={c.id} className="flex items-start gap-2">
-                {avatar
-                  ? <img src={avatar} alt=""
-                      className="w-7 h-7 rounded-full object-cover flex-shrink-0 mt-0.5"
-                      style={{ border: author ? `1.5px solid ${sandDark}` : "1.5px solid rgba(212,184,150,0.2)" }} />
-                  : <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0 mt-0.5"
-                      style={{ background: author ? sandDark : "rgba(74,46,10,0.5)", color: cream }}>
-                      {displayName.charAt(0).toUpperCase()}
-                    </div>}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center flex-wrap gap-1 mb-0.5">
-                    <span className="text-[11px] font-black text-white">{displayName}</span>
-                    {verified && <BadgeCheck className="w-3 h-3 flex-shrink-0" style={{ color: gold }} />}
-                    {author && (
-                      <span className="text-[9px] font-black px-1.5 py-0.5 rounded"
-                        style={{ background: sandDark, color: cream }}>
-                        autor
-                      </span>
-                    )}
-                    <span className="text-[9px]" style={{ color: "rgba(212,184,150,0.4)" }}>
-                      {new Date(c.created_at).toLocaleTimeString("pt-AO", { hour: "2-digit", minute: "2-digit" })}
-                    </span>
-                  </div>
-                  <p className="text-[12px] leading-relaxed" style={{ color: "rgba(255,255,255,0.85)" }}>
-                    {c.content}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Input comentário — FIX 2 */}
-        {!upcoming && (
-          <div className="flex items-center gap-2 px-3 py-3 flex-shrink-0"
-            style={{ borderTop: "1px solid rgba(212,184,150,0.10)" }}>
-            {profile?.avatar_url
-              ? <img src={profile.avatar_url} alt=""
-                  className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
-              : <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0"
-                  style={{ background: sandDark, color: cream }}>
-                  {(profile?.full_name || userId || "?").charAt(0).toUpperCase()}
-                </div>}
-            <input
-              ref={commentInputRef}
-              type="text"
-              value={comment}
-              onChange={e => setComment(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendComment(); } }}
-              placeholder={userId ? "Adiciona um comentário…" : "Faz login para comentar"}
-              disabled={!userId || sendingComment}
-              className="flex-1 px-3 py-2 rounded-full text-xs focus:outline-none"
-              style={{
-                background: "rgba(212,184,150,0.08)",
-                border: "1px solid rgba(212,184,150,0.18)",
-                color: "white",
-              }}
-            />
-            <button
-              onClick={sendComment}
-              disabled={!comment.trim() || sendingComment || !userId}
-              className="w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-95 flex-shrink-0"
-              style={{
-                background: (comment.trim() && !sendingComment && userId)
-                  ? `linear-gradient(135deg,${sandDark},${brown})`
-                  : "rgba(74,46,10,0.3)"
-              }}>
-              {sendingComment
-                ? <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
-                : <Send className="w-3.5 h-3.5 text-white" />}
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
 
   return (
     <div
@@ -1586,7 +1657,7 @@ const WatchModal = ({
         onClick={e => e.stopPropagation()}
       >
 
-        {/* ── FIX 3: VÍDEO OCUPA TODA A TELA (position absolute, inset-0) ── */}
+        {/* ── VÍDEO OCUPA TODA A TELA (position absolute, inset-0) ── */}
         <div className="absolute inset-0" style={{ background: "#000" }}>
           {/* Thumbnail de fundo */}
           {release.thumbnail_url && (
@@ -1613,11 +1684,9 @@ const WatchModal = ({
               controlsList="nodownload"
               onEnded={handleVideoEnded}
               onLoadedMetadata={() => {
-                // Garante reprodução no Safari iOS: começa muted e depois tenta com som
                 if (videoRef.current) {
                   videoRef.current.muted = false;
                   videoRef.current.play().catch(() => {
-                    // Safari bloqueou: reproduz com mute
                     if (videoRef.current) {
                       videoRef.current.muted = true;
                       setMuted(true);
@@ -1631,11 +1700,11 @@ const WatchModal = ({
             />
           )}
 
-          {/* Gradiente inferior — para as legendas ficarem legíveis */}
+          {/* Gradiente inferior */}
           <div className="absolute inset-0 pointer-events-none"
             style={{ background: "linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.4) 30%, transparent 55%)", zIndex: 2 }} />
 
-          {/* Gradiente superior — para os botões do topo ficarem legíveis */}
+          {/* Gradiente superior */}
           <div className="absolute inset-0 pointer-events-none"
             style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.75) 0%, transparent 22%)", zIndex: 2 }} />
 
@@ -1648,30 +1717,48 @@ const WatchModal = ({
             />
           )}
 
-          {/* FIX 1: Painel de comentários deslizante */}
-          {showComments && <CommentsPanel />}
+          {/* FIX 2: CommentsPanel agora é componente estável — não recria o input a cada keystroke */}
+          {showComments && (
+            <CommentsPanel
+              comments={comments}
+              upcoming={upcoming}
+              userId={userId}
+              profile={profile}
+              releaseId={release.id}
+              onClose={() => setShowComments(false)}
+              onSendComment={sendComment}
+            />
+          )}
         </div>
 
         {/* ── TOPO: vendedor + botões (sobre o vídeo) ── */}
         <div className="absolute top-0 left-0 right-0 z-20 flex items-center gap-3 px-4 pt-10 pb-2">
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            {release.seller?.logo_url
-              ? <img src={release.seller.logo_url} alt=""
-                  className="w-9 h-9 rounded-full object-cover flex-shrink-0"
-                  style={{ border: `2px solid ${sandDark}` }} />
-              : <div className="w-9 h-9 rounded-full flex items-center justify-center font-black text-sm flex-shrink-0"
-                  style={{ background: sandDark, color: cream }}>
-                  {(release.seller?.name || "?").charAt(0).toUpperCase()}
-                </div>}
-            <div className="min-w-0">
-              <div className="flex items-center gap-1">
-                <span className="text-xs font-black text-white truncate">{release.seller?.name || "Vendedor"}</span>
-                {release.seller?.is_verified && (
-                  <BadgeCheck className="w-3.5 h-3.5 flex-shrink-0" style={{ color: gold }} />
-                )}
+            {/* FIX 1: clicar no avatar ou nome abre o perfil do vendedor */}
+            <button
+              onClick={handleSellerClick}
+              className="flex items-center gap-2 min-w-0 flex-1 text-left"
+              style={{ background: "transparent", border: "none" }}
+            >
+              {release.seller?.logo_url
+                ? <img src={release.seller.logo_url} alt=""
+                    className="w-9 h-9 rounded-full object-cover flex-shrink-0"
+                    style={{ border: `2px solid ${sandDark}` }} />
+                : <div className="w-9 h-9 rounded-full flex items-center justify-center font-black text-sm flex-shrink-0"
+                    style={{ background: sandDark, color: cream }}>
+                    {(release.seller?.name || "?").charAt(0).toUpperCase()}
+                  </div>}
+              <div className="min-w-0">
+                <div className="flex items-center gap-1">
+                  <span className="text-xs font-black text-white truncate">{release.seller?.name || "Vendedor"}</span>
+                  {/* FIX 4: badge de verificado em AZUL */}
+                  {release.seller?.is_verified && (
+                    <BadgeCheck className="w-3.5 h-3.5 flex-shrink-0" style={{ color: verifiedBlue }} />
+                  )}
+                </div>
+                <p className="text-[10px] truncate" style={{ color: sand }}>{release.title}</p>
               </div>
-              <p className="text-[10px] truncate" style={{ color: sand }}>{release.title}</p>
-            </div>
+            </button>
           </div>
           {isOwner && (
             <button
@@ -1735,7 +1822,7 @@ const WatchModal = ({
           </div>
         )}
 
-        {/* ── FIX 1: BARRA LATERAL DIREITA — inclui botão de comentários ── */}
+        {/* ── BARRA LATERAL DIREITA ── */}
         {!showProducts && !showComments && (
           <div className="absolute right-3 z-20 flex flex-col items-center gap-4"
             style={{ bottom: 120 }}>
@@ -1752,7 +1839,7 @@ const WatchModal = ({
               </span>
             </button>
 
-            {/* FIX 1: Comentários — abre o painel lateral */}
+            {/* Comentários — abre o painel lateral */}
             <button onClick={() => setShowComments(true)} className="flex flex-col items-center gap-1">
               <div className="w-11 h-11 rounded-full flex items-center justify-center"
                 style={{ background: "rgba(0,0,0,0.55)" }}>
@@ -1801,16 +1888,21 @@ const WatchModal = ({
           </div>
         )}
 
-        {/* ── FIX 3: INFO INFERIOR — legenda + botão produtos (margem inferior, sobre vídeo) ── */}
+        {/* ── INFO INFERIOR — legenda + botão produtos ── */}
         {!showProducts && !showComments && (
           <div className="absolute bottom-0 left-0 right-16 z-20 px-4 pb-6">
-            {/* Seller mini info */}
-            <div className="flex items-center gap-1.5 mb-2">
+            {/* FIX 1: clicar no @nome do vendedor na parte inferior também abre o perfil */}
+            <button
+              onClick={handleSellerClick}
+              className="flex items-center gap-1.5 mb-2"
+              style={{ background: "transparent", border: "none" }}
+            >
               <span className="text-[11px] font-black" style={{ color: sand }}>
                 @{release.seller?.name || "vendedor"}
               </span>
-              {release.seller?.is_verified && <BadgeCheck className="w-3 h-3" style={{ color: gold }} />}
-            </div>
+              {/* FIX 4: badge de verificado em AZUL */}
+              {release.seller?.is_verified && <BadgeCheck className="w-3 h-3" style={{ color: verifiedBlue }} />}
+            </button>
 
             {/* Título */}
             <p className="text-base font-black text-white mb-1 leading-tight line-clamp-2">
@@ -1846,7 +1938,7 @@ const WatchModal = ({
           </div>
         )}
 
-        {/* Spacer para o vídeo ocupar toda a altura — necessário porque o container é flex mas o vídeo é absolute */}
+        {/* Spacer */}
         <div style={{ height: "100vh" }} />
       </div>
 
@@ -1868,9 +1960,18 @@ const WatchModal = ({
 const ReleaseCard = ({
   release, onClick, onDelete, canDelete,
 }: { release: any; onClick: () => void; onDelete?: () => void; canDelete?: boolean }) => {
+  const navigate = useNavigate();
   const live     = isLive(release);
   const upcoming = isUpcoming(release);
   const expired  = isExpired(release);
+
+  // FIX 1: clicar no nome do vendedor no card abre o perfil
+  const handleSellerClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (release.seller?.id) {
+      navigate(`/loja/${release.seller.id}`);
+    }
+  };
 
   return (
     <div onClick={onClick}
@@ -1927,15 +2028,21 @@ const ReleaseCard = ({
         )}
       </div>
       <div className="p-3">
-        <div className="flex items-center gap-2 mb-1.5">
+        {/* FIX 1: clicar no nome/avatar do vendedor no card abre o perfil */}
+        <button
+          onClick={handleSellerClick}
+          className="flex items-center gap-2 mb-1.5 w-full text-left"
+          style={{ background: "transparent", border: "none" }}
+        >
           {release.seller?.logo_url
             ? <img src={release.seller.logo_url} alt="" className="w-6 h-6 rounded-full object-cover flex-shrink-0 border" style={{ borderColor: sand }} />
             : <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0" style={{ background: brownLight, color: brown }}>
                 {(release.seller?.name || "?").charAt(0)}
               </div>}
           <span className="text-[11px] font-bold truncate" style={{ color: sandDark }}>{release.seller?.name || "Vendedor"}</span>
-          {release.seller?.is_verified && <BadgeCheck className="w-3.5 h-3.5 flex-shrink-0" style={{ color: sandDark }} />}
-        </div>
+          {/* FIX 4: badge de verificado em AZUL */}
+          {release.seller?.is_verified && <BadgeCheck className="w-3.5 h-3.5 flex-shrink-0" style={{ color: verifiedBlue }} />}
+        </button>
         <h3 className="text-sm font-black line-clamp-2 mb-2" style={{ color: brown }}>{release.title}</h3>
         <div className="flex items-center gap-2 text-[11px]" style={{ color: sandDark }}>
           <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg font-black" style={{ background: brownLight, color: brown }}>
