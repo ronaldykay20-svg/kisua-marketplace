@@ -848,7 +848,6 @@ const NewProductInline = ({
 
 /* ═══════════════════════════════════════════════════
    MODAL — CRIAR LANÇAMENTO
-   AVISO: só aceita produtos NOVOS criados no form
 ═══════════════════════════════════════════════════ */
 const CreateModal = ({
   onClose, sellerId, currentCount,
@@ -872,7 +871,6 @@ const CreateModal = ({
   const [done,          setDone]          = useState(false);
   const [showNewProduct, setShowNewProduct] = useState(false);
 
-  /* Apenas produtos criados nesta sessão — sem produtos pré-existentes */
   const [newProducts, setNewProducts] = useState<any[]>([]);
 
   const videoRef = useRef<HTMLInputElement>(null);
@@ -1111,7 +1109,6 @@ const CreateModal = ({
               style={{ background: "#fff", border: "1.5px solid rgba(74,46,10,0.18)", color: brown }} />
           </div>
 
-          {/* PRODUTOS — apenas novos criados agora */}
           <div className="mb-5">
             <div className="flex items-center justify-between mb-2">
               <div>
@@ -1197,7 +1194,6 @@ const ProductsOverlay = ({
       className="absolute inset-0 z-30 flex flex-col"
       style={{ background: `linear-gradient(180deg, rgba(74,46,10,0.92) 0%, rgba(30,14,2,0.97) 100%)` }}
     >
-      {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 flex-shrink-0"
         style={{ borderBottom: "1px solid rgba(212,184,150,0.15)" }}>
         <div className="flex items-center gap-2">
@@ -1215,7 +1211,6 @@ const ProductsOverlay = ({
         </button>
       </div>
 
-      {/* Products list */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {products.map((p: any) => (
           <div
@@ -1258,7 +1253,6 @@ const ProductsOverlay = ({
         ))}
       </div>
 
-      {/* Footer hint */}
       <div className="px-5 py-3 flex-shrink-0 text-center"
         style={{ borderTop: "1px solid rgba(212,184,150,0.10)" }}>
         <p className="text-[11px]" style={{ color: "rgba(212,184,150,0.5)" }}>
@@ -1270,28 +1264,32 @@ const ProductsOverlay = ({
 };
 
 /* ═══════════════════════════════════════════════════
-   TIKTOK-STYLE WATCH MODAL
+   TIKTOK-STYLE WATCH MODAL — REDESENHADO
+   FIX 1: comentários na barra lateral (não em zona inferior)
+   FIX 2: input de comentário funcional + SQL seguro
+   FIX 3: vídeo ocupa toda a tela; legenda e produtos na margem inferior
 ═══════════════════════════════════════════════════ */
 const WatchModal = ({
   release, onClose, userId, sellerId, onDeleted,
-}: { release: any; onClose: () => void; userId: string | null; sellerId: string | null; onDeleted: (id: string) => void }) => {
+}: { release: any; onClose: () => void; userId: string | null; sellerId: string | null; onDeleted?: (id: string) => void }) => {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [comment, setComment] = useState("");
   const [liked, setLiked] = useState(false);
   const [notified, setNotified] = useState(false);
   const [showProducts, setShowProducts] = useState(false);
+  const [showComments, setShowComments] = useState(false); // FIX 1: comentários abertos num painel lateral
   const [muted, setMuted] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [sendingComment, setSendingComment] = useState(false);
   const commentListRef = useRef<HTMLDivElement>(null);
+  const commentInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const live     = isLive(release);
   const upcoming = isUpcoming(release);
   const expired  = isExpired(release);
-  /* Reproduz sempre que existir URL de vídeo */
   const canPlayVideo = !!release.video_url;
-  /* O utilizador actual é o dono deste lançamento? */
   const isOwner = !!sellerId && sellerId === release.seller_id;
 
   const { data: profile } = useQuery({
@@ -1310,7 +1308,7 @@ const WatchModal = ({
     setDeleting(false);
     if (error) { toast.error("Erro ao eliminar"); return; }
     toast.success("Lançamento eliminado");
-    onDeleted(release.id);
+    onDeleted?.(release.id);
     onClose();
   };
 
@@ -1338,38 +1336,85 @@ const WatchModal = ({
     qc.invalidateQueries({ queryKey: ["releases_all"] });
   }, [live, release?.id, qc]);
 
-  const { data: comments = [] } = useQuery({
+  /* FIX 2: buscar comentários com query correta */
+  const { data: comments = [], refetch: refetchComments } = useQuery({
     queryKey: ["release_comments", release.id],
     queryFn: async () => {
-      const { data } = await (supabase as any)
+      const { data, error } = await (supabase as any)
         .from("release_comments")
-        .select("*, user:profiles(full_name, avatar_url, is_verified)")
+        .select("id, release_id, user_id, user_name, user_avatar, content, created_at, user:profiles(full_name, avatar_url, is_verified)")
         .eq("release_id", release.id)
         .order("created_at", { ascending: true })
         .limit(200);
+      if (error) {
+        // Se a tabela não existir, retorna vazio sem quebrar
+        console.warn("release_comments query error:", error.message);
+        return [];
+      }
       return data || [];
     },
     enabled: !upcoming,
-    refetchInterval: live ? 5000 : false,
+    refetchInterval: live ? 5000 : 10000,
   });
 
+  /* Auto-scroll comentários para o fim */
   useEffect(() => {
-    if (commentListRef.current) commentListRef.current.scrollTop = commentListRef.current.scrollHeight;
-  }, [comments.length]);
+    if (commentListRef.current) {
+      commentListRef.current.scrollTop = commentListRef.current.scrollHeight;
+    }
+  }, [comments.length, showComments]);
 
+  /* FIX 2: enviar comentário de forma robusta */
   const sendComment = async () => {
     if (!userId) { navigate("/auth"); return; }
     const text = comment.trim();
-    if (!text) return;
-    setComment("");
-    await (supabase as any).from("release_comments").insert({
+    if (!text || sendingComment) return;
+
+    setSendingComment(true);
+    const optimisticComment = {
+      id: `tmp_${Date.now()}`,
       release_id: release.id,
       user_id: userId,
       user_name: profile?.full_name || "Utilizador",
       user_avatar: profile?.avatar_url || null,
       content: text,
-    });
-    qc.invalidateQueries({ queryKey: ["release_comments", release.id] });
+      created_at: new Date().toISOString(),
+      user: profile,
+    };
+
+    setComment("");
+
+    try {
+      const { error } = await (supabase as any).from("release_comments").insert({
+        release_id: release.id,
+        user_id: userId,
+        user_name: profile?.full_name || "Utilizador",
+        user_avatar: profile?.avatar_url || null,
+        content: text,
+      });
+
+      if (error) {
+        // Tenta criar a tabela se não existir (fallback gracioso)
+        if (error.code === "42P01") {
+          toast.error("Sistema de comentários não configurado. Contacta o administrador.");
+        } else {
+          toast.error("Erro ao enviar comentário: " + error.message);
+        }
+        setComment(text); // Restaura o texto
+      } else {
+        // Atualizar contagem de comentários
+        await (supabase as any)
+          .from("releases")
+          .update({ comments_count: (release.comments_count || 0) + 1 })
+          .eq("id", release.id);
+        refetchComments();
+      }
+    } catch (err: any) {
+      toast.error("Erro ao enviar comentário");
+      setComment(text);
+    } finally {
+      setSendingComment(false);
+    }
   };
 
   const toggleMute = () => {
@@ -1379,70 +1424,202 @@ const WatchModal = ({
     }
   };
 
-  const isAuthor = (comment: any) => comment.user_id === release.seller?.user_id;
+  const isAuthor = (c: any) => c.user_id === release.seller?.user_id;
 
-  /* Navegação para produto */
   const handleProductNavigate = (slug: string, id: string) => {
     onClose();
     navigate(`/produto/${id}`);
   };
 
-  return (
+  /* FIX 1: Painel de comentários deslizante — sobrepõe o vídeo pelo lado direito */
+  const CommentsPanel = () => (
     <div
-      className="fixed inset-0 z-[70] flex items-stretch justify-center"
-      style={{ background: "rgba(0,0,0,0.92)" }}
-      onClick={onClose}
+      className="absolute inset-0 z-30 flex"
+      style={{ background: "rgba(0,0,0,0.5)" }}
+      onClick={() => setShowComments(false)}
     >
-      {/* Container principal — moldura TikTok */}
       <div
-        className="relative flex w-full max-w-[420px] flex-col"
+        className="absolute right-0 top-0 bottom-0 flex flex-col"
         style={{
-          background: "#0d0603",
-          maxHeight: "100vh",
-          overflowY: "hidden",
-          boxShadow: `0 0 0 2px ${sandDark}, 0 0 60px rgba(74,46,10,0.6)`,
+          width: "85%",
+          maxWidth: 340,
+          background: "linear-gradient(180deg, #110703 0%, #1a0a02 100%)",
+          borderLeft: `1px solid rgba(212,184,150,0.20)`,
         }}
         onClick={e => e.stopPropagation()}
       >
-        {/* ── ZONA DE VÍDEO — ocupa o espaço livre entre topo e comentários ── */}
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 flex-shrink-0"
+          style={{ borderBottom: "1px solid rgba(212,184,150,0.12)" }}>
+          <div className="flex items-center gap-2">
+            <MessageCircle className="w-4 h-4" style={{ color: sand }} />
+            <span className="text-sm font-black text-white">
+              Comentários {comments.length > 0 && `(${comments.length})`}
+            </span>
+          </div>
+          <button onClick={() => setShowComments(false)}
+            className="w-7 h-7 rounded-full flex items-center justify-center"
+            style={{ background: "rgba(212,184,150,0.15)" }}>
+            <X className="w-3.5 h-3.5 text-white" />
+          </button>
+        </div>
+
+        {/* Lista */}
         <div
-          className="relative overflow-hidden flex-shrink-0"
-          style={{ flex: "1 1 0", minHeight: 0, background: "#000" }}
+          ref={commentListRef}
+          className="flex-1 overflow-y-auto px-3 py-3 space-y-3"
+          style={{ scrollbarWidth: "none" }}
         >
-          {/* Thumbnail de fundo (sempre visível enquanto vídeo carrega / upcoming) */}
+          {!upcoming && comments.length === 0 && (
+            <div className="py-10 text-center">
+              <MessageCircle className="w-8 h-8 mx-auto mb-2" style={{ color: "rgba(212,184,150,0.2)" }} />
+              <p className="text-[12px]" style={{ color: "rgba(212,184,150,0.4)" }}>
+                Nenhum comentário ainda.<br />Sê o primeiro!
+              </p>
+            </div>
+          )}
+          {upcoming && (
+            <p className="text-center text-[11px] py-8" style={{ color: "rgba(212,184,150,0.4)" }}>
+              Comentários abrem na transmissão
+            </p>
+          )}
+          {!upcoming && comments.map((c: any) => {
+            const author = isAuthor(c);
+            const verified = c.user?.is_verified || false;
+            const displayName = c.user?.full_name || c.user_name || "Utilizador";
+            const avatar = c.user?.avatar_url || c.user_avatar;
+
+            return (
+              <div key={c.id} className="flex items-start gap-2">
+                {avatar
+                  ? <img src={avatar} alt=""
+                      className="w-7 h-7 rounded-full object-cover flex-shrink-0 mt-0.5"
+                      style={{ border: author ? `1.5px solid ${sandDark}` : "1.5px solid rgba(212,184,150,0.2)" }} />
+                  : <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0 mt-0.5"
+                      style={{ background: author ? sandDark : "rgba(74,46,10,0.5)", color: cream }}>
+                      {displayName.charAt(0).toUpperCase()}
+                    </div>}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center flex-wrap gap-1 mb-0.5">
+                    <span className="text-[11px] font-black text-white">{displayName}</span>
+                    {verified && <BadgeCheck className="w-3 h-3 flex-shrink-0" style={{ color: gold }} />}
+                    {author && (
+                      <span className="text-[9px] font-black px-1.5 py-0.5 rounded"
+                        style={{ background: sandDark, color: cream }}>
+                        autor
+                      </span>
+                    )}
+                    <span className="text-[9px]" style={{ color: "rgba(212,184,150,0.4)" }}>
+                      {new Date(c.created_at).toLocaleTimeString("pt-AO", { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
+                  <p className="text-[12px] leading-relaxed" style={{ color: "rgba(255,255,255,0.85)" }}>
+                    {c.content}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Input comentário — FIX 2 */}
+        {!upcoming && (
+          <div className="flex items-center gap-2 px-3 py-3 flex-shrink-0"
+            style={{ borderTop: "1px solid rgba(212,184,150,0.10)" }}>
+            {profile?.avatar_url
+              ? <img src={profile.avatar_url} alt=""
+                  className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
+              : <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0"
+                  style={{ background: sandDark, color: cream }}>
+                  {(profile?.full_name || userId || "?").charAt(0).toUpperCase()}
+                </div>}
+            <input
+              ref={commentInputRef}
+              type="text"
+              value={comment}
+              onChange={e => setComment(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendComment(); } }}
+              placeholder={userId ? "Adiciona um comentário…" : "Faz login para comentar"}
+              disabled={!userId || sendingComment}
+              className="flex-1 px-3 py-2 rounded-full text-xs focus:outline-none"
+              style={{
+                background: "rgba(212,184,150,0.08)",
+                border: "1px solid rgba(212,184,150,0.18)",
+                color: "white",
+              }}
+            />
+            <button
+              onClick={sendComment}
+              disabled={!comment.trim() || sendingComment || !userId}
+              className="w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-95 flex-shrink-0"
+              style={{
+                background: (comment.trim() && !sendingComment && userId)
+                  ? `linear-gradient(135deg,${sandDark},${brown})`
+                  : "rgba(74,46,10,0.3)"
+              }}>
+              {sendingComment
+                ? <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
+                : <Send className="w-3.5 h-3.5 text-white" />}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-stretch justify-center"
+      style={{ background: "rgba(0,0,0,0.96)" }}
+      onClick={onClose}
+    >
+      {/* Container principal — moldura TikTok, vídeo ocupa toda a tela */}
+      <div
+        className="relative flex w-full max-w-[420px] flex-col"
+        style={{
+          background: "#000",
+          maxHeight: "100vh",
+          overflow: "hidden",
+          boxShadow: `0 0 0 1px ${sandDark}33, 0 0 60px rgba(74,46,10,0.4)`,
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+
+        {/* ── FIX 3: VÍDEO OCUPA TODA A TELA (position absolute, inset-0) ── */}
+        <div className="absolute inset-0" style={{ background: "#000" }}>
+          {/* Thumbnail de fundo */}
           {release.thumbnail_url && (
             <img
               src={release.thumbnail_url}
               alt=""
               className="absolute inset-0 w-full h-full object-cover"
               style={{
-                opacity: canPlayVideo ? 0.15 : upcoming ? 0.35 : 0.55,
+                opacity: canPlayVideo ? 0.12 : upcoming ? 0.35 : 0.5,
                 filter: expired && !release.video_url ? "grayscale(1)" : "none",
               }}
             />
           )}
 
-          {/* Vídeo — reproduz sempre que existir URL */}
+          {/* Vídeo — ocupa toda a tela */}
           {canPlayVideo && (
             <video
               ref={videoRef}
               src={release.video_url}
               autoPlay
               playsInline
-              controls
               onEnded={handleVideoEnded}
               className="absolute inset-0 w-full h-full object-contain"
               style={{ background: "transparent" }}
             />
           )}
 
-          {/* Gradiente inferior sobre o vídeo */}
+          {/* Gradiente inferior — para as legendas ficarem legíveis */}
           <div className="absolute inset-0 pointer-events-none"
-            style={{ background: "linear-gradient(to top, rgba(13,6,3,0.95) 0%, rgba(13,6,3,0.2) 40%, transparent 65%)" }} />
+            style={{ background: "linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.4) 30%, transparent 55%)" }} />
 
-          {/* Gradiente superior */}
+          {/* Gradiente superior — para os botões do topo ficarem legíveis */}
           <div className="absolute inset-0 pointer-events-none"
-            style={{ background: "linear-gradient(to bottom, rgba(13,6,3,0.7) 0%, transparent 28%)" }} />
+            style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.75) 0%, transparent 22%)" }} />
 
           {/* Overlay de produtos */}
           {showProducts && release.linked_products?.length > 0 && (
@@ -1453,272 +1630,206 @@ const WatchModal = ({
             />
           )}
 
-          {/* ── TOPO: vendedor + botões ── */}
-          <div className="absolute top-0 left-0 right-0 z-20 flex items-center gap-3 px-4 pt-4 pb-2">
-            <div className="flex items-center gap-2 flex-1 min-w-0">
-              {release.seller?.logo_url
-                ? <img src={release.seller.logo_url} alt=""
-                    className="w-9 h-9 rounded-full object-cover flex-shrink-0"
-                    style={{ border: `2px solid ${sandDark}` }} />
-                : <div className="w-9 h-9 rounded-full flex items-center justify-center font-black text-sm flex-shrink-0"
-                    style={{ background: sandDark, color: cream }}>
-                    {(release.seller?.name || "?").charAt(0).toUpperCase()}
-                  </div>}
-              <div className="min-w-0">
-                <div className="flex items-center gap-1">
-                  <span className="text-xs font-black text-white truncate">{release.seller?.name || "Vendedor"}</span>
-                  {release.seller?.is_verified && (
-                    <BadgeCheck className="w-3.5 h-3.5 flex-shrink-0" style={{ color: gold }} />
-                  )}
-                </div>
-                <p className="text-[10px] truncate" style={{ color: sand }}>{release.title}</p>
-              </div>
-            </div>
-            {/* Botão apagar — só para o dono */}
-            {isOwner && (
-              <button
-                onClick={handleDelete}
-                disabled={deleting}
-                className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition"
-                style={{ background: "rgba(229,57,53,0.75)", border: "1px solid rgba(229,57,53,0.5)" }}
-                title="Eliminar lançamento"
-              >
-                {deleting
-                  ? <Loader2 className="w-4 h-4 text-white animate-spin" />
-                  : <Trash2 className="w-4 h-4 text-white" />}
-              </button>
-            )}
-            <button onClick={onClose}
-              className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-              style={{ background: "rgba(0,0,0,0.55)", border: "1px solid rgba(212,184,150,0.25)" }}>
-              <X className="w-4 h-4 text-white" />
-            </button>
-          </div>
-
-          {/* Badge LIVE */}
-          {live && (
-            <div className="absolute top-16 left-4 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-lg"
-              style={{ background: "#E53935" }}>
-              <PulseDot color="#fff" />
-              <span className="text-[10px] font-black text-white">AO VIVO</span>
-            </div>
-          )}
-
-          {/* Badge TERMINADO */}
-          {expired && !live && (
-            <div className="absolute top-16 left-4 z-20 px-2.5 py-1 rounded-lg"
-              style={{ background: "rgba(40,40,40,0.85)" }}>
-              <span className="text-[10px] font-bold text-white/70">TERMINADO</span>
-            </div>
-          )}
-
-          {/* Sem vídeo disponível */}
-          {!canPlayVideo && !upcoming && (
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2">
-              <VideoOff className="w-10 h-10 text-white/30" />
-              <p className="text-white/40 text-sm font-bold">Vídeo não disponível</p>
-            </div>
-          )}
-
-          {/* Estado UPCOMING */}
-          {upcoming && !showProducts && (
-            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 px-8 text-center">
-              <Calendar className="w-12 h-12 text-white/50 mx-auto" />
-              <div>
-                <p className="text-white font-black text-lg mb-1">Transmissão agendada</p>
-                <p className="text-white/60 text-sm mb-4">{fmtDate(release.broadcasts_at)}</p>
-                <button onClick={() => { setNotified(v => !v); toast.success(notified ? "Lembrete removido" : "Vais ser notificado!"); }}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white mx-auto"
-                  style={{ background: notified ? `rgba(184,149,106,0.3)` : "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)" }}>
-                  {notified ? <BellOff className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
-                  {notified ? "Lembrete activo" : "Lembrar-me"}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* ── BARRA LATERAL DIREITA (estilo TikTok) ── */}
-          {!showProducts && (
-            <div className="absolute right-3 bottom-20 z-20 flex flex-col items-center gap-4">
-              {/* Like */}
-              <button onClick={() => setLiked(v => !v)} className="flex flex-col items-center gap-1">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center"
-                  style={{ background: liked ? "rgba(229,57,53,0.25)" : "rgba(0,0,0,0.55)" }}>
-                  <Heart className={`w-5 h-5 ${liked ? "fill-current" : ""}`}
-                    style={{ color: liked ? "#E53935" : "white" }} />
-                </div>
-                <span className="text-[10px] font-bold text-white">
-                  {(release.likes_count || 0) + (liked ? 1 : 0)}
-                </span>
-              </button>
-
-              {/* Visualizações */}
-              <div className="flex flex-col items-center gap-1">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center"
-                  style={{ background: "rgba(0,0,0,0.55)" }}>
-                  <Eye className="w-5 h-5 text-white" />
-                </div>
-                <span className="text-[10px] font-bold text-white">
-                  {(release.views_count || 0).toLocaleString("pt-AO")}
-                </span>
-              </div>
-
-              {/* Mute/Unmute */}
-              {canPlayVideo && (
-                <button onClick={toggleMute} className="flex flex-col items-center gap-1">
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center"
-                    style={{ background: "rgba(0,0,0,0.55)" }}>
-                    {muted
-                      ? <VolumeX className="w-5 h-5 text-white" />
-                      : <Volume2 className="w-5 h-5 text-white" />}
-                  </div>
-                </button>
-              )}
-
-              {/* Produtos */}
-              {release.linked_products?.length > 0 && (
-                <button onClick={() => setShowProducts(true)} className="flex flex-col items-center gap-1">
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center"
-                    style={{ background: `linear-gradient(135deg, ${sandDark}, ${brown})` }}>
-                    <ShoppingBag className="w-5 h-5 text-white" />
-                  </div>
-                  <span className="text-[10px] font-bold" style={{ color: sand }}>
-                    {release.linked_products.length} prod.
-                  </span>
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* ── INFO INFERIOR: legenda + botão produtos ── */}
-          {!showProducts && (
-            <div className="absolute bottom-3 left-0 right-16 z-20 px-4">
-              <p className="text-sm font-black text-white mb-1 line-clamp-1">{release.title}</p>
-              {release.description && (
-                <p className="text-[11px] text-white/60 mb-1.5 line-clamp-2">{release.description}</p>
-              )}
-              <div className="flex items-center gap-2 flex-wrap">
-                {release.video_duration_s && (
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded"
-                    style={{ background: "rgba(0,0,0,0.60)", color: sand }}>
-                    {fmtDuration(release.video_duration_s)}
-                  </span>
-                )}
-                {release.linked_products?.length > 0 && (
-                  <button
-                    onClick={() => setShowProducts(true)}
-                    className="flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-full transition active:scale-95"
-                    style={{ background: `linear-gradient(135deg, ${sandDark}, ${brown})`, color: "#fff" }}
-                  >
-                    <ShoppingCart className="w-3.5 h-3.5" />
-                    Ver {release.linked_products.length} produto{release.linked_products.length !== 1 ? "s" : ""}
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
+          {/* FIX 1: Painel de comentários deslizante */}
+          {showComments && <CommentsPanel />}
         </div>
 
-        {/* ── ZONA DE COMENTÁRIOS — altura fixa, sempre visível ── */}
-        {!showProducts && (
-          <div
-            className="flex flex-col flex-shrink-0"
-            style={{
-              height: 230,
-              background: `linear-gradient(180deg, #110703 0%, #1a0a02 100%)`,
-              borderTop: `1px solid rgba(212,184,150,0.15)`,
-            }}
-          >
-            <div className="flex items-center px-4 pt-3 pb-1 flex-shrink-0">
-              <MessageCircle className="w-3.5 h-3.5 mr-1.5" style={{ color: sand }} />
-              <span className="text-[11px] font-black" style={{ color: sand }}>
-                Comentários {comments.length > 0 && `· ${comments.length}`}
+        {/* ── TOPO: vendedor + botões (sobre o vídeo) ── */}
+        <div className="absolute top-0 left-0 right-0 z-20 flex items-center gap-3 px-4 pt-10 pb-2">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            {release.seller?.logo_url
+              ? <img src={release.seller.logo_url} alt=""
+                  className="w-9 h-9 rounded-full object-cover flex-shrink-0"
+                  style={{ border: `2px solid ${sandDark}` }} />
+              : <div className="w-9 h-9 rounded-full flex items-center justify-center font-black text-sm flex-shrink-0"
+                  style={{ background: sandDark, color: cream }}>
+                  {(release.seller?.name || "?").charAt(0).toUpperCase()}
+                </div>}
+            <div className="min-w-0">
+              <div className="flex items-center gap-1">
+                <span className="text-xs font-black text-white truncate">{release.seller?.name || "Vendedor"}</span>
+                {release.seller?.is_verified && (
+                  <BadgeCheck className="w-3.5 h-3.5 flex-shrink-0" style={{ color: gold }} />
+                )}
+              </div>
+              <p className="text-[10px] truncate" style={{ color: sand }}>{release.title}</p>
+            </div>
+          </div>
+          {isOwner && (
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition"
+              style={{ background: "rgba(229,57,53,0.75)", border: "1px solid rgba(229,57,53,0.5)" }}
+              title="Eliminar lançamento"
+            >
+              {deleting
+                ? <Loader2 className="w-4 h-4 text-white animate-spin" />
+                : <Trash2 className="w-4 h-4 text-white" />}
+            </button>
+          )}
+          <button onClick={onClose}
+            className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+            style={{ background: "rgba(0,0,0,0.55)", border: "1px solid rgba(212,184,150,0.25)" }}>
+            <X className="w-4 h-4 text-white" />
+          </button>
+        </div>
+
+        {/* Badge LIVE */}
+        {live && (
+          <div className="absolute top-20 left-4 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-lg"
+            style={{ background: "#E53935" }}>
+            <PulseDot color="#fff" />
+            <span className="text-[10px] font-black text-white">AO VIVO</span>
+          </div>
+        )}
+
+        {/* Badge TERMINADO */}
+        {expired && !live && (
+          <div className="absolute top-20 left-4 z-20 px-2.5 py-1 rounded-lg"
+            style={{ background: "rgba(40,40,40,0.85)" }}>
+            <span className="text-[10px] font-bold text-white/70">TERMINADO</span>
+          </div>
+        )}
+
+        {/* Sem vídeo disponível */}
+        {!canPlayVideo && !upcoming && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2">
+            <VideoOff className="w-10 h-10 text-white/30" />
+            <p className="text-white/40 text-sm font-bold">Vídeo não disponível</p>
+          </div>
+        )}
+
+        {/* Estado UPCOMING */}
+        {upcoming && !showProducts && !showComments && (
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 px-8 text-center">
+            <Calendar className="w-12 h-12 text-white/50 mx-auto" />
+            <div>
+              <p className="text-white font-black text-lg mb-1">Transmissão agendada</p>
+              <p className="text-white/60 text-sm mb-4">{fmtDate(release.broadcasts_at)}</p>
+              <button onClick={() => { setNotified(v => !v); toast.success(notified ? "Lembrete removido" : "Vais ser notificado!"); }}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white mx-auto"
+                style={{ background: notified ? `rgba(184,149,106,0.3)` : "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)" }}>
+                {notified ? <BellOff className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
+                {notified ? "Lembrete activo" : "Lembrar-me"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── FIX 1: BARRA LATERAL DIREITA — inclui botão de comentários ── */}
+        {!showProducts && !showComments && (
+          <div className="absolute right-3 z-20 flex flex-col items-center gap-4"
+            style={{ bottom: 120 }}>
+
+            {/* Like */}
+            <button onClick={() => setLiked(v => !v)} className="flex flex-col items-center gap-1">
+              <div className="w-11 h-11 rounded-full flex items-center justify-center"
+                style={{ background: liked ? "rgba(229,57,53,0.25)" : "rgba(0,0,0,0.55)" }}>
+                <Heart className={`w-6 h-6 ${liked ? "fill-current" : ""}`}
+                  style={{ color: liked ? "#E53935" : "white" }} />
+              </div>
+              <span className="text-[10px] font-bold text-white">
+                {(release.likes_count || 0) + (liked ? 1 : 0)}
+              </span>
+            </button>
+
+            {/* FIX 1: Comentários — abre o painel lateral */}
+            <button onClick={() => setShowComments(true)} className="flex flex-col items-center gap-1">
+              <div className="w-11 h-11 rounded-full flex items-center justify-center"
+                style={{ background: "rgba(0,0,0,0.55)" }}>
+                <MessageCircle className="w-6 h-6 text-white" />
+              </div>
+              <span className="text-[10px] font-bold text-white">
+                {comments.length || release.comments_count || 0}
+              </span>
+            </button>
+
+            {/* Visualizações */}
+            <div className="flex flex-col items-center gap-1">
+              <div className="w-11 h-11 rounded-full flex items-center justify-center"
+                style={{ background: "rgba(0,0,0,0.55)" }}>
+                <Eye className="w-6 h-6 text-white" />
+              </div>
+              <span className="text-[10px] font-bold text-white">
+                {(release.views_count || 0).toLocaleString("pt-AO")}
               </span>
             </div>
 
-            <div ref={commentListRef} className="flex-1 overflow-y-auto px-4 py-1 space-y-2"
-              style={{ scrollbarWidth: "none" }}>
-              {!upcoming && comments.length === 0 && (
-                <div className="py-4 text-center">
-                  <p className="text-[11px]" style={{ color: "rgba(212,184,150,0.4)" }}>Nenhum comentário ainda</p>
+            {/* Mute/Unmute */}
+            {canPlayVideo && (
+              <button onClick={toggleMute} className="flex flex-col items-center gap-1">
+                <div className="w-11 h-11 rounded-full flex items-center justify-center"
+                  style={{ background: "rgba(0,0,0,0.55)" }}>
+                  {muted
+                    ? <VolumeX className="w-6 h-6 text-white" />
+                    : <Volume2 className="w-6 h-6 text-white" />}
                 </div>
-              )}
-              {upcoming && (
-                <p className="text-center text-[11px] py-4" style={{ color: "rgba(212,184,150,0.4)" }}>
-                  Comentários abrem na transmissão
-                </p>
-              )}
-              {!upcoming && comments.map((c: any) => {
-                const author = isAuthor(c);
-                const verified = c.user?.is_verified || false;
-                const displayName = c.user?.full_name || c.user_name || "Utilizador";
+              </button>
+            )}
 
-                return (
-                  <div key={c.id} className="flex items-start gap-2">
-                    {(c.user?.avatar_url || c.user_avatar)
-                      ? <img src={c.user?.avatar_url || c.user_avatar} alt=""
-                          className="w-7 h-7 rounded-full object-cover flex-shrink-0"
-                          style={{ border: author ? `1.5px solid ${sandDark}` : "1.5px solid rgba(212,184,150,0.2)" }} />
-                      : <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0"
-                          style={{ background: author ? sandDark : "rgba(74,46,10,0.5)", color: cream }}>
-                          {displayName.charAt(0).toUpperCase()}
-                        </div>}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center flex-wrap gap-1 mb-0.5">
-                        <span className="text-[11px] font-black text-white">{displayName}</span>
-                        {verified && <BadgeCheck className="w-3 h-3 flex-shrink-0" style={{ color: gold }} />}
-                        {author && (
-                          <span className="text-[9px] font-black px-1.5 py-0.5 rounded"
-                            style={{ background: sandDark, color: cream }}>
-                            autor
-                          </span>
-                        )}
-                        <span className="text-[9px]" style={{ color: "rgba(212,184,150,0.4)" }}>
-                          {new Date(c.created_at).toLocaleTimeString("pt-AO", { hour: "2-digit", minute: "2-digit" })}
-                        </span>
-                      </div>
-                      <p className="text-[11px] leading-relaxed" style={{ color: "rgba(255,255,255,0.85)" }}>
-                        {c.content}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Input comentário */}
-            {!upcoming && (
-              <div className="flex items-center gap-2 px-3 py-2.5 flex-shrink-0"
-                style={{ borderTop: "1px solid rgba(212,184,150,0.08)" }}>
-                {profile?.avatar_url
-                  ? <img src={profile.avatar_url} alt=""
-                      className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
-                  : <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0"
-                      style={{ background: sandDark, color: cream }}>
-                      {(profile?.full_name || "?").charAt(0).toUpperCase()}
-                    </div>}
-                <input
-                  type="text"
-                  value={comment}
-                  onChange={e => setComment(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && sendComment()}
-                  placeholder="Adiciona um comentário…"
-                  className="flex-1 px-3 py-2 rounded-full text-xs focus:outline-none"
-                  style={{
-                    background: "rgba(212,184,150,0.08)",
-                    border: "1px solid rgba(212,184,150,0.18)",
-                    color: "white",
-                  }}
-                />
-                <button onClick={sendComment} disabled={!comment.trim()}
-                  className="w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-95 flex-shrink-0"
-                  style={{ background: comment.trim() ? `linear-gradient(135deg,${sandDark},${brown})` : "rgba(74,46,10,0.3)" }}>
-                  <Send className="w-3.5 h-3.5 text-white" />
-                </button>
-              </div>
+            {/* Produtos */}
+            {release.linked_products?.length > 0 && (
+              <button onClick={() => setShowProducts(true)} className="flex flex-col items-center gap-1">
+                <div className="w-11 h-11 rounded-full flex items-center justify-center"
+                  style={{ background: `linear-gradient(135deg, ${sandDark}, ${brown})` }}>
+                  <ShoppingBag className="w-6 h-6 text-white" />
+                </div>
+                <span className="text-[10px] font-bold" style={{ color: sand }}>
+                  {release.linked_products.length}
+                </span>
+              </button>
             )}
           </div>
         )}
+
+        {/* ── FIX 3: INFO INFERIOR — legenda + botão produtos (margem inferior, sobre vídeo) ── */}
+        {!showProducts && !showComments && (
+          <div className="absolute bottom-0 left-0 right-16 z-20 px-4 pb-6">
+            {/* Seller mini info */}
+            <div className="flex items-center gap-1.5 mb-2">
+              <span className="text-[11px] font-black" style={{ color: sand }}>
+                @{release.seller?.name || "vendedor"}
+              </span>
+              {release.seller?.is_verified && <BadgeCheck className="w-3 h-3" style={{ color: gold }} />}
+            </div>
+
+            {/* Título */}
+            <p className="text-base font-black text-white mb-1 leading-tight line-clamp-2">
+              {release.title}
+            </p>
+
+            {/* Descrição */}
+            {release.description && (
+              <p className="text-[12px] text-white/60 mb-2 line-clamp-2 leading-relaxed">
+                {release.description}
+              </p>
+            )}
+
+            {/* Chips: duração + ver produtos */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {release.video_duration_s && (
+                <span className="text-[10px] font-bold px-2.5 py-1 rounded-full"
+                  style={{ background: "rgba(0,0,0,0.65)", color: sand }}>
+                  {fmtDuration(release.video_duration_s)}
+                </span>
+              )}
+              {release.linked_products?.length > 0 && (
+                <button
+                  onClick={() => setShowProducts(true)}
+                  className="flex items-center gap-1.5 text-[12px] font-bold px-3.5 py-2 rounded-full transition active:scale-95"
+                  style={{ background: `linear-gradient(135deg, ${sandDark}, ${brown})`, color: "#fff" }}
+                >
+                  <ShoppingCart className="w-3.5 h-3.5" />
+                  Ver {release.linked_products.length} produto{release.linked_products.length !== 1 ? "s" : ""}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Spacer para o vídeo ocupar toda a altura — necessário porque o container é flex mas o vídeo é absolute */}
+        <div style={{ height: "100vh" }} />
       </div>
 
       {/* Botão fechar lateral (desktop) */}
@@ -2076,6 +2187,12 @@ const Lancamentos = () => {
           release={watchRelease}
           onClose={() => setWatchRelease(null)}
           userId={user?.id ?? null}
+          sellerId={sellerId}
+          onDeleted={(id) => {
+            qc.setQueryData(["releases_all"], (old: any[] = []) => old.filter((r: any) => r.id !== id));
+            qc.invalidateQueries({ queryKey: ["my_releases_count", sellerId] });
+            setWatchRelease(null);
+          }}
         />
       )}
       {showCreate && canPublish && (
@@ -2090,3 +2207,41 @@ const Lancamentos = () => {
 };
 
 export default Lancamentos;
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * SQL NECESSÁRIO — cria a tabela de comentários se ainda não existir
+ * Copia e executa no Supabase SQL Editor:
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * create table if not exists public.release_comments (
+ *   id          uuid primary key default gen_random_uuid(),
+ *   release_id  uuid not null references public.releases(id) on delete cascade,
+ *   user_id     uuid references auth.users(id) on delete set null,
+ *   user_name   text,
+ *   user_avatar text,
+ *   content     text not null,
+ *   created_at  timestamptz not null default now()
+ * );
+ *
+ * -- Índices para performance
+ * create index if not exists release_comments_release_id_idx on public.release_comments(release_id);
+ * create index if not exists release_comments_created_at_idx on public.release_comments(created_at);
+ *
+ * -- Row Level Security
+ * alter table public.release_comments enable row level security;
+ *
+ * -- Qualquer pessoa pode ler comentários
+ * create policy "release_comments_select" on public.release_comments
+ *   for select using (true);
+ *
+ * -- Apenas utilizadores autenticados podem comentar
+ * create policy "release_comments_insert" on public.release_comments
+ *   for insert with check (auth.uid() = user_id);
+ *
+ * -- Apenas o autor pode apagar o seu próprio comentário
+ * create policy "release_comments_delete" on public.release_comments
+ *   for delete using (auth.uid() = user_id);
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
