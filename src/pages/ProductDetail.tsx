@@ -392,7 +392,7 @@ const ProductDetail = () => {
         .eq("id", rawSellerId!).maybeSingle();
       return data ? { ...data, __type: "seller" } : null;
     },
-    enabled: !!rawSellerId && !rawCompanyId,
+    enabled: !!rawSellerId && !rawCompanyId, // ✅ CORRIGIDO: só busca seller se não houver empresa
   });
 
   const { data: companyFull, isLoading: loadingCompany } = useQuery({
@@ -407,6 +407,7 @@ const ProductDetail = () => {
     enabled: !!rawCompanyId,
   });
 
+  // ✅ CORRIGIDO: empresa tem sempre prioridade sobre seller individual
   const loadingPublisher = (!!rawCompanyId && loadingCompany) || (!rawCompanyId && !!rawSellerId && loadingSeller);
   const publisher: any = companyFull || sellerFull || null;
 
@@ -602,9 +603,7 @@ const ProductDetail = () => {
   })();
 
   // ── Guard ─────────────────────────────────────────────────────────────────
-  // CORRIGIDO: removido "!dbProduct &&" para que o loader apareça sempre
-  // que a query ainda estiver a carregar, evitando o "Produto não encontrado" prematuro
-  if (isUuid && loadingProduct) {
+  if (!dbProduct && isUuid && loadingProduct) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="w-6 h-6 animate-spin text-primary" />
