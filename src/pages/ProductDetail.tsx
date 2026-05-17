@@ -4,7 +4,7 @@ import {
   MapPin, ChevronRight, Minus, Plus, ZoomIn, Store, MessageCircle,
   Send, Loader2, ShieldCheck, X, Building2, Link2,
 } from "lucide-react";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { allProducts } from "@/data/products";
 import { useProduct } from "@/hooks/useSupabaseData";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,6 +18,46 @@ import { toast } from "sonner";
 const fmt = (n: number) =>
   Number(n).toLocaleString("pt-AO").replace(/,/g, ".") + " Kz";
 
+// ─── Smart Tracking Hook ───────────────────────────────────────────────────────
+const useProductTracking = () => {
+  const { user } = useAuth();
+
+  const trackEvent = useCallback(async (
+    productId: string,
+    eventType: "view" | "card_tap" | "add_to_cart" | "buy_now" | "favorite" | "share" | "image_zoom" | "variant_select" | "review_read" | "seller_view",
+    metadata: Record<string, any> = {}
+  ) => {
+    try {
+      const sessionId = sessionStorage.getItem("kw_session_id") || (() => {
+        const id = `sess_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        sessionStorage.setItem("kw_session_id", id);
+        return id;
+      })();
+
+      await (supabase as any).from("product_tracking_events").insert({
+        product_id: productId,
+        event_type: eventType,
+        user_id: user?.id || null,
+        session_id: sessionId,
+        metadata: {
+          ...metadata,
+          user_agent: navigator.userAgent,
+          screen_width: window.innerWidth,
+          platform: /Mobi|Android/i.test(navigator.userAgent) ? "mobile" : "desktop",
+          timestamp: new Date().toISOString(),
+          referrer: document.referrer || null,
+          url: window.location.href,
+        },
+      });
+    } catch (_) {
+      // Silent — tracking never breaks the UI
+    }
+  }, [user?.id]);
+
+  return { trackEvent };
+};
+
+// ─── Share Sheet ──────────────────────────────────────────────────────────────
 const ShareSheet = ({
   title, imageUrl, url, onClose,
 }: {
@@ -75,6 +115,7 @@ const ShareSheet = ({
   );
 };
 
+// ─── Zoom Lightbox ─────────────────────────────────────────────────────────────
 const ZoomLightbox = ({
   images, index, onClose, onChange, onShare,
 }: {
@@ -121,6 +162,7 @@ const ZoomLightbox = ({
   );
 };
 
+// ─── Avatar With Fallback ──────────────────────────────────────────────────────
 const AvatarWithFallback = ({ src, name, isCompany }: { src: string | null; name: string; isCompany: boolean }) => {
   const [imgOk, setImgOk] = useState<boolean | null>(src ? null : false);
 
@@ -139,6 +181,7 @@ const AvatarWithFallback = ({ src, name, isCompany }: { src: string | null; name
   );
 };
 
+// ─── Seller Card — sem número de vendas ───────────────────────────────────────
 const SellerCard = ({ seller, onNavigate, isLoading = false }: { seller: any; onNavigate: () => void; isLoading?: boolean }) => {
   if (isLoading) return (
     <div className="bg-card mt-0.5 md:mt-0 md:mb-3 px-4 py-3 md:rounded-card md:border md:border-border flex items-center gap-3 animate-pulse">
@@ -153,10 +196,6 @@ const SellerCard = ({ seller, onNavigate, isLoading = false }: { seller: any; on
 
   const avatar: string | null = seller.logo_url || seller.avatar_url || null;
   const isCompany = seller.__type === "company";
-  const salesOrReviews =
-    seller.total_sales != null ? `${seller.total_sales} vendas`
-    : seller.total_reviews != null ? `${seller.total_reviews} avaliações`
-    : "0 vendas";
 
   return (
     <button onClick={onNavigate}
@@ -187,7 +226,7 @@ const SellerCard = ({ seller, onNavigate, isLoading = false }: { seller: any; on
               <Star className="w-3 h-3 fill-secondary text-secondary" />{seller.rating}
             </span>
           )}
-          <span className="text-[10px] text-muted-foreground">{salesOrReviews}</span>
+          {/* total_sales removed — not shown on mobile or desktop */}
         </div>
       </div>
       <div className="flex items-center gap-1 flex-shrink-0">
@@ -198,12 +237,14 @@ const SellerCard = ({ seller, onNavigate, isLoading = false }: { seller: any; on
   );
 };
 
+// ─── Main Component ────────────────────────────────────────────────────────────
 const ProductDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const addToCart = useAddToCart();
+  const { trackEvent } = useProductTracking();
 
   const [qty, setQty] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
@@ -212,6 +253,7 @@ const ProductDetail = () => {
   const [zoomOpen, setZoomOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const touchStartX = useRef<number | null>(null);
+  const viewTracked = useRef(false);
 
   const isUuid = id && id.length > 10;
 
@@ -257,7 +299,6 @@ const ProductDetail = () => {
     enabled: !!rawSellerId,
   });
 
-  // ── CORRIGIDO: removido cover_url (não existe), adicionado total_sales ──
   const { data: companyFull, isLoading: loadingCompany } = useQuery({
     queryKey: ["company_full", rawCompanyId],
     queryFn: async () => {
@@ -270,8 +311,35 @@ const ProductDetail = () => {
   const loadingPublisher = (!!rawSellerId && loadingSeller) || (!!rawCompanyId && loadingCompany);
   const publisher: any = sellerFull || companyFull || null;
 
+  // ── Track page view when product loads ────────────────────────────────────
+  useEffect(() => {
+    if (!dbProduct || !isUuid || viewTracked.current) return;
+    viewTracked.current = true;
+    const p = dbProduct as any;
+    trackEvent(id!, "view", {
+      title: p.title,
+      price: p.price,
+      old_price: p.old_price,
+      discount_percent: p.discount_percent,
+      category_id: p.category_id,
+      seller_id: p.seller_id,
+      company_id: p.company_id,
+      rating: p.rating,
+      total_reviews: p.total_reviews,
+      free_shipping: p.free_shipping,
+      badge: p.badge,
+      is_sponsored: p.is_sponsored,
+      description_length: p.description?.length || 0,
+    });
+  }, [dbProduct, id, isUuid, trackEvent]);
+
   const handlePublisherNavigate = () => {
     if (!publisher) return;
+    trackEvent(id!, "seller_view", {
+      seller_id: publisher.id,
+      seller_type: publisher.__type,
+      seller_name: publisher.name,
+    });
     if (publisher.__type === "company") navigate(`/empresa/${publisher.id ?? rawCompanyId}`);
     else navigate(`/vendedor/${publisher.id ?? rawSellerId}`);
   };
@@ -292,6 +360,7 @@ const ProductDetail = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["favorite", id, user?.id] });
+      trackEvent(id!, "favorite", { action: isFavorited ? "remove" : "add" });
       toast.success(isFavorited ? "Removido dos favoritos" : "Adicionado aos favoritos ❤️");
     },
     onError: () => toast.error("Erro ao atualizar favoritos"),
@@ -308,13 +377,25 @@ const ProductDetail = () => {
   const handleAddToCart = () => {
     if (!user) { navigate("/auth"); return; }
     if (!isUuid) { toast.info("Produto de demonstração"); return; }
+    trackEvent(id!, "add_to_cart", { quantity: qty, variant_id: getVariantId() });
     addToCart.mutate({ productId: id!, quantity: qty, variantId: getVariantId() });
   };
 
   const handleBuyNow = () => {
     if (!user) { navigate("/auth"); return; }
     if (!isUuid) { toast.info("Produto de demonstração"); return; }
+    trackEvent(id!, "buy_now", { quantity: qty, variant_id: getVariantId() });
     addToCart.mutate({ productId: id!, quantity: qty, variantId: getVariantId() }, { onSuccess: () => navigate("/checkout") });
+  };
+
+  const handleShare = () => {
+    trackEvent(id!, "share", { method: navigator.share ? "native" : "clipboard" });
+    setShareOpen(true);
+  };
+
+  const handleZoom = () => {
+    trackEvent(id!, "image_zoom", { image_index: selectedImage });
+    setZoomOpen(true);
   };
 
   const { data: userOrders = [] } = useQuery({
@@ -450,6 +531,9 @@ const ProductDetail = () => {
     image: coverUrl, rating: productBase.rating || undefined,
     reviews: productBase.total_reviews || undefined, freeShipping: productBase.free_shipping || false,
     badge: productBase.badge || undefined, description: productBase.description || "",
+    category_id: productBase.category_id,
+    seller_id: productBase.seller_id,
+    company_id: productBase.company_id,
   };
 
   const parentVariants = (dbVariants as any[]).filter((v: any) => !v.parent_id);
@@ -494,12 +578,13 @@ const ProductDetail = () => {
       <div className="container mx-auto px-3 pt-3 flex items-center justify-between gap-3">
         <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-full hover:bg-muted flex items-center justify-center transition"><ArrowLeft className="w-5 h-5 text-foreground" /></button>
         <span className="text-sm font-bold text-foreground truncate flex-1">{product.title}</span>
-        <button onClick={() => setShareOpen(true)} className="w-9 h-9 rounded-full hover:bg-muted flex items-center justify-center transition"><Share2 className="w-5 h-5 text-foreground" /></button>
+        <button onClick={handleShare} className="w-9 h-9 rounded-full hover:bg-muted flex items-center justify-center transition"><Share2 className="w-5 h-5 text-foreground" /></button>
       </div>
 
       <div className="md:container md:mx-auto md:px-4 md:py-6">
         <div className="md:grid md:grid-cols-2 md:gap-6 lg:gap-10">
 
+          {/* LEFT */}
           <div>
             <div className="bg-card px-4 pt-3 pb-2 md:hidden">
               {product.rating && (
@@ -540,11 +625,24 @@ const ProductDetail = () => {
                   </div>
                 )}
                 <div className="absolute right-3 top-1/3 flex flex-col gap-2">
-                  <button onClick={() => setShareOpen(true)} className="w-9 h-9 rounded-full bg-card/90 shadow-md flex items-center justify-center active:scale-95 transition"><Share2 className="w-4 h-4 text-foreground" /></button>
-                  <button onClick={handleFavorite} className="w-9 h-9 rounded-full bg-card/90 shadow-md flex items-center justify-center active:scale-95 transition">
-                    <Heart className={`w-4 h-4 transition-colors ${isFavorited ? "text-red-500 fill-red-500" : "text-foreground"}`} />
+                  <button onClick={handleShare} className="w-9 h-9 rounded-full bg-card/90 shadow-md flex items-center justify-center active:scale-95 transition">
+                    <Share2 className="w-4 h-4 text-foreground" />
                   </button>
-                  <button onClick={() => setZoomOpen(true)} className="w-9 h-9 rounded-full bg-card/90 shadow-md flex items-center justify-center active:scale-95 transition"><ZoomIn className="w-4 h-4 text-foreground" /></button>
+                  {/* ── Favorite: correct filled state ── */}
+                  <button
+                    onClick={handleFavorite}
+                    className="w-9 h-9 rounded-full bg-card/90 shadow-md flex items-center justify-center active:scale-95 transition"
+                    aria-label={isFavorited ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+                  >
+                    <Heart
+                      className={`w-4 h-4 transition-all duration-200 ${
+                        isFavorited ? "text-red-500 fill-red-500 scale-110" : "text-foreground"
+                      }`}
+                    />
+                  </button>
+                  <button onClick={handleZoom} className="w-9 h-9 rounded-full bg-card/90 shadow-md flex items-center justify-center active:scale-95 transition">
+                    <ZoomIn className="w-4 h-4 text-foreground" />
+                  </button>
                 </div>
               </div>
               <div className="flex gap-2 p-3 overflow-x-auto scrollbar-hide">
@@ -593,7 +691,7 @@ const ProductDetail = () => {
                         {s.avatar_url ? <img src={s.avatar_url} alt={s.name} className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center"><Store className="w-4 h-4 text-primary" /></div>}
                         <div className="min-w-0">
                           <p className="text-xs font-bold text-foreground truncate">{s.name}</p>
-                          {s.total_sales != null && <p className="text-[10px] text-muted-foreground">{s.total_sales} vendas</p>}
+                          {/* total_sales removed */}
                         </div>
                       </div>
                       <div className="flex items-center justify-between text-[10px]">
@@ -607,6 +705,7 @@ const ProductDetail = () => {
             )}
           </div>
 
+          {/* RIGHT */}
           <div>
             <div className="hidden md:block mb-4">
               {product.rating && (
@@ -661,7 +760,11 @@ const ProductDetail = () => {
                             if (type === "color" && v.value?.startsWith("#")) {
                               return (
                                 <button key={v.id}
-                                  onClick={() => { setSelectedVariants(p => ({ ...p, [type]: isSel ? "" : v.id })); if (isSel) setSelectedSubVariants({}); }}
+                                  onClick={() => {
+                                    setSelectedVariants(p => ({ ...p, [type]: isSel ? "" : v.id }));
+                                    if (isSel) setSelectedSubVariants({});
+                                    trackEvent(id!, "variant_select", { variant_type: type, variant_name: v.name, variant_id: v.id });
+                                  }}
                                   className={`relative rounded-lg border-2 overflow-hidden transition ${isSel ? "border-primary ring-1 ring-primary" : "border-border"}`} title={v.name}>
                                   {v.image_url ? <img src={v.image_url} alt={v.name} className="w-10 h-10 object-cover" /> : <div className="w-10 h-10 flex items-center justify-center"><div className="w-7 h-7 rounded-full border border-border" style={{ backgroundColor: v.value }} /></div>}
                                   {v.price_override && <span className="absolute bottom-0 inset-x-0 text-center bg-background/80 text-[7px] font-bold leading-tight py-0.5">{fmt(v.price_override)}</span>}
@@ -670,7 +773,11 @@ const ProductDetail = () => {
                             }
                             return (
                               <button key={v.id}
-                                onClick={() => { setSelectedVariants(p => ({ ...p, [type]: isSel ? "" : v.id })); if (isSel) setSelectedSubVariants({}); }}
+                                onClick={() => {
+                                  setSelectedVariants(p => ({ ...p, [type]: isSel ? "" : v.id }));
+                                  if (isSel) setSelectedSubVariants({});
+                                  trackEvent(id!, "variant_select", { variant_type: type, variant_name: v.name, variant_id: v.id });
+                                }}
                                 className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${isSel ? "bg-primary text-primary-foreground border-primary" : "bg-muted text-foreground border-border hover:border-primary/50"}`}>
                                 {v.name}
                                 {v.price_override && <span className="block text-[9px] font-normal opacity-80">{fmt(v.price_override)}</span>}
@@ -694,7 +801,10 @@ const ProductDetail = () => {
                             const isSel = selId === v.id;
                             return (
                               <button key={v.id}
-                                onClick={() => setSelectedSubVariants(p => ({ ...p, [type]: isSel ? "" : v.id }))}
+                                onClick={() => {
+                                  setSelectedSubVariants(p => ({ ...p, [type]: isSel ? "" : v.id }));
+                                  trackEvent(id!, "variant_select", { variant_type: type, variant_name: v.name, variant_id: v.id });
+                                }}
                                 className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${isSel ? "bg-primary text-primary-foreground border-primary" : "bg-muted text-foreground border-border hover:border-primary/50"}`}>
                                 {v.name}
                                 {v.price_override && <span className="block text-[9px] font-normal opacity-80">{fmt(v.price_override)}</span>}
@@ -763,6 +873,7 @@ const ProductDetail = () => {
               </ul>
             </div>
 
+            {/* Sponsored sellers mobile — sem total_sales */}
             {sponsoredSellers.length > 0 && (
               <div className="md:hidden bg-card mt-2 p-4">
                 <p className="text-[10px] text-muted-foreground text-right mb-2">Patrocinado</p>
@@ -772,7 +883,7 @@ const ProductDetail = () => {
                     {s.avatar_url ? <img src={s.avatar_url} alt={s.name} className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center"><Store className="w-4 h-4 text-primary" /></div>}
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-bold text-foreground truncate">{s.name}</p>
-                      <p className="text-[10px] text-muted-foreground">{s.rating ? `⭐ ${s.rating}` : ""}{s.total_sales != null ? ` • ${s.total_sales} vendas` : ""}</p>
+                      <p className="text-[10px] text-muted-foreground">{s.rating ? `⭐ ${s.rating}` : ""}</p>
                     </div>
                     <span className="px-3 py-1.5 rounded-card text-[10px] font-bold text-primary border border-primary/20 flex-shrink-0">Ver loja</span>
                   </div>
@@ -801,25 +912,52 @@ const ProductDetail = () => {
         </div>
       </div>
 
-      <ProductReviewsSection productId={id || ""} product={product} dbReviews={dbReviews} userOrders={userOrders} />
+      <ProductReviewsSection
+        productId={id || ""}
+        product={product}
+        dbReviews={dbReviews}
+        userOrders={userOrders}
+        trackEvent={trackEvent}
+      />
 
+      {/* ── Related / Explore / Also Like — SEM label "Patrocinado", cards sem moldura visível ── */}
       {[
-        { title: "Produtos relacionados", list: relatedProducts },
-        { title: "Mais para explorar", list: moreToExplore },
-        { title: "Também pode gostar", list: alsoLike },
-      ].map(({ title, list }) => list.length > 0 && (
+        { title: "Produtos relacionados", list: relatedProducts, section: "related" },
+        { title: "Mais para explorar",    list: moreToExplore,   section: "more_explore" },
+        { title: "Também pode gostar",    list: alsoLike,         section: "also_like" },
+      ].map(({ title, list, section }) => list.length > 0 && (
         <div key={title} className="mt-2 bg-card p-4 md:container md:mx-auto md:rounded-card md:border md:border-border md:my-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-base font-black text-foreground">{title}</h3>
-            <span className="text-[10px] text-muted-foreground">Patrocinado</span>
-          </div>
+          {/* Header: ONLY the title, no "Patrocinado" */}
+          <h3 className="text-base font-black text-foreground mb-3">{title}</h3>
           <ProductCarousel>
-            {list.map((p: any) => <ProductCard key={p.id} product={p} />)}
+            {list.map((p: any) => (
+              <div
+                key={p.id}
+                onClick={() =>
+                  trackEvent(id!, "card_tap", {
+                    tapped_product_id: p.id,
+                    tapped_product_title: p.title,
+                    tapped_product_price: p.price,
+                    tapped_has_discount: !!p.discount,
+                    tapped_rating: p.rating,
+                    section,
+                    source_product_id: id,
+                    source_product_title: product.title,
+                    source_category_id: product.category_id,
+                  })
+                }
+                // Invisible border & no shadow on the card wrapper
+                className="[&>*]:border-transparent [&>*]:shadow-none"
+              >
+                <ProductCard product={p} />
+              </div>
+            ))}
           </ProductCarousel>
         </div>
       ))}
 
-      <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border px-3 pt-2 pb-4 z-50 md:hidden">
+      {/* ── Mobile sticky bottom bar — pb-28 on page ensures content clears it ── */}
+      <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border px-3 pt-2 pb-safe-or-4 z-50 md:hidden" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>
         <div className="flex items-center gap-2 mb-2">
           <span className="text-[10px] text-muted-foreground font-semibold">Qtd:</span>
           <div className="flex items-center border border-border rounded-lg">
@@ -845,9 +983,16 @@ const ProductDetail = () => {
   );
 };
 
+// ─── Reviews Section ───────────────────────────────────────────────────────────
 const ProductReviewsSection = ({
-  productId, product, dbReviews, userOrders,
-}: { productId: string; product: any; dbReviews: any[]; userOrders: any[] }) => {
+  productId, product, dbReviews, userOrders, trackEvent,
+}: {
+  productId: string;
+  product: any;
+  dbReviews: any[];
+  userOrders: any[];
+  trackEvent: (productId: string, event: any, meta?: any) => Promise<void>;
+}) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
@@ -861,6 +1006,12 @@ const ProductReviewsSection = ({
   const reviews = dbReviews.length > 0 ? dbReviews : null;
   const alreadyReviewed = reviews?.some((r: any) => r.user_id === user?.id);
   const canReview = user && userOrders.length > 0 && !alreadyReviewed;
+
+  useEffect(() => {
+    if (reviews && reviews.length > 0 && productId) {
+      trackEvent(productId, "review_read", { review_count: reviews.length, avg_rating: product.rating });
+    }
+  }, [reviews?.length]);
 
   const uploadImg = async (file: File) => {
     setUploadingImg(true);
