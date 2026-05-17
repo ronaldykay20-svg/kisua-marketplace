@@ -1,802 +1,1183 @@
-import { useState, useRef } from "react";
-import { Shield, Users, Search, Plus, Trash2, Crown, Building2, Store, CheckCircle, XCircle, ShieldCheck, UserCheck, UsersRound, FolderTree, ImageIcon, ShoppingBag, Settings, Star, Gavel, Upload, Eye, EyeOff, Copy, Megaphone, Play, TrendingUp, Users as UsersIcon, X, Loader2 } from "lucide-react";
+import { useParams, useNavigate } from "react-router-dom";
+import {
+  ArrowLeft, Heart, Share2, ShoppingCart, Star, Truck, Shield,
+  MapPin, ChevronRight, Minus, Plus, ZoomIn, Store, MessageCircle,
+  Send, Loader2, ShieldCheck, X, Building2, Link2,
+} from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { allProducts } from "@/data/products";
+import { useProduct } from "@/hooks/useSupabaseData";
 import { useAuth } from "@/contexts/AuthContext";
-import { useUserRole } from "@/hooks/useUserRole";
-import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import AdminUsersTab from "@/components/admin/AdminUsersTab";
-import AdminCompanyMembersModal from "@/components/admin/AdminCompanyMembersModal";
-import AdminCompanyCard from "@/components/admin/AdminCompanyCard";
-import AdminCategoriesTab from "@/components/admin/AdminCategoriesTab";
-import AdminOrdersTab from "@/components/admin/AdminOrdersTab";
-import AdminSettingsTab from "@/components/admin/AdminSettingsTab";
-import AdminBannersTab from "@/components/admin/AdminBannersTab";
+import { supabase } from "@/integrations/supabase/client";
+import { useAddToCart } from "@/hooks/useCartActions";
+import ProductCard from "@/components/ProductCard";
+import ProductCarousel from "@/components/ProductCarousel";
 import { toast } from "sonner";
 
-const roleBadge: Record<string, { label: string; color: string; icon: any }> = {
-  admin: { label: "Admin", color: "bg-red-500/10 text-red-500 border-red-500/20", icon: Crown },
-  moderator: { label: "Moderador", color: "bg-amber-500/10 text-amber-500 border-amber-500/20", icon: Shield },
-  user: { label: "Utilizador", color: "bg-primary/10 text-primary border-primary/20", icon: Users },
+const fmt = (n: number) =>
+  Number(n).toLocaleString("pt-AO").replace(/,/g, ".") + " Kz";
+
+// ─── Smart Tracking Hook ───────────────────────────────────────────────────────
+const useProductTracking = () => {
+  const { user } = useAuth();
+
+  const trackEvent = useCallback(async (
+    productId: string,
+    eventType: "view" | "card_tap" | "add_to_cart" | "buy_now" | "favorite" | "share" | "image_zoom" | "variant_select" | "review_read" | "seller_view",
+    metadata: Record<string, any> = {}
+  ) => {
+    try {
+      const sessionId = sessionStorage.getItem("kw_session_id") || (() => {
+        const id = `sess_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        sessionStorage.setItem("kw_session_id", id);
+        return id;
+      })();
+
+      await (supabase as any).from("product_tracking_events").insert({
+        product_id: productId,
+        event_type: eventType,
+        user_id: user?.id || null,
+        session_id: sessionId,
+        metadata: {
+          ...metadata,
+          user_agent: navigator.userAgent,
+          screen_width: window.innerWidth,
+          platform: /Mobi|Android/i.test(navigator.userAgent) ? "mobile" : "desktop",
+          timestamp: new Date().toISOString(),
+          referrer: document.referrer || null,
+          url: window.location.href,
+        },
+      });
+    } catch (_) {
+      // Silent — tracking never breaks the UI
+    }
+  }, [user?.id]);
+
+  return { trackEvent };
 };
 
-type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos" | "encomendas" | "categorias" | "banners" | "definicoes" | "leiloes" | "publicidade";
-
-// ─── Tipos de anúncio ────────────────────────────────────────────────────────
-const AD_TYPES = [
-  { value: "banner",           label: "Banner (imagem/vídeo)",   icon: ImageIcon,   desc: "Upload direto de imagem ou vídeo" },
-  { value: "empresa",          label: "Empresa patrocinada",      icon: Building2,   desc: "Mostra foto de capa + info da empresa" },
-  { value: "vendedor",         label: "Vendedor patrocinado",     icon: Store,       desc: "Card do vendedor com produtos" },
-  { value: "produto",          label: "Produto patrocinado",      icon: ShoppingBag, desc: "Produto específico em destaque" },
-  { value: "leilao",           label: "Leilão em destaque",       icon: Gavel,       desc: "Produto em leilão ativo" },
-  { value: "mais_vendidos",    label: "Mais vendidos",            icon: TrendingUp,  desc: "Carrossel automático de top produtos" },
-  { value: "vendedores_top",   label: "Vendedores mais seguidos", icon: UsersIcon,   desc: "Carrossel dos vendedores em destaque" },
-] as const;
-
-type AdType = typeof AD_TYPES[number]["value"];
-
-const TYPE_COLORS: Record<AdType, string> = {
-  banner:         "bg-blue-500/10 text-blue-500 border-blue-500/20",
-  empresa:        "bg-purple-500/10 text-purple-500 border-purple-500/20",
-  vendedor:       "bg-amber-500/10 text-amber-500 border-amber-500/20",
-  produto:        "bg-green-500/10 text-green-500 border-green-500/20",
-  leilao:         "bg-red-500/10 text-red-500 border-red-500/20",
-  mais_vendidos:  "bg-orange-500/10 text-orange-500 border-orange-500/20",
-  vendedores_top: "bg-pink-500/10 text-pink-500 border-pink-500/20",
-};
-
-// ─── Formulário de criação ───────────────────────────────────────────────────
-const AdForm = ({ onClose }: { onClose: () => void }) => {
-  const queryClient = useQueryClient();
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [step, setStep] = useState<"type" | "details">("type");
-  const [adType, setAdType] = useState<AdType>("banner");
-  const [title, setTitle] = useState("");
-  const [destinationUrl, setDestinationUrl] = useState("");
-  const [refId, setRefId] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
-
-  const needsEntity = ["empresa", "vendedor", "produto", "leilao"].includes(adType);
-  const autoTypes: AdType[] = ["mais_vendidos", "vendedores_top"];
-  const isAuto = autoTypes.includes(adType);
-  const needsMedia = adType === "banner";
-
-  const { data: entities = [] } = useQuery({
-    queryKey: ["ad_entities", adType],
-    queryFn: async () => {
-      if (adType === "empresa") {
-        const { data } = await (supabase as any).from("companies").select("id, name, cover_url, logo_url").eq("is_active", true).limit(30);
-        return (data || []).map((e: any) => ({ id: e.id, label: e.name, image: e.cover_url || e.logo_url }));
+// ─── Share Sheet ──────────────────────────────────────────────────────────────
+const ShareSheet = ({
+  title, imageUrl, url, onClose,
+}: {
+  title: string; imageUrl: string; url: string; onClose: () => void;
+}) => {
+  const handleNative = async () => {
+    try {
+      if (navigator.share) {
+        await navigator.share({ title, text: `${title} — Kwanza Market`, url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        toast.success("Link copiado!");
       }
-      if (adType === "vendedor") {
-        const { data } = await (supabase as any).from("sellers").select("id, name, avatar_url").eq("is_active", true).limit(30);
-        return (data || []).map((e: any) => ({ id: e.id, label: e.name, image: e.avatar_url }));
-      }
-      if (adType === "produto") {
-        const { data } = await (supabase as any).from("products").select("id, title, image_url").eq("is_active", true).order("sales_count", { ascending: false }).limit(30);
-        return (data || []).map((e: any) => ({ id: e.id, label: e.title, image: e.image_url }));
-      }
-      if (adType === "leilao") {
-        const { data } = await (supabase as any).from("auctions").select("id, title, image_url").eq("status", "active").limit(30);
-        return (data || []).map((e: any) => ({ id: e.id, label: e.title, image: e.image_url }));
-      }
-      return [];
-    },
-    enabled: needsEntity && step === "details",
-  });
-
-  const handleFile = (f: File) => {
-    setFile(f);
-    setPreview(URL.createObjectURL(f));
+    } catch (_) {}
+    onClose();
   };
 
-  const uploadAndCreate = useMutation({
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Link copiado!");
+    } catch (_) {
+      toast.error("Não foi possível copiar");
+    }
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[110] bg-black/60 flex items-end justify-center" onClick={onClose}>
+      <div className="bg-card w-full max-w-md rounded-t-2xl pb-8 pt-4 px-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="w-10 h-1 rounded-full bg-muted mx-auto mb-4" />
+        <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-3">Partilhar produto</p>
+        <div className="flex items-center gap-3 p-3 bg-muted rounded-xl border border-border mb-5">
+          <img src={imageUrl} alt={title} className="w-16 h-16 rounded-lg object-cover flex-shrink-0 bg-background" />
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-foreground line-clamp-2 leading-snug">{title}</p>
+            <p className="text-[10px] text-muted-foreground mt-1 truncate">{url.replace(/^https?:\/\//, "")}</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <button onClick={handleNative} className="flex flex-col items-center gap-2 py-4 rounded-xl bg-primary/5 border border-primary/20 hover:bg-primary/10 active:scale-95 transition">
+            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center"><Share2 className="w-5 h-5 text-white" /></div>
+            <span className="text-xs font-bold text-primary">Partilhar</span>
+            <span className="text-[9px] text-muted-foreground text-center leading-tight px-1">Usar app do dispositivo</span>
+          </button>
+          <button onClick={handleCopyLink} className="flex flex-col items-center gap-2 py-4 rounded-xl bg-muted border border-border hover:bg-accent active:scale-95 transition">
+            <div className="w-10 h-10 rounded-full bg-muted-foreground/10 flex items-center justify-center"><Link2 className="w-5 h-5 text-foreground" /></div>
+            <span className="text-xs font-bold text-foreground">Copiar link</span>
+            <span className="text-[9px] text-muted-foreground text-center leading-tight px-1">Colar em qualquer app</span>
+          </button>
+        </div>
+        <button onClick={onClose} className="w-full mt-4 py-3 rounded-xl bg-muted text-sm font-bold text-muted-foreground hover:text-foreground transition">Cancelar</button>
+      </div>
+    </div>
+  );
+};
+
+// ─── Zoom Lightbox ─────────────────────────────────────────────────────────────
+const ZoomLightbox = ({
+  images, index, onClose, onChange, onShare,
+}: {
+  images: { url: string; type: string }[];
+  index: number;
+  onClose: () => void;
+  onChange: (i: number) => void;
+  onShare: () => void;
+}) => {
+  const touchRef = useRef<number | null>(null);
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-black flex flex-col" onClick={onClose}>
+      <div className="flex items-center justify-between px-4 py-3 flex-shrink-0" onClick={e => e.stopPropagation()}>
+        <button onClick={onClose} className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center"><X className="w-5 h-5 text-white" /></button>
+        <span className="text-white/60 text-xs font-medium">{index + 1} / {images.length}</span>
+        <button onClick={onShare} className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center"><Share2 className="w-4 h-4 text-white" /></button>
+      </div>
+      <div
+        className="flex-1 flex items-center justify-center px-2 overflow-hidden"
+        onClick={e => e.stopPropagation()}
+        onTouchStart={e => { touchRef.current = e.touches[0].clientX; }}
+        onTouchEnd={e => {
+          if (touchRef.current === null) return;
+          const diff = touchRef.current - e.changedTouches[0].clientX;
+          if (Math.abs(diff) > 40)
+            onChange(diff > 0 ? Math.min(index + 1, images.length - 1) : Math.max(index - 1, 0));
+          touchRef.current = null;
+        }}
+      >
+        {images[index]?.type === "video"
+          ? <video src={images[index].url} controls className="max-w-full max-h-full rounded-lg" />
+          : <img src={images[index]?.url} alt="" className="max-w-full max-h-full object-contain" />}
+      </div>
+      {images.length > 1 && (
+        <div className="flex justify-center gap-2 py-5 flex-shrink-0" onClick={e => e.stopPropagation()}>
+          {images.map((_, i) => (
+            <button key={i} onClick={() => onChange(i)}
+              className={`rounded-full transition-all duration-200 ${i === index ? "w-5 h-2 bg-white" : "w-2 h-2 bg-white/30"}`} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── Avatar With Fallback ──────────────────────────────────────────────────────
+const AvatarWithFallback = ({ src, name, isCompany }: { src: string | null; name: string; isCompany: boolean }) => {
+  const [imgOk, setImgOk] = useState<boolean | null>(src ? null : false);
+
+  if (src && imgOk !== false) {
+    return (
+      <img src={src} alt={name}
+        className="w-12 h-12 rounded-full object-cover border-2 border-border bg-muted"
+        onLoad={() => setImgOk(true)}
+        onError={() => setImgOk(false)} />
+    );
+  }
+  return (
+    <div className="w-12 h-12 rounded-full bg-primary/10 border-2 border-border flex items-center justify-center">
+      {isCompany ? <Building2 className="w-5 h-5 text-primary" /> : <Store className="w-5 h-5 text-primary" />}
+    </div>
+  );
+};
+
+// ─── Seller Card — sem número de vendas ───────────────────────────────────────
+const SellerCard = ({ seller, onNavigate, isLoading = false }: { seller: any; onNavigate: () => void; isLoading?: boolean }) => {
+  if (isLoading) return (
+    <div className="bg-card mt-0.5 md:mt-0 md:mb-3 px-4 py-3 md:rounded-card md:border md:border-border flex items-center gap-3 animate-pulse">
+      <div className="w-12 h-12 rounded-full bg-muted flex-shrink-0" />
+      <div className="flex-1 space-y-2">
+        <div className="h-3 bg-muted rounded w-32" />
+        <div className="h-2.5 bg-muted rounded w-20" />
+      </div>
+    </div>
+  );
+  if (!seller) return null;
+
+  const avatar: string | null = seller.logo_url || seller.avatar_url || null;
+  const isCompany = seller.__type === "company";
+
+  return (
+    <button onClick={onNavigate}
+      className="w-full bg-card mt-0.5 md:mt-0 md:mb-3 px-4 py-3 md:rounded-card md:border md:border-border flex items-center gap-3 cursor-pointer hover:bg-muted/60 active:bg-muted transition-colors group text-left">
+      <div className="relative flex-shrink-0">
+        <AvatarWithFallback src={avatar} name={seller.name} isCompany={isCompany} />
+        {seller.is_verified && (
+          <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-card flex items-center justify-center">
+            <ShieldCheck className="w-3.5 h-3.5 text-blue-500" />
+          </div>
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <p className="text-sm font-bold text-foreground truncate">{seller.name}</p>
+          {isCompany && (
+            <span className="text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full border border-primary/20 flex-shrink-0">Empresa</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+          {seller.province && (
+            <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+              <MapPin className="w-3 h-3" />{seller.province}
+            </span>
+          )}
+          {seller.rating && (
+            <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+              <Star className="w-3 h-3 fill-secondary text-secondary" />{seller.rating}
+            </span>
+          )}
+          {/* total_sales removed — not shown on mobile or desktop */}
+        </div>
+      </div>
+      <div className="flex items-center gap-1 flex-shrink-0">
+        <span className="text-[10px] font-bold text-primary hidden sm:block">Ver perfil</span>
+        <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+      </div>
+    </button>
+  );
+};
+
+// ─── Main Component ────────────────────────────────────────────────────────────
+const ProductDetail = () => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const addToCart = useAddToCart();
+  const { trackEvent } = useProductTracking();
+
+  const [qty, setQty] = useState(1);
+  const [selectedImage, setSelectedImage] = useState(0);
+  const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
+  const [selectedSubVariants, setSelectedSubVariants] = useState<Record<string, string>>({});
+  const [zoomOpen, setZoomOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const touchStartX = useRef<number | null>(null);
+  const viewTracked = useRef(false);
+
+  const isUuid = id && id.length > 10;
+
+  const { data: dbProduct, isLoading: loadingProduct } = useProduct(id || "");
+
+  const { data: dbMedia = [] } = useQuery({
+    queryKey: ["product_media_detail", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("product_media").select("*").eq("product_id", id!).order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!isUuid,
+  });
+
+  const { data: dbVariants = [] } = useQuery({
+    queryKey: ["product_variants", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("product_variants").select("*").eq("product_id", id!).eq("is_active", true).order("sort_order");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!isUuid,
+  });
+
+  const { data: productAds = [] } = useQuery({
+    queryKey: ["product_ads_detail"],
+    queryFn: async () => {
+      const { data } = await (supabase as any).from("ads").select("id, title, media_url, media_type, destination_url").eq("type", "banner").eq("is_active", true).order("created_at", { ascending: false }).limit(3);
+      return data || [];
+    },
+  });
+
+  const rawSellerId = (dbProduct as any)?.seller_id || (dbProduct as any)?.sellers?.id || null;
+  const rawCompanyId = (dbProduct as any)?.company_id || null;
+
+  const { data: sellerFull, isLoading: loadingSeller } = useQuery({
+    queryKey: ["seller_full", rawSellerId],
+    queryFn: async () => {
+      const { data } = await supabase.from("sellers").select("id, name, logo_url, avatar_url, is_verified, province, rating, total_sales, type, user_id").eq("id", rawSellerId!).maybeSingle();
+      return data ? { ...data, __type: "seller" } : null;
+    },
+    enabled: !!rawSellerId,
+  });
+
+  const { data: companyFull, isLoading: loadingCompany } = useQuery({
+    queryKey: ["company_full", rawCompanyId],
+    queryFn: async () => {
+      const { data } = await (supabase as any).from("companies").select("id, name, logo_url, is_verified, province, rating, total_reviews, total_sales").eq("id", rawCompanyId!).maybeSingle();
+      return data ? { ...data, __type: "company" } : null;
+    },
+    enabled: !!rawCompanyId,
+  });
+
+  const loadingPublisher = (!!rawSellerId && loadingSeller) || (!!rawCompanyId && loadingCompany);
+  const publisher: any = sellerFull || companyFull || null;
+
+  // ── Track page view when product loads ────────────────────────────────────
+  useEffect(() => {
+    if (!dbProduct || !isUuid || viewTracked.current) return;
+    viewTracked.current = true;
+    const p = dbProduct as any;
+    trackEvent(id!, "view", {
+      title: p.title,
+      price: p.price,
+      old_price: p.old_price,
+      discount_percent: p.discount_percent,
+      category_id: p.category_id,
+      seller_id: p.seller_id,
+      company_id: p.company_id,
+      rating: p.rating,
+      total_reviews: p.total_reviews,
+      free_shipping: p.free_shipping,
+      badge: p.badge,
+      is_sponsored: p.is_sponsored,
+      description_length: p.description?.length || 0,
+    });
+  }, [dbProduct, id, isUuid, trackEvent]);
+
+  const handlePublisherNavigate = () => {
+    if (!publisher) return;
+    trackEvent(id!, "seller_view", {
+      seller_id: publisher.id,
+      seller_type: publisher.__type,
+      seller_name: publisher.name,
+    });
+    if (publisher.__type === "company") navigate(`/empresa/${publisher.id ?? rawCompanyId}`);
+    else navigate(`/vendedor/${publisher.id ?? rawSellerId}`);
+  };
+
+  const { data: isFavorited = false } = useQuery({
+    queryKey: ["favorite", id, user?.id],
+    queryFn: async () => {
+      const { data } = await supabase.from("wishlists").select("id").eq("user_id", user!.id).eq("product_id", id!).maybeSingle();
+      return !!data;
+    },
+    enabled: !!user && !!isUuid,
+  });
+
+  const toggleFavorite = useMutation({
     mutationFn: async () => {
-      setUploading(true);
-      let mediaUrl: string | null = null;
-      let mediaType: "image" | "video" | null = null;
-      if (file) {
-        const ext = file.name.split(".").pop();
-        const isVideo = file.type.startsWith("video/");
-        mediaType = isVideo ? "video" : "image";
-        const path = `ads/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-        const { error: upErr } = await (supabase as any).storage.from("ads").upload(path, file, { upsert: true });
-        if (upErr) throw upErr;
-        const { data: urlData } = (supabase as any).storage.from("ads").getPublicUrl(path);
-        mediaUrl = urlData.publicUrl;
+      if (isFavorited) await supabase.from("wishlists").delete().eq("user_id", user!.id).eq("product_id", id!);
+      else await supabase.from("wishlists").insert({ user_id: user!.id, product_id: id! });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["favorite", id, user?.id] });
+      trackEvent(id!, "favorite", { action: isFavorited ? "remove" : "add" });
+      toast.success(isFavorited ? "Removido dos favoritos" : "Adicionado aos favoritos ❤️");
+    },
+    onError: () => toast.error("Erro ao atualizar favoritos"),
+  });
+
+  const handleFavorite = () => {
+    if (!user) { navigate("/auth"); return; }
+    toggleFavorite.mutate();
+  };
+
+  const getVariantId = () =>
+    Object.values(selectedSubVariants).find(Boolean) || Object.values(selectedVariants).find(Boolean) || undefined;
+
+  const handleAddToCart = () => {
+    if (!user) { navigate("/auth"); return; }
+    if (!isUuid) { toast.info("Produto de demonstração"); return; }
+    trackEvent(id!, "add_to_cart", { quantity: qty, variant_id: getVariantId() });
+    addToCart.mutate({ productId: id!, quantity: qty, variantId: getVariantId() });
+  };
+
+  const handleBuyNow = () => {
+    if (!user) { navigate("/auth"); return; }
+    if (!isUuid) { toast.info("Produto de demonstração"); return; }
+    trackEvent(id!, "buy_now", { quantity: qty, variant_id: getVariantId() });
+    addToCart.mutate({ productId: id!, quantity: qty, variantId: getVariantId() }, { onSuccess: () => navigate("/checkout") });
+  };
+
+  const handleShare = () => {
+    trackEvent(id!, "share", { method: navigator.share ? "native" : "clipboard" });
+    setShareOpen(true);
+  };
+
+  const handleZoom = () => {
+    trackEvent(id!, "image_zoom", { image_index: selectedImage });
+    setZoomOpen(true);
+  };
+
+  const { data: userOrders = [] } = useQuery({
+    queryKey: ["user_delivered_orders_for_product", id, user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("orders").select("id, order_items!inner(product_id)").eq("user_id", user!.id).eq("status", "delivered").eq("order_items.product_id", id!);
+      if (error) return [];
+      return data || [];
+    },
+    enabled: !!user && !!isUuid,
+  });
+
+  const { data: dbReviews = [] } = useQuery({
+    queryKey: ["product_reviews_detail", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("product_reviews").select("*").eq("product_id", id!).order("created_at", { ascending: false });
+      if (error) return [];
+      const uids = [...new Set((data || []).map((r: any) => r.user_id))];
+      let pMap: Record<string, any> = {};
+      if (uids.length > 0) {
+        const { data: profs } = await supabase.from("profiles").select("id, full_name, avatar_url").in("id", uids);
+        pMap = Object.fromEntries((profs || []).map((p: any) => [p.id, p]));
       }
-      const { error } = await (supabase as any).from("ads").insert({
-        type: adType, title: title || null, media_url: mediaUrl, media_type: mediaType,
-        destination_url: destinationUrl || null, ref_id: refId || null, is_active: true,
+      const rids = (data || []).map((r: any) => r.id);
+      let repMap: Record<string, any[]> = {};
+      if (rids.length > 0) {
+        const { data: reps } = await supabase.from("review_replies").select("*").in("review_id", rids).order("created_at");
+        if (reps) {
+          const ruids = [...new Set(reps.map((r: any) => r.user_id))];
+          let rpMap: Record<string, any> = {};
+          if (ruids.length > 0) {
+            const { data: rp } = await supabase.from("profiles").select("id, full_name").in("id", ruids);
+            rpMap = Object.fromEntries((rp || []).map((p: any) => [p.id, p]));
+          }
+          reps.forEach((r: any) => {
+            if (!repMap[r.review_id]) repMap[r.review_id] = [];
+            repMap[r.review_id].push({ ...r, profile: rpMap[r.user_id] || null });
+          });
+        }
+      }
+      return (data || []).map((r: any) => ({ ...r, profile: pMap[r.user_id] || null, replies: repMap[r.id] || [] }));
+    },
+    enabled: !!isUuid,
+  });
+
+  const categoryId = (dbProduct as any)?.category_id;
+  const { data: relatedDb = [] } = useQuery({
+    queryKey: ["related_products", id, categoryId, rawSellerId],
+    queryFn: async () => {
+      const collected: any[] = [];
+      const seen = new Set<string>([id!]);
+      const fetchSet = async (filter: (q: any) => any, limit: number) => {
+        const { data } = await filter(supabase.from("products").select("*").eq("is_active", true).neq("id", id!).limit(limit));
+        (data || []).forEach((p: any) => { if (!seen.has(p.id)) { seen.add(p.id); collected.push(p); } });
+      };
+      if (categoryId) await fetchSet(q => q.eq("category_id", categoryId).order("sales_count", { ascending: false }), 30);
+      if (rawSellerId && collected.length < 30) await fetchSet(q => q.eq("seller_id", rawSellerId).order("sales_count", { ascending: false }), 20);
+      if (collected.length < 30) await fetchSet(q => q.order("sales_count", { ascending: false }), 30);
+      const ids = collected.map((p: any) => p.id);
+      const cMap: Record<string, string> = {};
+      if (ids.length > 0) {
+        const { data: m } = await supabase.from("product_media").select("product_id, url").in("product_id", ids).eq("is_cover", true);
+        (m || []).forEach((x: any) => { cMap[x.product_id] = x.url; });
+      }
+      return collected.map((p: any) => ({
+        id: p.id, title: p.title, price: fmt(p.price),
+        oldPrice: p.old_price ? fmt(p.old_price) : undefined,
+        discount: p.discount_percent ? `-${p.discount_percent}%` : undefined,
+        image: cMap[p.id] || p.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&h=600&fit=crop",
+        rating: p.rating || undefined, reviews: p.total_reviews || undefined,
+        freeShipping: p.free_shipping || false, badge: p.badge || undefined,
+      }));
+    },
+    enabled: !!isUuid && !!dbProduct,
+  });
+
+  const { data: sponsoredProducts = [] } = useQuery({
+    queryKey: ["sponsored_products", id],
+    queryFn: async () => {
+      const { data } = await (supabase as any).from("products").select("id, title, price, old_price, discount_percent, image_url, free_shipping, badge, rating, total_reviews, sellers(id, name, avatar_url, rating, total_sales)").eq("is_active", true).eq("is_sponsored", true).neq("id", id!).limit(6);
+      const list = data || [];
+      const ids = list.map((p: any) => p.id);
+      const cMap: Record<string, string> = {};
+      if (ids.length > 0) {
+        const { data: m } = await supabase.from("product_media").select("product_id, url").in("product_id", ids).eq("is_cover", true);
+        (m || []).forEach((x: any) => { cMap[x.product_id] = x.url; });
+      }
+      return list.map((p: any) => ({ ...p, image: cMap[p.id] || p.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop", priceFormatted: fmt(p.price) }));
+    },
+    enabled: !!isUuid,
+  });
+
+  const sponsoredSellers = (() => {
+    const seen = new Set<string>();
+    const out: any[] = [];
+    for (const p of sponsoredProducts as any[]) {
+      const s = p.sellers;
+      if (s && !seen.has(s.id)) { seen.add(s.id); out.push(s); }
+      if (out.length >= 2) break;
+    }
+    return out;
+  })();
+
+  if (!dbProduct && isUuid && loadingProduct) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  const staticProduct = allProducts.find(p => p.id === Number(id));
+  const productBase: any = dbProduct || staticProduct;
+  if (!productBase) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center text-center px-6">
+        <div>
+          <h2 className="text-lg font-bold text-foreground mb-2">Produto não encontrado</h2>
+          <button onClick={() => navigate("/")} className="text-sm text-primary font-semibold">Voltar à home</button>
+        </div>
+      </div>
+    );
+  }
+
+  const coverUrl =
+    dbMedia.find((m: any) => m.is_cover)?.url || dbMedia[0]?.url || productBase.image_url ||
+    "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&h=600&fit=crop";
+
+  const product = {
+    id: productBase.id, title: productBase.title, price: fmt(productBase.price),
+    oldPrice: productBase.old_price ? fmt(productBase.old_price) : undefined,
+    discount: productBase.discount_percent ? `-${productBase.discount_percent}%` : undefined,
+    image: coverUrl, rating: productBase.rating || undefined,
+    reviews: productBase.total_reviews || undefined, freeShipping: productBase.free_shipping || false,
+    badge: productBase.badge || undefined, description: productBase.description || "",
+    category_id: productBase.category_id,
+    seller_id: productBase.seller_id,
+    company_id: productBase.company_id,
+  };
+
+  const parentVariants = (dbVariants as any[]).filter((v: any) => !v.parent_id);
+  const childVariants = (dbVariants as any[]).filter((v: any) => v.parent_id);
+  const variantGroups: Record<string, any[]> = {};
+  parentVariants.forEach((v: any) => {
+    if (!variantGroups[v.variant_type]) variantGroups[v.variant_type] = [];
+    variantGroups[v.variant_type].push(v);
+  });
+  const selectedParentIds = Object.values(selectedVariants).filter(Boolean);
+  const activeChildren = childVariants.filter((c: any) => selectedParentIds.includes(c.parent_id));
+  const childGroups: Record<string, any[]> = {};
+  activeChildren.forEach((v: any) => {
+    if (!childGroups[v.variant_type]) childGroups[v.variant_type] = [];
+    childGroups[v.variant_type].push(v);
+  });
+  const allSelIds = [...Object.values(selectedVariants), ...Object.values(selectedSubVariants)].filter(Boolean);
+  const activeVariant = (dbVariants as any[]).find((v: any) => allSelIds.includes(v.id) && v.price_override);
+  const activePrice = activeVariant?.price_override ? fmt(activeVariant.price_override) : product.price;
+  const variantImage = activeVariant?.image_url || null;
+
+  const images = dbMedia.length > 0 ? dbMedia.map((m: any) => ({ url: m.url, type: m.type || "image" })) : [{ url: product.image, type: "image" }];
+  const displayImages = variantImage ? [{ url: variantImage, type: "image" }, ...images.filter(i => i.url !== variantImage)] : images;
+  const currentImageUrl = displayImages[selectedImage]?.url || product.image;
+
+  const relatedProducts = relatedDb.slice(0, 10);
+  const moreToExplore = relatedDb.slice(10, 20);
+  const alsoLike = relatedDb.length > 5 ? relatedDb.slice(5, 15) : relatedDb.slice(0, 10);
+  const popularityBadge = product.reviews && product.reviews > 200 ? `Em ${Math.floor(product.reviews / 5)}+ carrinhos` : null;
+
+  const typeLabels: Record<string, string> = {
+    color: "Cor", size: "Tamanho", material: "Material", style: "Estilo",
+    weight: "Peso", capacity: "Capacidade", model: "Modelo",
+    voltage: "Voltagem", pack: "Pacote", other: "Opção",
+  };
+
+  return (
+    <div className="min-h-screen bg-background pb-28 md:pb-0">
+      {shareOpen && <ShareSheet title={product.title} imageUrl={currentImageUrl} url={window.location.href} onClose={() => setShareOpen(false)} />}
+      {zoomOpen && <ZoomLightbox images={displayImages} index={selectedImage} onClose={() => setZoomOpen(false)} onChange={setSelectedImage} onShare={() => { setZoomOpen(false); setShareOpen(true); }} />}
+
+      <div className="container mx-auto px-3 pt-3 flex items-center justify-between gap-3">
+        <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-full hover:bg-muted flex items-center justify-center transition"><ArrowLeft className="w-5 h-5 text-foreground" /></button>
+        <span className="text-sm font-bold text-foreground truncate flex-1">{product.title}</span>
+        <button onClick={handleShare} className="w-9 h-9 rounded-full hover:bg-muted flex items-center justify-center transition"><Share2 className="w-5 h-5 text-foreground" /></button>
+      </div>
+
+      <div className="md:container md:mx-auto md:px-4 md:py-6">
+        <div className="md:grid md:grid-cols-2 md:gap-6 lg:gap-10">
+
+          {/* LEFT */}
+          <div>
+            <div className="bg-card px-4 pt-3 pb-2 md:hidden">
+              {product.rating && (
+                <div className="flex items-center gap-1 mb-1">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Star key={i} className={`w-3.5 h-3.5 ${i < Math.floor(product.rating!) ? "text-secondary fill-secondary" : "text-border"}`} />
+                  ))}
+                  <span className="text-xs text-muted-foreground ml-1">({product.rating}) | {product.reviews}</span>
+                </div>
+              )}
+              <h1 className="text-sm font-bold text-foreground leading-snug">{product.title}</h1>
+              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                {popularityBadge && <span className="px-2 py-0.5 rounded-sm text-[10px] font-bold border border-primary text-primary bg-primary/5">{popularityBadge}</span>}
+                {product.discount && <span className="px-2 py-0.5 rounded-sm text-[10px] font-bold border border-walmart-green text-walmart-green bg-walmart-green/5">Clearance</span>}
+                {product.badge === "HOT" && <span className="px-2 py-0.5 rounded-sm text-[10px] font-bold border border-walmart-red text-walmart-red bg-walmart-red/5">Best seller</span>}
+              </div>
+            </div>
+
+            <div className="bg-card md:rounded-card md:border md:border-border">
+              <div
+                className="aspect-square relative overflow-hidden md:rounded-t-card md:max-h-[450px] select-none"
+                onTouchStart={e => { touchStartX.current = e.touches[0].clientX; }}
+                onTouchEnd={e => {
+                  if (touchStartX.current === null) return;
+                  const diff = touchStartX.current - e.changedTouches[0].clientX;
+                  if (Math.abs(diff) > 40) setSelectedImage(i => diff > 0 ? Math.min(i + 1, displayImages.length - 1) : Math.max(i - 1, 0));
+                  touchStartX.current = null;
+                }}
+              >
+                {displayImages[selectedImage]?.type === "video"
+                  ? <video src={displayImages[selectedImage].url} controls className="w-full h-full object-cover" />
+                  : <img src={displayImages[selectedImage]?.url} alt={product.title} className="w-full h-full object-cover" />}
+                {displayImages.length > 1 && (
+                  <div className="absolute bottom-10 left-0 right-0 flex justify-center gap-1.5 pointer-events-none">
+                    {displayImages.map((_, i) => (
+                      <span key={i} className={`rounded-full transition-all duration-200 ${i === selectedImage ? "w-4 h-1.5 bg-white" : "w-1.5 h-1.5 bg-white/50"}`} />
+                    ))}
+                  </div>
+                )}
+                <div className="absolute right-3 top-1/3 flex flex-col gap-2">
+                  <button onClick={handleShare} className="w-9 h-9 rounded-full bg-card/90 shadow-md flex items-center justify-center active:scale-95 transition">
+                    <Share2 className="w-4 h-4 text-foreground" />
+                  </button>
+                  {/* ── Favorite: correct filled state ── */}
+                  <button
+                    onClick={handleFavorite}
+                    className="w-9 h-9 rounded-full bg-card/90 shadow-md flex items-center justify-center active:scale-95 transition"
+                    aria-label={isFavorited ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+                  >
+                    <Heart
+                      className={`w-4 h-4 transition-all duration-200 ${
+                        isFavorited ? "text-red-500 fill-red-500 scale-110" : "text-foreground"
+                      }`}
+                    />
+                  </button>
+                  <button onClick={handleZoom} className="w-9 h-9 rounded-full bg-card/90 shadow-md flex items-center justify-center active:scale-95 transition">
+                    <ZoomIn className="w-4 h-4 text-foreground" />
+                  </button>
+                </div>
+              </div>
+              <div className="flex gap-2 p-3 overflow-x-auto scrollbar-hide">
+                {displayImages.map((img, i) => (
+                  <button key={i} onClick={() => setSelectedImage(i)}
+                    className={`flex-shrink-0 w-14 h-14 rounded-card overflow-hidden border-2 transition ${i === selectedImage ? "border-primary" : "border-border hover:border-primary/40"}`}>
+                    {img.type === "video" ? <video src={img.url} className="w-full h-full object-cover" /> : <img src={img.url} alt="" className="w-full h-full object-cover" />}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {productAds.length > 0 && (
+              <div className="hidden md:block mt-4 space-y-3">
+                <p className="text-[10px] text-muted-foreground text-right">Publicidade</p>
+                {productAds.map((ad: any) => {
+                  const isVid = ad.media_type === "video";
+                  const inner = (
+                    <div className="rounded-card border border-border overflow-hidden hover:shadow-md hover:border-primary/30 transition-all group">
+                      {ad.media_url ? (
+                        <div className="relative">
+                          {isVid ? <video src={ad.media_url} className="w-full object-cover max-h-36" autoPlay muted loop playsInline /> : <img src={ad.media_url} alt={ad.title || ""} className="w-full object-cover max-h-36 group-hover:scale-[1.01] transition-transform" />}
+                          {ad.title && <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent px-3 py-2"><p className="text-white text-xs font-bold truncate">{ad.title}</p></div>}
+                          <span className="absolute top-2 right-2 text-[9px] font-bold text-white/80 bg-black/40 px-1.5 py-0.5 rounded-full">Patrocinado</span>
+                        </div>
+                      ) : (
+                        <div className="bg-muted px-4 py-3 flex items-center justify-between gap-3">
+                          <p className="text-sm font-bold text-foreground truncate">{ad.title}</p>
+                          <span className="text-[10px] font-bold text-primary border border-primary/30 rounded-full px-2 py-0.5">Ver mais</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                  return ad.destination_url ? <a key={ad.id} href={ad.destination_url} target="_blank" rel="noopener noreferrer" className="block">{inner}</a> : <div key={ad.id}>{inner}</div>;
+                })}
+              </div>
+            )}
+
+            {sponsoredSellers.length > 0 && (
+              <div className="hidden md:block mt-4">
+                <p className="text-[10px] text-muted-foreground text-right mb-2">Patrocinado</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {sponsoredSellers.map((s: any) => (
+                    <div key={s.id} onClick={() => navigate(`/vendedor/${s.id}`)} className="bg-card rounded-card border border-border p-3 hover:shadow-md transition cursor-pointer">
+                      <div className="flex items-center gap-2 mb-2">
+                        {s.avatar_url ? <img src={s.avatar_url} alt={s.name} className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center"><Store className="w-4 h-4 text-primary" /></div>}
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-foreground truncate">{s.name}</p>
+                          {/* total_sales removed */}
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="text-muted-foreground">{s.rating ? `⭐ ${s.rating}` : ""}</span>
+                        <span className="px-2 py-1 rounded-card text-primary border border-primary/20 font-bold">Ver loja</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT */}
+          <div>
+            <div className="hidden md:block mb-4">
+              {product.rating && (
+                <div className="flex items-center gap-1.5 mb-2">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Star key={i} className={`w-4 h-4 ${i < Math.floor(product.rating!) ? "text-secondary fill-secondary" : "text-border"}`} />
+                  ))}
+                  <span className="text-sm text-muted-foreground ml-1">({product.rating})</span>
+                  <span className="text-sm text-primary font-semibold ml-1">| {product.reviews} avaliações</span>
+                </div>
+              )}
+              <h1 className="text-xl font-bold text-foreground leading-snug">{product.title}</h1>
+              <div className="flex flex-wrap gap-1.5 mt-3">
+                {popularityBadge && <span className="px-2 py-0.5 rounded-sm text-[10px] font-bold border border-primary text-primary bg-primary/5">{popularityBadge}</span>}
+                {product.discount && <span className="px-2 py-0.5 rounded-sm text-[10px] font-bold border border-walmart-green text-walmart-green bg-walmart-green/5">Clearance</span>}
+                {product.badge === "HOT" && <span className="px-2 py-0.5 rounded-sm text-[10px] font-bold border border-walmart-red text-walmart-red bg-walmart-red/5">Best seller</span>}
+              </div>
+            </div>
+
+            <SellerCard seller={publisher} onNavigate={handlePublisherNavigate} isLoading={loadingPublisher} />
+
+            <div className="bg-card mt-0.5 md:mt-0 p-4 md:rounded-card md:border md:border-border">
+              <div className="flex items-baseline gap-1">
+                {product.discount && <span className="text-sm font-bold text-walmart-green mr-1">Now</span>}
+                <span className="text-2xl font-black text-foreground">{activePrice}</span>
+              </div>
+              {product.oldPrice && (
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-sm text-muted-foreground line-through">{product.oldPrice}</span>
+                  {product.discount && <span className="text-xs font-bold text-walmart-green">Poupa {product.discount}</span>}
+                </div>
+              )}
+              {product.freeShipping && (
+                <div className="flex items-center gap-1.5 mt-3 text-xs text-walmart-green font-semibold">
+                  <Truck className="w-4 h-4" /><span>Frete grátis para Luanda</span>
+                </div>
+              )}
+
+              {Object.keys(variantGroups).length > 0 && (
+                <div className="mt-4 space-y-3">
+                  {Object.entries(variantGroups).map(([type, variants]) => {
+                    const selId = selectedVariants[type];
+                    return (
+                      <div key={type}>
+                        <p className="text-[11px] font-bold text-muted-foreground mb-1.5">
+                          {typeLabels[type] || type}
+                          {selId && <span className="text-foreground ml-1">: {variants.find((v: any) => v.id === selId)?.name}</span>}
+                        </p>
+                        <div className="flex gap-2 flex-wrap">
+                          {variants.map((v: any) => {
+                            const isSel = selId === v.id;
+                            if (type === "color" && v.value?.startsWith("#")) {
+                              return (
+                                <button key={v.id}
+                                  onClick={() => {
+                                    setSelectedVariants(p => ({ ...p, [type]: isSel ? "" : v.id }));
+                                    if (isSel) setSelectedSubVariants({});
+                                    trackEvent(id!, "variant_select", { variant_type: type, variant_name: v.name, variant_id: v.id });
+                                  }}
+                                  className={`relative rounded-lg border-2 overflow-hidden transition ${isSel ? "border-primary ring-1 ring-primary" : "border-border"}`} title={v.name}>
+                                  {v.image_url ? <img src={v.image_url} alt={v.name} className="w-10 h-10 object-cover" /> : <div className="w-10 h-10 flex items-center justify-center"><div className="w-7 h-7 rounded-full border border-border" style={{ backgroundColor: v.value }} /></div>}
+                                  {v.price_override && <span className="absolute bottom-0 inset-x-0 text-center bg-background/80 text-[7px] font-bold leading-tight py-0.5">{fmt(v.price_override)}</span>}
+                                </button>
+                              );
+                            }
+                            return (
+                              <button key={v.id}
+                                onClick={() => {
+                                  setSelectedVariants(p => ({ ...p, [type]: isSel ? "" : v.id }));
+                                  if (isSel) setSelectedSubVariants({});
+                                  trackEvent(id!, "variant_select", { variant_type: type, variant_name: v.name, variant_id: v.id });
+                                }}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${isSel ? "bg-primary text-primary-foreground border-primary" : "bg-muted text-foreground border-border hover:border-primary/50"}`}>
+                                {v.name}
+                                {v.price_override && <span className="block text-[9px] font-normal opacity-80">{fmt(v.price_override)}</span>}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {Object.entries(childGroups).map(([type, variants]) => {
+                    const selId = selectedSubVariants[type];
+                    return (
+                      <div key={`sub-${type}`}>
+                        <p className="text-[11px] font-bold text-muted-foreground mb-1.5">
+                          {typeLabels[type] || type}
+                          {selId && <span className="text-foreground ml-1">: {variants.find((v: any) => v.id === selId)?.name}</span>}
+                        </p>
+                        <div className="flex gap-2 flex-wrap">
+                          {variants.map((v: any) => {
+                            const isSel = selId === v.id;
+                            return (
+                              <button key={v.id}
+                                onClick={() => {
+                                  setSelectedSubVariants(p => ({ ...p, [type]: isSel ? "" : v.id }));
+                                  trackEvent(id!, "variant_select", { variant_type: type, variant_name: v.name, variant_id: v.id });
+                                }}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${isSel ? "bg-primary text-primary-foreground border-primary" : "bg-muted text-foreground border-border hover:border-primary/50"}`}>
+                                {v.name}
+                                {v.price_override && <span className="block text-[9px] font-normal opacity-80">{fmt(v.price_override)}</span>}
+                                {v.stock != null && v.stock <= 3 && v.stock > 0 && <span className="block text-[8px] text-amber-500">Restam {v.stock}</span>}
+                                {v.stock === 0 && <span className="block text-[8px] text-destructive">Esgotado</span>}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="hidden md:block mt-5 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center border border-border rounded-card">
+                    <button onClick={() => setQty(q => Math.max(1, q - 1))} className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:bg-muted transition"><Minus className="w-4 h-4" /></button>
+                    <span className="w-9 text-center text-sm font-bold">{qty}</span>
+                    <button onClick={() => setQty(q => q + 1)} className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:bg-muted transition"><Plus className="w-4 h-4" /></button>
+                  </div>
+                  <button onClick={handleAddToCart} disabled={addToCart.isPending}
+                    className="flex-1 py-3 rounded-full border-2 border-primary text-primary font-bold text-sm hover:bg-primary/5 transition flex items-center justify-center gap-2 disabled:opacity-50">
+                    {addToCart.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />}
+                    Adicionar ao carrinho
+                  </button>
+                </div>
+                <button onClick={handleBuyNow} disabled={addToCart.isPending}
+                  className="w-full py-3 rounded-full bg-primary text-primary-foreground font-bold text-sm hover:brightness-110 transition flex items-center justify-center gap-2 disabled:opacity-50">
+                  {addToCart.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Comprar agora
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-card mt-2 p-4 md:rounded-card md:border md:border-border">
+              <h3 className="text-sm font-bold text-foreground mb-3">Entrega</h3>
+              <div className="flex items-start gap-3 text-xs text-foreground">
+                <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-semibold">Enviar para Luanda, Angola</p>
+                  <p className="text-muted-foreground mt-0.5">Entrega estimada: 2-5 dias úteis</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              </div>
+              <div className="flex items-start gap-3 text-xs text-foreground mt-3">
+                <Shield className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-semibold">Garantia do vendedor</p>
+                  <p className="text-muted-foreground mt-0.5">Devolução grátis até 30 dias</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-card mt-2 p-4 md:rounded-card md:border md:border-border">
+              <h3 className="text-sm font-bold text-foreground mb-2">Descrição</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-line">
+                {product.description || "Produto de alta qualidade disponível no Kwanza Market."}
+              </p>
+              <ul className="text-xs text-muted-foreground mt-3 space-y-1.5">
+                <li>• Produto original com garantia</li>
+                <li>• Envio para todo o país</li>
+                <li>• Pagamento seguro</li>
+                <li>• Suporte ao cliente 24/7</li>
+              </ul>
+            </div>
+
+            {/* Sponsored sellers mobile — sem total_sales */}
+            {sponsoredSellers.length > 0 && (
+              <div className="md:hidden bg-card mt-2 p-4">
+                <p className="text-[10px] text-muted-foreground text-right mb-2">Patrocinado</p>
+                {sponsoredSellers.map((s: any, i: number) => (
+                  <div key={s.id} onClick={() => navigate(`/vendedor/${s.id}`)}
+                    className={`flex items-center gap-3 py-3 cursor-pointer ${i !== sponsoredSellers.length - 1 ? "border-b border-border" : ""}`}>
+                    {s.avatar_url ? <img src={s.avatar_url} alt={s.name} className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center"><Store className="w-4 h-4 text-primary" /></div>}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-foreground truncate">{s.name}</p>
+                      <p className="text-[10px] text-muted-foreground">{s.rating ? `⭐ ${s.rating}` : ""}</p>
+                    </div>
+                    <span className="px-3 py-1.5 rounded-card text-[10px] font-bold text-primary border border-primary/20 flex-shrink-0">Ver loja</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {(() => {
+              const sp: any = (sponsoredProducts as any[]).find((p: any) => p.id !== product.id);
+              if (!sp) return null;
+              return (
+                <div className="bg-card mt-2 p-4 md:rounded-card md:border md:border-border">
+                  <p className="text-[10px] text-muted-foreground text-right mb-2">Patrocinado</p>
+                  <div onClick={() => navigate(`/produto/${sp.id}`)} className="flex items-center gap-3 p-3 border border-border rounded-card cursor-pointer hover:bg-muted/50 transition">
+                    <img src={sp.image} alt={sp.title} className="w-20 h-20 rounded-card object-cover" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-black text-foreground">{sp.priceFormatted}</p>
+                      <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{sp.title}</p>
+                      <button className="mt-2 px-4 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-bold">Ver produto</button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      </div>
+
+      <ProductReviewsSection
+        productId={id || ""}
+        product={product}
+        dbReviews={dbReviews}
+        userOrders={userOrders}
+        trackEvent={trackEvent}
+      />
+
+      {/* ── Related / Explore / Also Like — SEM label "Patrocinado", cards sem moldura visível ── */}
+      {[
+        { title: "Produtos relacionados", list: relatedProducts, section: "related" },
+        { title: "Mais para explorar",    list: moreToExplore,   section: "more_explore" },
+        { title: "Também pode gostar",    list: alsoLike,         section: "also_like" },
+      ].map(({ title, list, section }) => list.length > 0 && (
+        <div key={title} className="mt-2 bg-card p-4 md:container md:mx-auto md:rounded-card md:border md:border-border md:my-4">
+          {/* Header: ONLY the title, no "Patrocinado" */}
+          <h3 className="text-base font-black text-foreground mb-3">{title}</h3>
+          <ProductCarousel>
+            {list.map((p: any) => (
+              <div
+                key={p.id}
+                onClick={() =>
+                  trackEvent(id!, "card_tap", {
+                    tapped_product_id: p.id,
+                    tapped_product_title: p.title,
+                    tapped_product_price: p.price,
+                    tapped_has_discount: !!p.discount,
+                    tapped_rating: p.rating,
+                    section,
+                    source_product_id: id,
+                    source_product_title: product.title,
+                    source_category_id: product.category_id,
+                  })
+                }
+                // Invisible border & no shadow on the card wrapper
+                className="[&>*]:border-transparent [&>*]:shadow-none"
+              >
+                <ProductCard product={p} />
+              </div>
+            ))}
+          </ProductCarousel>
+        </div>
+      ))}
+
+      {/* ── Mobile sticky bottom bar — pb-28 on page ensures content clears it ── */}
+      <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border px-3 pt-2 pb-safe-or-4 z-50 md:hidden" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-[10px] text-muted-foreground font-semibold">Qtd:</span>
+          <div className="flex items-center border border-border rounded-lg">
+            <button onClick={() => setQty(q => Math.max(1, q - 1))} className="w-8 h-8 flex items-center justify-center text-muted-foreground hover:bg-muted transition"><Minus className="w-3.5 h-3.5" /></button>
+            <span className="w-8 text-center text-sm font-bold">{qty}</span>
+            <button onClick={() => setQty(q => q + 1)} className="w-8 h-8 flex items-center justify-center text-muted-foreground hover:bg-muted transition"><Plus className="w-3.5 h-3.5" /></button>
+          </div>
+          <span className="text-sm font-black text-foreground ml-auto">{activePrice}</span>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={handleAddToCart} disabled={addToCart.isPending}
+            className="flex-1 py-3 rounded-full border-2 border-primary text-primary font-bold text-sm hover:bg-primary/5 transition flex items-center justify-center gap-1.5 disabled:opacity-50">
+            {addToCart.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />}
+            Carrinho
+          </button>
+          <button onClick={handleBuyNow} disabled={addToCart.isPending}
+            className="flex-1 py-3 rounded-full bg-primary text-primary-foreground font-bold text-sm hover:brightness-110 transition flex items-center justify-center gap-1.5 disabled:opacity-50">
+            Comprar agora
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── Reviews Section ───────────────────────────────────────────────────────────
+const ProductReviewsSection = ({
+  productId, product, dbReviews, userOrders, trackEvent,
+}: {
+  productId: string;
+  product: any;
+  dbReviews: any[];
+  userOrders: any[];
+  trackEvent: (productId: string, event: any, meta?: any) => Promise<void>;
+}) => {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState("");
+  const [reviewImage, setReviewImage] = useState("");
+  const [uploadingImg, setUploadingImg] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+
+  const reviews = dbReviews.length > 0 ? dbReviews : null;
+  const alreadyReviewed = reviews?.some((r: any) => r.user_id === user?.id);
+  const canReview = user && userOrders.length > 0 && !alreadyReviewed;
+
+  useEffect(() => {
+    if (reviews && reviews.length > 0 && productId) {
+      trackEvent(productId, "review_read", { review_count: reviews.length, avg_rating: product.rating });
+    }
+  }, [reviews?.length]);
+
+  const uploadImg = async (file: File) => {
+    setUploadingImg(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const path = `reviews/${user!.id}/${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from("products").upload(path, file);
+      if (error) throw error;
+      const { data } = supabase.storage.from("products").getPublicUrl(path);
+      setReviewImage(data.publicUrl);
+    } catch (e: any) { console.error(e.message); }
+    setUploadingImg(false);
+  };
+
+  const submitReview = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("product_reviews").insert({
+        product_id: productId, user_id: user!.id, order_id: userOrders[0]?.id,
+        rating: reviewRating, comment: reviewComment || null, image_url: reviewImage || null,
       });
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_ads"] }); toast.success("Anúncio criado com sucesso!"); onClose(); },
-    onError: (e: any) => { toast.error(e.message); setUploading(false); },
-    onSettled: () => setUploading(false),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["product_reviews_detail", productId] });
+      queryClient.invalidateQueries({ queryKey: ["product", productId] });
+      setReviewComment(""); setReviewRating(5); setReviewImage(""); setShowForm(false);
+    },
   });
 
-  const canSubmit = isAuto ? true : needsEntity ? !!refId : needsMedia ? !!file : true;
+  const submitReply = useMutation({
+    mutationFn: async (reviewId: string) => {
+      const { error } = await supabase.from("review_replies").insert({
+        review_id: reviewId, review_type: "product", user_id: user!.id, content: replyText,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["product_reviews_detail", productId] });
+      setReplyText(""); setReplyingTo(null);
+    },
+  });
 
   return (
-    <div className="bg-card rounded-xl border border-border p-4 mb-4">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-black text-foreground">Novo anúncio</h3>
-        <button onClick={onClose} className="p-1 rounded-lg hover:bg-muted text-muted-foreground"><X className="w-4 h-4" /></button>
-      </div>
-
-      {step === "type" && (
-        <>
-          <p className="text-xs text-muted-foreground mb-3">Que tipo de conteúdo quer promover?</p>
-          <div className="space-y-2">
-            {AD_TYPES.map(t => {
-              const Icon = t.icon;
-              const selected = adType === t.value;
-              return (
-                <button key={t.value} onClick={() => setAdType(t.value)}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition text-left ${selected ? "border-primary bg-primary/5" : "border-border bg-background hover:bg-muted"}`}>
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${selected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
-                    <Icon className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className={`text-xs font-bold ${selected ? "text-primary" : "text-foreground"}`}>{t.label}</p>
-                    <p className="text-[10px] text-muted-foreground">{t.desc}</p>
-                  </div>
-                  {selected && <CheckCircle className="w-4 h-4 text-primary ml-auto flex-shrink-0" />}
-                </button>
-              );
-            })}
-          </div>
-          <button onClick={() => setStep("details")} className="w-full mt-4 py-2.5 bg-primary text-primary-foreground text-xs font-bold rounded-xl">Continuar →</button>
-        </>
-      )}
-
-      {step === "details" && (
-        <>
-          <button onClick={() => setStep("type")} className="text-xs text-primary mb-3 flex items-center gap-1">← Mudar tipo</button>
-          <input placeholder="Título do anúncio (opcional)" value={title} onChange={e => setTitle(e.target.value)}
-            className="w-full px-3 py-2 rounded-xl bg-muted border border-border text-sm text-foreground mb-3" />
-
-          {needsMedia && (
-            <div className="mb-3">
-              {preview ? (
-                <div className="relative rounded-xl overflow-hidden border border-border mb-2">
-                  {file?.type.startsWith("video/") ? <video src={preview} className="w-full max-h-40 object-cover" controls /> : <img src={preview} alt="Preview" className="w-full max-h-40 object-cover" />}
-                  <button onClick={() => { setFile(null); setPreview(null); }} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center"><X className="w-3.5 h-3.5" /></button>
-                </div>
-              ) : (
-                <button onClick={() => fileRef.current?.click()} className="w-full border-2 border-dashed border-border rounded-xl p-6 flex flex-col items-center gap-2 hover:border-primary/50 hover:bg-primary/5 transition">
-                  <Upload className="w-6 h-6 text-muted-foreground" />
-                  <p className="text-xs font-bold text-foreground">Clique para fazer upload</p>
-                  <p className="text-[10px] text-muted-foreground">Imagem (JPG, PNG, WebP) ou vídeo (MP4)</p>
-                </button>
-              )}
-              <input ref={fileRef} type="file" accept="image/*,video/*" className="hidden" onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
-            </div>
-          )}
-
-          {needsEntity && (
-            <div className="mb-3">
-              <p className="text-[11px] font-bold text-muted-foreground mb-2">
-                Selecionar {adType === "empresa" ? "empresa" : adType === "vendedor" ? "vendedor" : adType === "leilao" ? "leilão" : "produto"}
-              </p>
-              {entities.length === 0 ? <p className="text-xs text-muted-foreground text-center py-4">A carregar...</p> : (
-                <div className="max-h-44 overflow-y-auto space-y-1.5 pr-1">
-                  {entities.map((e: any) => (
-                    <button key={e.id} onClick={() => setRefId(e.id)}
-                      className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg border transition text-left ${refId === e.id ? "border-primary bg-primary/5" : "border-border hover:bg-muted"}`}>
-                      {e.image ? <img src={e.image} alt={e.label} className="w-8 h-8 rounded-lg object-cover flex-shrink-0" /> : <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center flex-shrink-0"><ImageIcon className="w-4 h-4 text-muted-foreground" /></div>}
-                      <p className="text-xs font-bold text-foreground truncate">{e.label}</p>
-                      {refId === e.id && <CheckCircle className="w-3.5 h-3.5 text-primary ml-auto flex-shrink-0" />}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {isAuto && (
-            <div className="mb-3 p-3 bg-muted rounded-xl text-xs text-muted-foreground">
-              {adType === "mais_vendidos" ? "🔥 Mostra automaticamente os produtos mais vendidos da plataforma em carrossel." : "⭐ Mostra automaticamente os vendedores com mais seguidores em carrossel."}
-            </div>
-          )}
-
-          {!isAuto && <input placeholder="URL de destino ao clicar (opcional)" value={destinationUrl} onChange={e => setDestinationUrl(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-muted border border-border text-sm text-foreground mb-3" />}
-
-          <button onClick={() => uploadAndCreate.mutate()} disabled={!canSubmit || uploadAndCreate.isPending || uploading}
-            className="w-full py-2.5 bg-primary text-primary-foreground text-xs font-bold rounded-xl disabled:opacity-50 flex items-center justify-center gap-2">
-            {uploading || uploadAndCreate.isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> A publicar...</> : "Publicar anúncio"}
-          </button>
-        </>
-      )}
-    </div>
-  );
-};
-
-// ─── Tab Publicidade ─────────────────────────────────────────────────────────
-const AdminAdsTab = () => {
-  const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-
-  const { data: ads = [], isLoading } = useQuery({
-    queryKey: ["admin_ads"],
-    queryFn: async () => {
-      const { data, error } = await (supabase as any).from("ads").select("*").order("created_at", { ascending: false });
-      if (error) throw error;
-      return data || [];
-    },
-  });
-
-  const toggleAd = useMutation({
-    mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
-      const { error } = await (supabase as any).from("ads").update({ is_active: active }).eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin_ads"] }),
-  });
-
-  const deleteAd = useMutation({
-    mutationFn: async ({ id, mediaUrl }: { id: string; mediaUrl: string | null }) => {
-      if (mediaUrl) {
-        const path = mediaUrl.split("/ads/")[1];
-        if (path) await (supabase as any).storage.from("ads").remove([path]);
-      }
-      const { error } = await (supabase as any).from("ads").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_ads"] }); toast.success("Anúncio removido"); },
-    onError: (e: any) => toast.error(e.message),
-  });
-
-  const stats = { total: ads.length, active: ads.filter((a: any) => a.is_active).length, inactive: ads.filter((a: any) => !a.is_active).length };
-  const getTypeInfo = (type: AdType) => AD_TYPES.find(t => t.value === type) || AD_TYPES[0];
-
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-2">
-        <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-center"><p className="text-lg font-black text-primary">{stats.total}</p><p className="text-[10px] text-muted-foreground">Total</p></div>
-        <div className="rounded-xl border border-green-500/20 bg-green-500/5 p-3 text-center"><p className="text-lg font-black text-green-500">{stats.active}</p><p className="text-[10px] text-muted-foreground">Ativos</p></div>
-        <div className="rounded-xl border border-border bg-muted/50 p-3 text-center"><p className="text-lg font-black text-muted-foreground">{stats.inactive}</p><p className="text-[10px] text-muted-foreground">Inativos</p></div>
-      </div>
-
-      {!showForm && (
-        <button onClick={() => setShowForm(true)} className="w-full py-3 bg-primary text-primary-foreground text-xs font-bold rounded-xl flex items-center justify-center gap-2">
-          <Plus className="w-4 h-4" /> Novo anúncio
-        </button>
-      )}
-
-      {showForm && <AdForm onClose={() => setShowForm(false)} />}
-
-      {isLoading && <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>}
-
-      {!isLoading && ads.length === 0 && (
-        <div className="text-center py-10">
-          <Megaphone className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
-          <p className="text-sm font-bold text-foreground">Nenhum anúncio ainda</p>
-          <p className="text-xs text-muted-foreground mt-1">Crie o primeiro anúncio para começar</p>
-        </div>
-      )}
-
-      <div className="space-y-3">
-        {ads.map((ad: any) => {
-          const typeInfo = getTypeInfo(ad.type as AdType);
-          const Icon = typeInfo.icon;
-          const colorClass = TYPE_COLORS[ad.type as AdType] || TYPE_COLORS.banner;
-          return (
-            <div key={ad.id} className={`bg-card rounded-xl border border-border overflow-hidden transition ${!ad.is_active ? "opacity-60" : ""}`}>
-              {ad.media_url && (
-                <div className="relative w-full h-28 bg-muted">
-                  {ad.media_type === "video" ? <video src={ad.media_url} className="w-full h-full object-cover" muted /> : <img src={ad.media_url} alt={ad.title || "Anúncio"} className="w-full h-full object-cover" />}
-                  {ad.media_type === "video" && <div className="absolute inset-0 flex items-center justify-center"><div className="w-10 h-10 rounded-full bg-black/50 flex items-center justify-center"><Play className="w-5 h-5 text-white fill-white ml-0.5" /></div></div>}
-                </div>
-              )}
-              <div className="p-3">
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold ${colorClass}`}><Icon className="w-3 h-3" />{typeInfo.label}</span>
-                  <div className="flex gap-1 flex-shrink-0">
-                    <button onClick={() => toggleAd.mutate({ id: ad.id, active: !ad.is_active })} className={`p-1.5 rounded-lg transition ${ad.is_active ? "text-green-500 bg-green-500/10" : "text-muted-foreground bg-muted"}`}>
-                      {ad.is_active ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                    </button>
-                    <button onClick={() => deleteAd.mutate({ id: ad.id, mediaUrl: ad.media_url })} className="p-1.5 rounded-lg text-destructive bg-destructive/10"><Trash2 className="w-4 h-4" /></button>
-                  </div>
-                </div>
-                {ad.title && <p className="text-sm font-bold text-foreground truncate">{ad.title}</p>}
-                <div className="flex items-center gap-3 mt-1.5 text-[10px] text-muted-foreground">
-                  {ad.ref_id && <span>ID: {ad.ref_id.slice(0, 8)}…</span>}
-                  {ad.destination_url && <span className="truncate">→ {ad.destination_url.replace(/^https?:\/\//, "").slice(0, 30)}</span>}
-                  <span className="ml-auto">{new Date(ad.created_at).toLocaleDateString("pt-AO")}</span>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
-
-// ── Tab Leilões ───────────────────────────────────────────────────────────────
-const AdminLeiloesTab = () => {
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-  const [proofModal, setProofModal] = useState<any>(null);
-  const [showMethodForm, setShowMethodForm] = useState(false);
-  const [methodForm, setMethodForm] = useState({ type: "xpress", label: "", value: "", holder: "" });
-
-  const { data: proofs = [] } = useQuery({
-    queryKey: ["admin_bid_proofs"],
-    queryFn: async () => {
-      const { data, error } = await (supabase as any).from("auction_bid_proofs").select("*, profiles:user_id(full_name), auctions:auction_id(title)").order("created_at", { ascending: false });
-      if (error) throw error;
-      return data || [];
-    },
-    refetchInterval: 10000,
-  });
-
-  const { data: methods = [] } = useQuery({
-    queryKey: ["auction_payment_methods"],
-    queryFn: async () => {
-      const { data } = await (supabase as any).from("auction_payment_methods").select("*").order("type");
-      return data || [];
-    },
-  });
-
-  const addMethod = useMutation({
-    mutationFn: async () => {
-      const { error } = await (supabase as any).from("auction_payment_methods").insert({ ...methodForm, label: methodForm.label || methodForm.type });
-      if (error) throw error;
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["auction_payment_methods"] }); toast.success("Método adicionado!"); setMethodForm({ type: "xpress", label: "", value: "", holder: "" }); setShowMethodForm(false); },
-    onError: (e: any) => toast.error(e.message),
-  });
-
-  const toggleMethod = useMutation({
-    mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
-      const { error } = await (supabase as any).from("auction_payment_methods").update({ is_active: active }).eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["auction_payment_methods"] }),
-  });
-
-  const deleteMethod = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await (supabase as any).from("auction_payment_methods").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["auction_payment_methods"] }); toast.success("Removido"); },
-  });
-
-  const reviewProof = useMutation({
-    mutationFn: async ({ id, status, auctionId, userId, amount }: any) => {
-      const { error } = await (supabase as any).from("auction_bid_proofs").update({ status, reviewed_by: user!.id, reviewed_at: new Date().toISOString() }).eq("id", id);
-      if (error) throw error;
-      if (status === "approved") {
-        await (supabase as any).from("auction_bids").insert({ auction_id: auctionId, user_id: userId, amount });
-        await (supabase as any).from("auctions").update({ current_bid: amount }).eq("id", auctionId).lt("current_bid", amount);
-      }
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_bid_proofs"] }); queryClient.invalidateQueries({ queryKey: ["public_auctions"] }); queryClient.invalidateQueries({ queryKey: ["auction_bids"] }); setProofModal(null); toast.success("Comprovante processado!"); },
-    onError: (e: any) => toast.error(e.message),
-  });
-
-  const getProofUrl = async (path: string) => {
-    const { data } = await (supabase as any).storage.from("bid-proofs").createSignedUrl(path, 60);
-    return data?.signedUrl;
-  };
-
-  return (
-    <>
-      <div className="bg-card rounded-xl border border-border p-4 mb-4">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-bold text-foreground flex items-center gap-2"><Shield className="w-4 h-4 text-primary" /> Métodos de Pagamento</h2>
-          <button onClick={() => setShowMethodForm(!showMethodForm)} className="text-xs font-bold text-primary flex items-center gap-1"><Plus className="w-3.5 h-3.5" /> Adicionar</button>
-        </div>
-        {showMethodForm && (
-          <div className="space-y-2 mb-3 p-3 bg-muted rounded-lg">
-            <select value={methodForm.type} onChange={e => setMethodForm({ ...methodForm, type: e.target.value })} className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground">
-              <option value="xpress">Xpress</option><option value="iban">IBAN / TPA</option><option value="outro">Outro</option>
-            </select>
-            {methodForm.type === "outro" && <input placeholder="Nome do método" value={methodForm.label} onChange={e => setMethodForm({ ...methodForm, label: e.target.value })} className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground" />}
-            <input placeholder={methodForm.type === "xpress" ? "Número Xpress" : methodForm.type === "iban" ? "IBAN" : "Valor/Número"} value={methodForm.value} onChange={e => setMethodForm({ ...methodForm, value: e.target.value })} className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground" />
-            <input placeholder="Titular da conta" value={methodForm.holder} onChange={e => setMethodForm({ ...methodForm, holder: e.target.value })} className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground" />
-            <button onClick={() => addMethod.mutate()} disabled={!methodForm.value || addMethod.isPending} className="w-full py-2 bg-primary text-primary-foreground text-xs font-bold rounded-lg disabled:opacity-50">{addMethod.isPending ? "A guardar..." : "Guardar"}</button>
-          </div>
+    <div className="bg-card mt-2 p-4 md:container md:mx-auto md:rounded-card md:border md:border-border md:my-4">
+      <div className="flex items-center justify-between mb-1">
+        <h3 className="text-base font-black text-foreground">Avaliações dos clientes</h3>
+        {canReview && (
+          <button onClick={() => setShowForm(!showForm)} className="px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-bold">Avaliar produto</button>
         )}
-        <div className="space-y-2">
-          {methods.map((m: any) => (
-            <div key={m.id} className={`flex items-center justify-between px-3 py-2 rounded-lg border ${m.is_active ? "border-border bg-background" : "border-border bg-muted opacity-60"}`}>
-              <div>
-                <p className="text-[10px] font-bold text-muted-foreground uppercase">{m.type === "xpress" ? "Xpress" : m.type === "iban" ? "IBAN" : m.label}</p>
-                <p className="text-sm font-bold text-foreground">{m.value}</p>
-                {m.holder && <p className="text-[10px] text-muted-foreground">{m.holder}</p>}
-              </div>
-              <div className="flex gap-1">
-                <button onClick={() => toggleMethod.mutate({ id: m.id, active: !m.is_active })} className={`p-1.5 rounded-lg ${m.is_active ? "text-green-500 bg-green-500/10" : "text-muted-foreground bg-muted"}`}><CheckCircle className="w-4 h-4" /></button>
-                <button onClick={() => deleteMethod.mutate(m.id)} className="p-1.5 rounded-lg text-destructive bg-destructive/10"><Trash2 className="w-4 h-4" /></button>
-              </div>
-            </div>
-          ))}
-          {methods.length === 0 && <p className="text-xs text-muted-foreground text-center py-2">Nenhum método configurado.</p>}
-        </div>
       </div>
-
-      <div className="grid grid-cols-3 gap-2 mb-4">
-        {[{ label: "Pendentes", status: "pending", color: "bg-amber-500/10 text-amber-500 border-amber-500/20" }, { label: "Aprovados", status: "approved", color: "bg-green-500/10 text-green-500 border-green-500/20" }, { label: "Rejeitados", status: "rejected", color: "bg-red-500/10 text-red-500 border-red-500/20" }].map(s => (
-          <div key={s.status} className={`rounded-xl border p-3 text-center ${s.color}`}>
-            <p className="text-lg font-bold">{proofs.filter((p: any) => p.status === s.status).length}</p>
-            <p className="text-[10px]">{s.label}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="space-y-2">
-        {proofs.length === 0 && <p className="text-center py-6 text-sm text-muted-foreground">Nenhum comprovante submetido.</p>}
-        {proofs.map((p: any) => (
-          <div key={p.id} className="bg-card rounded-xl border border-border p-3">
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <p className="text-sm font-bold text-foreground">{p.profiles?.full_name || "Anónimo"}</p>
-                <p className="text-[10px] text-muted-foreground">{p.auctions?.title || "—"}</p>
-              </div>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${p.status === "pending" ? "bg-amber-500/10 text-amber-500" : p.status === "approved" ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"}`}>
-                {p.status === "pending" ? "Pendente" : p.status === "approved" ? "Aprovado" : "Rejeitado"}
-              </span>
-            </div>
-            <div className="flex justify-between text-xs text-muted-foreground mb-2">
-              <span>Lance: <span className="font-bold text-foreground">{Number(p.amount).toLocaleString("pt-AO")} Kz</span></span>
-              {p.reference && <span>Ref: {p.reference}</span>}
-            </div>
-            <div className="flex gap-2">
-              <button onClick={async () => { const url = await getProofUrl(p.proof_url); setProofModal({ ...p, signedUrl: url }); }} className="flex-1 py-1.5 bg-muted text-foreground text-xs font-bold rounded-lg flex items-center justify-center gap-1"><Eye className="w-3.5 h-3.5" /> Ver</button>
-              {p.status === "pending" && (
-                <>
-                  <button onClick={() => reviewProof.mutate({ id: p.id, status: "approved", auctionId: p.auction_id, userId: p.user_id, amount: p.amount })} className="flex-1 py-1.5 bg-green-500/10 text-green-500 text-xs font-bold rounded-lg flex items-center justify-center gap-1"><CheckCircle className="w-3.5 h-3.5" /> Aprovar</button>
-                  <button onClick={() => reviewProof.mutate({ id: p.id, status: "rejected", auctionId: p.auction_id, userId: p.user_id, amount: p.amount })} className="flex-1 py-1.5 bg-red-500/10 text-red-500 text-xs font-bold rounded-lg flex items-center justify-center gap-1"><XCircle className="w-3.5 h-3.5" /> Rejeitar</button>
-                </>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {proofModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={() => setProofModal(null)}>
-          <div className="bg-card border border-border rounded-xl p-4 w-[92vw] max-w-sm shadow-xl" onClick={e => e.stopPropagation()}>
-            <h3 className="text-sm font-black text-foreground mb-3">Comprovante</h3>
-            <div className="text-xs space-y-1 mb-3">
-              <p className="text-muted-foreground">Utilizador: <span className="font-bold text-foreground">{proofModal.profiles?.full_name || "—"}</span></p>
-              <p className="text-muted-foreground">Leilão: <span className="font-bold text-foreground">{proofModal.auctions?.title || "—"}</span></p>
-              <p className="text-muted-foreground">Valor: <span className="font-bold text-green-500">{Number(proofModal.amount).toLocaleString("pt-AO")} Kz</span></p>
-              {proofModal.reference && <p className="text-muted-foreground">Ref: <span className="font-bold text-foreground">{proofModal.reference}</span></p>}
-            </div>
-            {proofModal.signedUrl && <img src={proofModal.signedUrl} alt="Comprovante" className="w-full rounded-lg mb-3 max-h-64 object-contain bg-muted" />}
-            <button onClick={() => setProofModal(null)} className="w-full py-2 bg-muted text-foreground text-xs font-bold rounded-lg">Fechar</button>
-          </div>
-        </div>
-      )}
-    </>
-  );
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
-
-const AdminPanel = () => {
-  const { user } = useAuth();
-  const { isAdmin } = useUserRole();
-  const queryClient = useQueryClient();
-  const [tab, setTab] = useState<Tab>("utilizadores");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const [membersModal, setMembersModal] = useState<{ id: string; name: string } | null>(null);
-
-  const { data: allRoles = [], isLoading } = useQuery({
-    queryKey: ["admin_all_roles"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("user_roles").select("*, profiles(full_name)").order("role");
-      if (error) throw error;
-      return data;
-    },
-    enabled: isAdmin && tab === "cargos",
-  });
-
-  const { data: profiles = [] } = useQuery({
-    queryKey: ["admin_profiles", searchTerm],
-    queryFn: async () => {
-      let q = supabase.from("profiles").select("id, full_name").limit(20);
-      if (searchTerm) q = q.ilike("full_name", `%${searchTerm}%`);
-      const { data, error } = await q;
-      if (error) throw error;
-      return data;
-    },
-    enabled: isAdmin && tab === "cargos",
-  });
-
-  const addRole = useMutation({
-    mutationFn: async ({ userId, role }: { userId: string; role: string }) => {
-      const { error } = await supabase.from("user_roles").insert({ user_id: userId, role: role as any });
-      if (error) throw error;
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_all_roles"] }); toast.success("Cargo atribuído"); },
-    onError: (e: any) => toast.error(e.message),
-  });
-
-  const removeRole = useMutation({
-    mutationFn: async (roleId: string) => {
-      const { error } = await supabase.from("user_roles").delete().eq("id", roleId);
-      if (error) throw error;
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_all_roles"] }); toast.success("Cargo removido"); },
-    onError: (e: any) => toast.error(e.message),
-  });
-
-  const { data: sellers = [] } = useQuery({
-    queryKey: ["admin_sellers"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("sellers").select("*").order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-    enabled: isAdmin && tab === "vendedores",
-  });
-
-  const toggleVerifySeller = useMutation({
-    mutationFn: async ({ id, verified }: { id: string; verified: boolean }) => {
-      const { error } = await supabase.from("sellers").update({ is_verified: verified }).eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_sellers"] }); toast.success("Vendedor atualizado"); },
-  });
-
-  const toggleActiveSeller = useMutation({
-    mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
-      const { error } = await supabase.from("sellers").update({ is_active: active }).eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_sellers"] }); toast.success("Estado alterado"); },
-  });
-
-  const toggleFeaturedSeller = useMutation({
-    mutationFn: async ({ id, featured }: { id: string; featured: boolean }) => {
-      const { error } = await supabase.from("sellers").update({ is_featured: featured } as any).eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_sellers"] }); queryClient.invalidateQueries({ queryKey: ["featured_sellers_home"] }); toast.success("Destaque atualizado"); },
-    onError: (e: any) => toast.error(e.message),
-  });
-
-  const { data: companies = [] } = useQuery({
-    queryKey: ["admin_companies"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("companies").select("*").order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-    enabled: isAdmin && tab === "empresas",
-  });
-
-  const [companyForm, setCompanyForm] = useState({ name: "", slug: "", description: "" });
-  const [showCompanyForm, setShowCompanyForm] = useState(false);
-
-  const createCompany = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.from("companies").insert({ ...companyForm, created_by: user!.id });
-      if (error) throw error;
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_companies"] }); toast.success("Empresa criada"); setCompanyForm({ name: "", slug: "", description: "" }); setShowCompanyForm(false); },
-    onError: (e: any) => toast.error(e.message),
-  });
-
-  const toggleVerifyCompany = useMutation({
-    mutationFn: async ({ id, verified }: { id: string; verified: boolean }) => {
-      const { error } = await supabase.from("companies").update({ is_verified: verified }).eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_companies"] }); toast.success("Empresa atualizada"); },
-  });
-
-  const { data: applications = [] } = useQuery({
-    queryKey: ["admin_seller_applications"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("seller_applications").select("*, profiles:user_id(full_name)").order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-    enabled: isAdmin && tab === "pedidos",
-  });
-
-  const reviewApplication = useMutation({
-    mutationFn: async ({ id, status, userId, name }: { id: string; status: string; userId: string; name: string }) => {
-      const { error } = await supabase.from("seller_applications").update({ status, reviewed_by: user!.id, reviewed_at: new Date().toISOString() }).eq("id", id);
-      if (error) throw error;
-      if (status === "approved") {
-        const slug = name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-        await supabase.from("sellers").insert({ name, slug, user_id: userId, type: "individual" as any, is_active: true });
-      }
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_seller_applications"] }); queryClient.invalidateQueries({ queryKey: ["admin_sellers"] }); toast.success("Pedido processado"); },
-    onError: (e: any) => toast.error(e.message),
-  });
-
-  const grouped = allRoles.reduce((acc: any, r: any) => { acc[r.role] = acc[r.role] || []; acc[r.role].push(r); return acc; }, {});
-
-  const tabs: { key: Tab; label: string; icon: any }[] = [
-    { key: "utilizadores", label: "Utilizadores", icon: UsersRound },
-    { key: "categorias",   label: "Categorias",   icon: FolderTree },
-    { key: "cargos",       label: "Cargos",        icon: Crown },
-    { key: "vendedores",   label: "Vendedores",    icon: Store },
-    { key: "empresas",     label: "Empresas",      icon: Building2 },
-    { key: "encomendas",   label: "Encomendas",    icon: ShoppingBag },
-    { key: "banners",      label: "Banners",       icon: ImageIcon },
-    { key: "publicidade",  label: "Publicidade",   icon: Megaphone },
-    { key: "pedidos",      label: "Candidaturas",  icon: UserCheck },
-    { key: "leiloes",      label: "Leilões",       icon: Gavel },
-    { key: "definicoes",   label: "Definições",    icon: Settings },
-  ];
-
-  return (
-    <div className="min-h-screen bg-background pb-14 md:pb-0">
-      <div className="container mx-auto px-3 py-4 max-w-2xl">
-        <div className="flex items-center gap-2 mb-4">
-          <Shield className="w-6 h-6 text-primary" />
-          <h1 className="text-lg font-bold text-foreground">Administração</h1>
-        </div>
-
-        <div className="flex gap-1 mb-4 overflow-x-auto no-scrollbar">
-          {tabs.map(t => (
-            <button key={t.key} onClick={() => setTab(t.key)} className={`flex items-center gap-1 px-3 py-2 text-xs font-bold rounded-lg whitespace-nowrap border ${tab === t.key ? "bg-primary text-primary-foreground border-primary" : "bg-card text-foreground border-border"}`}>
-              <t.icon className="w-3.5 h-3.5" /> {t.label}
-            </button>
+      <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-0.5">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Star key={i} className={`w-4 h-4 ${i < Math.floor(product.rating || 0) ? "text-secondary fill-secondary" : "text-border"}`} />
           ))}
         </div>
+        <span className="text-sm font-semibold text-foreground">{product.rating || 0} de 5</span>
+        <span className="text-xs text-muted-foreground">({product.reviews || 0} avaliações)</span>
+      </div>
 
-        {tab === "utilizadores" && <AdminUsersTab />}
-        {tab === "categorias"   && <AdminCategoriesTab />}
-        {tab === "publicidade"  && <AdminAdsTab />}
-        {tab === "encomendas"   && <AdminOrdersTab />}
-        {tab === "banners"      && <AdminBannersTab />}
-        {tab === "definicoes"   && <AdminSettingsTab />}
-        {tab === "leiloes"      && <AdminLeiloesTab />}
-
-        {tab === "cargos" && (
-          <>
-            <div className="grid grid-cols-3 gap-2 mb-4">
-              {(["admin", "moderator", "user"] as const).map(role => {
-                const info = roleBadge[role];
-                return (
-                  <div key={role} className={`rounded-xl border p-3 text-center ${info.color}`}>
-                    <info.icon className="w-5 h-5 mx-auto mb-1" />
-                    <p className="text-lg font-bold">{grouped[role]?.length || 0}</p>
-                    <p className="text-[10px]">{info.label}s</p>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="bg-card rounded-xl border border-border p-4 mb-4">
-              <h2 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2"><Plus className="w-4 h-4" /> Atribuir Cargo</h2>
-              <div className="relative mb-3">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <input type="text" placeholder="Procurar utilizador..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-9 pr-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
-              </div>
-              {searchTerm && profiles.length > 0 && (
-                <div className="bg-muted rounded-lg border border-border mb-3 max-h-32 overflow-y-auto">
-                  {profiles.map((p: any) => (
-                    <button key={p.id} onClick={() => { setSelectedUserId(p.id); setSearchTerm(p.full_name || p.id.slice(0, 8)); }} className={`w-full text-left px-3 py-2 text-sm hover:bg-accent transition ${selectedUserId === p.id ? "bg-accent" : ""}`}>
-                      {p.full_name || p.id.slice(0, 8)}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {selectedUserId && (
-                <div className="flex gap-2">
-                  {(["admin", "moderator", "user"] as const).map(role => (
-                    <button key={role} onClick={() => addRole.mutate({ userId: selectedUserId, role })} className={`flex-1 py-2 rounded-lg text-xs font-bold border ${roleBadge[role].color}`}>{roleBadge[role].label}</button>
-                  ))}
-                </div>
-              )}
-            </div>
-            {(["admin", "moderator", "user"] as const).map(role => {
-              const items = grouped[role] || [];
-              if (!items.length) return null;
-              const info = roleBadge[role];
-              return (
-                <div key={role} className="mb-4">
-                  <h3 className={`text-sm font-bold mb-2 flex items-center gap-2 ${info.color.split(" ")[1]}`}><info.icon className="w-4 h-4" /> {info.label}s ({items.length})</h3>
-                  <div className="bg-card rounded-xl border border-border divide-y divide-border">
-                    {items.map((r: any) => (
-                      <div key={r.id} className="flex items-center justify-between px-4 py-3">
-                        <div>
-                          <p className="text-sm font-medium text-foreground">{r.profiles?.full_name || r.user_id.slice(0, 8)}</p>
-                          <p className="text-[10px] text-muted-foreground">{r.user_id.slice(0, 12)}...</p>
-                        </div>
-                        {r.user_id !== user?.id && <button onClick={() => removeRole.mutate(r.id)} className="p-2 rounded-lg hover:bg-destructive/10 text-destructive transition"><Trash2 className="w-4 h-4" /></button>}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </>
-        )}
-
-        {tab === "vendedores" && (
-          <div className="space-y-2">
-            {sellers.map((s: any) => (
-              <div key={s.id} className={`bg-card rounded-xl border border-border p-3 ${!s.is_active ? "opacity-60" : ""}`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center"><Store className="w-4 h-4 text-primary" /></div>
-                    <div>
-                      <p className="text-sm font-bold text-foreground flex items-center gap-1">{s.name} {s.is_verified && <ShieldCheck className="w-3.5 h-3.5 text-blue-500" />}</p>
-                      <p className="text-[10px] text-muted-foreground">{s.type} • {s.total_sales || 0} vendas</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-1">
-                    <button onClick={() => toggleFeaturedSeller.mutate({ id: s.id, featured: !s.is_featured })} className={`p-2 rounded-lg text-xs ${s.is_featured ? "text-secondary bg-secondary/10" : "text-muted-foreground hover:bg-accent"}`}><Star className={`w-4 h-4 ${s.is_featured ? "fill-secondary" : ""}`} /></button>
-                    <button onClick={() => toggleVerifySeller.mutate({ id: s.id, verified: !s.is_verified })} className={`p-2 rounded-lg text-xs ${s.is_verified ? "text-blue-500 hover:bg-blue-500/10" : "text-muted-foreground hover:bg-accent"}`}><ShieldCheck className="w-4 h-4" /></button>
-                    <button onClick={() => toggleActiveSeller.mutate({ id: s.id, active: !s.is_active })} className={`p-2 rounded-lg text-xs ${s.is_active ? "text-green-500 hover:bg-green-500/10" : "text-muted-foreground hover:bg-accent"}`}>{s.is_active ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}</button>
-                  </div>
-                </div>
-              </div>
+      {showForm && canReview && (
+        <div className="border border-primary/20 rounded-card p-4 mb-4 bg-primary/5">
+          <p className="text-sm font-bold text-foreground mb-3">A sua avaliação</p>
+          <div className="flex items-center gap-1 mb-3">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <button key={i} onClick={() => setReviewRating(i + 1)}>
+                <Star className={`w-6 h-6 transition ${i < reviewRating ? "text-secondary fill-secondary" : "text-border"}`} />
+              </button>
             ))}
-            {sellers.length === 0 && <p className="text-center py-6 text-sm text-muted-foreground">Nenhum vendedor registado.</p>}
+            <span className="text-sm text-muted-foreground ml-2">{reviewRating}/5</span>
           </div>
-        )}
-
-        {tab === "empresas" && (
-          <>
-            <button onClick={() => setShowCompanyForm(!showCompanyForm)} className="w-full mb-3 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-lg flex items-center justify-center gap-1"><Plus className="w-4 h-4" /> Nova Empresa</button>
-            {showCompanyForm && (
-              <div className="bg-card rounded-xl border border-border p-4 mb-4 space-y-3">
-                <input placeholder="Nome da empresa" value={companyForm.name} onChange={e => setCompanyForm({ ...companyForm, name: e.target.value, slug: e.target.value.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "") })} className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
-                <input placeholder="Slug" value={companyForm.slug} onChange={e => setCompanyForm({ ...companyForm, slug: e.target.value })} className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
-                <textarea placeholder="Descrição" value={companyForm.description} onChange={e => setCompanyForm({ ...companyForm, description: e.target.value })} className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground h-16 resize-none" />
-                <button onClick={() => createCompany.mutate()} disabled={!companyForm.name || !companyForm.slug} className="w-full py-2 bg-primary text-primary-foreground text-sm font-bold rounded-lg disabled:opacity-50">Criar Empresa</button>
+          <textarea value={reviewComment} onChange={e => setReviewComment(e.target.value)}
+            placeholder="Escreva a sua opinião (opcional)..." rows={3}
+            className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground resize-none" />
+          <div className="mt-3">
+            {reviewImage ? (
+              <div className="relative w-24 h-24 rounded-lg overflow-hidden border border-border">
+                <img src={reviewImage} alt="Anexo" className="w-full h-full object-cover" />
+                <button onClick={() => setReviewImage("")} className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs">×</button>
               </div>
+            ) : (
+              <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted border border-border text-xs font-bold cursor-pointer hover:bg-accent">
+                {uploadingImg ? "A enviar..." : "📷 Adicionar foto"}
+                <input type="file" accept="image/*" disabled={uploadingImg} className="hidden" onChange={e => e.target.files?.[0] && uploadImg(e.target.files[0])} />
+              </label>
             )}
-            <div className="space-y-2">
-              {companies.map((c: any) => <AdminCompanyCard key={c.id} company={c} onMembers={() => setMembersModal({ id: c.id, name: c.name })} onVerify={() => toggleVerifyCompany.mutate({ id: c.id, verified: !c.is_verified })} queryClient={queryClient} />)}
-              {companies.length === 0 && <p className="text-center py-6 text-sm text-muted-foreground">Nenhuma empresa.</p>}
-            </div>
-          </>
-        )}
+          </div>
+          <div className="flex justify-end gap-2 mt-3">
+            <button onClick={() => setShowForm(false)} className="px-4 py-2 rounded-full text-xs font-bold text-muted-foreground">Cancelar</button>
+            <button onClick={() => submitReview.mutate()} disabled={submitReview.isPending}
+              className="px-4 py-2 rounded-full bg-primary text-primary-foreground text-xs font-bold disabled:opacity-50 flex items-center gap-1">
+              {submitReview.isPending && <Loader2 className="w-3 h-3 animate-spin" />}
+              Enviar avaliação
+            </button>
+          </div>
+        </div>
+      )}
 
-        {tab === "pedidos" && (
-          <div className="space-y-2">
-            {applications.map((a: any) => (
-              <div key={a.id} className="bg-card rounded-xl border border-border p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <p className="text-sm font-bold text-foreground">{a.name}</p>
-                    <p className="text-[10px] text-muted-foreground">{(a.profiles as any)?.full_name} • {a.province || "—"}</p>
-                  </div>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${a.status === "pending" ? "bg-amber-500/10 text-amber-500" : a.status === "approved" ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"}`}>
-                    {a.status === "pending" ? "Pendente" : a.status === "approved" ? "Aprovado" : "Rejeitado"}
-                  </span>
-                </div>
-                {a.bio && <p className="text-xs text-muted-foreground mb-2">{a.bio}</p>}
-                {a.status === "pending" && (
-                  <div className="flex gap-2">
-                    <button onClick={() => reviewApplication.mutate({ id: a.id, status: "approved", userId: a.user_id, name: a.name })} className="flex-1 py-1.5 bg-green-500/10 text-green-500 text-xs font-bold rounded-lg flex items-center justify-center gap-1"><CheckCircle className="w-3.5 h-3.5" /> Aprovar</button>
-                    <button onClick={() => reviewApplication.mutate({ id: a.id, status: "rejected", userId: a.user_id, name: a.name })} className="flex-1 py-1.5 bg-red-500/10 text-red-500 text-xs font-bold rounded-lg flex items-center justify-center gap-1"><XCircle className="w-3.5 h-3.5" /> Rejeitar</button>
+      {alreadyReviewed && <p className="text-xs text-muted-foreground mb-3 italic">✓ Já avaliou este produto</p>}
+
+      {reviews ? (
+        <div className="space-y-4">
+          {reviews.map((review: any) => (
+            <div key={review.id} className="border-t border-border pt-3">
+              <div className="flex items-center gap-2 mb-1">
+                {review.profile?.avatar_url ? (
+                  <img src={review.profile.avatar_url} alt={review.profile.full_name} className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
+                ) : (
+                  <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary flex-shrink-0">
+                    {(review.profile?.full_name || "U").charAt(0).toUpperCase()}
                   </div>
                 )}
+                <div className="flex-1">
+                  <span className="text-xs font-bold text-foreground">{review.profile?.full_name || "Utilizador"}</span>
+                  <div className="flex items-center gap-0.5 mt-0.5">
+                    {Array.from({ length: 5 }).map((_, j) => (
+                      <Star key={j} className={`w-2.5 h-2.5 ${j < review.rating ? "text-secondary fill-secondary" : "text-border"}`} />
+                    ))}
+                    <span className="text-[10px] text-muted-foreground ml-1">{new Date(review.created_at).toLocaleDateString("pt-AO")}</span>
+                  </div>
+                </div>
               </div>
-            ))}
-            {applications.length === 0 && <p className="text-center py-6 text-sm text-muted-foreground">Nenhuma candidatura de vendedor.</p>}
-          </div>
-        )}
-
-        {isLoading && tab === "cargos" && (
-          <div className="flex justify-center py-8">
-            <div className="w-6 h-6 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-          </div>
-        )}
-      </div>
-
-      {membersModal && <AdminCompanyMembersModal companyId={membersModal.id} companyName={membersModal.name} onClose={() => setMembersModal(null)} />}
+              {review.comment && <p className="text-xs text-foreground leading-relaxed mt-1">{review.comment}</p>}
+              {review.image_url && (
+                <a href={review.image_url} target="_blank" rel="noopener noreferrer" className="block mt-2">
+                  <img src={review.image_url} alt="Foto da avaliação" className="max-h-40 rounded-lg border border-border object-cover" />
+                </a>
+              )}
+              {review.replies?.length > 0 && (
+                <div className="ml-6 mt-2 space-y-2">
+                  {review.replies.map((reply: any) => (
+                    <div key={reply.id} className="bg-muted rounded-lg p-2">
+                      <p className="text-[10px] font-bold text-foreground">{reply.profile?.full_name || "Utilizador"}</p>
+                      <p className="text-[11px] text-muted-foreground">{reply.content}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {user && (
+                <button onClick={() => setReplyingTo(replyingTo === review.id ? null : review.id)}
+                  className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground mt-2">
+                  <MessageCircle className="w-3 h-3" /> Responder
+                </button>
+              )}
+              {replyingTo === review.id && user && (
+                <div className="ml-6 mt-2 flex gap-2">
+                  <input value={replyText} onChange={e => setReplyText(e.target.value)} placeholder="Escrever resposta..."
+                    className="flex-1 px-3 py-1.5 rounded-lg bg-muted border border-border text-xs text-foreground" />
+                  <button onClick={() => submitReply.mutate(review.id)} disabled={!replyText.trim() || submitReply.isPending}
+                    className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-bold disabled:opacity-50">
+                    <Send className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-8 border-t border-border">
+          <MessageCircle className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
+          <p className="text-sm font-semibold text-foreground">Ainda sem avaliações</p>
+          <p className="text-xs text-muted-foreground mt-1">Seja o primeiro a avaliar após a compra.</p>
+        </div>
+      )}
     </div>
   );
 };
 
-export default AdminPanel;
+export default ProductDetail;
