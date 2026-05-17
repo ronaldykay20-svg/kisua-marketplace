@@ -28,7 +28,7 @@ const cream      = "#F7F0E6";
 const brown      = "#4A2E0A";
 const brownLight = "rgba(74,46,10,0.10)";
 const gold       = "#f5c842";
-const verifiedBlue = "#3B82F6"; // FIX 4: azul para conta verificada
+const verifiedBlue = "#3B82F6";
 
 /* ─── LIMITES ─── */
 const MAX_VIDEO_SECONDS   = 7 * 60;
@@ -1265,8 +1265,7 @@ const ProductsOverlay = ({
 };
 
 /* ═══════════════════════════════════════════════════
-   COMMENTS PANEL — componente separado para evitar
-   re-mount do input a cada keystroke (FIX 2)
+   COMMENTS PANEL
 ═══════════════════════════════════════════════════ */
 interface CommentsPanelProps {
   comments: any[];
@@ -1287,20 +1286,17 @@ const CommentsPanel = ({
   onClose,
   onSendComment,
 }: CommentsPanelProps) => {
-  // FIX 2: estado local do comentário DENTRO do componente estável
   const [localComment, setLocalComment] = useState("");
   const [sendingComment, setSendingComment] = useState(false);
   const commentListRef = useRef<HTMLDivElement>(null);
   const commentInputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-scroll para o fim quando chegam novos comentários
   useEffect(() => {
     if (commentListRef.current) {
       commentListRef.current.scrollTop = commentListRef.current.scrollHeight;
     }
   }, [comments.length]);
 
-  // FIX 2: foco automático no input ao abrir o painel
   useEffect(() => {
     const timer = setTimeout(() => {
       commentInputRef.current?.focus();
@@ -1312,17 +1308,15 @@ const CommentsPanel = ({
     const text = localComment.trim();
     if (!text || sendingComment || !userId) return;
     setSendingComment(true);
-    setLocalComment(""); // limpa imediatamente para não bloquear o teclado
+    setLocalComment("");
     try {
       await onSendComment(text);
     } catch {
-      setLocalComment(text); // restaura se falhou
+      setLocalComment(text);
     } finally {
       setSendingComment(false);
     }
   };
-
-  const isAuthorComment = (c: any, sellerUserId?: string) => sellerUserId && c.user_id === sellerUserId;
 
   return (
     <div
@@ -1340,7 +1334,6 @@ const CommentsPanel = ({
         }}
         onClick={e => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 flex-shrink-0"
           style={{ borderBottom: "1px solid rgba(212,184,150,0.12)" }}>
           <div className="flex items-center gap-2">
@@ -1356,7 +1349,6 @@ const CommentsPanel = ({
           </button>
         </div>
 
-        {/* Lista */}
         <div
           ref={commentListRef}
           className="flex-1 overflow-y-auto px-3 py-3 space-y-3"
@@ -1393,7 +1385,6 @@ const CommentsPanel = ({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center flex-wrap gap-1 mb-0.5">
                     <span className="text-[11px] font-black text-white">{displayName}</span>
-                    {/* FIX 4: badge de verificado em AZUL */}
                     {verified && <BadgeCheck className="w-3 h-3 flex-shrink-0" style={{ color: verifiedBlue }} />}
                     <span className="text-[9px]" style={{ color: "rgba(212,184,150,0.4)" }}>
                       {new Date(c.created_at).toLocaleTimeString("pt-AO", { hour: "2-digit", minute: "2-digit" })}
@@ -1408,7 +1399,6 @@ const CommentsPanel = ({
           })}
         </div>
 
-        {/* Input comentário */}
         {!upcoming && (
           <div className="flex items-center gap-2 px-3 py-3 flex-shrink-0"
             style={{ borderTop: "1px solid rgba(212,184,150,0.10)" }}>
@@ -1476,7 +1466,6 @@ const WatchModal = ({
   const [showComments, setShowComments] = useState(false);
   const [muted, setMuted] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  // FIX 3: lista optimistic de comentários local
   const [optimisticComments, setOptimisticComments] = useState<any[]>([]);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -1495,12 +1484,12 @@ const WatchModal = ({
     enabled: !!userId,
   });
 
-  // FIX 1: navegar para perfil do vendedor ao clicar no nome
+  // ✅ FIX: usa /vendedor/ em vez de /loja/
   const handleSellerClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     if (release.seller?.id) {
       onClose();
-      navigate(`/loja/${release.seller.id}`);
+      navigate(`/vendedor/${release.seller.id}`);
     }
   }, [release.seller?.id, navigate, onClose]);
 
@@ -1515,7 +1504,6 @@ const WatchModal = ({
     onClose();
   };
 
-  /* Contagem de visualizações */
   useEffect(() => {
     if (!release?.id || upcoming) return;
     const trackView = async () => {
@@ -1539,7 +1527,6 @@ const WatchModal = ({
     qc.invalidateQueries({ queryKey: ["releases_all"] });
   }, [live, release?.id, qc]);
 
-  /* FIX 3: buscar comentários */
   const { data: serverComments = [], refetch: refetchComments } = useQuery({
     queryKey: ["release_comments", release.id],
     queryFn: async () => {
@@ -1559,14 +1546,12 @@ const WatchModal = ({
     refetchInterval: live ? 5000 : 10000,
   });
 
-  // FIX 3: merge dos comentários do servidor com os optimísticos (sem duplicar)
   const comments = useMemo(() => {
     const serverIds = new Set(serverComments.map((c: any) => c.id));
     const uniqueOptimistic = optimisticComments.filter(c => !serverIds.has(c.id));
     return [...serverComments, ...uniqueOptimistic];
   }, [serverComments, optimisticComments]);
 
-  // Limpar optimistic quando servidor confirmou
   useEffect(() => {
     if (serverComments.length > 0) {
       const serverIds = new Set(serverComments.map((c: any) => c.id));
@@ -1574,12 +1559,10 @@ const WatchModal = ({
     }
   }, [serverComments]);
 
-  /* FIX 2 + 3: sendComment como callback estável, sem depender de state de comentário */
   const sendComment = useCallback(async (text: string) => {
     if (!userId) { navigate("/auth"); throw new Error("not authenticated"); }
     if (!text) throw new Error("empty");
 
-    // Adicionar optimisticamente ANTES de enviar para a DB
     const optimisticId = `opt_${Date.now()}`;
     const optimisticComment = {
       id: optimisticId,
@@ -1603,7 +1586,6 @@ const WatchModal = ({
       });
 
       if (error) {
-        // Remover optimistic se falhou
         setOptimisticComments(prev => prev.filter(c => c.id !== optimisticId));
         if (error.code === "42P01") {
           toast.error("Sistema de comentários não configurado. Contacta o administrador.");
@@ -1613,13 +1595,11 @@ const WatchModal = ({
         throw error;
       }
 
-      // Atualizar contagem de comentários
       await (supabase as any)
         .from("releases")
         .update({ comments_count: (release.comments_count || 0) + 1 })
         .eq("id", release.id);
 
-      // Recarregar comentários do servidor após breve delay
       setTimeout(() => refetchComments(), 500);
     } catch (err) {
       throw err;
@@ -1645,7 +1625,6 @@ const WatchModal = ({
       style={{ background: "rgba(0,0,0,0.96)" }}
       onClick={onClose}
     >
-      {/* Container principal — moldura TikTok, vídeo ocupa toda a tela */}
       <div
         className="relative flex w-full max-w-[420px] flex-col"
         style={{
@@ -1656,10 +1635,7 @@ const WatchModal = ({
         }}
         onClick={e => e.stopPropagation()}
       >
-
-        {/* ── VÍDEO OCUPA TODA A TELA (position absolute, inset-0) ── */}
         <div className="absolute inset-0" style={{ background: "#000" }}>
-          {/* Thumbnail de fundo */}
           {release.thumbnail_url && (
             <img
               src={release.thumbnail_url}
@@ -1672,7 +1648,6 @@ const WatchModal = ({
             />
           )}
 
-          {/* Vídeo — ocupa toda a tela */}
           {canPlayVideo && (
             <video
               ref={videoRef}
@@ -1700,15 +1675,12 @@ const WatchModal = ({
             />
           )}
 
-          {/* Gradiente inferior */}
           <div className="absolute inset-0 pointer-events-none"
             style={{ background: "linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.4) 30%, transparent 55%)", zIndex: 2 }} />
 
-          {/* Gradiente superior */}
           <div className="absolute inset-0 pointer-events-none"
             style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.75) 0%, transparent 22%)", zIndex: 2 }} />
 
-          {/* Overlay de produtos */}
           {showProducts && release.linked_products?.length > 0 && (
             <ProductsOverlay
               products={release.linked_products}
@@ -1717,7 +1689,6 @@ const WatchModal = ({
             />
           )}
 
-          {/* FIX 2: CommentsPanel agora é componente estável — não recria o input a cada keystroke */}
           {showComments && (
             <CommentsPanel
               comments={comments}
@@ -1731,10 +1702,8 @@ const WatchModal = ({
           )}
         </div>
 
-        {/* ── TOPO: vendedor + botões (sobre o vídeo) ── */}
         <div className="absolute top-0 left-0 right-0 z-20 flex items-center gap-3 px-4 pt-10 pb-2">
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            {/* FIX 1: clicar no avatar ou nome abre o perfil do vendedor */}
             <button
               onClick={handleSellerClick}
               className="flex items-center gap-2 min-w-0 flex-1 text-left"
@@ -1751,7 +1720,6 @@ const WatchModal = ({
               <div className="min-w-0">
                 <div className="flex items-center gap-1">
                   <span className="text-xs font-black text-white truncate">{release.seller?.name || "Vendedor"}</span>
-                  {/* FIX 4: badge de verificado em AZUL */}
                   {release.seller?.is_verified && (
                     <BadgeCheck className="w-3.5 h-3.5 flex-shrink-0" style={{ color: verifiedBlue }} />
                   )}
@@ -1780,7 +1748,6 @@ const WatchModal = ({
           </button>
         </div>
 
-        {/* Badge LIVE */}
         {live && (
           <div className="absolute top-20 left-4 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-lg"
             style={{ background: "#E53935" }}>
@@ -1789,7 +1756,6 @@ const WatchModal = ({
           </div>
         )}
 
-        {/* Badge TERMINADO */}
         {expired && !live && (
           <div className="absolute top-20 left-4 z-20 px-2.5 py-1 rounded-lg"
             style={{ background: "rgba(40,40,40,0.85)" }}>
@@ -1797,7 +1763,6 @@ const WatchModal = ({
           </div>
         )}
 
-        {/* Sem vídeo disponível */}
         {!canPlayVideo && !upcoming && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2">
             <VideoOff className="w-10 h-10 text-white/30" />
@@ -1805,7 +1770,6 @@ const WatchModal = ({
           </div>
         )}
 
-        {/* Estado UPCOMING */}
         {upcoming && !showProducts && !showComments && (
           <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 px-8 text-center">
             <Calendar className="w-12 h-12 text-white/50 mx-auto" />
@@ -1822,12 +1786,10 @@ const WatchModal = ({
           </div>
         )}
 
-        {/* ── BARRA LATERAL DIREITA ── */}
         {!showProducts && !showComments && (
           <div className="absolute right-3 z-20 flex flex-col items-center gap-4"
             style={{ bottom: 120 }}>
 
-            {/* Like */}
             <button onClick={() => setLiked(v => !v)} className="flex flex-col items-center gap-1">
               <div className="w-11 h-11 rounded-full flex items-center justify-center"
                 style={{ background: liked ? "rgba(229,57,53,0.25)" : "rgba(0,0,0,0.55)" }}>
@@ -1839,7 +1801,6 @@ const WatchModal = ({
               </span>
             </button>
 
-            {/* Comentários — abre o painel lateral */}
             <button onClick={() => setShowComments(true)} className="flex flex-col items-center gap-1">
               <div className="w-11 h-11 rounded-full flex items-center justify-center"
                 style={{ background: "rgba(0,0,0,0.55)" }}>
@@ -1850,7 +1811,6 @@ const WatchModal = ({
               </span>
             </button>
 
-            {/* Visualizações */}
             <div className="flex flex-col items-center gap-1">
               <div className="w-11 h-11 rounded-full flex items-center justify-center"
                 style={{ background: "rgba(0,0,0,0.55)" }}>
@@ -1861,7 +1821,6 @@ const WatchModal = ({
               </span>
             </div>
 
-            {/* Mute/Unmute */}
             {canPlayVideo && (
               <button onClick={toggleMute} className="flex flex-col items-center gap-1">
                 <div className="w-11 h-11 rounded-full flex items-center justify-center"
@@ -1873,7 +1832,6 @@ const WatchModal = ({
               </button>
             )}
 
-            {/* Produtos */}
             {release.linked_products?.length > 0 && (
               <button onClick={() => setShowProducts(true)} className="flex flex-col items-center gap-1">
                 <div className="w-11 h-11 rounded-full flex items-center justify-center"
@@ -1888,10 +1846,9 @@ const WatchModal = ({
           </div>
         )}
 
-        {/* ── INFO INFERIOR — legenda + botão produtos ── */}
         {!showProducts && !showComments && (
           <div className="absolute bottom-0 left-0 right-16 z-20 px-4 pb-6">
-            {/* FIX 1: clicar no @nome do vendedor na parte inferior também abre o perfil */}
+            {/* ✅ FIX: usa /vendedor/ em vez de /loja/ */}
             <button
               onClick={handleSellerClick}
               className="flex items-center gap-1.5 mb-2"
@@ -1900,23 +1857,19 @@ const WatchModal = ({
               <span className="text-[11px] font-black" style={{ color: sand }}>
                 @{release.seller?.name || "vendedor"}
               </span>
-              {/* FIX 4: badge de verificado em AZUL */}
               {release.seller?.is_verified && <BadgeCheck className="w-3 h-3" style={{ color: verifiedBlue }} />}
             </button>
 
-            {/* Título */}
             <p className="text-base font-black text-white mb-1 leading-tight line-clamp-2">
               {release.title}
             </p>
 
-            {/* Descrição */}
             {release.description && (
               <p className="text-[12px] text-white/60 mb-2 line-clamp-2 leading-relaxed">
                 {release.description}
               </p>
             )}
 
-            {/* Chips: duração + ver produtos */}
             <div className="flex items-center gap-2 flex-wrap">
               {release.video_duration_s && (
                 <span className="text-[10px] font-bold px-2.5 py-1 rounded-full"
@@ -1938,11 +1891,9 @@ const WatchModal = ({
           </div>
         )}
 
-        {/* Spacer */}
         <div style={{ height: "100vh" }} />
       </div>
 
-      {/* Botão fechar lateral (desktop) */}
       <button
         onClick={onClose}
         className="hidden md:flex absolute right-6 top-6 w-10 h-10 rounded-full items-center justify-center"
@@ -1965,11 +1916,11 @@ const ReleaseCard = ({
   const upcoming = isUpcoming(release);
   const expired  = isExpired(release);
 
-  // FIX 1: clicar no nome do vendedor no card abre o perfil
+  // ✅ FIX: usa /vendedor/ em vez de /loja/
   const handleSellerClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (release.seller?.id) {
-      navigate(`/loja/${release.seller.id}`);
+      navigate(`/vendedor/${release.seller.id}`);
     }
   };
 
@@ -2028,7 +1979,6 @@ const ReleaseCard = ({
         )}
       </div>
       <div className="p-3">
-        {/* FIX 1: clicar no nome/avatar do vendedor no card abre o perfil */}
         <button
           onClick={handleSellerClick}
           className="flex items-center gap-2 mb-1.5 w-full text-left"
@@ -2040,7 +1990,6 @@ const ReleaseCard = ({
                 {(release.seller?.name || "?").charAt(0)}
               </div>}
           <span className="text-[11px] font-bold truncate" style={{ color: sandDark }}>{release.seller?.name || "Vendedor"}</span>
-          {/* FIX 4: badge de verificado em AZUL */}
           {release.seller?.is_verified && <BadgeCheck className="w-3.5 h-3.5 flex-shrink-0" style={{ color: verifiedBlue }} />}
         </button>
         <h3 className="text-sm font-black line-clamp-2 mb-2" style={{ color: brown }}>{release.title}</h3>
@@ -2160,7 +2109,6 @@ const Lancamentos = () => {
         }
       `}</style>
 
-      {/* HEADER */}
       <div className="sticky top-0 z-40" style={{
         background: `linear-gradient(160deg,${cream} 0%,${sand} 60%,#C9A87C 100%)`,
         borderBottom: `1px solid rgba(74,46,10,0.15)`,
@@ -2225,7 +2173,6 @@ const Lancamentos = () => {
         </div>
       </div>
 
-      {/* CONTEÚDO */}
       <div className="max-w-screen-xl mx-auto px-4 md:px-6 py-5">
         {isLoading && <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin" style={{ color: sandDark }} /></div>}
 
