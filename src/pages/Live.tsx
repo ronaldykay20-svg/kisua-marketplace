@@ -1419,8 +1419,9 @@ const WatchModal = ({
 
   const toggleMute = () => {
     if (videoRef.current) {
-      videoRef.current.muted = !muted;
-      setMuted(!muted);
+      const newMuted = !videoRef.current.muted;
+      videoRef.current.muted = newMuted;
+      setMuted(newMuted);
     }
   };
 
@@ -1606,20 +1607,37 @@ const WatchModal = ({
               ref={videoRef}
               src={release.video_url}
               autoPlay
+              muted={muted}
               playsInline
+              controls
+              controlsList="nodownload"
               onEnded={handleVideoEnded}
+              onLoadedMetadata={() => {
+                // Garante reprodução no Safari iOS: começa muted e depois tenta com som
+                if (videoRef.current) {
+                  videoRef.current.muted = false;
+                  videoRef.current.play().catch(() => {
+                    // Safari bloqueou: reproduz com mute
+                    if (videoRef.current) {
+                      videoRef.current.muted = true;
+                      setMuted(true);
+                      videoRef.current.play().catch(() => {});
+                    }
+                  });
+                }
+              }}
               className="absolute inset-0 w-full h-full object-contain"
-              style={{ background: "transparent" }}
+              style={{ background: "transparent", zIndex: 1 }}
             />
           )}
 
           {/* Gradiente inferior — para as legendas ficarem legíveis */}
           <div className="absolute inset-0 pointer-events-none"
-            style={{ background: "linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.4) 30%, transparent 55%)" }} />
+            style={{ background: "linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.4) 30%, transparent 55%)", zIndex: 2 }} />
 
           {/* Gradiente superior — para os botões do topo ficarem legíveis */}
           <div className="absolute inset-0 pointer-events-none"
-            style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.75) 0%, transparent 22%)" }} />
+            style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.75) 0%, transparent 22%)", zIndex: 2 }} />
 
           {/* Overlay de produtos */}
           {showProducts && release.linked_products?.length > 0 && (
