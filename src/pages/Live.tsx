@@ -1265,7 +1265,8 @@ const ProductsOverlay = ({
 };
 
 /* ═══════════════════════════════════════════════════
-   COMMENTS PANEL
+   COMMENTS PANEL — versão inline para desktop
+   (usada no painel direito do WatchModal em tablet/desktop)
 ═══════════════════════════════════════════════════ */
 interface CommentsPanelProps {
   comments: any[];
@@ -1273,8 +1274,10 @@ interface CommentsPanelProps {
   userId: string | null;
   profile: any;
   releaseId: string;
-  onClose: () => void;
+  onClose?: () => void;
   onSendComment: (text: string) => Promise<void>;
+  /** Se true, renderiza em modo inline (sem overlay/backdrop) */
+  inline?: boolean;
 }
 
 const CommentsPanel = ({
@@ -1285,6 +1288,7 @@ const CommentsPanel = ({
   releaseId,
   onClose,
   onSendComment,
+  inline = false,
 }: CommentsPanelProps) => {
   const [localComment, setLocalComment] = useState("");
   const [sendingComment, setSendingComment] = useState(false);
@@ -1298,11 +1302,13 @@ const CommentsPanel = ({
   }, [comments.length]);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      commentInputRef.current?.focus();
-    }, 150);
-    return () => clearTimeout(timer);
-  }, []);
+    if (!inline) {
+      const timer = setTimeout(() => {
+        commentInputRef.current?.focus();
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [inline]);
 
   const handleSend = async () => {
     const text = localComment.trim();
@@ -1318,22 +1324,18 @@ const CommentsPanel = ({
     }
   };
 
-  return (
-    <div
-      className="absolute inset-0 z-30 flex"
-      style={{ background: "rgba(0,0,0,0.5)" }}
-      onClick={onClose}
+  const panelContent = (
+    <div className={`flex flex-col ${inline ? "h-full" : "absolute right-0 top-0 bottom-0"}`}
+      style={inline ? {} : {
+        width: "85%",
+        maxWidth: 340,
+        background: "linear-gradient(180deg, #110703 0%, #1a0a02 100%)",
+        borderLeft: `1px solid rgba(212,184,150,0.20)`,
+      }}
+      onClick={e => e.stopPropagation()}
     >
-      <div
-        className="absolute right-0 top-0 bottom-0 flex flex-col"
-        style={{
-          width: "85%",
-          maxWidth: 340,
-          background: "linear-gradient(180deg, #110703 0%, #1a0a02 100%)",
-          borderLeft: `1px solid rgba(212,184,150,0.20)`,
-        }}
-        onClick={e => e.stopPropagation()}
-      >
+      {/* Header — apenas no modo overlay (mobile) */}
+      {!inline && (
         <div className="flex items-center justify-between px-4 py-3 flex-shrink-0"
           style={{ borderBottom: "1px solid rgba(212,184,150,0.12)" }}>
           <div className="flex items-center gap-2">
@@ -1348,110 +1350,325 @@ const CommentsPanel = ({
             <X className="w-3.5 h-3.5 text-white" />
           </button>
         </div>
+      )}
 
-        <div
-          ref={commentListRef}
-          className="flex-1 overflow-y-auto px-3 py-3 space-y-3"
-          style={{ scrollbarWidth: "none" }}
-        >
-          {!upcoming && comments.length === 0 && (
-            <div className="py-10 text-center">
-              <MessageCircle className="w-8 h-8 mx-auto mb-2" style={{ color: "rgba(212,184,150,0.2)" }} />
-              <p className="text-[12px]" style={{ color: "rgba(212,184,150,0.4)" }}>
-                Nenhum comentário ainda.<br />Sê o primeiro!
-              </p>
-            </div>
-          )}
-          {upcoming && (
-            <p className="text-center text-[11px] py-8" style={{ color: "rgba(212,184,150,0.4)" }}>
-              Comentários abrem na transmissão
-            </p>
-          )}
-          {!upcoming && comments.map((c: any) => {
-            const displayName = c.user_name || "Utilizador";
-            const avatar = c.user_avatar || null;
-
-            return (
-              <div key={c.id} className="flex items-start gap-2">
-                {avatar
-                  ? <img src={avatar} alt=""
-                      className="w-7 h-7 rounded-full object-cover flex-shrink-0 mt-0.5"
-                      style={{ border: "1.5px solid rgba(212,184,150,0.2)" }} />
-                  : <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0 mt-0.5"
-                      style={{ background: "rgba(74,46,10,0.5)", color: cream }}>
-                      {displayName.charAt(0).toUpperCase()}
-                    </div>}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center flex-wrap gap-1 mb-0.5">
-                    <span className="text-[11px] font-black text-white">{displayName}</span>
-                    <span className="text-[9px]" style={{ color: "rgba(212,184,150,0.4)" }}>
-                      {new Date(c.created_at).toLocaleTimeString("pt-AO", { hour: "2-digit", minute: "2-digit" })}
-                    </span>
-                  </div>
-                  <p className="text-[12px] leading-relaxed" style={{ color: "rgba(255,255,255,0.85)" }}>
-                    {c.content}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
+      {/* Header inline para desktop — título simples */}
+      {inline && (
+        <div className="flex items-center gap-2 px-4 py-3 flex-shrink-0"
+          style={{ borderBottom: "1px solid rgba(212,184,150,0.12)" }}>
+          <MessageCircle className="w-4 h-4" style={{ color: sand }} />
+          <span className="text-sm font-black text-white">
+            Comentários {comments.length > 0 && `(${comments.length})`}
+          </span>
         </div>
+      )}
 
-        {!upcoming && (
-          <div className="flex items-center gap-2 px-3 py-3 flex-shrink-0"
-            style={{ borderTop: "1px solid rgba(212,184,150,0.10)" }}>
-            {profile?.avatar_url
-              ? <img src={profile.avatar_url} alt=""
-                  className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
-              : <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0"
-                  style={{ background: sandDark, color: cream }}>
-                  {(profile?.full_name || userId || "?").charAt(0).toUpperCase()}
-                </div>}
-            <input
-              ref={commentInputRef}
-              type="text"
-              value={localComment}
-              onChange={e => setLocalComment(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
-              placeholder={userId ? "Adiciona um comentário…" : "Faz login para comentar"}
-              disabled={!userId || sendingComment}
-              autoComplete="off"
-              autoCorrect="off"
-              spellCheck={false}
-              className="flex-1 px-3 py-2 rounded-full text-xs focus:outline-none"
-              style={{
-                background: "rgba(212,184,150,0.08)",
-                border: "1px solid rgba(212,184,150,0.18)",
-                color: "white",
-              }}
-            />
-            <button
-              onClick={handleSend}
-              disabled={!localComment.trim() || sendingComment || !userId}
-              className="w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-95 flex-shrink-0"
-              style={{
-                background: (localComment.trim() && !sendingComment && userId)
-                  ? `linear-gradient(135deg,${sandDark},${brown})`
-                  : "rgba(74,46,10,0.3)"
-              }}>
-              {sendingComment
-                ? <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
-                : <Send className="w-3.5 h-3.5 text-white" />}
-            </button>
+      <div
+        ref={commentListRef}
+        className="flex-1 overflow-y-auto px-3 py-3 space-y-3"
+        style={{ scrollbarWidth: "none" }}
+      >
+        {!upcoming && comments.length === 0 && (
+          <div className="py-10 text-center">
+            <MessageCircle className="w-8 h-8 mx-auto mb-2" style={{ color: "rgba(212,184,150,0.2)" }} />
+            <p className="text-[12px]" style={{ color: "rgba(212,184,150,0.4)" }}>
+              Nenhum comentário ainda.<br />Sê o primeiro!
+            </p>
           </div>
         )}
+        {upcoming && (
+          <p className="text-center text-[11px] py-8" style={{ color: "rgba(212,184,150,0.4)" }}>
+            Comentários abrem na transmissão
+          </p>
+        )}
+        {!upcoming && comments.map((c: any) => {
+          const displayName = c.user_name || "Utilizador";
+          const avatar = c.user_avatar || null;
+
+          return (
+            <div key={c.id} className="flex items-start gap-2">
+              {avatar
+                ? <img src={avatar} alt=""
+                    className="w-7 h-7 rounded-full object-cover flex-shrink-0 mt-0.5"
+                    style={{ border: "1.5px solid rgba(212,184,150,0.2)" }} />
+                : <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0 mt-0.5"
+                    style={{ background: "rgba(74,46,10,0.5)", color: cream }}>
+                    {displayName.charAt(0).toUpperCase()}
+                  </div>}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center flex-wrap gap-1 mb-0.5">
+                  <span className="text-[11px] font-black text-white">{displayName}</span>
+                  <span className="text-[9px]" style={{ color: "rgba(212,184,150,0.4)" }}>
+                    {new Date(c.created_at).toLocaleTimeString("pt-AO", { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                </div>
+                <p className="text-[12px] leading-relaxed" style={{ color: "rgba(255,255,255,0.85)" }}>
+                  {c.content}
+                </p>
+              </div>
+            </div>
+          );
+        })}
       </div>
+
+      {!upcoming && (
+        <div className="flex items-center gap-2 px-3 py-3 flex-shrink-0"
+          style={{ borderTop: "1px solid rgba(212,184,150,0.10)" }}>
+          {profile?.avatar_url
+            ? <img src={profile.avatar_url} alt=""
+                className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
+            : <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0"
+                style={{ background: sandDark, color: cream }}>
+                {(profile?.full_name || userId || "?").charAt(0).toUpperCase()}
+              </div>}
+          <input
+            ref={commentInputRef}
+            type="text"
+            value={localComment}
+            onChange={e => setLocalComment(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+            placeholder={userId ? "Adiciona um comentário…" : "Faz login para comentar"}
+            disabled={!userId || sendingComment}
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
+            className="flex-1 px-3 py-2 rounded-full text-xs focus:outline-none"
+            style={{
+              background: "rgba(212,184,150,0.08)",
+              border: "1px solid rgba(212,184,150,0.18)",
+              color: "white",
+            }}
+          />
+          <button
+            onClick={handleSend}
+            disabled={!localComment.trim() || sendingComment || !userId}
+            className="w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-95 flex-shrink-0"
+            style={{
+              background: (localComment.trim() && !sendingComment && userId)
+                ? `linear-gradient(135deg,${sandDark},${brown})`
+                : "rgba(74,46,10,0.3)"
+            }}>
+            {sendingComment
+              ? <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
+              : <Send className="w-3.5 h-3.5 text-white" />}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
+  /* Modo overlay (mobile) — mantém backdrop + slide from right */
+  if (!inline) {
+    return (
+      <div
+        className="absolute inset-0 z-30 flex"
+        style={{ background: "rgba(0,0,0,0.5)" }}
+        onClick={onClose}
+      >
+        <div
+          className="absolute right-0 top-0 bottom-0 flex flex-col"
+          style={{
+            width: "85%",
+            maxWidth: 340,
+            background: "linear-gradient(180deg, #110703 0%, #1a0a02 100%)",
+            borderLeft: `1px solid rgba(212,184,150,0.20)`,
+          }}
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between px-4 py-3 flex-shrink-0"
+            style={{ borderBottom: "1px solid rgba(212,184,150,0.12)" }}>
+            <div className="flex items-center gap-2">
+              <MessageCircle className="w-4 h-4" style={{ color: sand }} />
+              <span className="text-sm font-black text-white">
+                Comentários {comments.length > 0 && `(${comments.length})`}
+              </span>
+            </div>
+            <button onClick={onClose}
+              className="w-7 h-7 rounded-full flex items-center justify-center"
+              style={{ background: "rgba(212,184,150,0.15)" }}>
+              <X className="w-3.5 h-3.5 text-white" />
+            </button>
+          </div>
+
+          <div
+            ref={commentListRef}
+            className="flex-1 overflow-y-auto px-3 py-3 space-y-3"
+            style={{ scrollbarWidth: "none" }}
+          >
+            {!upcoming && comments.length === 0 && (
+              <div className="py-10 text-center">
+                <MessageCircle className="w-8 h-8 mx-auto mb-2" style={{ color: "rgba(212,184,150,0.2)" }} />
+                <p className="text-[12px]" style={{ color: "rgba(212,184,150,0.4)" }}>
+                  Nenhum comentário ainda.<br />Sê o primeiro!
+                </p>
+              </div>
+            )}
+            {upcoming && (
+              <p className="text-center text-[11px] py-8" style={{ color: "rgba(212,184,150,0.4)" }}>
+                Comentários abrem na transmissão
+              </p>
+            )}
+            {!upcoming && comments.map((c: any) => {
+              const displayName = c.user_name || "Utilizador";
+              const avatar = c.user_avatar || null;
+              return (
+                <div key={c.id} className="flex items-start gap-2">
+                  {avatar
+                    ? <img src={avatar} alt="" className="w-7 h-7 rounded-full object-cover flex-shrink-0 mt-0.5"
+                        style={{ border: "1.5px solid rgba(212,184,150,0.2)" }} />
+                    : <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0 mt-0.5"
+                        style={{ background: "rgba(74,46,10,0.5)", color: cream }}>
+                        {displayName.charAt(0).toUpperCase()}
+                      </div>}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center flex-wrap gap-1 mb-0.5">
+                      <span className="text-[11px] font-black text-white">{displayName}</span>
+                      <span className="text-[9px]" style={{ color: "rgba(212,184,150,0.4)" }}>
+                        {new Date(c.created_at).toLocaleTimeString("pt-AO", { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    </div>
+                    <p className="text-[12px] leading-relaxed" style={{ color: "rgba(255,255,255,0.85)" }}>
+                      {c.content}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {!upcoming && (
+            <div className="flex items-center gap-2 px-3 py-3 flex-shrink-0"
+              style={{ borderTop: "1px solid rgba(212,184,150,0.10)" }}>
+              {profile?.avatar_url
+                ? <img src={profile.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
+                : <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0"
+                    style={{ background: sandDark, color: cream }}>
+                    {(profile?.full_name || userId || "?").charAt(0).toUpperCase()}
+                  </div>}
+              <input
+                ref={commentInputRef}
+                type="text"
+                value={localComment}
+                onChange={e => setLocalComment(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                placeholder={userId ? "Adiciona um comentário…" : "Faz login para comentar"}
+                disabled={!userId || sendingComment}
+                autoComplete="off" autoCorrect="off" spellCheck={false}
+                className="flex-1 px-3 py-2 rounded-full text-xs focus:outline-none"
+                style={{ background: "rgba(212,184,150,0.08)", border: "1px solid rgba(212,184,150,0.18)", color: "white" }}
+              />
+              <button onClick={handleSend} disabled={!localComment.trim() || sendingComment || !userId}
+                className="w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-95 flex-shrink-0"
+                style={{ background: (localComment.trim() && !sendingComment && userId) ? `linear-gradient(135deg,${sandDark},${brown})` : "rgba(74,46,10,0.3)" }}>
+                {sendingComment ? <Loader2 className="w-3.5 h-3.5 text-white animate-spin" /> : <Send className="w-3.5 h-3.5 text-white" />}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  /* Modo inline (desktop) — retorna apenas o painel sem wrapper de overlay */
+  return (
+    <div className="flex flex-col h-full"
+      style={{ background: "linear-gradient(180deg, #110703 0%, #1a0a02 100%)" }}>
+      <div className="flex items-center gap-2 px-4 py-3 flex-shrink-0"
+        style={{ borderBottom: "1px solid rgba(212,184,150,0.12)" }}>
+        <MessageCircle className="w-4 h-4" style={{ color: sand }} />
+        <span className="text-sm font-black text-white">
+          Comentários {comments.length > 0 && `(${comments.length})`}
+        </span>
+      </div>
+
+      <div
+        ref={commentListRef}
+        className="flex-1 overflow-y-auto px-3 py-3 space-y-3"
+        style={{ scrollbarWidth: "none" }}
+      >
+        {!upcoming && comments.length === 0 && (
+          <div className="py-10 text-center">
+            <MessageCircle className="w-8 h-8 mx-auto mb-2" style={{ color: "rgba(212,184,150,0.2)" }} />
+            <p className="text-[12px]" style={{ color: "rgba(212,184,150,0.4)" }}>
+              Nenhum comentário ainda.<br />Sê o primeiro!
+            </p>
+          </div>
+        )}
+        {upcoming && (
+          <p className="text-center text-[11px] py-8" style={{ color: "rgba(212,184,150,0.4)" }}>
+            Comentários abrem na transmissão
+          </p>
+        )}
+        {!upcoming && comments.map((c: any) => {
+          const displayName = c.user_name || "Utilizador";
+          const avatar = c.user_avatar || null;
+          return (
+            <div key={c.id} className="flex items-start gap-2">
+              {avatar
+                ? <img src={avatar} alt="" className="w-7 h-7 rounded-full object-cover flex-shrink-0 mt-0.5"
+                    style={{ border: "1.5px solid rgba(212,184,150,0.2)" }} />
+                : <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0 mt-0.5"
+                    style={{ background: "rgba(74,46,10,0.5)", color: cream }}>
+                    {displayName.charAt(0).toUpperCase()}
+                  </div>}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center flex-wrap gap-1 mb-0.5">
+                  <span className="text-[11px] font-black text-white">{displayName}</span>
+                  <span className="text-[9px]" style={{ color: "rgba(212,184,150,0.4)" }}>
+                    {new Date(c.created_at).toLocaleTimeString("pt-AO", { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                </div>
+                <p className="text-[12px] leading-relaxed" style={{ color: "rgba(255,255,255,0.85)" }}>
+                  {c.content}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {!upcoming && (
+        <div className="flex items-center gap-2 px-3 py-3 flex-shrink-0"
+          style={{ borderTop: "1px solid rgba(212,184,150,0.10)" }}>
+          {profile?.avatar_url
+            ? <img src={profile.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
+            : <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0"
+                style={{ background: sandDark, color: cream }}>
+                {(profile?.full_name || userId || "?").charAt(0).toUpperCase()}
+              </div>}
+          <input
+            ref={commentInputRef}
+            type="text"
+            value={localComment}
+            onChange={e => setLocalComment(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+            placeholder={userId ? "Adiciona um comentário…" : "Faz login para comentar"}
+            disabled={!userId || sendingComment}
+            autoComplete="off" autoCorrect="off" spellCheck={false}
+            className="flex-1 px-3 py-2 rounded-full text-xs focus:outline-none"
+            style={{ background: "rgba(212,184,150,0.08)", border: "1px solid rgba(212,184,150,0.18)", color: "white" }}
+          />
+          <button onClick={handleSend} disabled={!localComment.trim() || sendingComment || !userId}
+            className="w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-95 flex-shrink-0"
+            style={{ background: (localComment.trim() && !sendingComment && userId) ? `linear-gradient(135deg,${sandDark},${brown})` : "rgba(74,46,10,0.3)" }}>
+            {sendingComment ? <Loader2 className="w-3.5 h-3.5 text-white animate-spin" /> : <Send className="w-3.5 h-3.5 text-white" />}
+          </button>
+        </div>
+      )}
     </div>
   );
 };
 
 /* ═══════════════════════════════════════════════════
    WATCH MODAL
+   — Mobile  : layout original (fullscreen, 420px)
+   — Tablet+ : painel esquerdo 60% vídeo
+                painel direito 40% (legenda + comentários)
 ═══════════════════════════════════════════════════ */
 const WatchModal = ({
   release, onClose, userId, sellerId, onDeleted,
@@ -1461,7 +1678,7 @@ const WatchModal = ({
   const [liked, setLiked] = useState(false);
   const [notified, setNotified] = useState(false);
   const [showProducts, setShowProducts] = useState(false);
-  const [showComments, setShowComments] = useState(false);
+  const [showComments, setShowComments] = useState(false); // usado apenas no mobile
   const [muted, setMuted] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [optimisticComments, setOptimisticComments] = useState<any[]>([]);
@@ -1524,7 +1741,6 @@ const WatchModal = ({
     qc.invalidateQueries({ queryKey: ["releases_all"] });
   }, [live, release?.id, qc]);
 
-  // ✅ CORRIGIDO: removido join user:profiles que causava erro e retornava []
   const { data: serverComments = [], refetch: refetchComments } = useQuery({
     queryKey: ["release_comments", release.id],
     queryFn: async () => {
@@ -1616,9 +1832,145 @@ const WatchModal = ({
     navigate(`/produto/${id}`);
   };
 
-  return (
+  /* ─── Shared: seller header bar ─── */
+  const sellerBar = (
+    <div className="flex items-center gap-3 flex-1 min-w-0">
+      <button
+        onClick={handleSellerClick}
+        className="flex items-center gap-2 min-w-0 flex-1 text-left"
+        style={{ background: "transparent", border: "none" }}
+      >
+        {release.seller?.logo_url
+          ? <img src={release.seller.logo_url} alt=""
+              className="w-9 h-9 rounded-full object-cover flex-shrink-0"
+              style={{ border: `2px solid ${sandDark}` }} />
+          : <div className="w-9 h-9 rounded-full flex items-center justify-center font-black text-sm flex-shrink-0"
+              style={{ background: sandDark, color: cream }}>
+              {(release.seller?.name || "?").charAt(0).toUpperCase()}
+            </div>}
+        <div className="min-w-0">
+          <div className="flex items-center gap-1">
+            <span className="text-xs font-black text-white truncate">{release.seller?.name || "Vendedor"}</span>
+            {release.seller?.is_verified && (
+              <BadgeCheck className="w-3.5 h-3.5 flex-shrink-0" style={{ color: verifiedBlue }} />
+            )}
+          </div>
+          <p className="text-[10px] truncate" style={{ color: sand }}>{release.title}</p>
+        </div>
+      </button>
+    </div>
+  );
+
+  /* ─── Shared: action buttons (like, eye, mute, products) ─── */
+  const actionButtons = (vertical: boolean) => (
+    <div className={`flex ${vertical ? "flex-col items-center gap-4" : "flex-row items-center gap-3"}`}>
+      <button onClick={() => setLiked(v => !v)} className="flex flex-col items-center gap-1">
+        <div className="w-11 h-11 rounded-full flex items-center justify-center"
+          style={{ background: liked ? "rgba(229,57,53,0.25)" : "rgba(0,0,0,0.55)" }}>
+          <Heart className={`w-6 h-6 ${liked ? "fill-current" : ""}`}
+            style={{ color: liked ? "#E53935" : "white" }} />
+        </div>
+        <span className="text-[10px] font-bold text-white">
+          {(release.likes_count || 0) + (liked ? 1 : 0)}
+        </span>
+      </button>
+
+      {/* Mobile: open overlay; Desktop: shown inline — no button needed */}
+      <button onClick={() => setShowComments(true)} className="flex flex-col items-center gap-1 md:hidden">
+        <div className="w-11 h-11 rounded-full flex items-center justify-center"
+          style={{ background: "rgba(0,0,0,0.55)" }}>
+          <MessageCircle className="w-6 h-6 text-white" />
+        </div>
+        <span className="text-[10px] font-bold text-white">
+          {comments.length || release.comments_count || 0}
+        </span>
+      </button>
+
+      <div className="flex flex-col items-center gap-1">
+        <div className="w-11 h-11 rounded-full flex items-center justify-center"
+          style={{ background: "rgba(0,0,0,0.55)" }}>
+          <Eye className="w-6 h-6 text-white" />
+        </div>
+        <span className="text-[10px] font-bold text-white">
+          {(release.views_count || 0).toLocaleString("pt-AO")}
+        </span>
+      </div>
+
+      {canPlayVideo && (
+        <button onClick={toggleMute} className="flex flex-col items-center gap-1">
+          <div className="w-11 h-11 rounded-full flex items-center justify-center"
+            style={{ background: "rgba(0,0,0,0.55)" }}>
+            {muted ? <VolumeX className="w-6 h-6 text-white" /> : <Volume2 className="w-6 h-6 text-white" />}
+          </div>
+        </button>
+      )}
+
+      {release.linked_products?.length > 0 && (
+        <button onClick={() => setShowProducts(true)} className="flex flex-col items-center gap-1">
+          <div className="w-11 h-11 rounded-full flex items-center justify-center"
+            style={{ background: `linear-gradient(135deg, ${sandDark}, ${brown})` }}>
+            <ShoppingBag className="w-6 h-6 text-white" />
+          </div>
+          <span className="text-[10px] font-bold" style={{ color: sand }}>
+            {release.linked_products.length}
+          </span>
+        </button>
+      )}
+    </div>
+  );
+
+  /* ─── Shared: bottom info (title, description, cta) ─── */
+  const bottomInfo = (
+    <>
+      <button
+        onClick={handleSellerClick}
+        className="flex items-center gap-1.5 mb-2"
+        style={{ background: "transparent", border: "none" }}
+      >
+        <span className="text-[11px] font-black" style={{ color: sand }}>
+          @{release.seller?.name || "vendedor"}
+        </span>
+        {release.seller?.is_verified && <BadgeCheck className="w-3 h-3" style={{ color: verifiedBlue }} />}
+      </button>
+
+      <p className="text-base font-black text-white mb-1 leading-tight line-clamp-2">
+        {release.title}
+      </p>
+
+      {release.description && (
+        <p className="text-[12px] text-white/60 mb-2 line-clamp-2 leading-relaxed">
+          {release.description}
+        </p>
+      )}
+
+      <div className="flex items-center gap-2 flex-wrap">
+        {release.video_duration_s && (
+          <span className="text-[10px] font-bold px-2.5 py-1 rounded-full"
+            style={{ background: "rgba(0,0,0,0.65)", color: sand }}>
+            {fmtDuration(release.video_duration_s)}
+          </span>
+        )}
+        {release.linked_products?.length > 0 && (
+          <button
+            onClick={() => setShowProducts(true)}
+            className="flex items-center gap-1.5 text-[12px] font-bold px-3.5 py-2 rounded-full transition active:scale-95"
+            style={{ background: `linear-gradient(135deg, ${sandDark}, ${brown})`, color: "#fff" }}
+          >
+            <ShoppingCart className="w-3.5 h-3.5" />
+            Ver {release.linked_products.length} produto{release.linked_products.length !== 1 ? "s" : ""}
+          </button>
+        )}
+      </div>
+    </>
+  );
+
+  /* ══════════════════════════════════════════════════
+     LAYOUT MOBILE  (< md = < 768px)
+     — idêntico ao original
+  ══════════════════════════════════════════════════ */
+  const mobileLayout = (
     <div
-      className="fixed inset-0 z-[70] flex items-stretch justify-center"
+      className="md:hidden fixed inset-0 z-[70] flex items-stretch justify-center"
       style={{ background: "rgba(0,0,0,0.96)" }}
       onClick={onClose}
     >
@@ -1634,108 +1986,51 @@ const WatchModal = ({
       >
         <div className="absolute inset-0" style={{ background: "#000" }}>
           {release.thumbnail_url && (
-            <img
-              src={release.thumbnail_url}
-              alt=""
+            <img src={release.thumbnail_url} alt=""
               className="absolute inset-0 w-full h-full object-cover"
               style={{
                 opacity: canPlayVideo ? 0.12 : upcoming ? 0.35 : 0.5,
                 filter: expired && !release.video_url ? "grayscale(1)" : "none",
-              }}
-            />
+              }} />
           )}
 
           {canPlayVideo && (
-            <video
-              ref={videoRef}
-              src={release.video_url}
-              autoPlay
-              muted={muted}
-              playsInline
-              controls
-              controlsList="nodownload"
-              onEnded={handleVideoEnded}
+            <video ref={videoRef} src={release.video_url} autoPlay muted={muted} playsInline controls
+              controlsList="nodownload" onEnded={handleVideoEnded}
               onLoadedMetadata={() => {
                 if (videoRef.current) {
                   videoRef.current.muted = false;
                   videoRef.current.play().catch(() => {
-                    if (videoRef.current) {
-                      videoRef.current.muted = true;
-                      setMuted(true);
-                      videoRef.current.play().catch(() => {});
-                    }
+                    if (videoRef.current) { videoRef.current.muted = true; setMuted(true); videoRef.current.play().catch(() => {}); }
                   });
                 }
               }}
               className="absolute inset-0 w-full h-full object-contain"
-              style={{ background: "transparent", zIndex: 1 }}
-            />
+              style={{ background: "transparent", zIndex: 1 }} />
           )}
 
           <div className="absolute inset-0 pointer-events-none"
             style={{ background: "linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.4) 30%, transparent 55%)", zIndex: 2 }} />
-
           <div className="absolute inset-0 pointer-events-none"
             style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.75) 0%, transparent 22%)", zIndex: 2 }} />
 
           {showProducts && release.linked_products?.length > 0 && (
-            <ProductsOverlay
-              products={release.linked_products}
-              onClose={() => setShowProducts(false)}
-              onNavigate={handleProductNavigate}
-            />
+            <ProductsOverlay products={release.linked_products} onClose={() => setShowProducts(false)} onNavigate={handleProductNavigate} />
           )}
-
           {showComments && (
-            <CommentsPanel
-              comments={comments}
-              upcoming={upcoming}
-              userId={userId}
-              profile={profile}
-              releaseId={release.id}
-              onClose={() => setShowComments(false)}
-              onSendComment={sendComment}
-            />
+            <CommentsPanel comments={comments} upcoming={upcoming} userId={userId} profile={profile}
+              releaseId={release.id} onClose={() => setShowComments(false)} onSendComment={sendComment} />
           )}
         </div>
 
+        {/* Top bar */}
         <div className="absolute top-0 left-0 right-0 z-20 flex items-center gap-3 px-4 pt-10 pb-2">
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <button
-              onClick={handleSellerClick}
-              className="flex items-center gap-2 min-w-0 flex-1 text-left"
-              style={{ background: "transparent", border: "none" }}
-            >
-              {release.seller?.logo_url
-                ? <img src={release.seller.logo_url} alt=""
-                    className="w-9 h-9 rounded-full object-cover flex-shrink-0"
-                    style={{ border: `2px solid ${sandDark}` }} />
-                : <div className="w-9 h-9 rounded-full flex items-center justify-center font-black text-sm flex-shrink-0"
-                    style={{ background: sandDark, color: cream }}>
-                    {(release.seller?.name || "?").charAt(0).toUpperCase()}
-                  </div>}
-              <div className="min-w-0">
-                <div className="flex items-center gap-1">
-                  <span className="text-xs font-black text-white truncate">{release.seller?.name || "Vendedor"}</span>
-                  {release.seller?.is_verified && (
-                    <BadgeCheck className="w-3.5 h-3.5 flex-shrink-0" style={{ color: verifiedBlue }} />
-                  )}
-                </div>
-                <p className="text-[10px] truncate" style={{ color: sand }}>{release.title}</p>
-              </div>
-            </button>
-          </div>
+          <div className="flex items-center gap-2 flex-1 min-w-0">{sellerBar}</div>
           {isOwner && (
-            <button
-              onClick={handleDelete}
-              disabled={deleting}
+            <button onClick={handleDelete} disabled={deleting}
               className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition"
-              style={{ background: "rgba(229,57,53,0.75)", border: "1px solid rgba(229,57,53,0.5)" }}
-              title="Eliminar lançamento"
-            >
-              {deleting
-                ? <Loader2 className="w-4 h-4 text-white animate-spin" />
-                : <Trash2 className="w-4 h-4 text-white" />}
+              style={{ background: "rgba(229,57,53,0.75)", border: "1px solid rgba(229,57,53,0.5)" }}>
+              {deleting ? <Loader2 className="w-4 h-4 text-white animate-spin" /> : <Trash2 className="w-4 h-4 text-white" />}
             </button>
           )}
           <button onClick={onClose}
@@ -1746,27 +2041,22 @@ const WatchModal = ({
         </div>
 
         {live && (
-          <div className="absolute top-20 left-4 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-lg"
-            style={{ background: "#E53935" }}>
+          <div className="absolute top-20 left-4 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-lg" style={{ background: "#E53935" }}>
             <PulseDot color="#fff" />
             <span className="text-[10px] font-black text-white">AO VIVO</span>
           </div>
         )}
-
         {expired && !live && (
-          <div className="absolute top-20 left-4 z-20 px-2.5 py-1 rounded-lg"
-            style={{ background: "rgba(40,40,40,0.85)" }}>
+          <div className="absolute top-20 left-4 z-20 px-2.5 py-1 rounded-lg" style={{ background: "rgba(40,40,40,0.85)" }}>
             <span className="text-[10px] font-bold text-white/70">TERMINADO</span>
           </div>
         )}
-
         {!canPlayVideo && !upcoming && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2">
             <VideoOff className="w-10 h-10 text-white/30" />
             <p className="text-white/40 text-sm font-bold">Vídeo não disponível</p>
           </div>
         )}
-
         {upcoming && !showProducts && !showComments && (
           <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 px-8 text-center">
             <Calendar className="w-12 h-12 text-white/50 mx-auto" />
@@ -1783,68 +2073,175 @@ const WatchModal = ({
           </div>
         )}
 
+        {/* Right action buttons */}
         {!showProducts && !showComments && (
-          <div className="absolute right-3 z-20 flex flex-col items-center gap-4"
-            style={{ bottom: 120 }}>
-
-            <button onClick={() => setLiked(v => !v)} className="flex flex-col items-center gap-1">
-              <div className="w-11 h-11 rounded-full flex items-center justify-center"
-                style={{ background: liked ? "rgba(229,57,53,0.25)" : "rgba(0,0,0,0.55)" }}>
-                <Heart className={`w-6 h-6 ${liked ? "fill-current" : ""}`}
-                  style={{ color: liked ? "#E53935" : "white" }} />
-              </div>
-              <span className="text-[10px] font-bold text-white">
-                {(release.likes_count || 0) + (liked ? 1 : 0)}
-              </span>
-            </button>
-
-            <button onClick={() => setShowComments(true)} className="flex flex-col items-center gap-1">
-              <div className="w-11 h-11 rounded-full flex items-center justify-center"
-                style={{ background: "rgba(0,0,0,0.55)" }}>
-                <MessageCircle className="w-6 h-6 text-white" />
-              </div>
-              <span className="text-[10px] font-bold text-white">
-                {comments.length || release.comments_count || 0}
-              </span>
-            </button>
-
-            <div className="flex flex-col items-center gap-1">
-              <div className="w-11 h-11 rounded-full flex items-center justify-center"
-                style={{ background: "rgba(0,0,0,0.55)" }}>
-                <Eye className="w-6 h-6 text-white" />
-              </div>
-              <span className="text-[10px] font-bold text-white">
-                {(release.views_count || 0).toLocaleString("pt-AO")}
-              </span>
-            </div>
-
-            {canPlayVideo && (
-              <button onClick={toggleMute} className="flex flex-col items-center gap-1">
-                <div className="w-11 h-11 rounded-full flex items-center justify-center"
-                  style={{ background: "rgba(0,0,0,0.55)" }}>
-                  {muted
-                    ? <VolumeX className="w-6 h-6 text-white" />
-                    : <Volume2 className="w-6 h-6 text-white" />}
-                </div>
-              </button>
-            )}
-
-            {release.linked_products?.length > 0 && (
-              <button onClick={() => setShowProducts(true)} className="flex flex-col items-center gap-1">
-                <div className="w-11 h-11 rounded-full flex items-center justify-center"
-                  style={{ background: `linear-gradient(135deg, ${sandDark}, ${brown})` }}>
-                  <ShoppingBag className="w-6 h-6 text-white" />
-                </div>
-                <span className="text-[10px] font-bold" style={{ color: sand }}>
-                  {release.linked_products.length}
-                </span>
-              </button>
-            )}
+          <div className="absolute right-3 z-20 flex flex-col items-center gap-4" style={{ bottom: 120 }}>
+            {actionButtons(true)}
           </div>
         )}
 
+        {/* Bottom info */}
         {!showProducts && !showComments && (
           <div className="absolute bottom-0 left-0 right-16 z-20 px-4 pb-6">
+            {bottomInfo}
+          </div>
+        )}
+
+        <div style={{ height: "100vh" }} />
+      </div>
+    </div>
+  );
+
+  /* ══════════════════════════════════════════════════
+     LAYOUT TABLET / DESKTOP  (>= md = >= 768px)
+     — Esquerda 60%: vídeo (com overlay de produtos se aberto)
+     — Direita 40%: header do vendedor + legenda + comentários
+  ══════════════════════════════════════════════════ */
+  const desktopLayout = (
+    <div
+      className="hidden md:flex fixed inset-0 z-[70] items-center justify-center"
+      style={{ background: "rgba(0,0,0,0.88)" }}
+      onClick={onClose}
+    >
+      {/* Container principal */}
+      <div
+        className="relative flex w-full h-full max-w-[1280px]"
+        style={{
+          maxHeight: "100vh",
+          boxShadow: `0 0 0 1px ${sandDark}33, 0 0 80px rgba(74,46,10,0.35)`,
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+
+        {/* ── COLUNA ESQUERDA: 60% — vídeo ── */}
+        <div className="relative flex flex-col" style={{ width: "60%", background: "#000", flexShrink: 0 }}>
+
+          {/* Thumbnail de fundo */}
+          {release.thumbnail_url && (
+            <img src={release.thumbnail_url} alt=""
+              className="absolute inset-0 w-full h-full object-cover"
+              style={{
+                opacity: canPlayVideo ? 0.10 : upcoming ? 0.30 : 0.45,
+                filter: expired && !release.video_url ? "grayscale(1)" : "none",
+              }} />
+          )}
+
+          {/* Gradientes */}
+          <div className="absolute inset-0 pointer-events-none"
+            style={{ background: "linear-gradient(to top, rgba(0,0,0,0.70) 0%, rgba(0,0,0,0.20) 35%, transparent 60%)", zIndex: 2 }} />
+          <div className="absolute inset-0 pointer-events-none"
+            style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, transparent 18%)", zIndex: 2 }} />
+
+          {/* Vídeo */}
+          {canPlayVideo && (
+            <video ref={videoRef} src={release.video_url} autoPlay muted={muted} playsInline controls
+              controlsList="nodownload" onEnded={handleVideoEnded}
+              onLoadedMetadata={() => {
+                if (videoRef.current) {
+                  videoRef.current.muted = false;
+                  videoRef.current.play().catch(() => {
+                    if (videoRef.current) { videoRef.current.muted = true; setMuted(true); videoRef.current.play().catch(() => {}); }
+                  });
+                }
+              }}
+              className="absolute inset-0 w-full h-full object-contain"
+              style={{ background: "transparent", zIndex: 1 }} />
+          )}
+
+          {/* Overlay de produtos (cobre toda a coluna esquerda) */}
+          {showProducts && release.linked_products?.length > 0 && (
+            <div className="absolute inset-0 z-30">
+              <ProductsOverlay products={release.linked_products} onClose={() => setShowProducts(false)} onNavigate={handleProductNavigate} />
+            </div>
+          )}
+
+          {/* Sem vídeo */}
+          {!canPlayVideo && !upcoming && (
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2">
+              <VideoOff className="w-12 h-12 text-white/30" />
+              <p className="text-white/40 text-sm font-bold">Vídeo não disponível</p>
+            </div>
+          )}
+
+          {/* Upcoming */}
+          {upcoming && (
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 px-10 text-center">
+              <Calendar className="w-14 h-14 text-white/50 mx-auto" />
+              <div>
+                <p className="text-white font-black text-xl mb-1">Transmissão agendada</p>
+                <p className="text-white/60 text-sm mb-5">{fmtDate(release.broadcasts_at)}</p>
+                <button onClick={() => { setNotified(v => !v); toast.success(notified ? "Lembrete removido" : "Vais ser notificado!"); }}
+                  className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold text-white mx-auto"
+                  style={{ background: notified ? `rgba(184,149,106,0.3)` : "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)" }}>
+                  {notified ? <BellOff className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
+                  {notified ? "Lembrete activo" : "Lembrar-me"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Live badge */}
+          {live && (
+            <div className="absolute top-4 left-4 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-lg" style={{ background: "#E53935" }}>
+              <PulseDot color="#fff" />
+              <span className="text-[10px] font-black text-white">AO VIVO</span>
+            </div>
+          )}
+          {expired && !live && (
+            <div className="absolute top-4 left-4 z-20 px-2.5 py-1 rounded-lg" style={{ background: "rgba(40,40,40,0.85)" }}>
+              <span className="text-[10px] font-bold text-white/70">TERMINADO</span>
+            </div>
+          )}
+
+          {/* Acções sobrepostas no vídeo: like, views, mute, produtos */}
+          {!showProducts && (
+            <div className="absolute right-4 z-20 flex flex-col items-center gap-4" style={{ bottom: 80 }}>
+              {actionButtons(true)}
+            </div>
+          )}
+
+          {/* Info de duração no canto inferior esquerdo */}
+          {release.video_duration_s && !showProducts && (
+            <div className="absolute bottom-4 left-4 z-20">
+              <span className="text-[10px] font-bold px-2.5 py-1 rounded-full"
+                style={{ background: "rgba(0,0,0,0.65)", color: sand }}>
+                {fmtDuration(release.video_duration_s)}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* ── COLUNA DIREITA: 40% — legenda + comentários ── */}
+        <div className="flex flex-col flex-1 overflow-hidden"
+          style={{ background: "linear-gradient(180deg, #110703 0%, #1a0a02 100%)", borderLeft: `1px solid rgba(212,184,150,0.15)` }}>
+
+          {/* Header: vendedor + fechar + eliminar */}
+          <div className="flex items-center gap-3 px-5 py-4 flex-shrink-0"
+            style={{ borderBottom: "1px solid rgba(212,184,150,0.12)" }}>
+            {sellerBar}
+            {isOwner && (
+              <button onClick={handleDelete} disabled={deleting}
+                className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition"
+                style={{ background: "rgba(229,57,53,0.75)", border: "1px solid rgba(229,57,53,0.5)" }}
+                title="Eliminar lançamento">
+                {deleting ? <Loader2 className="w-4 h-4 text-white animate-spin" /> : <Trash2 className="w-4 h-4 text-white" />}
+              </button>
+            )}
+            <button onClick={onClose}
+              className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+              style={{ background: "rgba(0,0,0,0.55)", border: "1px solid rgba(212,184,150,0.25)" }}>
+              <X className="w-4 h-4 text-white" />
+            </button>
+          </div>
+
+          {/* Legenda (~20% do visor) */}
+          <div className="flex-shrink-0 px-5 py-4"
+            style={{
+              borderBottom: "1px solid rgba(212,184,150,0.10)",
+              minHeight: "20vh",
+              maxHeight: "20vh",
+              overflowY: "auto",
+            }}>
             <button
               onClick={handleSellerClick}
               className="flex items-center gap-1.5 mb-2"
@@ -1856,48 +2253,50 @@ const WatchModal = ({
               {release.seller?.is_verified && <BadgeCheck className="w-3 h-3" style={{ color: verifiedBlue }} />}
             </button>
 
-            <p className="text-base font-black text-white mb-1 leading-tight line-clamp-2">
+            <p className="text-base font-black text-white mb-1 leading-tight">
               {release.title}
             </p>
 
             {release.description && (
-              <p className="text-[12px] text-white/60 mb-2 line-clamp-2 leading-relaxed">
+              <p className="text-[13px] text-white/60 mb-3 leading-relaxed">
                 {release.description}
               </p>
             )}
 
-            <div className="flex items-center gap-2 flex-wrap">
-              {release.video_duration_s && (
-                <span className="text-[10px] font-bold px-2.5 py-1 rounded-full"
-                  style={{ background: "rgba(0,0,0,0.65)", color: sand }}>
-                  {fmtDuration(release.video_duration_s)}
-                </span>
-              )}
-              {release.linked_products?.length > 0 && (
-                <button
-                  onClick={() => setShowProducts(true)}
-                  className="flex items-center gap-1.5 text-[12px] font-bold px-3.5 py-2 rounded-full transition active:scale-95"
-                  style={{ background: `linear-gradient(135deg, ${sandDark}, ${brown})`, color: "#fff" }}
-                >
-                  <ShoppingCart className="w-3.5 h-3.5" />
-                  Ver {release.linked_products.length} produto{release.linked_products.length !== 1 ? "s" : ""}
-                </button>
-              )}
-            </div>
+            {release.linked_products?.length > 0 && (
+              <button
+                onClick={() => setShowProducts(true)}
+                className="flex items-center gap-1.5 text-[12px] font-bold px-3.5 py-2 rounded-full transition active:scale-95"
+                style={{ background: `linear-gradient(135deg, ${sandDark}, ${brown})`, color: "#fff" }}
+              >
+                <ShoppingCart className="w-3.5 h-3.5" />
+                Ver {release.linked_products.length} produto{release.linked_products.length !== 1 ? "s" : ""}
+              </button>
+            )}
           </div>
-        )}
 
-        <div style={{ height: "100vh" }} />
+          {/* Comentários — ocupa o restante */}
+          <div className="flex-1 overflow-hidden">
+            <CommentsPanel
+              comments={comments}
+              upcoming={upcoming}
+              userId={userId}
+              profile={profile}
+              releaseId={release.id}
+              onSendComment={sendComment}
+              inline={true}
+            />
+          </div>
+        </div>
       </div>
-
-      <button
-        onClick={onClose}
-        className="hidden md:flex absolute right-6 top-6 w-10 h-10 rounded-full items-center justify-center"
-        style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)" }}
-      >
-        <X className="w-5 h-5 text-white" />
-      </button>
     </div>
+  );
+
+  return (
+    <>
+      {mobileLayout}
+      {desktopLayout}
+    </>
   );
 };
 
