@@ -760,34 +760,95 @@ const ProductDetail = () => {
               </div>
             </div>
 
-            <SellerCard seller={publisher} onNavigate={handlePublisherNavigate} isLoading={loadingPublisher} />
-
             <div className="bg-card mt-0.5 md:mt-0 p-4 md:rounded-card md:border md:border-border">
-              {/* Price row with negotiate button */}
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <div className="flex items-baseline gap-1">
-                    {product.discount && <span className="text-sm font-bold text-walmart-green mr-1">Now</span>}
-                    <span className="text-2xl font-black text-foreground">{activePrice}</span>
-                  </div>
-                  {product.oldPrice && (
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-sm text-muted-foreground line-through">{product.oldPrice}</span>
-                      {product.discount && <span className="text-xs font-bold text-walmart-green">Poupa {product.discount}</span>}
-                    </div>
-                  )}
-                  {product.freeShipping && (
-                    <div className="flex items-center gap-1.5 mt-2 text-xs text-walmart-green font-semibold">
-                      <Truck className="w-4 h-4" /><span>Frete grátis para Luanda</span>
-                    </div>
-                  )}
+              {/* Price */}
+              <div>
+                <div className="flex items-baseline gap-1">
+                  {product.discount && <span className="text-sm font-bold text-walmart-green mr-1">Now</span>}
+                  <span className="text-2xl font-black text-foreground">{activePrice}</span>
                 </div>
-                {/* Negotiate price button */}
-                <button className="flex items-center gap-1.5 px-3 py-2 rounded-full border border-primary/30 bg-primary/5 text-primary text-xs font-bold hover:bg-primary/10 active:scale-95 transition flex-shrink-0">
-                  <MessageSquare className="w-3.5 h-3.5" />
-                  Negociar preço
-                </button>
+                {product.oldPrice && (
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-sm text-muted-foreground line-through">{product.oldPrice}</span>
+                    {product.discount && <span className="text-xs font-bold text-walmart-green">Poupa {product.discount}</span>}
+                  </div>
+                )}
+                {product.freeShipping && (
+                  <div className="flex items-center gap-1.5 mt-2 text-xs text-walmart-green font-semibold">
+                    <Truck className="w-4 h-4" /><span>Frete grátis para Luanda</span>
+                  </div>
+                )}
               </div>
+
+              {/* Seller info inline — inspired by brown design */}
+              {(publisher || loadingPublisher) && (
+                <button
+                  onClick={handlePublisherNavigate}
+                  className="w-full mt-4 pt-4 border-t border-border flex items-center gap-3 hover:opacity-80 active:opacity-60 transition text-left"
+                >
+                  {loadingPublisher ? (
+                    <div className="w-10 h-10 rounded-full bg-muted animate-pulse flex-shrink-0" />
+                  ) : (
+                    <div className="relative flex-shrink-0">
+                      <AvatarWithFallback src={publisher?.logo_url || publisher?.avatar_url || null} name={publisher?.name || ""} isCompany={publisher?.__type === "company"} />
+                      {publisher?.is_verified && (
+                        <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-card flex items-center justify-center">
+                          <ShieldCheck className="w-3.5 h-3.5 text-blue-500" />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    {loadingPublisher ? (
+                      <div className="space-y-1.5">
+                        <div className="h-3 bg-muted rounded w-28 animate-pulse" />
+                        <div className="h-2.5 bg-muted rounded w-20 animate-pulse" />
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="text-sm font-bold text-foreground truncate">{publisher?.name}</p>
+                          {publisher?.__type === "company" && (
+                            <span className="text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full border border-primary/20 flex-shrink-0">Empresa</span>
+                          )}
+                          {publisher?.is_verified && (
+                            <span className="text-[9px] font-bold text-primary flex items-center gap-0.5 flex-shrink-0">
+                              <ShieldCheck className="w-3 h-3 text-blue-500" /> Loja verificada
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                          {publisher?.province && (
+                            <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                              <MapPin className="w-3 h-3" />{publisher.province}
+                            </span>
+                          )}
+                          {publisher?.rating && (
+                            <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                              <Star className="w-3 h-3 fill-secondary text-secondary" />{publisher.rating}
+                              {(publisher.total_reviews || publisher.rating_count) && (
+                                <span className="ml-0.5">({publisher.total_reviews || publisher.rating_count})</span>
+                              )}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                          {publisher?.total_products && (
+                            <span className="text-[10px] text-muted-foreground">Produtos: {publisher.total_products}</span>
+                          )}
+                          {publisher?.responds_fast && (
+                            <span className="text-[10px] font-semibold text-green-600">Responde rápido</span>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <span className="text-[10px] font-bold text-primary hidden sm:block">Ver loja</span>
+                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                  </div>
+                </button>
+              )}
 
               {Object.keys(variantGroups).length > 0 && (
                 <div className="mt-4 space-y-3">
@@ -1014,13 +1075,13 @@ const ProductDetail = () => {
         { title: "Mais para explorar",    list: moreToExplore,   section: "more_explore" },
         { title: "Também pode gostar",    list: alsoLike,         section: "also_like" },
       ].map(({ title, list, section }) => list.length > 0 && (
-        <div key={title} className="mt-2 bg-card p-4 md:container md:mx-auto md:rounded-card md:border md:border-border md:my-4">
+        <div key={title} className="mt-2 bg-card px-4 pt-4 pb-2 md:container md:mx-auto md:rounded-card md:border md:border-border md:my-4">
           <h3 className="text-base font-black text-foreground mb-3">{title}</h3>
-          <ProductCarousel>
+          <div className="flex gap-3 overflow-x-auto pb-3 scrollbar-hide -mx-4 px-4">
             {list.map((p: any) => (
               <div
                 key={p.id}
-                onClick={() =>
+                onClick={() => {
                   trackEvent(id!, "card_tap", {
                     tapped_product_id: p.id,
                     tapped_product_title: p.title,
@@ -1031,14 +1092,32 @@ const ProductDetail = () => {
                     source_product_id: id,
                     source_product_title: product.title,
                     source_category_id: product.category_id,
-                  })
-                }
-                className="[&>*]:border-transparent [&>*]:shadow-none"
+                  });
+                  navigate(`/produto/${p.id}`);
+                }}
+                className="flex-shrink-0 w-[160px] cursor-pointer active:scale-95 transition-transform"
               >
-                <ProductCard product={p} />
+                {/* Image — large square, rounded, soft bg, no border */}
+                <div className="w-full aspect-square rounded-2xl overflow-hidden bg-[#F5F0E8]">
+                  <img
+                    src={p.image}
+                    alt={p.title}
+                    className="w-full h-full object-contain p-2"
+                    loading="lazy"
+                  />
+                </div>
+                {/* Name — brown, below image */}
+                <p className="mt-2 text-xs font-semibold text-primary leading-snug line-clamp-2 px-0.5">
+                  {p.title}
+                </p>
+                {/* Price */}
+                <p className="mt-0.5 text-sm font-black text-foreground px-0.5">{p.price}</p>
+                {p.oldPrice && (
+                  <p className="text-[10px] text-muted-foreground line-through px-0.5">{p.oldPrice}</p>
+                )}
               </div>
             ))}
-          </ProductCarousel>
+          </div>
         </div>
       ))}
 
