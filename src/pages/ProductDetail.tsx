@@ -890,7 +890,7 @@ const ProductDetail = () => {
             <div className="bg-card mt-2 p-4 md:rounded-card md:border md:border-border">
               <h3 className="text-sm font-bold text-foreground mb-3">Entrega e garantia</h3>
 
-              {/* Delivery row */}
+              {/* Delivery row — CORRECTED TEXT */}
               <div className="flex items-start gap-3 text-xs text-foreground">
                 <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
@@ -931,11 +931,11 @@ const ProductDetail = () => {
               </div>
             </div>
 
-            {/* ── Bottom trust strip (mobile only, below delivery) ── */}
+            {/* ── Bottom trust strip (mobile only) — CORRECTED delivery text ── */}
             <div className="md:hidden bg-card mt-0.5 px-4 py-3">
               <div className="grid grid-cols-4 gap-1 text-center">
                 {[
-                  { icon: <Truck className="w-5 h-5 mx-auto text-primary" />, label: "Entrega", sub: "1–3 dias úteis" },
+                  { icon: <Truck className="w-5 h-5 mx-auto text-primary" />, label: "Entrega", sub: "1–3 / até 1 sem." },
                   { icon: <Shield className="w-5 h-5 mx-auto text-primary" />, label: "Garantia", sub: "12 meses" },
                   { icon: <BadgeCheck className="w-5 h-5 mx-auto text-primary" />, label: "Devolução", sub: "7 dias" },
                   { icon: <Star className="w-5 h-5 mx-auto text-primary fill-primary" />, label: "Mais vendido", sub: "Top na categoria" },
@@ -1148,15 +1148,21 @@ const ProductReviewsSection = ({
           <button onClick={() => setShowForm(!showForm)} className="px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-bold">Avaliar produto</button>
         )}
       </div>
-      <div className="flex items-center gap-2 mb-4">
-        <div className="flex items-center gap-0.5">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Star key={i} className={`w-4 h-4 ${i < Math.floor(product.rating || 0) ? "text-secondary fill-secondary" : "text-border"}`} />
-          ))}
+
+      {/* ── Only show rating summary when there are actual reviews ── */}
+      {product.rating > 0 && (
+        <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-center gap-0.5">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Star key={i} className={`w-4 h-4 ${i < Math.floor(product.rating) ? "text-secondary fill-secondary" : "text-border"}`} />
+            ))}
+          </div>
+          <span className="text-sm font-semibold text-foreground">{product.rating} de 5</span>
+          {product.reviews > 0 && (
+            <span className="text-xs text-muted-foreground">({product.reviews} avaliações)</span>
+          )}
         </div>
-        <span className="text-sm font-semibold text-foreground">{product.rating || 0} de 5</span>
-        <span className="text-xs text-muted-foreground">({product.reviews || 0} avaliações)</span>
-      </div>
+      )}
 
       {showForm && canReview && (
         <div className="border border-primary/20 rounded-card p-4 mb-4 bg-primary/5">
