@@ -2,7 +2,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Heart, Share2, ShoppingCart, Star, Truck, Shield,
   MapPin, ChevronRight, Minus, Plus, ZoomIn, Store, MessageCircle,
-  Send, Loader2, ShieldCheck, X, Building2, Link2,
+  Send, Loader2, ShieldCheck, X, Building2, Link2, MessageSquare,
+  Package, BadgeCheck,
 } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { allProducts } from "@/data/products";
@@ -49,9 +50,7 @@ const useProductTracking = () => {
           url: window.location.href,
         },
       });
-    } catch (_) {
-      // Silent — tracking never breaks the UI
-    }
+    } catch (_) {}
   }, [user?.id]);
 
   return { trackEvent };
@@ -181,7 +180,7 @@ const AvatarWithFallback = ({ src, name, isCompany }: { src: string | null; name
   );
 };
 
-// ─── Seller Card — sem número de vendas ───────────────────────────────────────
+// ─── Seller Card ───────────────────────────────────────────────────────────────
 const SellerCard = ({ seller, onNavigate, isLoading = false }: { seller: any; onNavigate: () => void; isLoading?: boolean }) => {
   if (isLoading) return (
     <div className="bg-card mt-0.5 md:mt-0 md:mb-3 px-4 py-3 md:rounded-card md:border md:border-border flex items-center gap-3 animate-pulse">
@@ -196,6 +195,7 @@ const SellerCard = ({ seller, onNavigate, isLoading = false }: { seller: any; on
 
   const avatar: string | null = seller.logo_url || seller.avatar_url || null;
   const isCompany = seller.__type === "company";
+  const totalProducts = seller.total_products || null;
 
   return (
     <button onClick={onNavigate}
@@ -214,6 +214,11 @@ const SellerCard = ({ seller, onNavigate, isLoading = false }: { seller: any; on
           {isCompany && (
             <span className="text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full border border-primary/20 flex-shrink-0">Empresa</span>
           )}
+          {seller.is_verified && (
+            <span className="text-[9px] font-bold text-primary flex items-center gap-0.5 flex-shrink-0">
+              <ShieldCheck className="w-3 h-3 text-blue-500" /> Loja verificada
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
           {seller.province && (
@@ -224,13 +229,24 @@ const SellerCard = ({ seller, onNavigate, isLoading = false }: { seller: any; on
           {seller.rating && (
             <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
               <Star className="w-3 h-3 fill-secondary text-secondary" />{seller.rating}
+              {(seller.total_reviews || seller.rating_count) && (
+                <span className="ml-0.5">({seller.total_reviews || seller.rating_count})</span>
+              )}
             </span>
           )}
-          {/* total_sales removed — not shown on mobile or desktop */}
+        </div>
+        {/* Produtos count + Responde rápido */}
+        <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+          {totalProducts && (
+            <span className="text-[10px] text-muted-foreground">Produtos: {totalProducts}</span>
+          )}
+          {seller.responds_fast && (
+            <span className="text-[10px] font-semibold text-green-600">Responde rápido</span>
+          )}
         </div>
       </div>
       <div className="flex items-center gap-1 flex-shrink-0">
-        <span className="text-[10px] font-bold text-primary hidden sm:block">Ver perfil</span>
+        <span className="text-[10px] font-bold text-primary hidden sm:block">Ver loja</span>
         <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
       </div>
     </button>
@@ -293,7 +309,7 @@ const ProductDetail = () => {
   const { data: sellerFull, isLoading: loadingSeller } = useQuery({
     queryKey: ["seller_full", rawSellerId],
     queryFn: async () => {
-      const { data } = await supabase.from("sellers").select("id, name, logo_url, avatar_url, is_verified, province, rating, total_sales, type, user_id").eq("id", rawSellerId!).maybeSingle();
+      const { data } = await supabase.from("sellers").select("id, name, logo_url, avatar_url, is_verified, province, rating, total_sales, total_products, total_reviews, rating_count, responds_fast, type, user_id").eq("id", rawSellerId!).maybeSingle();
       return data ? { ...data, __type: "seller" } : null;
     },
     enabled: !!rawSellerId,
@@ -302,7 +318,7 @@ const ProductDetail = () => {
   const { data: companyFull, isLoading: loadingCompany } = useQuery({
     queryKey: ["company_full", rawCompanyId],
     queryFn: async () => {
-      const { data } = await (supabase as any).from("companies").select("id, name, logo_url, is_verified, province, rating, total_reviews, total_sales").eq("id", rawCompanyId!).maybeSingle();
+      const { data } = await (supabase as any).from("companies").select("id, name, logo_url, is_verified, province, rating, total_reviews, total_sales, total_products, responds_fast").eq("id", rawCompanyId!).maybeSingle();
       return data ? { ...data, __type: "company" } : null;
     },
     enabled: !!rawCompanyId,
@@ -311,7 +327,6 @@ const ProductDetail = () => {
   const loadingPublisher = (!!rawSellerId && loadingSeller) || (!!rawCompanyId && loadingCompany);
   const publisher: any = sellerFull || companyFull || null;
 
-  // ── Track page view when product loads ────────────────────────────────────
   useEffect(() => {
     if (!dbProduct || !isUuid || viewTracked.current) return;
     viewTracked.current = true;
@@ -586,6 +601,7 @@ const ProductDetail = () => {
 
           {/* LEFT */}
           <div>
+            {/* Mobile: rating + title + trust badges ABOVE image */}
             <div className="bg-card px-4 pt-3 pb-2 md:hidden">
               {product.rating && (
                 <div className="flex items-center gap-1 mb-1">
@@ -596,6 +612,18 @@ const ProductDetail = () => {
                 </div>
               )}
               <h1 className="text-sm font-bold text-foreground leading-snug">{product.title}</h1>
+              {/* Trust badges row */}
+              <div className="flex gap-1.5 mt-2 flex-wrap">
+                <span className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold border border-primary/30 text-primary bg-primary/5">
+                  <Truck className="w-3 h-3" /> Entrega rápida
+                </span>
+                <span className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold border border-primary/30 text-primary bg-primary/5">
+                  <Shield className="w-3 h-3" /> Garantia 12 meses
+                </span>
+                <span className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold border border-primary/30 text-primary bg-primary/5">
+                  <BadgeCheck className="w-3 h-3" /> Devolução fácil
+                </span>
+              </div>
               <div className="flex flex-wrap gap-1.5 mt-1.5">
                 {popularityBadge && <span className="px-2 py-0.5 rounded-sm text-[10px] font-bold border border-primary text-primary bg-primary/5">{popularityBadge}</span>}
                 {product.discount && <span className="px-2 py-0.5 rounded-sm text-[10px] font-bold border border-walmart-green text-walmart-green bg-walmart-green/5">Clearance</span>}
@@ -628,17 +656,12 @@ const ProductDetail = () => {
                   <button onClick={handleShare} className="w-9 h-9 rounded-full bg-card/90 shadow-md flex items-center justify-center active:scale-95 transition">
                     <Share2 className="w-4 h-4 text-foreground" />
                   </button>
-                  {/* ── Favorite: correct filled state ── */}
                   <button
                     onClick={handleFavorite}
                     className="w-9 h-9 rounded-full bg-card/90 shadow-md flex items-center justify-center active:scale-95 transition"
                     aria-label={isFavorited ? "Remover dos favoritos" : "Adicionar aos favoritos"}
                   >
-                    <Heart
-                      className={`w-4 h-4 transition-all duration-200 ${
-                        isFavorited ? "text-red-500 fill-red-500 scale-110" : "text-foreground"
-                      }`}
-                    />
+                    <Heart className={`w-4 h-4 transition-all duration-200 ${isFavorited ? "text-red-500 fill-red-500 scale-110" : "text-foreground"}`} />
                   </button>
                   <button onClick={handleZoom} className="w-9 h-9 rounded-full bg-card/90 shadow-md flex items-center justify-center active:scale-95 transition">
                     <ZoomIn className="w-4 h-4 text-foreground" />
@@ -691,7 +714,6 @@ const ProductDetail = () => {
                         {s.avatar_url ? <img src={s.avatar_url} alt={s.name} className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center"><Store className="w-4 h-4 text-primary" /></div>}
                         <div className="min-w-0">
                           <p className="text-xs font-bold text-foreground truncate">{s.name}</p>
-                          {/* total_sales removed */}
                         </div>
                       </div>
                       <div className="flex items-center justify-between text-[10px]">
@@ -707,6 +729,7 @@ const ProductDetail = () => {
 
           {/* RIGHT */}
           <div>
+            {/* Desktop: title + trust badges */}
             <div className="hidden md:block mb-4">
               {product.rating && (
                 <div className="flex items-center gap-1.5 mb-2">
@@ -718,7 +741,19 @@ const ProductDetail = () => {
                 </div>
               )}
               <h1 className="text-xl font-bold text-foreground leading-snug">{product.title}</h1>
-              <div className="flex flex-wrap gap-1.5 mt-3">
+              {/* Trust badges row desktop */}
+              <div className="flex gap-2 mt-3 flex-wrap">
+                <span className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold border border-primary/30 text-primary bg-primary/5">
+                  <Truck className="w-3.5 h-3.5" /> Entrega rápida
+                </span>
+                <span className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold border border-primary/30 text-primary bg-primary/5">
+                  <Shield className="w-3.5 h-3.5" /> Garantia 12 meses
+                </span>
+                <span className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold border border-primary/30 text-primary bg-primary/5">
+                  <BadgeCheck className="w-3.5 h-3.5" /> Devolução fácil
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1.5 mt-2">
                 {popularityBadge && <span className="px-2 py-0.5 rounded-sm text-[10px] font-bold border border-primary text-primary bg-primary/5">{popularityBadge}</span>}
                 {product.discount && <span className="px-2 py-0.5 rounded-sm text-[10px] font-bold border border-walmart-green text-walmart-green bg-walmart-green/5">Clearance</span>}
                 {product.badge === "HOT" && <span className="px-2 py-0.5 rounded-sm text-[10px] font-bold border border-walmart-red text-walmart-red bg-walmart-red/5">Best seller</span>}
@@ -728,21 +763,31 @@ const ProductDetail = () => {
             <SellerCard seller={publisher} onNavigate={handlePublisherNavigate} isLoading={loadingPublisher} />
 
             <div className="bg-card mt-0.5 md:mt-0 p-4 md:rounded-card md:border md:border-border">
-              <div className="flex items-baseline gap-1">
-                {product.discount && <span className="text-sm font-bold text-walmart-green mr-1">Now</span>}
-                <span className="text-2xl font-black text-foreground">{activePrice}</span>
+              {/* Price row with negotiate button */}
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="flex items-baseline gap-1">
+                    {product.discount && <span className="text-sm font-bold text-walmart-green mr-1">Now</span>}
+                    <span className="text-2xl font-black text-foreground">{activePrice}</span>
+                  </div>
+                  {product.oldPrice && (
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-sm text-muted-foreground line-through">{product.oldPrice}</span>
+                      {product.discount && <span className="text-xs font-bold text-walmart-green">Poupa {product.discount}</span>}
+                    </div>
+                  )}
+                  {product.freeShipping && (
+                    <div className="flex items-center gap-1.5 mt-2 text-xs text-walmart-green font-semibold">
+                      <Truck className="w-4 h-4" /><span>Frete grátis para Luanda</span>
+                    </div>
+                  )}
+                </div>
+                {/* Negotiate price button */}
+                <button className="flex items-center gap-1.5 px-3 py-2 rounded-full border border-primary/30 bg-primary/5 text-primary text-xs font-bold hover:bg-primary/10 active:scale-95 transition flex-shrink-0">
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  Negociar preço
+                </button>
               </div>
-              {product.oldPrice && (
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-sm text-muted-foreground line-through">{product.oldPrice}</span>
-                  {product.discount && <span className="text-xs font-bold text-walmart-green">Poupa {product.discount}</span>}
-                </div>
-              )}
-              {product.freeShipping && (
-                <div className="flex items-center gap-1.5 mt-3 text-xs text-walmart-green font-semibold">
-                  <Truck className="w-4 h-4" /><span>Frete grátis para Luanda</span>
-                </div>
-              )}
 
               {Object.keys(variantGroups).length > 0 && (
                 <div className="mt-4 space-y-3">
@@ -841,22 +886,66 @@ const ProductDetail = () => {
               </div>
             </div>
 
+            {/* ── Entrega e garantia ── */}
             <div className="bg-card mt-2 p-4 md:rounded-card md:border md:border-border">
-              <h3 className="text-sm font-bold text-foreground mb-3">Entrega</h3>
+              <h3 className="text-sm font-bold text-foreground mb-3">Entrega e garantia</h3>
+
+              {/* Delivery row */}
               <div className="flex items-start gap-3 text-xs text-foreground">
                 <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <p className="font-semibold">Enviar para Luanda, Angola</p>
-                  <p className="text-muted-foreground mt-0.5">Entrega estimada: 2-5 dias úteis</p>
+                  <p className="text-muted-foreground mt-0.5">Intermunicipal: 1–3 dias úteis</p>
+                  <p className="text-muted-foreground">Interprovincial: até 1 semana</p>
                 </div>
                 <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
               </div>
+
+              {/* Guarantee row */}
               <div className="flex items-start gap-3 text-xs text-foreground mt-3">
                 <Shield className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <p className="font-semibold">Garantia do vendedor</p>
                   <p className="text-muted-foreground mt-0.5">Devolução grátis até 30 dias</p>
                 </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              </div>
+
+              {/* 3-icon trust strip */}
+              <div className="flex gap-2 mt-4 pt-3 border-t border-border">
+                <div className="flex-1 flex flex-col items-center gap-1 text-center">
+                  <Truck className="w-5 h-5 text-primary" />
+                  <span className="text-[10px] font-bold text-foreground">Entrega rápida</span>
+                  <span className="text-[9px] text-muted-foreground">Envio seguro</span>
+                </div>
+                <div className="flex-1 flex flex-col items-center gap-1 text-center">
+                  <Package className="w-5 h-5 text-primary" />
+                  <span className="text-[10px] font-bold text-foreground">Embalagem segura</span>
+                  <span className="text-[9px] text-muted-foreground">Proteção garantida</span>
+                </div>
+                <div className="flex-1 flex flex-col items-center gap-1 text-center">
+                  <BadgeCheck className="w-5 h-5 text-primary" />
+                  <span className="text-[10px] font-bold text-foreground">Compra segura</span>
+                  <span className="text-[9px] text-muted-foreground">Protegemos você</span>
+                </div>
+              </div>
+            </div>
+
+            {/* ── Bottom trust strip (mobile only, below delivery) ── */}
+            <div className="md:hidden bg-card mt-0.5 px-4 py-3">
+              <div className="grid grid-cols-4 gap-1 text-center">
+                {[
+                  { icon: <Truck className="w-5 h-5 mx-auto text-primary" />, label: "Entrega", sub: "1–3 dias úteis" },
+                  { icon: <Shield className="w-5 h-5 mx-auto text-primary" />, label: "Garantia", sub: "12 meses" },
+                  { icon: <BadgeCheck className="w-5 h-5 mx-auto text-primary" />, label: "Devolução", sub: "7 dias" },
+                  { icon: <Star className="w-5 h-5 mx-auto text-primary fill-primary" />, label: "Mais vendido", sub: "Top na categoria" },
+                ].map((item, i) => (
+                  <div key={i} className="flex flex-col items-center gap-0.5">
+                    {item.icon}
+                    <span className="text-[9px] font-bold text-foreground">{item.label}</span>
+                    <span className="text-[8px] text-primary font-semibold leading-tight">{item.sub}</span>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -873,7 +962,7 @@ const ProductDetail = () => {
               </ul>
             </div>
 
-            {/* Sponsored sellers mobile — sem total_sales */}
+            {/* Sponsored sellers mobile */}
             {sponsoredSellers.length > 0 && (
               <div className="md:hidden bg-card mt-2 p-4">
                 <p className="text-[10px] text-muted-foreground text-right mb-2">Patrocinado</p>
@@ -920,14 +1009,12 @@ const ProductDetail = () => {
         trackEvent={trackEvent}
       />
 
-      {/* ── Related / Explore / Also Like — SEM label "Patrocinado", cards sem moldura visível ── */}
       {[
         { title: "Produtos relacionados", list: relatedProducts, section: "related" },
         { title: "Mais para explorar",    list: moreToExplore,   section: "more_explore" },
         { title: "Também pode gostar",    list: alsoLike,         section: "also_like" },
       ].map(({ title, list, section }) => list.length > 0 && (
         <div key={title} className="mt-2 bg-card p-4 md:container md:mx-auto md:rounded-card md:border md:border-border md:my-4">
-          {/* Header: ONLY the title, no "Patrocinado" */}
           <h3 className="text-base font-black text-foreground mb-3">{title}</h3>
           <ProductCarousel>
             {list.map((p: any) => (
@@ -946,7 +1033,6 @@ const ProductDetail = () => {
                     source_category_id: product.category_id,
                   })
                 }
-                // Invisible border & no shadow on the card wrapper
                 className="[&>*]:border-transparent [&>*]:shadow-none"
               >
                 <ProductCard product={p} />
@@ -956,7 +1042,7 @@ const ProductDetail = () => {
         </div>
       ))}
 
-      {/* ── Mobile sticky bottom bar — pb-28 on page ensures content clears it ── */}
+      {/* Mobile sticky bottom bar */}
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border px-3 pt-2 pb-safe-or-4 z-50 md:hidden" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>
         <div className="flex items-center gap-2 mb-2">
           <span className="text-[10px] text-muted-foreground font-semibold">Qtd:</span>
