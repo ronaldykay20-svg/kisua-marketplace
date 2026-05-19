@@ -7,8 +7,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCategories } from "@/hooks/useSupabaseData";
 
-const GOOGLE_VISION_API_KEY = "AIzaSyC6nON9Ghv0zrSXYlJlmL_VJl73HEXIDVU";
-
 const staticCategories = [
   { name: "Electrónicos", image: "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=100&h=100&fit=crop" },
   { name: "Veículos", image: "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=100&h=100&fit=crop" },
@@ -81,8 +79,8 @@ const useSpeechRecognition = (onResult: (text: string) => void) => {
   return { listening, startListening, stopListening };
 };
 
-// Hook para pesquisa por imagem via Google Vision API
-const useImageSearch = (onResult: (query: string) => void) => {
+// Hook para pesquisa por imagem — gera embedding visual e navega
+const useImageSearch = (onResult: (base64: string) => void) => {
   const [analyzing, setAnalyzing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -90,53 +88,14 @@ const useImageSearch = (onResult: (query: string) => void) => {
     setAnalyzing(true);
     try {
       const reader = new FileReader();
-      reader.onloadend = async () => {
+      reader.onloadend = () => {
         const base64 = (reader.result as string).split(",")[1];
-        const response = await fetch(
-          `https://vision.googleapis.com/v1/images:annotate?key=${GOOGLE_VISION_API_KEY}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              requests: [{
-                image: { content: base64 },
-                features: [
-                  { type: "LABEL_DETECTION", maxResults: 5 },
-                  { type: "OBJECT_LOCALIZATION", maxResults: 3 },
-                  { type: "WEB_DETECTION", maxResults: 3 },
-                ],
-              }],
-            }),
-          }
-        );
-        const data = await response.json();
-        const result = data.responses?.[0];
-
-        // Prioridade: webEntities > labels > localizedObjectAnnotations
-        let searchTerm = "";
-        const webEntities = result?.webDetection?.webEntities;
-        if (webEntities?.length > 0) {
-          searchTerm = webEntities[0].description;
-        } else {
-          const labels = result?.labelAnnotations;
-          if (labels?.length > 0) {
-            searchTerm = labels[0].description;
-          } else {
-            const objects = result?.localizedObjectAnnotations;
-            if (objects?.length > 0) searchTerm = objects[0].name;
-          }
-        }
-
-        if (searchTerm) {
-          onResult(searchTerm);
-        } else {
-          alert("Não foi possível identificar o produto na imagem. Tente outra foto.");
-        }
+        onResult(base64);
         setAnalyzing(false);
       };
       reader.readAsDataURL(file);
     } catch {
-      alert("Erro ao analisar imagem. Verifique a sua ligação.");
+      alert("Erro ao processar imagem.");
       setAnalyzing(false);
     }
   }, [onResult]);
@@ -267,15 +226,15 @@ const Navbar = () => {
 
   // Pesquisa por imagem — barra normal
   const { analyzing: analyzingNormal, openImagePicker: openNormal, handleFileChange: fileChangeNormal, fileInputRef: fileRefNormal } =
-    useImageSearch((term) => {
-      navigate(`/pesquisa?q=${encodeURIComponent(term)}`);
+    useImageSearch((base64) => {
+      navigate(`/pesquisa?modo=imagem&img=${encodeURIComponent(base64)}`);
       setSearchVisible(false);
     });
 
   // Pesquisa por imagem — barra de categoria
   const { analyzing: analyzingCat, openImagePicker: openCat, handleFileChange: fileChangeCat, fileInputRef: fileRefCat } =
-    useImageSearch((term) => {
-      navigate(`/pesquisa?q=${encodeURIComponent(term)}`);
+    useImageSearch((base64) => {
+      navigate(`/pesquisa?modo=imagem&img=${encodeURIComponent(base64)}`);
       setCategorySearchVisible(false);
     });
 
