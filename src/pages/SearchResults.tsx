@@ -6,6 +6,8 @@ import { supabase } from "@/integrations/supabase/client";
 import ProductCard, { type Product } from "@/components/ProductCard";
 import MobileSearchProductCard from "@/components/MobileSearchProductCard";
 
+const GEMINI_API_KEY = "AIzaSyAWG6GlEHL6wkTxX8vmycF8WttF4Kc8dx8";
+
 const searchTabs = ["Produtos", "Vendedores", "Empresas"];
 const sortOptions = ["Mais relevantes", "Menor preço", "Maior preço", "Mais vendidos", "Melhor avaliação"];
 const ITEMS_PER_PAGE = 12;
@@ -31,23 +33,40 @@ const aggregateRatings = (reviews: { entity_id: string; rating: number }[]): Rec
   return result;
 };
 
-// Gera embedding de imagem via Hugging Face CLIP (gratuito, sem chave)
-const gerarEmbeddingImagem = async (base64: string): Promise<number[]> => {
-  const blob = await fetch(`data:image/jpeg;base64,${base64}`).then(r => r.blob());
-  const formData = new FormData();
-  formData.append("inputs", blob, "imagem.jpg");
+// Gemini analisa a imagem e devolve termos de pesquisa visuais detalhados
+const analisarImagemComGemini = async (base64: string): Promise<string[]> => {
   const res = await fetch(
-    "https://api-inference.huggingface.co/models/openai/clip-vit-base-patch32",
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/octet-stream" },
-      body: blob,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            {
+              inline_data: {
+                mime_type: "image/jpeg",
+                data: base64,
+              }
+            },
+            {
+              text: `Analisa esta imagem de produto para um marketplace. 
+Responde APENAS com uma lista JSON de termos de pesquisa em português, do mais específico ao mais geral.
+Inclui: tipo de produto, material, cor, estilo, uso, categoria.
+Exemplo: ["sapato social masculino preto couro", "sapato social preto", "sapato masculino", "calçado social", "sapato"]
+Devolve só o array JSON, sem mais texto.`
+            }
+          ]
+        }],
+        generationConfig: { temperature: 0.1, maxOutputTokens: 200 }
+      }),
     }
   );
-  if (!res.ok) throw new Error("Erro ao gerar embedding");
+  if (!res.ok) throw new Error("Erro Gemini: " + res.status);
   const data = await res.json();
-  // Hugging Face devolve array de embeddings
-  return Array.isArray(data) ? data[0] : data;
+  const texto = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
+  const limpo = texto.replace(/```json|```/g, "").trim();
+  return JSON.parse(limpo);
 };
 
 const SearchResults = () => {
@@ -69,48 +88,57 @@ const SearchResults = () => {
   const [imagemResultados, setImagemResultados] = useState<any[]>([]);
   const [carregandoImagem, setCarregandoImagem] = useState(false);
   const [erroImagem, setErroImagem] = useState("");
+  const [termosDetectados, setTermosDetectados] = useState<string[]>([]);
 
   const effectiveQuery = query.trim();
 
-  // Pesquisa visual por embedding
+  // Pesquisa visual via Gemini
   useEffect(() => {
     if (!modoImagem || !imgBase64) return;
     setCarregandoImagem(true);
     setErroImagem("");
+    setImagemResultados([]);
 
-    gerarEmbeddingImagem(imgBase64)
-      .then(async (embedding) => {
-        const { data, error } = await (supabase as any).rpc("match_products", {
-          query_embedding: embedding,
-          match_count: 40,
-        });
-        if (error) throw error;
+    analisarImagemComGemini(imgBase64)
+      .then(async (termos) => {
+        setTermosDetectados(termos);
 
-        if (!data || data.length === 0) {
+        if (termos.length === 0) {
           setImagemResultados([]);
           setCarregandoImagem(false);
           return;
         }
 
-        // Buscar detalhes dos produtos encontrados
-        const productIds = data.map((r: any) => r.product_id);
-        const { data: produtos } = await supabase
-          .from("products")
-          .select("*")
-          .in("id", productIds)
-          .eq("is_active", true);
+        // Pesquisa por cada termo, do mais específico ao mais geral
+        // Junta todos os resultados únicos por ordem de relevância
+        const vistos = new Set<string>();
+        const resultados: any[] = [];
 
-        // Manter ordem de similaridade
-        const ordenados = productIds
-          .map((id: string) => produtos?.find((p: any) => p.id === id))
-          .filter(Boolean);
+        for (const termo of termos) {
+          const { data } = await supabase
+            .from("products")
+            .select("*")
+            .eq("is_active", true)
+            .or(`title.ilike.%${termo}%,description.ilike.%${termo}%,category.ilike.%${termo}%`)
+            .limit(20);
 
-        setImagemResultados(ordenados);
+          for (const p of data || []) {
+            if (!vistos.has(p.id)) {
+              vistos.add(p.id);
+              resultados.push(p);
+            }
+          }
+
+          // Se já temos 20+ resultados, chega
+          if (resultados.length >= 20) break;
+        }
+
+        setImagemResultados(resultados);
         setCarregandoImagem(false);
       })
       .catch((err) => {
         console.error(err);
-        setErroImagem("Não foi possível processar a imagem. Tente novamente.");
+        setErroImagem("Não foi possível analisar a imagem. Tente novamente.");
         setCarregandoImagem(false);
       });
   }, [modoImagem, imgBase64]);
@@ -251,7 +279,9 @@ const SearchResults = () => {
         {modoImagem ? (
           <div className="flex-1 flex items-center gap-2 px-3 py-2 bg-card border border-border rounded-full">
             <Camera className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-            <span className="text-sm text-muted-foreground">Pesquisa por imagem</span>
+            <span className="text-sm text-muted-foreground">
+              {carregandoImagem ? "A analisar imagem..." : termosDetectados.length > 0 ? termosDetectados[0] : "Pesquisa por imagem"}
+            </span>
           </div>
         ) : (
           <form onSubmit={handleSearch} className="flex-1 flex">
@@ -277,10 +307,10 @@ const SearchResults = () => {
           {modoImagem ? (
             <p className="text-sm text-muted-foreground">
               {carregandoImagem
-                ? "A analisar imagem e procurar produtos visualmente parecidos..."
+                ? "A identificar produto na imagem..."
                 : erroImagem
                 ? <span className="text-destructive">{erroImagem}</span>
-                : <><span className="text-lg font-black text-foreground">{products.length}</span> produtos visualmente parecidos</>
+                : <><span className="text-lg font-black text-foreground">{products.length}</span> produtos encontrados por imagem</>
               }
             </p>
           ) : (
@@ -351,9 +381,7 @@ const SearchResults = () => {
             {isLoading ? (
               <div className="flex flex-col items-center py-16 gap-3">
                 <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-                <p className="text-sm text-muted-foreground">
-                  {modoImagem ? "A analisar imagem..." : "A carregar..."}
-                </p>
+                <p className="text-sm text-muted-foreground">A identificar produto na imagem...</p>
               </div>
             ) : erroImagem && modoImagem ? (
               <div className="text-center py-12">
@@ -365,7 +393,7 @@ const SearchResults = () => {
             ) : products.length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-sm text-muted-foreground">
-                  {modoImagem ? "Nenhum produto visualmente parecido encontrado." : `Nenhum produto encontrado${effectiveQuery ? ` para "${effectiveQuery}"` : ""}.`}
+                  {modoImagem ? "Nenhum produto encontrado para esta imagem." : `Nenhum produto encontrado${effectiveQuery ? ` para "${effectiveQuery}"` : ""}.`}
                 </p>
               </div>
             ) : (
