@@ -10,8 +10,6 @@ import {
   Gavel, Radio, Zap, Store, Users, Mic, LogOut, X, Camera,
 } from "lucide-react";
 
-const GOOGLE_VISION_API_KEY = "AIzaSyC6nON9Ghv0zrSXYlJlmL_VJl73HEXIDVU";
-
 const staticCategories = [
   { name: "Electrónicos", image: "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=60&h=60&fit=crop" },
   { name: "Veículos",     image: "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=60&h=60&fit=crop" },
@@ -88,8 +86,8 @@ const useSpeechRecognition = (onResult: (t: string) => void) => {
   return { listening, start, stop };
 };
 
-// Hook para pesquisa por imagem via Google Vision API
-const useImageSearch = (onResult: (query: string) => void) => {
+// Hook para pesquisa por imagem — gera embedding visual e navega
+const useImageSearch = (onResult: (base64: string) => void) => {
   const [analyzing, setAnalyzing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -97,60 +95,19 @@ const useImageSearch = (onResult: (query: string) => void) => {
     setAnalyzing(true);
     try {
       const reader = new FileReader();
-      reader.onloadend = async () => {
+      reader.onloadend = () => {
         const base64 = (reader.result as string).split(",")[1];
-        const response = await fetch(
-          `https://vision.googleapis.com/v1/images:annotate?key=${GOOGLE_VISION_API_KEY}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              requests: [{
-                image: { content: base64 },
-                features: [
-                  { type: "LABEL_DETECTION", maxResults: 5 },
-                  { type: "OBJECT_LOCALIZATION", maxResults: 3 },
-                  { type: "WEB_DETECTION", maxResults: 3 },
-                ],
-              }],
-            }),
-          }
-        );
-        const data = await response.json();
-        const result = data.responses?.[0];
-
-        let searchTerm = "";
-        const webEntities = result?.webDetection?.webEntities;
-        if (webEntities?.length > 0) {
-          searchTerm = webEntities[0].description;
-        } else {
-          const labels = result?.labelAnnotations;
-          if (labels?.length > 0) {
-            searchTerm = labels[0].description;
-          } else {
-            const objects = result?.localizedObjectAnnotations;
-            if (objects?.length > 0) searchTerm = objects[0].name;
-          }
-        }
-
-        if (searchTerm) {
-          onResult(searchTerm);
-        } else {
-          alert("Não foi possível identificar o produto na imagem. Tente outra foto.");
-        }
+        onResult(base64);
         setAnalyzing(false);
       };
       reader.readAsDataURL(file);
     } catch {
-      alert("Erro ao analisar imagem. Verifique a sua ligação.");
+      alert("Erro ao processar imagem.");
       setAnalyzing(false);
     }
   }, [onResult]);
 
-  const openImagePicker = useCallback(() => {
-    fileInputRef.current?.click();
-  }, []);
-
+  const openImagePicker = useCallback(() => { fileInputRef.current?.click(); }, []);
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) analyzeImage(file);
@@ -217,9 +174,8 @@ const DesktopNavbar = () => {
     navigate(`/pesquisa?q=${encodeURIComponent(t)}`);
   });
 
-  // Pesquisa por imagem
-  const { analyzing, openImagePicker, handleFileChange, fileInputRef } = useImageSearch((term) => {
-    navigate(`/pesquisa?q=${encodeURIComponent(term)}`);
+  const { analyzing, openImagePicker, handleFileChange, fileInputRef } = useImageSearch((base64) => {
+    navigate(`/pesquisa?modo=imagem&img=${encodeURIComponent(base64)}`);
     setSearch("");
   });
 
@@ -276,7 +232,6 @@ const DesktopNavbar = () => {
       className="hidden md:block sticky top-0 z-50 w-full"
       style={{ background: `linear-gradient(160deg, ${cream} 0%, ${sand} 60%, #C9A87C 100%)` }}
     >
-      {/* Input oculto para pesquisa por imagem */}
       <input
         ref={fileInputRef}
         type="file"
@@ -285,17 +240,13 @@ const DesktopNavbar = () => {
         onChange={handleFileChange}
       />
 
-      {/* ══ LINHA 1 ══ */}
       <div className="max-w-screen-xl mx-auto px-5 h-16 flex items-center gap-3">
-
-        {/* Logo */}
         <a href="/" className="flex-shrink-0">
           {logoUrl
             ? <img src={logoUrl} alt="Logo" className="h-10 object-contain" />
             : <span className="text-xl font-black" style={{ color: brown }}>AngoExpress</span>}
         </a>
 
-        {/* Dropdown categorias — só desktop (lg) */}
         <div className="relative flex-shrink-0 hidden lg:block">
           <button
             onClick={() => { setCatOpen(v => !v); setUserOpen(false); setNotifOpen(false); }}
@@ -331,7 +282,6 @@ const DesktopNavbar = () => {
           )}
         </div>
 
-        {/* Barra de pesquisa com ícone de câmara */}
         <form
           onSubmit={handleSearch}
           className="flex-1 flex items-center rounded-2xl overflow-hidden"
@@ -346,16 +296,12 @@ const DesktopNavbar = () => {
             className="flex-1 py-2.5 px-3 text-sm bg-transparent focus:outline-none"
             style={{ color: brown }}
           />
-          {/* Botão câmara — pesquisa por imagem */}
           <button
             type="button"
             onClick={openImagePicker}
             disabled={analyzing}
             className="w-10 h-9 flex items-center justify-center rounded-xl m-0.5 transition-all hover:scale-105"
-            style={{
-              background: analyzing ? "#F9A825" : brownLight,
-              border: `1px solid rgba(74,46,10,0.18)`,
-            }}
+            style={{ background: analyzing ? "#F9A825" : brownLight, border: `1px solid rgba(74,46,10,0.18)` }}
             title="Pesquisar por imagem"
           >
             {analyzing
@@ -363,7 +309,6 @@ const DesktopNavbar = () => {
               : <Camera className="w-4 h-4" style={{ color: brown }} />
             }
           </button>
-          {/* Botão microfone */}
           <button
             type="button"
             onClick={listening ? stop : start}
@@ -377,7 +322,6 @@ const DesktopNavbar = () => {
           </button>
         </form>
 
-        {/* Localização — só tablet (md), escondido em desktop (lg) */}
         <div className="hidden md:flex lg:hidden items-center gap-1.5 flex-shrink-0 px-3 py-1.5 rounded-xl"
           style={{ background: brownLight, border: `1px solid rgba(74,46,10,0.18)` }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={sandDark} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -389,9 +333,7 @@ const DesktopNavbar = () => {
           </div>
         </div>
 
-        {/* Ícones direita */}
         <div className="flex items-center gap-2 flex-shrink-0">
-
           {user && (
             <div className="relative">
               <IconBtn
@@ -450,10 +392,7 @@ const DesktopNavbar = () => {
               <span className="text-sm font-bold hidden lg:block" style={{ color: brown }}>
                 {user ? userDisplayName.split(" ")[0] : "Entrar"}
               </span>
-              <ChevronDown
-                className={`w-3.5 h-3.5 hidden lg:block transition-transform ${userOpen ? "rotate-180" : ""}`}
-                style={{ color: brown }}
-              />
+              <ChevronDown className={`w-3.5 h-3.5 hidden lg:block transition-transform ${userOpen ? "rotate-180" : ""}`} style={{ color: brown }} />
             </button>
             {userOpen && (
               <div className="absolute right-0 top-full mt-2 w-52 rounded-2xl shadow-2xl overflow-hidden z-50"
@@ -495,43 +434,21 @@ const DesktopNavbar = () => {
         </div>
       </div>
 
-      {/* ══ LINHA 2 ══ */}
       <div className="border-t" style={{ borderColor: "rgba(74,46,10,0.15)" }}>
-
-        {/* ── TABLET ── */}
         <div className="md:flex lg:hidden max-w-screen-xl mx-auto px-5">
           <div className="flex items-center w-full py-2">
             <div className="flex-1 overflow-x-auto scrollbar-hide min-w-0">
               <div className="flex items-center gap-3">
                 {cats.map((cat: any) => (
-                  <button
-                    key={cat.name}
-                    onClick={() => navigate(`/categoria/${encodeURIComponent(cat.name)}`)}
-                    className="flex flex-col items-center gap-1 flex-shrink-0"
-                  >
-                    <div
-                      className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0"
-                      style={{ border: "2px solid rgba(74,46,10,0.15)", boxShadow: "0 1px 6px rgba(74,46,10,0.10)" }}
-                    >
+                  <button key={cat.name} onClick={() => navigate(`/categoria/${encodeURIComponent(cat.name)}`)} className="flex flex-col items-center gap-1 flex-shrink-0">
+                    <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0" style={{ border: "2px solid rgba(74,46,10,0.15)", boxShadow: "0 1px 6px rgba(74,46,10,0.10)" }}>
                       <img src={cat.image} alt={cat.name} className="w-full h-full object-cover" />
                     </div>
-                    <span className="text-[9px] font-semibold text-center leading-tight" style={{ color: brown, maxWidth: 48 }}>
-                      {cat.name}
-                    </span>
+                    <span className="text-[9px] font-semibold text-center leading-tight" style={{ color: brown, maxWidth: 48 }}>{cat.name}</span>
                   </button>
                 ))}
-                <button
-                  onClick={() => navigate("/categorias")}
-                  className="flex flex-col items-center gap-1 flex-shrink-0"
-                >
-                  <div
-                    className="w-12 h-12 rounded-xl flex items-center justify-center"
-                    style={{
-                      background: "rgba(74,46,10,0.08)",
-                      border: "2px solid rgba(74,46,10,0.20)",
-                      boxShadow: "0 1px 6px rgba(74,46,10,0.10)",
-                    }}
-                  >
+                <button onClick={() => navigate("/categorias")} className="flex flex-col items-center gap-1 flex-shrink-0">
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: "rgba(74,46,10,0.08)", border: "2px solid rgba(74,46,10,0.20)", boxShadow: "0 1px 6px rgba(74,46,10,0.10)" }}>
                     <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
                       <rect x="2" y="2" width="8" height="8" rx="2" fill={brown} opacity="0.85"/>
                       <rect x="12" y="2" width="8" height="8" rx="2" fill={brown} opacity="0.85"/>
@@ -539,9 +456,7 @@ const DesktopNavbar = () => {
                       <rect x="12" y="12" width="8" height="8" rx="2" fill={brown} opacity="0.85"/>
                     </svg>
                   </div>
-                  <span className="text-[9px] font-semibold text-center leading-tight" style={{ color: brown, maxWidth: 48 }}>
-                    Mais<br/>categorias
-                  </span>
+                  <span className="text-[9px] font-semibold text-center leading-tight" style={{ color: brown, maxWidth: 48 }}>Mais<br/>categorias</span>
                 </button>
               </div>
             </div>
@@ -550,31 +465,13 @@ const DesktopNavbar = () => {
               {quickLinks.map(link => {
                 const isLive = link.path === "/live";
                 return (
-                  <button
-                    key={link.label}
-                    onClick={() => navigate(link.path)}
-                    className="flex flex-col items-center gap-1 px-2 py-1 rounded-xl transition-all hover:bg-white/40 relative"
-                  >
-                    <div
-                      className="relative w-10 h-10 rounded-xl flex items-center justify-center"
-                      style={{ background: brownLight, border: "1px solid rgba(74,46,10,0.15)" }}
-                    >
+                  <button key={link.label} onClick={() => navigate(link.path)} className="flex flex-col items-center gap-1 px-2 py-1 rounded-xl transition-all hover:bg-white/40 relative">
+                    <div className="relative w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: brownLight, border: "1px solid rgba(74,46,10,0.15)" }}>
                       <link.icon className="w-4 h-4" style={{ color: brown }} />
                       {isLive && liveCount > 0 && (
-                        <>
-                          <style>{`
-                            @keyframes live-pulse-ql {
-                              0%, 100% { box-shadow: 0 0 0 0 rgba(229,57,53,0.55); }
-                              50%       { box-shadow: 0 0 0 4px rgba(229,57,53,0); }
-                            }
-                          `}</style>
-                          <span
-                            className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] rounded-full text-white text-[9px] font-black flex items-center justify-center px-0.5"
-                            style={{ background: "#E53935", animation: "live-pulse-ql 1.5s ease-in-out infinite" }}
-                          >
-                            {liveCount > 9 ? "9+" : liveCount}
-                          </span>
-                        </>
+                        <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] rounded-full text-white text-[9px] font-black flex items-center justify-center px-0.5" style={{ background: "#E53935" }}>
+                          {liveCount > 9 ? "9+" : liveCount}
+                        </span>
                       )}
                     </div>
                     <span className="text-[9px] font-semibold" style={{ color: brown }}>{link.label}</span>
@@ -585,34 +482,19 @@ const DesktopNavbar = () => {
           </div>
         </div>
 
-        {/* ── DESKTOP ── */}
         <div className="hidden lg:flex max-w-screen-xl mx-auto px-5 items-center gap-1 h-10">
           {navItems.map(item => {
             const active = location.pathname === item.path;
             const isLive = item.liveBadge;
             return (
-              <button
-                key={item.path}
-                onClick={() => navigate(item.path)}
+              <button key={item.path} onClick={() => navigate(item.path)}
                 className="relative px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
-                style={{ color: active ? "#fff" : brown, background: active ? brown : "transparent" }}
-              >
+                style={{ color: active ? "#fff" : brown, background: active ? brown : "transparent" }}>
                 {item.label}
                 {isLive && liveCount > 0 && (
-                  <>
-                    <style>{`
-                      @keyframes live-pulse-nav {
-                        0%, 100% { box-shadow: 0 0 0 0 rgba(229,57,53,0.6); }
-                        50%       { box-shadow: 0 0 0 4px rgba(229,57,53,0); }
-                      }
-                    `}</style>
-                    <span
-                      className="absolute -top-1.5 -right-1 min-w-[16px] h-[16px] rounded-full text-white text-[8px] font-black flex items-center justify-center px-0.5"
-                      style={{ background: "#E53935", animation: "live-pulse-nav 1.5s ease-in-out infinite" }}
-                    >
-                      {liveCount > 9 ? "9+" : liveCount}
-                    </span>
-                  </>
+                  <span className="absolute -top-1.5 -right-1 min-w-[16px] h-[16px] rounded-full text-white text-[8px] font-black flex items-center justify-center px-0.5" style={{ background: "#E53935" }}>
+                    {liveCount > 9 ? "9+" : liveCount}
+                  </span>
                 )}
               </button>
             );
@@ -621,16 +503,11 @@ const DesktopNavbar = () => {
             {quickLinks.map(l => {
               const isLive = l.path === "/live";
               return (
-                <button key={l.label} onClick={() => navigate(l.path)}
-                  className="relative flex items-center gap-1 hover:underline transition"
-                  style={{ color: sandDark }}>
+                <button key={l.label} onClick={() => navigate(l.path)} className="relative flex items-center gap-1 hover:underline transition" style={{ color: sandDark }}>
                   <l.icon className="w-3 h-3" />
                   {l.label}
                   {isLive && liveCount > 0 && (
-                    <span
-                      className="ml-0.5 min-w-[14px] h-[14px] rounded-full text-white text-[8px] font-black flex items-center justify-center px-0.5"
-                      style={{ background: "#E53935" }}
-                    >
+                    <span className="ml-0.5 min-w-[14px] h-[14px] rounded-full text-white text-[8px] font-black flex items-center justify-center px-0.5" style={{ background: "#E53935" }}>
                       {liveCount > 9 ? "9+" : liveCount}
                     </span>
                   )}
@@ -639,7 +516,6 @@ const DesktopNavbar = () => {
             })}
           </div>
         </div>
-
       </div>
     </header>
   );
