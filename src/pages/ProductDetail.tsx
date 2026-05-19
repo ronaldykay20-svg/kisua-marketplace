@@ -162,21 +162,93 @@ const ZoomLightbox = ({
 };
 
 // ─── Avatar With Fallback ──────────────────────────────────────────────────────
-const AvatarWithFallback = ({ src, name, isCompany }: { src: string | null; name: string; isCompany: boolean }) => {
+const AvatarWithFallback = ({ src, name, isCompany, size = "md" }: { src: string | null; name: string; isCompany: boolean; size?: "sm" | "md" }) => {
   const [imgOk, setImgOk] = useState<boolean | null>(src ? null : false);
+  const dim = size === "sm" ? "w-8 h-8" : "w-12 h-12";
+  const iconDim = size === "sm" ? "w-4 h-4" : "w-5 h-5";
 
   if (src && imgOk !== false) {
     return (
       <img src={src} alt={name}
-        className="w-12 h-12 rounded-full object-cover border-2 border-border bg-muted"
+        className={`${dim} rounded-full object-cover border-2 border-border bg-muted`}
         onLoad={() => setImgOk(true)}
         onError={() => setImgOk(false)} />
     );
   }
   return (
-    <div className="w-12 h-12 rounded-full bg-primary/10 border-2 border-border flex items-center justify-center">
-      {isCompany ? <Building2 className="w-5 h-5 text-primary" /> : <Store className="w-5 h-5 text-primary" />}
+    <div className={`${dim} rounded-full bg-primary/10 border-2 border-border flex items-center justify-center`}>
+      {isCompany ? <Building2 className={`${iconDim} text-primary`} /> : <Store className={`${iconDim} text-primary`} />}
     </div>
+  );
+};
+
+// ─── Seller Name Inline (below title) ─────────────────────────────────────────
+const SellerNameInline = ({
+  publisher,
+  isLoading,
+  onNavigate,
+}: {
+  publisher: any;
+  isLoading: boolean;
+  onNavigate: () => void;
+}) => {
+  if (!publisher && !isLoading) return null;
+
+  return (
+    <button
+      onClick={onNavigate}
+      className="flex items-center gap-2 mt-1.5 mb-0.5 hover:opacity-80 active:opacity-60 transition text-left"
+    >
+      {isLoading ? (
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-full bg-muted animate-pulse" />
+          <div className="h-3 w-28 bg-muted rounded animate-pulse" />
+        </div>
+      ) : (
+        <>
+          {/* Small avatar */}
+          <div className="relative flex-shrink-0">
+            <AvatarWithFallback
+              src={publisher?.logo_url || publisher?.avatar_url || null}
+              name={publisher?.name || ""}
+              isCompany={publisher?.__type === "company"}
+              size="sm"
+            />
+            {publisher?.is_verified && (
+              <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-card flex items-center justify-center">
+                <ShieldCheck className="w-3 h-3 text-blue-500" />
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-col min-w-0">
+            <div className="flex items-center gap-1 flex-wrap">
+              <span className="text-xs font-bold text-foreground truncate">
+                {publisher?.name}
+              </span>
+              {publisher?.__type === "company" && (
+                <span className="text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full border border-primary/20 flex-shrink-0">
+                  Empresa
+                </span>
+              )}
+              {publisher?.is_verified && (
+                <span className="text-[9px] font-semibold text-blue-500 flex-shrink-0">
+                  Loja verificada
+                </span>
+              )}
+            </div>
+            {publisher?.province && (
+              <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                <MapPin className="w-3 h-3" />
+                {publisher.province}
+              </span>
+            )}
+          </div>
+
+          <ChevronRight className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0 ml-auto" />
+        </>
+      )}
+    </button>
   );
 };
 
@@ -235,7 +307,6 @@ const SellerCard = ({ seller, onNavigate, isLoading = false }: { seller: any; on
             </span>
           )}
         </div>
-        {/* Produtos count + Responde rápido */}
         <div className="flex items-center gap-3 mt-0.5 flex-wrap">
           {totalProducts && (
             <span className="text-[10px] text-muted-foreground">Produtos: {totalProducts}</span>
@@ -601,7 +672,7 @@ const ProductDetail = () => {
 
           {/* LEFT */}
           <div>
-            {/* Mobile: rating + title + trust badges ABOVE image */}
+            {/* Mobile: rating + title + seller name + trust badges ABOVE image */}
             <div className="bg-card px-4 pt-3 pb-2 md:hidden">
               {product.rating && (
                 <div className="flex items-center gap-1 mb-1">
@@ -612,6 +683,14 @@ const ProductDetail = () => {
                 </div>
               )}
               <h1 className="text-sm font-bold text-foreground leading-snug">{product.title}</h1>
+
+              {/* ── Seller / Company name inline — mobile ── */}
+              <SellerNameInline
+                publisher={publisher}
+                isLoading={loadingPublisher}
+                onNavigate={handlePublisherNavigate}
+              />
+
               {/* Trust badges row */}
               <div className="flex gap-1.5 mt-2 flex-wrap">
                 <span className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold border border-primary/30 text-primary bg-primary/5">
@@ -729,7 +808,7 @@ const ProductDetail = () => {
 
           {/* RIGHT */}
           <div>
-            {/* Desktop: title + trust badges */}
+            {/* Desktop: title + seller name + trust badges */}
             <div className="hidden md:block mb-4">
               {product.rating && (
                 <div className="flex items-center gap-1.5 mb-2">
@@ -741,6 +820,14 @@ const ProductDetail = () => {
                 </div>
               )}
               <h1 className="text-xl font-bold text-foreground leading-snug">{product.title}</h1>
+
+              {/* ── Seller / Company name inline — desktop ── */}
+              <SellerNameInline
+                publisher={publisher}
+                isLoading={loadingPublisher}
+                onNavigate={handlePublisherNavigate}
+              />
+
               {/* Trust badges row desktop */}
               <div className="flex gap-2 mt-3 flex-wrap">
                 <span className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold border border-primary/30 text-primary bg-primary/5">
@@ -780,7 +867,7 @@ const ProductDetail = () => {
                 )}
               </div>
 
-              {/* Seller info inline — inspired by brown design */}
+              {/* Seller info inline — full card in price section */}
               {(publisher || loadingPublisher) && (
                 <button
                   onClick={handlePublisherNavigate}
@@ -951,7 +1038,6 @@ const ProductDetail = () => {
             <div className="bg-card mt-2 p-4 md:rounded-card md:border md:border-border">
               <h3 className="text-sm font-bold text-foreground mb-3">Entrega e garantia</h3>
 
-              {/* Delivery row — CORRECTED TEXT */}
               <div className="flex items-start gap-3 text-xs text-foreground">
                 <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
@@ -962,7 +1048,6 @@ const ProductDetail = () => {
                 <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
               </div>
 
-              {/* Guarantee row */}
               <div className="flex items-start gap-3 text-xs text-foreground mt-3">
                 <Shield className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
@@ -972,7 +1057,6 @@ const ProductDetail = () => {
                 <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
               </div>
 
-              {/* 3-icon trust strip */}
               <div className="flex gap-2 mt-4 pt-3 border-t border-border">
                 <div className="flex-1 flex flex-col items-center gap-1 text-center">
                   <Truck className="w-5 h-5 text-primary" />
@@ -992,7 +1076,7 @@ const ProductDetail = () => {
               </div>
             </div>
 
-            {/* ── Bottom trust strip (mobile only) — CORRECTED delivery text ── */}
+            {/* ── Bottom trust strip (mobile only) ── */}
             <div className="md:hidden bg-card mt-0.5 px-4 py-3">
               <div className="grid grid-cols-4 gap-1 text-center">
                 {[
@@ -1097,7 +1181,6 @@ const ProductDetail = () => {
                 }}
                 className="flex-shrink-0 w-[160px] cursor-pointer active:scale-95 transition-transform"
               >
-                {/* Image — large square, rounded, soft bg, no border */}
                 <div className="w-full aspect-square rounded-2xl overflow-hidden bg-[#F5F0E8]">
                   <img
                     src={p.image}
@@ -1106,11 +1189,9 @@ const ProductDetail = () => {
                     loading="lazy"
                   />
                 </div>
-                {/* Name — brown, below image */}
                 <p className="mt-2 text-xs font-semibold text-primary leading-snug line-clamp-2 px-0.5">
                   {p.title}
                 </p>
-                {/* Price */}
                 <p className="mt-0.5 text-sm font-black text-foreground px-0.5">{p.price}</p>
                 {p.oldPrice && (
                   <p className="text-[10px] text-muted-foreground line-through px-0.5">{p.oldPrice}</p>
@@ -1228,7 +1309,6 @@ const ProductReviewsSection = ({
         )}
       </div>
 
-      {/* ── Only show rating summary when there are actual reviews ── */}
       {product.rating > 0 && (
         <div className="flex items-center gap-2 mb-4">
           <div className="flex items-center gap-0.5">
