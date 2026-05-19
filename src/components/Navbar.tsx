@@ -1,4 +1,4 @@
-import { Search, Menu, ShoppingCart, User, MapPin, X, ChevronRight, Gavel, Radio, Store, Users, Zap, LogOut, Bell, Mic, ArrowLeft } from "lucide-react";
+import { Search, Menu, ShoppingCart, User, MapPin, X, ChevronRight, Gavel, Radio, Store, Users, Zap, LogOut, Bell, Mic, ArrowLeft, Camera, ImageIcon } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -6,6 +6,8 @@ import { useSiteSetting } from "@/hooks/useSiteSettings";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCategories } from "@/hooks/useSupabaseData";
+
+const GOOGLE_VISION_API_KEY = "AIzaSyC6nON9Ghv0zrSXYlJlmL_VJl73HEXIDVU";
 
 const staticCategories = [
   { name: "Electrónicos", image: "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=100&h=100&fit=crop" },
@@ -79,6 +81,79 @@ const useSpeechRecognition = (onResult: (text: string) => void) => {
   return { listening, startListening, stopListening };
 };
 
+// Hook para pesquisa por imagem via Google Vision API
+const useImageSearch = (onResult: (query: string) => void) => {
+  const [analyzing, setAnalyzing] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const analyzeImage = useCallback(async (file: File) => {
+    setAnalyzing(true);
+    try {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64 = (reader.result as string).split(",")[1];
+        const response = await fetch(
+          `https://vision.googleapis.com/v1/images:annotate?key=${GOOGLE_VISION_API_KEY}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              requests: [{
+                image: { content: base64 },
+                features: [
+                  { type: "LABEL_DETECTION", maxResults: 5 },
+                  { type: "OBJECT_LOCALIZATION", maxResults: 3 },
+                  { type: "WEB_DETECTION", maxResults: 3 },
+                ],
+              }],
+            }),
+          }
+        );
+        const data = await response.json();
+        const result = data.responses?.[0];
+
+        // Prioridade: webEntities > labels > localizedObjectAnnotations
+        let searchTerm = "";
+        const webEntities = result?.webDetection?.webEntities;
+        if (webEntities?.length > 0) {
+          searchTerm = webEntities[0].description;
+        } else {
+          const labels = result?.labelAnnotations;
+          if (labels?.length > 0) {
+            searchTerm = labels[0].description;
+          } else {
+            const objects = result?.localizedObjectAnnotations;
+            if (objects?.length > 0) searchTerm = objects[0].name;
+          }
+        }
+
+        if (searchTerm) {
+          onResult(searchTerm);
+        } else {
+          alert("Não foi possível identificar o produto na imagem. Tente outra foto.");
+        }
+        setAnalyzing(false);
+      };
+      reader.readAsDataURL(file);
+    } catch {
+      alert("Erro ao analisar imagem. Verifique a sua ligação.");
+      setAnalyzing(false);
+    }
+  }, [onResult]);
+
+  const openImagePicker = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) analyzeImage(file);
+    e.target.value = "";
+  }, [analyzeImage]);
+
+  return { analyzing, openImagePicker, handleFileChange, fileInputRef };
+};
+
 const Navbar = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -104,8 +179,8 @@ const Navbar = () => {
       }))
     : staticCategories;
 
-  const isCategoriasPage      = location.pathname === "/categorias";
-  const isPesquisaPage        = location.pathname === "/pesquisa";
+  const isCategoriasPage       = location.pathname === "/categorias";
+  const isPesquisaPage         = location.pathname === "/pesquisa";
   const isCategoriaDetalhePage = location.pathname.startsWith("/categoria/");
 
   const categoryNameFromUrl = isCategoriaDetalhePage
@@ -190,6 +265,20 @@ const Navbar = () => {
 
   const handleMicClick = () => { if (listening) stopListening(); else startListening(); };
 
+  // Pesquisa por imagem — barra normal
+  const { analyzing: analyzingNormal, openImagePicker: openNormal, handleFileChange: fileChangeNormal, fileInputRef: fileRefNormal } =
+    useImageSearch((term) => {
+      navigate(`/pesquisa?q=${encodeURIComponent(term)}`);
+      setSearchVisible(false);
+    });
+
+  // Pesquisa por imagem — barra de categoria
+  const { analyzing: analyzingCat, openImagePicker: openCat, handleFileChange: fileChangeCat, fileInputRef: fileRefCat } =
+    useImageSearch((term) => {
+      navigate(`/pesquisa?q=${encodeURIComponent(term)}`);
+      setCategorySearchVisible(false);
+    });
+
   const sand       = "#D4B896";
   const sandDark   = "#B8956A";
   const cream      = "#F7F0E6";
@@ -198,11 +287,6 @@ const Navbar = () => {
 
   const scrolled = scrollY > 4;
 
-  /* ── Estilo do navbar ──
-     - CategoriaDetalhe : transparente (hero visível por baixo)
-     - CategoriasPage   : castanho normal (igual ao resto das páginas)
-     - Resto            : gradiente castanho normal
-  */
   let navbarStyle: React.CSSProperties;
   if (isCategoriaDetalhePage) {
     navbarStyle = { background: "transparent", boxShadow: "none", backdropFilter: "none" };
@@ -214,10 +298,6 @@ const Navbar = () => {
     };
   }
 
-  /* ── Cores dos ícones ──
-     Todas as páginas → castanho (incluindo /categorias agora com fundo normal)
-     CategoriaDetalhe → castanho (sobre hero)
-  */
   const iconColor  = brown;
   const iconBg     = brownLight;
   const iconBorder = "1px solid rgba(74,46,10,0.18)";
@@ -228,6 +308,25 @@ const Navbar = () => {
 
   return (
     <>
+      {/* Input oculto para pesquisa por imagem — barra normal */}
+      <input
+        ref={fileRefNormal}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={fileChangeNormal}
+      />
+      {/* Input oculto para pesquisa por imagem — barra categoria */}
+      <input
+        ref={fileRefCat}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={fileChangeCat}
+      />
+
       <nav className={navPositionClass} style={navbarStyle}>
         <div className="px-3">
 
@@ -347,6 +446,23 @@ const Navbar = () => {
                   className="flex-1 py-2.5 px-2.5 text-sm bg-transparent focus:outline-none"
                   style={{ color: brown }}
                 />
+                {/* Botão câmara — pesquisa por imagem */}
+                <button
+                  type="button"
+                  onClick={openCat}
+                  disabled={analyzingCat}
+                  className="w-9 h-9 flex items-center justify-center flex-shrink-0 rounded-xl m-0.5 transition-all"
+                  style={{
+                    background: analyzingCat ? "#F9A825" : brownLight,
+                    border: `1px solid rgba(74,46,10,0.18)`,
+                  }}
+                  title="Pesquisar por imagem"
+                >
+                  {analyzingCat
+                    ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    : <Camera className="w-4 h-4" style={{ color: brown }} />
+                  }
+                </button>
                 <button
                   type="button"
                   onClick={handleMicClick}
@@ -391,6 +507,23 @@ const Navbar = () => {
                   style={{ color: brown }}
                   onFocus={() => setSearchVisible(true)}
                 />
+                {/* Botão câmara — pesquisa por imagem */}
+                <button
+                  type="button"
+                  onClick={openNormal}
+                  disabled={analyzingNormal}
+                  className="w-9 h-9 flex items-center justify-center flex-shrink-0 rounded-xl m-0.5 transition-all"
+                  style={{
+                    background: analyzingNormal ? "#F9A825" : brownLight,
+                    border: `1px solid rgba(74,46,10,0.18)`,
+                  }}
+                  title="Pesquisar por imagem"
+                >
+                  {analyzingNormal
+                    ? <div className="w-4 h-4 border-2 border-brown border-t-transparent rounded-full animate-spin" style={{ borderColor: brown, borderTopColor: "transparent" }} />
+                    : <Camera className="w-4 h-4" style={{ color: brown }} />
+                  }
+                </button>
                 <button
                   type="button"
                   onClick={handleMicClick}
@@ -458,7 +591,6 @@ const Navbar = () => {
                   </button>
                 ))}
 
-                {/* Botão "Ver todas" — símbolo a BRANCO sobre fundo castanho */}
                 <button
                   onClick={() => navigate("/categorias")}
                   className="flex flex-col items-center gap-1.5 flex-shrink-0"
