@@ -1,11 +1,3 @@
-/**
- * DesktopNavbar — visível apenas em md: (tablet ≥768px) e lg: (desktop)
- * Linha 1: Logo + Pesquisa (sempre visível) + ícones
- * Linha 2: Categorias scroll horizontal + "Mais categorias" + quicklinks (tablet) / nav links (desktop)
- *
- * LIVE BADGE: quando há lives ativas, o botão "Live" na navbar mostra
- * um badge numérico com o total de lives em andamento.
- */
 import { useState, useCallback, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -15,8 +7,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCategories } from "@/hooks/useSupabaseData";
 import {
   Search, ShoppingCart, Bell, User, ChevronDown,
-  Gavel, Radio, Zap, Store, Users, Mic, LogOut, X,
+  Gavel, Radio, Zap, Store, Users, Mic, LogOut, X, Camera,
 } from "lucide-react";
+
+const GOOGLE_VISION_API_KEY = "AIzaSyC6nON9Ghv0zrSXYlJlmL_VJl73HEXIDVU";
 
 const staticCategories = [
   { name: "Electrónicos", image: "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=60&h=60&fit=crop" },
@@ -39,7 +33,6 @@ const cream      = "#F7F0E6";
 const brown      = "#4A2E0A";
 const brownLight = "rgba(74,46,10,0.10)";
 
-/* ─── hook: conta lives activas em tempo real ─── */
 const useLiveCount = () =>
   useQuery({
     queryKey: ["live_count_active"],
@@ -50,7 +43,7 @@ const useLiveCount = () =>
         .eq("status", "live");
       return count || 0;
     },
-    refetchInterval: 20000, // actualiza a cada 20 s
+    refetchInterval: 20000,
   });
 
 const quickLinks = [
@@ -93,6 +86,78 @@ const useSpeechRecognition = (onResult: (t: string) => void) => {
   }, [onResult]);
   const stop = useCallback(() => { ref.current?.stop(); setListening(false); }, []);
   return { listening, start, stop };
+};
+
+// Hook para pesquisa por imagem via Google Vision API
+const useImageSearch = (onResult: (query: string) => void) => {
+  const [analyzing, setAnalyzing] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const analyzeImage = useCallback(async (file: File) => {
+    setAnalyzing(true);
+    try {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64 = (reader.result as string).split(",")[1];
+        const response = await fetch(
+          `https://vision.googleapis.com/v1/images:annotate?key=${GOOGLE_VISION_API_KEY}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              requests: [{
+                image: { content: base64 },
+                features: [
+                  { type: "LABEL_DETECTION", maxResults: 5 },
+                  { type: "OBJECT_LOCALIZATION", maxResults: 3 },
+                  { type: "WEB_DETECTION", maxResults: 3 },
+                ],
+              }],
+            }),
+          }
+        );
+        const data = await response.json();
+        const result = data.responses?.[0];
+
+        let searchTerm = "";
+        const webEntities = result?.webDetection?.webEntities;
+        if (webEntities?.length > 0) {
+          searchTerm = webEntities[0].description;
+        } else {
+          const labels = result?.labelAnnotations;
+          if (labels?.length > 0) {
+            searchTerm = labels[0].description;
+          } else {
+            const objects = result?.localizedObjectAnnotations;
+            if (objects?.length > 0) searchTerm = objects[0].name;
+          }
+        }
+
+        if (searchTerm) {
+          onResult(searchTerm);
+        } else {
+          alert("Não foi possível identificar o produto na imagem. Tente outra foto.");
+        }
+        setAnalyzing(false);
+      };
+      reader.readAsDataURL(file);
+    } catch {
+      alert("Erro ao analisar imagem. Verifique a sua ligação.");
+      setAnalyzing(false);
+    }
+  }, [onResult]);
+
+  const openImagePicker = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) analyzeImage(file);
+    e.target.value = "";
+  }, [analyzeImage]);
+
+  return { analyzing, openImagePicker, handleFileChange, fileInputRef };
 };
 
 const DesktopNavbar = () => {
@@ -152,6 +217,12 @@ const DesktopNavbar = () => {
     navigate(`/pesquisa?q=${encodeURIComponent(t)}`);
   });
 
+  // Pesquisa por imagem
+  const { analyzing, openImagePicker, handleFileChange, fileInputRef } = useImageSearch((term) => {
+    navigate(`/pesquisa?q=${encodeURIComponent(term)}`);
+    setSearch("");
+  });
+
   const navItems = [
     { label: "Início",     path: "/" },
     { label: "Ofertas",    path: "/promocoes" },
@@ -162,7 +233,6 @@ const DesktopNavbar = () => {
     { label: "Ranking",    path: "/ranking" },
   ];
 
-  /* ── ícone genérico com badge ── */
   const IconBtn = ({ children, onClick, badge }: any) => (
     <div className="relative">
       <button
@@ -181,7 +251,6 @@ const DesktopNavbar = () => {
     </div>
   );
 
-  /* ── badge de live (pulsante vermelho) ── */
   const LiveBadge = ({ count }: { count: number }) => {
     if (count <= 0) return null;
     return (
@@ -194,10 +263,7 @@ const DesktopNavbar = () => {
         `}</style>
         <span
           className="absolute -top-1.5 -right-1.5 min-w-[17px] h-[17px] rounded-full text-white text-[9px] font-black flex items-center justify-center px-1"
-          style={{
-            background: "#E53935",
-            animation: "live-pulse 1.5s ease-in-out infinite",
-          }}
+          style={{ background: "#E53935", animation: "live-pulse 1.5s ease-in-out infinite" }}
         >
           {count > 9 ? "9+" : count}
         </span>
@@ -210,7 +276,16 @@ const DesktopNavbar = () => {
       className="hidden md:block sticky top-0 z-50 w-full"
       style={{ background: `linear-gradient(160deg, ${cream} 0%, ${sand} 60%, #C9A87C 100%)` }}
     >
-      {/* ══ LINHA 1: Logo + Pesquisa + Ícones ══ */}
+      {/* Input oculto para pesquisa por imagem */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+
+      {/* ══ LINHA 1 ══ */}
       <div className="max-w-screen-xl mx-auto px-5 h-16 flex items-center gap-3">
 
         {/* Logo */}
@@ -256,7 +331,7 @@ const DesktopNavbar = () => {
           )}
         </div>
 
-        {/* Barra de pesquisa */}
+        {/* Barra de pesquisa com ícone de câmara */}
         <form
           onSubmit={handleSearch}
           className="flex-1 flex items-center rounded-2xl overflow-hidden"
@@ -271,6 +346,24 @@ const DesktopNavbar = () => {
             className="flex-1 py-2.5 px-3 text-sm bg-transparent focus:outline-none"
             style={{ color: brown }}
           />
+          {/* Botão câmara — pesquisa por imagem */}
+          <button
+            type="button"
+            onClick={openImagePicker}
+            disabled={analyzing}
+            className="w-10 h-9 flex items-center justify-center rounded-xl m-0.5 transition-all hover:scale-105"
+            style={{
+              background: analyzing ? "#F9A825" : brownLight,
+              border: `1px solid rgba(74,46,10,0.18)`,
+            }}
+            title="Pesquisar por imagem"
+          >
+            {analyzing
+              ? <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: brown, borderTopColor: "transparent" }} />
+              : <Camera className="w-4 h-4" style={{ color: brown }} />
+            }
+          </button>
+          {/* Botão microfone */}
           <button
             type="button"
             onClick={listening ? stop : start}
@@ -299,7 +392,6 @@ const DesktopNavbar = () => {
         {/* Ícones direita */}
         <div className="flex items-center gap-2 flex-shrink-0">
 
-          {/* Notificações */}
           {user && (
             <div className="relative">
               <IconBtn
@@ -341,12 +433,10 @@ const DesktopNavbar = () => {
             </div>
           )}
 
-          {/* Carrinho */}
           <IconBtn onClick={() => navigate("/carrinho")} badge={cartCount}>
             <ShoppingCart className="w-5 h-5" style={{ color: brown }} />
           </IconBtn>
 
-          {/* Utilizador */}
           <div className="relative">
             <button
               onClick={() => { setUserOpen(v => !v); setNotifOpen(false); setCatOpen(false); }}
@@ -408,11 +498,9 @@ const DesktopNavbar = () => {
       {/* ══ LINHA 2 ══ */}
       <div className="border-t" style={{ borderColor: "rgba(74,46,10,0.15)" }}>
 
-        {/* ── TABLET (md, não lg): categorias + quicklinks ── */}
+        {/* ── TABLET ── */}
         <div className="md:flex lg:hidden max-w-screen-xl mx-auto px-5">
           <div className="flex items-center w-full py-2">
-
-            {/* Scroll horizontal de categorias com foto */}
             <div className="flex-1 overflow-x-auto scrollbar-hide min-w-0">
               <div className="flex items-center gap-3">
                 {cats.map((cat: any) => (
@@ -432,8 +520,6 @@ const DesktopNavbar = () => {
                     </span>
                   </button>
                 ))}
-
-                {/* Botão "Mais categorias" */}
                 <button
                   onClick={() => navigate("/categorias")}
                   className="flex flex-col items-center gap-1 flex-shrink-0"
@@ -459,14 +545,7 @@ const DesktopNavbar = () => {
                 </button>
               </div>
             </div>
-
-            {/* Separador vertical */}
-            <div
-              className="flex-shrink-0 w-px mx-3 self-stretch"
-              style={{ background: "rgba(74,46,10,0.18)" }}
-            />
-
-            {/* Quicklinks — Live com badge */}
+            <div className="flex-shrink-0 w-px mx-3 self-stretch" style={{ background: "rgba(74,46,10,0.18)" }} />
             <div className="flex-shrink-0 flex items-center gap-1">
               {quickLinks.map(link => {
                 const isLive = link.path === "/live";
@@ -481,7 +560,6 @@ const DesktopNavbar = () => {
                       style={{ background: brownLight, border: "1px solid rgba(74,46,10,0.15)" }}
                     >
                       <link.icon className="w-4 h-4" style={{ color: brown }} />
-                      {/* Badge de live ativa */}
                       {isLive && liveCount > 0 && (
                         <>
                           <style>{`
@@ -492,10 +570,7 @@ const DesktopNavbar = () => {
                           `}</style>
                           <span
                             className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] rounded-full text-white text-[9px] font-black flex items-center justify-center px-0.5"
-                            style={{
-                              background: "#E53935",
-                              animation: "live-pulse-ql 1.5s ease-in-out infinite",
-                            }}
+                            style={{ background: "#E53935", animation: "live-pulse-ql 1.5s ease-in-out infinite" }}
                           >
                             {liveCount > 9 ? "9+" : liveCount}
                           </span>
@@ -507,11 +582,10 @@ const DesktopNavbar = () => {
                 );
               })}
             </div>
-
           </div>
         </div>
 
-        {/* ── DESKTOP (lg): nav links ── */}
+        {/* ── DESKTOP ── */}
         <div className="hidden lg:flex max-w-screen-xl mx-auto px-5 items-center gap-1 h-10">
           {navItems.map(item => {
             const active = location.pathname === item.path;
@@ -524,7 +598,6 @@ const DesktopNavbar = () => {
                 style={{ color: active ? "#fff" : brown, background: active ? brown : "transparent" }}
               >
                 {item.label}
-                {/* Badge de live na nav do desktop */}
                 {isLive && liveCount > 0 && (
                   <>
                     <style>{`
@@ -535,10 +608,7 @@ const DesktopNavbar = () => {
                     `}</style>
                     <span
                       className="absolute -top-1.5 -right-1 min-w-[16px] h-[16px] rounded-full text-white text-[8px] font-black flex items-center justify-center px-0.5"
-                      style={{
-                        background: "#E53935",
-                        animation: "live-pulse-nav 1.5s ease-in-out infinite",
-                      }}
+                      style={{ background: "#E53935", animation: "live-pulse-nav 1.5s ease-in-out infinite" }}
                     >
                       {liveCount > 9 ? "9+" : liveCount}
                     </span>
