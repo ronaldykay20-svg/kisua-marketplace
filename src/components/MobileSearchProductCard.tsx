@@ -39,7 +39,6 @@ const MobileSearchProductCard = ({ product }: MobileSearchProductCardProps) => {
       onClick={() => navigate(`/produto/${product.id}`)}
       className="bg-card border-b border-border flex items-stretch cursor-pointer active:bg-muted/50 transition-colors"
     >
-      {/* Imagem quadrada à esquerda */}
       <div className="relative flex-shrink-0 w-[130px] h-[130px] overflow-hidden bg-muted">
         <img
           src={product.image}
@@ -64,37 +63,27 @@ const MobileSearchProductCard = ({ product }: MobileSearchProductCardProps) => {
         </button>
       </div>
 
-      {/* Conteúdo à direita */}
       <div className="flex-1 px-3 py-2 flex flex-col justify-between min-w-0">
         <div className="space-y-1">
-          {/* Badge */}
           {product.badge && (
             <span className="inline-block text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-sm">
               {product.badge}
             </span>
           )}
-
-          {/* Título */}
           <h3 className="text-xs font-semibold text-foreground line-clamp-2 leading-tight">
             {product.title}
           </h3>
-
-          {/* Descrição */}
           {product.description && (
             <p className="text-[10px] text-muted-foreground line-clamp-2 leading-tight">
               {product.description}
             </p>
           )}
-
-          {/* Nome do vendedor */}
           {product.sellerName && (
             <div className="flex items-center gap-1">
               <Store className="w-2.5 h-2.5 text-muted-foreground flex-shrink-0" />
               <span className="text-[10px] text-muted-foreground truncate">{product.sellerName}</span>
             </div>
           )}
-
-          {/* Rating */}
           {product.rating && (
             <div className="flex items-center gap-1">
               <div className="flex items-center gap-0.5">
@@ -116,7 +105,6 @@ const MobileSearchProductCard = ({ product }: MobileSearchProductCardProps) => {
           )}
         </div>
 
-        {/* Preço + Botão */}
         <div className="flex items-end justify-between gap-2 mt-1.5">
           <div>
             <span className="text-sm font-black text-foreground">{product.price}</span>
@@ -127,7 +115,6 @@ const MobileSearchProductCard = ({ product }: MobileSearchProductCardProps) => {
               <span className="block text-[9px] text-green-600 font-semibold">Frete grátis</span>
             )}
           </div>
-
           <button
             onClick={(e) => { e.stopPropagation(); navigate(`/produto/${product.id}`); }}
             className="flex-shrink-0 flex items-center gap-0.5 px-2.5 py-1.5 rounded-card bg-primary text-primary-foreground text-[10px] font-bold hover:brightness-110 transition whitespace-nowrap"
