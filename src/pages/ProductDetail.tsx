@@ -2,8 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Heart, Share2, ShoppingCart, Star, Truck, Shield,
   MapPin, ChevronRight, Minus, Plus, ZoomIn, Store, MessageCircle,
-  Send, Loader2, ShieldCheck, X, Building2, Link2, MessageSquare,
-  Package, BadgeCheck,
+  Send, Loader2, ShieldCheck, X, Building2, Link2,
 } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { allProducts } from "@/data/products";
@@ -50,7 +49,9 @@ const useProductTracking = () => {
           url: window.location.href,
         },
       });
-    } catch (_) {}
+    } catch (_) {
+      // Silent — tracking never breaks the UI
+    }
   }, [user?.id]);
 
   return { trackEvent };
@@ -162,97 +163,25 @@ const ZoomLightbox = ({
 };
 
 // ─── Avatar With Fallback ──────────────────────────────────────────────────────
-const AvatarWithFallback = ({ src, name, isCompany, size = "md" }: { src: string | null; name: string; isCompany: boolean; size?: "sm" | "md" }) => {
+const AvatarWithFallback = ({ src, name, isCompany }: { src: string | null; name: string; isCompany: boolean }) => {
   const [imgOk, setImgOk] = useState<boolean | null>(src ? null : false);
-  const dim = size === "sm" ? "w-8 h-8" : "w-12 h-12";
-  const iconDim = size === "sm" ? "w-4 h-4" : "w-5 h-5";
 
   if (src && imgOk !== false) {
     return (
       <img src={src} alt={name}
-        className={`${dim} rounded-full object-cover border-2 border-border bg-muted`}
+        className="w-12 h-12 rounded-full object-cover border-2 border-border bg-muted"
         onLoad={() => setImgOk(true)}
         onError={() => setImgOk(false)} />
     );
   }
   return (
-    <div className={`${dim} rounded-full bg-primary/10 border-2 border-border flex items-center justify-center`}>
-      {isCompany ? <Building2 className={`${iconDim} text-primary`} /> : <Store className={`${iconDim} text-primary`} />}
+    <div className="w-12 h-12 rounded-full bg-primary/10 border-2 border-border flex items-center justify-center">
+      {isCompany ? <Building2 className="w-5 h-5 text-primary" /> : <Store className="w-5 h-5 text-primary" />}
     </div>
   );
 };
 
-// ─── Seller Name Inline (below title) ─────────────────────────────────────────
-const SellerNameInline = ({
-  publisher,
-  isLoading,
-  onNavigate,
-}: {
-  publisher: any;
-  isLoading: boolean;
-  onNavigate: () => void;
-}) => {
-  if (!publisher && !isLoading) return null;
-
-  return (
-    <button
-      onClick={onNavigate}
-      className="flex items-center gap-2 mt-1.5 mb-0.5 hover:opacity-80 active:opacity-60 transition text-left"
-    >
-      {isLoading ? (
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-full bg-muted animate-pulse" />
-          <div className="h-3 w-28 bg-muted rounded animate-pulse" />
-        </div>
-      ) : (
-        <>
-          {/* Small avatar */}
-          <div className="relative flex-shrink-0">
-            <AvatarWithFallback
-              src={publisher?.logo_url || publisher?.avatar_url || null}
-              name={publisher?.name || ""}
-              isCompany={publisher?.__type === "company"}
-              size="sm"
-            />
-            {publisher?.is_verified && (
-              <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-card flex items-center justify-center">
-                <ShieldCheck className="w-3 h-3 text-blue-500" />
-              </div>
-            )}
-          </div>
-
-          <div className="flex flex-col min-w-0">
-            <div className="flex items-center gap-1 flex-wrap">
-              <span className="text-xs font-bold text-foreground truncate">
-                {publisher?.name}
-              </span>
-              {publisher?.__type === "company" && (
-                <span className="text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full border border-primary/20 flex-shrink-0">
-                  Empresa
-                </span>
-              )}
-              {publisher?.is_verified && (
-                <span className="text-[9px] font-semibold text-blue-500 flex-shrink-0">
-                  Loja verificada
-                </span>
-              )}
-            </div>
-            {publisher?.province && (
-              <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
-                <MapPin className="w-3 h-3" />
-                {publisher.province}
-              </span>
-            )}
-          </div>
-
-          <ChevronRight className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0 ml-auto" />
-        </>
-      )}
-    </button>
-  );
-};
-
-// ─── Seller Card ───────────────────────────────────────────────────────────────
+// ─── Seller Card — sem número de vendas ───────────────────────────────────────
 const SellerCard = ({ seller, onNavigate, isLoading = false }: { seller: any; onNavigate: () => void; isLoading?: boolean }) => {
   if (isLoading) return (
     <div className="bg-card mt-0.5 md:mt-0 md:mb-3 px-4 py-3 md:rounded-card md:border md:border-border flex items-center gap-3 animate-pulse">
@@ -267,7 +196,6 @@ const SellerCard = ({ seller, onNavigate, isLoading = false }: { seller: any; on
 
   const avatar: string | null = seller.logo_url || seller.avatar_url || null;
   const isCompany = seller.__type === "company";
-  const totalProducts = seller.total_products || null;
 
   return (
     <button onClick={onNavigate}
@@ -286,11 +214,6 @@ const SellerCard = ({ seller, onNavigate, isLoading = false }: { seller: any; on
           {isCompany && (
             <span className="text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full border border-primary/20 flex-shrink-0">Empresa</span>
           )}
-          {seller.is_verified && (
-            <span className="text-[9px] font-bold text-primary flex items-center gap-0.5 flex-shrink-0">
-              <ShieldCheck className="w-3 h-3 text-blue-500" /> Loja verificada
-            </span>
-          )}
         </div>
         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
           {seller.province && (
@@ -301,23 +224,13 @@ const SellerCard = ({ seller, onNavigate, isLoading = false }: { seller: any; on
           {seller.rating && (
             <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
               <Star className="w-3 h-3 fill-secondary text-secondary" />{seller.rating}
-              {(seller.total_reviews || seller.rating_count) && (
-                <span className="ml-0.5">({seller.total_reviews || seller.rating_count})</span>
-              )}
             </span>
           )}
-        </div>
-        <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-          {totalProducts && (
-            <span className="text-[10px] text-muted-foreground">Produtos: {totalProducts}</span>
-          )}
-          {seller.responds_fast && (
-            <span className="text-[10px] font-semibold text-green-600">Responde rápido</span>
-          )}
+          {/* total_sales removed — not shown on mobile or desktop */}
         </div>
       </div>
       <div className="flex items-center gap-1 flex-shrink-0">
-        <span className="text-[10px] font-bold text-primary hidden sm:block">Ver loja</span>
+        <span className="text-[10px] font-bold text-primary hidden sm:block">Ver perfil</span>
         <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
       </div>
     </button>
@@ -380,7 +293,7 @@ const ProductDetail = () => {
   const { data: sellerFull, isLoading: loadingSeller } = useQuery({
     queryKey: ["seller_full", rawSellerId],
     queryFn: async () => {
-      const { data } = await supabase.from("sellers").select("id, name, logo_url, avatar_url, is_verified, province, rating, total_sales, total_products, total_reviews, rating_count, responds_fast, type, user_id").eq("id", rawSellerId!).maybeSingle();
+      const { data } = await supabase.from("sellers").select("id, name, logo_url, avatar_url, is_verified, province, rating, total_sales, type, user_id").eq("id", rawSellerId!).maybeSingle();
       return data ? { ...data, __type: "seller" } : null;
     },
     enabled: !!rawSellerId,
@@ -389,7 +302,7 @@ const ProductDetail = () => {
   const { data: companyFull, isLoading: loadingCompany } = useQuery({
     queryKey: ["company_full", rawCompanyId],
     queryFn: async () => {
-      const { data } = await (supabase as any).from("companies").select("id, name, logo_url, is_verified, province, rating, total_reviews, total_sales, total_products, responds_fast").eq("id", rawCompanyId!).maybeSingle();
+      const { data } = await (supabase as any).from("companies").select("id, name, logo_url, is_verified, province, rating, total_reviews, total_sales").eq("id", rawCompanyId!).maybeSingle();
       return data ? { ...data, __type: "company" } : null;
     },
     enabled: !!rawCompanyId,
@@ -398,6 +311,7 @@ const ProductDetail = () => {
   const loadingPublisher = (!!rawSellerId && loadingSeller) || (!!rawCompanyId && loadingCompany);
   const publisher: any = sellerFull || companyFull || null;
 
+  // ── Track page view when product loads ────────────────────────────────────
   useEffect(() => {
     if (!dbProduct || !isUuid || viewTracked.current) return;
     viewTracked.current = true;
@@ -672,7 +586,6 @@ const ProductDetail = () => {
 
           {/* LEFT */}
           <div>
-            {/* Mobile: rating + title + seller name + trust badges ABOVE image */}
             <div className="bg-card px-4 pt-3 pb-2 md:hidden">
               {product.rating && (
                 <div className="flex items-center gap-1 mb-1">
@@ -683,26 +596,6 @@ const ProductDetail = () => {
                 </div>
               )}
               <h1 className="text-sm font-bold text-foreground leading-snug">{product.title}</h1>
-
-              {/* ── Seller / Company name inline — mobile ── */}
-              <SellerNameInline
-                publisher={publisher}
-                isLoading={loadingPublisher}
-                onNavigate={handlePublisherNavigate}
-              />
-
-              {/* Trust badges row */}
-              <div className="flex gap-1.5 mt-2 flex-wrap">
-                <span className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold border border-primary/30 text-primary bg-primary/5">
-                  <Truck className="w-3 h-3" /> Entrega rápida
-                </span>
-                <span className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold border border-primary/30 text-primary bg-primary/5">
-                  <Shield className="w-3 h-3" /> Garantia 12 meses
-                </span>
-                <span className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold border border-primary/30 text-primary bg-primary/5">
-                  <BadgeCheck className="w-3 h-3" /> Devolução fácil
-                </span>
-              </div>
               <div className="flex flex-wrap gap-1.5 mt-1.5">
                 {popularityBadge && <span className="px-2 py-0.5 rounded-sm text-[10px] font-bold border border-primary text-primary bg-primary/5">{popularityBadge}</span>}
                 {product.discount && <span className="px-2 py-0.5 rounded-sm text-[10px] font-bold border border-walmart-green text-walmart-green bg-walmart-green/5">Clearance</span>}
@@ -735,12 +628,17 @@ const ProductDetail = () => {
                   <button onClick={handleShare} className="w-9 h-9 rounded-full bg-card/90 shadow-md flex items-center justify-center active:scale-95 transition">
                     <Share2 className="w-4 h-4 text-foreground" />
                   </button>
+                  {/* ── Favorite: correct filled state ── */}
                   <button
                     onClick={handleFavorite}
                     className="w-9 h-9 rounded-full bg-card/90 shadow-md flex items-center justify-center active:scale-95 transition"
                     aria-label={isFavorited ? "Remover dos favoritos" : "Adicionar aos favoritos"}
                   >
-                    <Heart className={`w-4 h-4 transition-all duration-200 ${isFavorited ? "text-red-500 fill-red-500 scale-110" : "text-foreground"}`} />
+                    <Heart
+                      className={`w-4 h-4 transition-all duration-200 ${
+                        isFavorited ? "text-red-500 fill-red-500 scale-110" : "text-foreground"
+                      }`}
+                    />
                   </button>
                   <button onClick={handleZoom} className="w-9 h-9 rounded-full bg-card/90 shadow-md flex items-center justify-center active:scale-95 transition">
                     <ZoomIn className="w-4 h-4 text-foreground" />
@@ -793,6 +691,7 @@ const ProductDetail = () => {
                         {s.avatar_url ? <img src={s.avatar_url} alt={s.name} className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center"><Store className="w-4 h-4 text-primary" /></div>}
                         <div className="min-w-0">
                           <p className="text-xs font-bold text-foreground truncate">{s.name}</p>
+                          {/* total_sales removed */}
                         </div>
                       </div>
                       <div className="flex items-center justify-between text-[10px]">
@@ -808,7 +707,6 @@ const ProductDetail = () => {
 
           {/* RIGHT */}
           <div>
-            {/* Desktop: title + seller name + trust badges */}
             <div className="hidden md:block mb-4">
               {product.rating && (
                 <div className="flex items-center gap-1.5 mb-2">
@@ -820,121 +718,30 @@ const ProductDetail = () => {
                 </div>
               )}
               <h1 className="text-xl font-bold text-foreground leading-snug">{product.title}</h1>
-
-              {/* ── Seller / Company name inline — desktop ── */}
-              <SellerNameInline
-                publisher={publisher}
-                isLoading={loadingPublisher}
-                onNavigate={handlePublisherNavigate}
-              />
-
-              {/* Trust badges row desktop */}
-              <div className="flex gap-2 mt-3 flex-wrap">
-                <span className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold border border-primary/30 text-primary bg-primary/5">
-                  <Truck className="w-3.5 h-3.5" /> Entrega rápida
-                </span>
-                <span className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold border border-primary/30 text-primary bg-primary/5">
-                  <Shield className="w-3.5 h-3.5" /> Garantia 12 meses
-                </span>
-                <span className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold border border-primary/30 text-primary bg-primary/5">
-                  <BadgeCheck className="w-3.5 h-3.5" /> Devolução fácil
-                </span>
-              </div>
-              <div className="flex flex-wrap gap-1.5 mt-2">
+              <div className="flex flex-wrap gap-1.5 mt-3">
                 {popularityBadge && <span className="px-2 py-0.5 rounded-sm text-[10px] font-bold border border-primary text-primary bg-primary/5">{popularityBadge}</span>}
                 {product.discount && <span className="px-2 py-0.5 rounded-sm text-[10px] font-bold border border-walmart-green text-walmart-green bg-walmart-green/5">Clearance</span>}
                 {product.badge === "HOT" && <span className="px-2 py-0.5 rounded-sm text-[10px] font-bold border border-walmart-red text-walmart-red bg-walmart-red/5">Best seller</span>}
               </div>
             </div>
 
-            <div className="bg-card mt-0.5 md:mt-0 p-4 md:rounded-card md:border md:border-border">
-              {/* Price */}
-              <div>
-                <div className="flex items-baseline gap-1">
-                  {product.discount && <span className="text-sm font-bold text-walmart-green mr-1">Now</span>}
-                  <span className="text-2xl font-black text-foreground">{activePrice}</span>
-                </div>
-                {product.oldPrice && (
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-sm text-muted-foreground line-through">{product.oldPrice}</span>
-                    {product.discount && <span className="text-xs font-bold text-walmart-green">Poupa {product.discount}</span>}
-                  </div>
-                )}
-                {product.freeShipping && (
-                  <div className="flex items-center gap-1.5 mt-2 text-xs text-walmart-green font-semibold">
-                    <Truck className="w-4 h-4" /><span>Frete grátis para Luanda</span>
-                  </div>
-                )}
-              </div>
+            <SellerCard seller={publisher} onNavigate={handlePublisherNavigate} isLoading={loadingPublisher} />
 
-              {/* Seller info inline — full card in price section */}
-              {(publisher || loadingPublisher) && (
-                <button
-                  onClick={handlePublisherNavigate}
-                  className="w-full mt-4 pt-4 border-t border-border flex items-center gap-3 hover:opacity-80 active:opacity-60 transition text-left"
-                >
-                  {loadingPublisher ? (
-                    <div className="w-10 h-10 rounded-full bg-muted animate-pulse flex-shrink-0" />
-                  ) : (
-                    <div className="relative flex-shrink-0">
-                      <AvatarWithFallback src={publisher?.logo_url || publisher?.avatar_url || null} name={publisher?.name || ""} isCompany={publisher?.__type === "company"} />
-                      {publisher?.is_verified && (
-                        <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-card flex items-center justify-center">
-                          <ShieldCheck className="w-3.5 h-3.5 text-blue-500" />
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    {loadingPublisher ? (
-                      <div className="space-y-1.5">
-                        <div className="h-3 bg-muted rounded w-28 animate-pulse" />
-                        <div className="h-2.5 bg-muted rounded w-20 animate-pulse" />
-                      </div>
-                    ) : (
-                      <>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <p className="text-sm font-bold text-foreground truncate">{publisher?.name}</p>
-                          {publisher?.__type === "company" && (
-                            <span className="text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full border border-primary/20 flex-shrink-0">Empresa</span>
-                          )}
-                          {publisher?.is_verified && (
-                            <span className="text-[9px] font-bold text-primary flex items-center gap-0.5 flex-shrink-0">
-                              <ShieldCheck className="w-3 h-3 text-blue-500" /> Loja verificada
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                          {publisher?.province && (
-                            <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
-                              <MapPin className="w-3 h-3" />{publisher.province}
-                            </span>
-                          )}
-                          {publisher?.rating && (
-                            <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
-                              <Star className="w-3 h-3 fill-secondary text-secondary" />{publisher.rating}
-                              {(publisher.total_reviews || publisher.rating_count) && (
-                                <span className="ml-0.5">({publisher.total_reviews || publisher.rating_count})</span>
-                              )}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                          {publisher?.total_products && (
-                            <span className="text-[10px] text-muted-foreground">Produtos: {publisher.total_products}</span>
-                          )}
-                          {publisher?.responds_fast && (
-                            <span className="text-[10px] font-semibold text-green-600">Responde rápido</span>
-                          )}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    <span className="text-[10px] font-bold text-primary hidden sm:block">Ver loja</span>
-                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                  </div>
-                </button>
+            <div className="bg-card mt-0.5 md:mt-0 p-4 md:rounded-card md:border md:border-border">
+              <div className="flex items-baseline gap-1">
+                {product.discount && <span className="text-sm font-bold text-walmart-green mr-1">Now</span>}
+                <span className="text-2xl font-black text-foreground">{activePrice}</span>
+              </div>
+              {product.oldPrice && (
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-sm text-muted-foreground line-through">{product.oldPrice}</span>
+                  {product.discount && <span className="text-xs font-bold text-walmart-green">Poupa {product.discount}</span>}
+                </div>
+              )}
+              {product.freeShipping && (
+                <div className="flex items-center gap-1.5 mt-3 text-xs text-walmart-green font-semibold">
+                  <Truck className="w-4 h-4" /><span>Frete grátis para Luanda</span>
+                </div>
               )}
 
               {Object.keys(variantGroups).length > 0 && (
@@ -1034,63 +841,22 @@ const ProductDetail = () => {
               </div>
             </div>
 
-            {/* ── Entrega e garantia ── */}
             <div className="bg-card mt-2 p-4 md:rounded-card md:border md:border-border">
-              <h3 className="text-sm font-bold text-foreground mb-3">Entrega e garantia</h3>
-
+              <h3 className="text-sm font-bold text-foreground mb-3">Entrega</h3>
               <div className="flex items-start gap-3 text-xs text-foreground">
                 <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <p className="font-semibold">Enviar para Luanda, Angola</p>
-                  <p className="text-muted-foreground mt-0.5">Intermunicipal: 1–3 dias úteis</p>
-                  <p className="text-muted-foreground">Interprovincial: até 1 semana</p>
+                  <p className="text-muted-foreground mt-0.5">Entrega estimada: 2-5 dias úteis</p>
                 </div>
                 <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
               </div>
-
               <div className="flex items-start gap-3 text-xs text-foreground mt-3">
                 <Shield className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <p className="font-semibold">Garantia do vendedor</p>
                   <p className="text-muted-foreground mt-0.5">Devolução grátis até 30 dias</p>
                 </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-              </div>
-
-              <div className="flex gap-2 mt-4 pt-3 border-t border-border">
-                <div className="flex-1 flex flex-col items-center gap-1 text-center">
-                  <Truck className="w-5 h-5 text-primary" />
-                  <span className="text-[10px] font-bold text-foreground">Entrega rápida</span>
-                  <span className="text-[9px] text-muted-foreground">Envio seguro</span>
-                </div>
-                <div className="flex-1 flex flex-col items-center gap-1 text-center">
-                  <Package className="w-5 h-5 text-primary" />
-                  <span className="text-[10px] font-bold text-foreground">Embalagem segura</span>
-                  <span className="text-[9px] text-muted-foreground">Proteção garantida</span>
-                </div>
-                <div className="flex-1 flex flex-col items-center gap-1 text-center">
-                  <BadgeCheck className="w-5 h-5 text-primary" />
-                  <span className="text-[10px] font-bold text-foreground">Compra segura</span>
-                  <span className="text-[9px] text-muted-foreground">Protegemos você</span>
-                </div>
-              </div>
-            </div>
-
-            {/* ── Bottom trust strip (mobile only) ── */}
-            <div className="md:hidden bg-card mt-0.5 px-4 py-3">
-              <div className="grid grid-cols-4 gap-1 text-center">
-                {[
-                  { icon: <Truck className="w-5 h-5 mx-auto text-primary" />, label: "Entrega", sub: "1–3 / até 1 sem." },
-                  { icon: <Shield className="w-5 h-5 mx-auto text-primary" />, label: "Garantia", sub: "12 meses" },
-                  { icon: <BadgeCheck className="w-5 h-5 mx-auto text-primary" />, label: "Devolução", sub: "7 dias" },
-                  { icon: <Star className="w-5 h-5 mx-auto text-primary fill-primary" />, label: "Mais vendido", sub: "Top na categoria" },
-                ].map((item, i) => (
-                  <div key={i} className="flex flex-col items-center gap-0.5">
-                    {item.icon}
-                    <span className="text-[9px] font-bold text-foreground">{item.label}</span>
-                    <span className="text-[8px] text-primary font-semibold leading-tight">{item.sub}</span>
-                  </div>
-                ))}
               </div>
             </div>
 
@@ -1107,7 +873,7 @@ const ProductDetail = () => {
               </ul>
             </div>
 
-            {/* Sponsored sellers mobile */}
+            {/* Sponsored sellers mobile — sem total_sales */}
             {sponsoredSellers.length > 0 && (
               <div className="md:hidden bg-card mt-2 p-4">
                 <p className="text-[10px] text-muted-foreground text-right mb-2">Patrocinado</p>
@@ -1154,18 +920,20 @@ const ProductDetail = () => {
         trackEvent={trackEvent}
       />
 
+      {/* ── Related / Explore / Also Like — SEM label "Patrocinado", cards sem moldura visível ── */}
       {[
         { title: "Produtos relacionados", list: relatedProducts, section: "related" },
         { title: "Mais para explorar",    list: moreToExplore,   section: "more_explore" },
         { title: "Também pode gostar",    list: alsoLike,         section: "also_like" },
       ].map(({ title, list, section }) => list.length > 0 && (
-        <div key={title} className="mt-2 bg-card px-4 pt-4 pb-2 md:container md:mx-auto md:rounded-card md:border md:border-border md:my-4">
+        <div key={title} className="mt-2 bg-card p-4 md:container md:mx-auto md:rounded-card md:border md:border-border md:my-4">
+          {/* Header: ONLY the title, no "Patrocinado" */}
           <h3 className="text-base font-black text-foreground mb-3">{title}</h3>
-          <div className="flex gap-3 overflow-x-auto pb-3 scrollbar-hide -mx-4 px-4">
+          <ProductCarousel>
             {list.map((p: any) => (
               <div
                 key={p.id}
-                onClick={() => {
+                onClick={() =>
                   trackEvent(id!, "card_tap", {
                     tapped_product_id: p.id,
                     tapped_product_title: p.title,
@@ -1176,33 +944,19 @@ const ProductDetail = () => {
                     source_product_id: id,
                     source_product_title: product.title,
                     source_category_id: product.category_id,
-                  });
-                  navigate(`/produto/${p.id}`);
-                }}
-                className="flex-shrink-0 w-[160px] cursor-pointer active:scale-95 transition-transform"
+                  })
+                }
+                // Invisible border & no shadow on the card wrapper
+                className="[&>*]:border-transparent [&>*]:shadow-none"
               >
-                <div className="w-full aspect-square rounded-2xl overflow-hidden bg-[#F5F0E8]">
-                  <img
-                    src={p.image}
-                    alt={p.title}
-                    className="w-full h-full object-contain p-2"
-                    loading="lazy"
-                  />
-                </div>
-                <p className="mt-2 text-xs font-semibold text-primary leading-snug line-clamp-2 px-0.5">
-                  {p.title}
-                </p>
-                <p className="mt-0.5 text-sm font-black text-foreground px-0.5">{p.price}</p>
-                {p.oldPrice && (
-                  <p className="text-[10px] text-muted-foreground line-through px-0.5">{p.oldPrice}</p>
-                )}
+                <ProductCard product={p} />
               </div>
             ))}
-          </div>
+          </ProductCarousel>
         </div>
       ))}
 
-      {/* Mobile sticky bottom bar */}
+      {/* ── Mobile sticky bottom bar — pb-28 on page ensures content clears it ── */}
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border px-3 pt-2 pb-safe-or-4 z-50 md:hidden" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>
         <div className="flex items-center gap-2 mb-2">
           <span className="text-[10px] text-muted-foreground font-semibold">Qtd:</span>
@@ -1308,20 +1062,15 @@ const ProductReviewsSection = ({
           <button onClick={() => setShowForm(!showForm)} className="px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-bold">Avaliar produto</button>
         )}
       </div>
-
-      {product.rating > 0 && (
-        <div className="flex items-center gap-2 mb-4">
-          <div className="flex items-center gap-0.5">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Star key={i} className={`w-4 h-4 ${i < Math.floor(product.rating) ? "text-secondary fill-secondary" : "text-border"}`} />
-            ))}
-          </div>
-          <span className="text-sm font-semibold text-foreground">{product.rating} de 5</span>
-          {product.reviews > 0 && (
-            <span className="text-xs text-muted-foreground">({product.reviews} avaliações)</span>
-          )}
+      <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-0.5">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Star key={i} className={`w-4 h-4 ${i < Math.floor(product.rating || 0) ? "text-secondary fill-secondary" : "text-border"}`} />
+          ))}
         </div>
-      )}
+        <span className="text-sm font-semibold text-foreground">{product.rating || 0} de 5</span>
+        <span className="text-xs text-muted-foreground">({product.reviews || 0} avaliações)</span>
+      </div>
 
       {showForm && canReview && (
         <div className="border border-primary/20 rounded-card p-4 mb-4 bg-primary/5">
