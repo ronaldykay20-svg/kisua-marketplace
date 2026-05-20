@@ -1,6 +1,3 @@
-file with all changes
-bash
-cat > /home/claude/ProductDetail.tsx << 'ENDOFFILE'
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Heart, Share2, ShoppingCart, Star, Truck, Shield,
@@ -248,7 +245,7 @@ const SellerCard = ({ seller, onNavigate, isLoading = false }: { seller: any; on
               <MapPin className="w-3 h-3" />{province}
             </span>
           )}
-          {seller.rating && (
+          {seller.rating > 0 && (
             <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
               <Star className="w-3 h-3 fill-secondary text-secondary" />{seller.rating}
             </span>
