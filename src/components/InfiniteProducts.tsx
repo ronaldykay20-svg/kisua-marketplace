@@ -169,8 +169,6 @@ const InfiniteProducts = () => {
   const col1 = allProducts.filter((_: any, i: number) => i % 2 === 0);
   const col2 = allProducts.filter((_: any, i: number) => i % 2 === 1);
 
-  const MOBILE_FOOTER_H = 108;
-
   // ─── CARD MOBILE ───────────────────────────────────────────────────────────
   const MobileCard = ({ p, globalIndex }: { p: any; globalIndex: number }) => {
     const img = p.cover_url || p.image_url;
@@ -224,11 +222,8 @@ const InfiniteProducts = () => {
           </button>
         </div>
 
-        {/* Rodapé */}
-        <div
-          className="p-2 flex flex-col justify-between"
-          style={{ height: `${MOBILE_FOOTER_H}px` }}
-        >
+        {/* Rodapé — altura automática, sem altura fixa */}
+        <div className="p-2 flex flex-col gap-1">
           {/* Título */}
           <h3 className="text-[11px] font-semibold text-foreground line-clamp-2 leading-snug">
             {p.title}
@@ -329,35 +324,33 @@ const InfiniteProducts = () => {
         </div>
 
         {/* Rodapé */}
-        <div className="p-1.5 flex flex-col justify-between flex-1">
+        <div className="p-1.5 flex flex-col gap-1 flex-1">
           <p className="text-[10px] font-medium text-foreground line-clamp-2 leading-tight">
             {p.title}
           </p>
 
-          <div className="flex flex-col gap-1 mt-1">
-            <RotatingInfo p={p} isTrending={isTrending} seed={globalIndex} />
+          <RotatingInfo p={p} isTrending={isTrending} seed={globalIndex} />
 
-            {/* Preço */}
-            <div className="flex items-baseline gap-1">
-              <span className="text-[12px] font-black text-foreground leading-none">
-                {Number(p.price).toLocaleString("pt-AO")} Kz
+          {/* Preço */}
+          <div className="flex items-baseline gap-1">
+            <span className="text-[12px] font-black text-foreground leading-none">
+              {Number(p.price).toLocaleString("pt-AO")} Kz
+            </span>
+            {p.old_price && (
+              <span className="text-[9px] text-muted-foreground line-through leading-none">
+                {Number(p.old_price).toLocaleString("pt-AO")} Kz
               </span>
-              {p.old_price && (
-                <span className="text-[9px] text-muted-foreground line-through leading-none">
-                  {Number(p.old_price).toLocaleString("pt-AO")} Kz
-                </span>
-              )}
-            </div>
-
-            {/* Botão carrinho */}
-            <button
-              onClick={handleCart}
-              className="w-full py-1 rounded-full text-[10px] font-bold text-white bg-[#8B4A2A] hover:bg-[#7a3f22] active:scale-95 transition-all leading-none flex items-center justify-center gap-1"
-            >
-              <ShoppingCart className="w-3 h-3" />
-              Carrinho
-            </button>
+            )}
           </div>
+
+          {/* Botão carrinho */}
+          <button
+            onClick={handleCart}
+            className="w-full py-1 rounded-full text-[10px] font-bold text-white bg-[#8B4A2A] hover:bg-[#7a3f22] active:scale-95 transition-all leading-none flex items-center justify-center gap-1"
+          >
+            <ShoppingCart className="w-3 h-3" />
+            Carrinho
+          </button>
         </div>
       </div>
     );
