@@ -1,3 +1,5 @@
+bash
+cat > /home/claude/ProductDetail.tsx << 'ENDOFFILE'
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Heart, Share2, ShoppingCart, Star, Truck, Shield,
@@ -11,12 +13,34 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAddToCart } from "@/hooks/useCartActions";
-import ProductCard from "@/components/ProductCard";
 import ProductCarousel from "@/components/ProductCarousel";
 import { toast } from "sonner";
 
 const fmt = (n: number) =>
   Number(n).toLocaleString("pt-AO").replace(/,/g, ".") + " Kz";
+
+// ─── Minimal Related Product Card ─────────────────────────────────────────────
+// Matches the screenshot: large square image + name label below, no price/rating/border/shadow
+const MinimalProductCard = ({ product, onClick }: { product: any; onClick?: () => void }) => {
+  return (
+    <div
+      onClick={onClick}
+      className="cursor-pointer group flex flex-col"
+      style={{ width: 160, minWidth: 160 }}
+    >
+      <div className="w-full aspect-square rounded-xl overflow-hidden bg-muted">
+        <img
+          src={product.image}
+          alt={product.title}
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+        />
+      </div>
+      <p className="mt-2 text-xs text-foreground font-medium leading-snug line-clamp-2 px-0.5">
+        {product.title}
+      </p>
+    </div>
+  );
+};
 
 // ─── Smart Tracking Hook ───────────────────────────────────────────────────────
 const useProductTracking = () => {
@@ -181,7 +205,7 @@ const AvatarWithFallback = ({ src, name, isCompany }: { src: string | null; name
   );
 };
 
-// ─── Seller Card — sem número de vendas ───────────────────────────────────────
+// ─── Seller Card ───────────────────────────────────────────────────────────────
 const SellerCard = ({ seller, onNavigate, isLoading = false }: { seller: any; onNavigate: () => void; isLoading?: boolean }) => {
   if (isLoading) return (
     <div className="bg-card mt-0.5 md:mt-0 md:mb-3 px-4 py-3 md:rounded-card md:border md:border-border flex items-center gap-3 animate-pulse">
@@ -226,7 +250,6 @@ const SellerCard = ({ seller, onNavigate, isLoading = false }: { seller: any; on
               <Star className="w-3 h-3 fill-secondary text-secondary" />{seller.rating}
             </span>
           )}
-          {/* total_sales removed — not shown on mobile or desktop */}
         </div>
       </div>
       <div className="flex items-center gap-1 flex-shrink-0">
@@ -311,7 +334,6 @@ const ProductDetail = () => {
   const loadingPublisher = (!!rawSellerId && loadingSeller) || (!!rawCompanyId && loadingCompany);
   const publisher: any = sellerFull || companyFull || null;
 
-  // ── Track page view when product loads ────────────────────────────────────
   useEffect(() => {
     if (!dbProduct || !isUuid || viewTracked.current) return;
     viewTracked.current = true;
@@ -628,7 +650,6 @@ const ProductDetail = () => {
                   <button onClick={handleShare} className="w-9 h-9 rounded-full bg-card/90 shadow-md flex items-center justify-center active:scale-95 transition">
                     <Share2 className="w-4 h-4 text-foreground" />
                   </button>
-                  {/* ── Favorite: correct filled state ── */}
                   <button
                     onClick={handleFavorite}
                     className="w-9 h-9 rounded-full bg-card/90 shadow-md flex items-center justify-center active:scale-95 transition"
@@ -691,7 +712,6 @@ const ProductDetail = () => {
                         {s.avatar_url ? <img src={s.avatar_url} alt={s.name} className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center"><Store className="w-4 h-4 text-primary" /></div>}
                         <div className="min-w-0">
                           <p className="text-xs font-bold text-foreground truncate">{s.name}</p>
-                          {/* total_sales removed */}
                         </div>
                       </div>
                       <div className="flex items-center justify-between text-[10px]">
@@ -873,7 +893,6 @@ const ProductDetail = () => {
               </ul>
             </div>
 
-            {/* Sponsored sellers mobile — sem total_sales */}
             {sponsoredSellers.length > 0 && (
               <div className="md:hidden bg-card mt-2 p-4">
                 <p className="text-[10px] text-muted-foreground text-right mb-2">Patrocinado</p>
@@ -920,20 +939,20 @@ const ProductDetail = () => {
         trackEvent={trackEvent}
       />
 
-      {/* ── Related / Explore / Also Like — SEM label "Patrocinado", cards sem moldura visível ── */}
+      {/* ── Related / Explore / Also Like — minimal card style (image + title only) ── */}
       {[
         { title: "Produtos relacionados", list: relatedProducts, section: "related" },
         { title: "Mais para explorar",    list: moreToExplore,   section: "more_explore" },
         { title: "Também pode gostar",    list: alsoLike,         section: "also_like" },
       ].map(({ title, list, section }) => list.length > 0 && (
         <div key={title} className="mt-2 bg-card p-4 md:container md:mx-auto md:rounded-card md:border md:border-border md:my-4">
-          {/* Header: ONLY the title, no "Patrocinado" */}
-          <h3 className="text-base font-black text-foreground mb-3">{title}</h3>
-          <ProductCarousel>
+          <h3 className="text-base font-black text-foreground mb-4">{title}</h3>
+          <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
             {list.map((p: any) => (
-              <div
+              <MinimalProductCard
                 key={p.id}
-                onClick={() =>
+                product={p}
+                onClick={() => {
                   trackEvent(id!, "card_tap", {
                     tapped_product_id: p.id,
                     tapped_product_title: p.title,
@@ -944,19 +963,16 @@ const ProductDetail = () => {
                     source_product_id: id,
                     source_product_title: product.title,
                     source_category_id: product.category_id,
-                  })
-                }
-                // Invisible border & no shadow on the card wrapper
-                className="[&>*]:border-transparent [&>*]:shadow-none"
-              >
-                <ProductCard product={p} />
-              </div>
+                  });
+                  navigate(`/produto/${p.id}`);
+                }}
+              />
             ))}
-          </ProductCarousel>
+          </div>
         </div>
       ))}
 
-      {/* ── Mobile sticky bottom bar — pb-28 on page ensures content clears it ── */}
+      {/* ── Mobile sticky bottom bar ── */}
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border px-3 pt-2 pb-safe-or-4 z-50 md:hidden" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>
         <div className="flex items-center gap-2 mb-2">
           <span className="text-[10px] text-muted-foreground font-semibold">Qtd:</span>
@@ -1181,3 +1197,4 @@ const ProductReviewsSection = ({
 };
 
 export default ProductDetail;
+ENDOF
