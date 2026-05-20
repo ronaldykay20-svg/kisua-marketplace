@@ -11,6 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAddToCart } from "@/hooks/useCartActions";
+import { useFavorites } from "@/hooks/useFavorites";
 import ProductCarousel from "@/components/ProductCarousel";
 import { toast } from "sonner";
 
@@ -72,9 +73,7 @@ const useProductTracking = () => {
           url: window.location.href,
         },
       });
-    } catch (_) {
-      // Silent — tracking never breaks the UI
-    }
+    } catch (_) {}
   }, [user?.id]);
 
   return { trackEvent };
@@ -207,11 +206,14 @@ const AvatarWithFallback = ({ src, name, isCompany }: { src: string | null; name
 // ─── Seller Card ───────────────────────────────────────────────────────────────
 const SellerCard = ({ seller, onNavigate, isLoading = false }: { seller: any; onNavigate: () => void; isLoading?: boolean }) => {
   if (isLoading) return (
-    <div className="bg-card mt-0.5 md:mt-0 md:mb-3 px-4 py-3 md:rounded-card md:border md:border-border flex items-center gap-3 animate-pulse">
-      <div className="w-12 h-12 rounded-full bg-muted flex-shrink-0" />
+    <div
+      className="mt-0.5 md:mt-0 md:mb-3 px-4 py-3 md:rounded-2xl flex items-center gap-3 animate-pulse"
+      style={{ background: "#fdf6f0", border: "1px solid #e8d5c0" }}
+    >
+      <div className="w-12 h-12 rounded-full flex-shrink-0" style={{ background: "#ecdece" }} />
       <div className="flex-1 space-y-2">
-        <div className="h-3 bg-muted rounded w-32" />
-        <div className="h-2.5 bg-muted rounded w-20" />
+        <div className="h-3 rounded w-32" style={{ background: "#ecdece" }} />
+        <div className="h-2.5 rounded w-20" style={{ background: "#ecdece" }} />
       </div>
     </div>
   );
@@ -223,38 +225,40 @@ const SellerCard = ({ seller, onNavigate, isLoading = false }: { seller: any; on
 
   return (
     <button onClick={onNavigate}
-      className="w-full bg-card mt-0.5 md:mt-0 md:mb-3 px-4 py-3 md:rounded-card md:border md:border-border flex items-center gap-3 cursor-pointer hover:bg-muted/60 active:bg-muted transition-colors group text-left">
+      className="w-full mt-0.5 md:mt-0 md:mb-3 px-4 py-3 md:rounded-2xl flex items-center gap-3 cursor-pointer active:opacity-80 transition-colors group text-left"
+      style={{ background: "#fdf6f0", border: "1px solid #e8d5c0" }}
+    >
       <div className="relative flex-shrink-0">
         <AvatarWithFallback src={avatar} name={seller.name} isCompany={isCompany} />
         {seller.is_verified && (
-          <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-card flex items-center justify-center">
+          <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-white flex items-center justify-center">
             <ShieldCheck className="w-3.5 h-3.5 text-blue-500" />
           </div>
         )}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 flex-wrap">
-          <p className="text-sm font-bold text-foreground truncate">{seller.name}</p>
+          <p className="text-sm font-bold truncate" style={{ color: "#4a2810" }}>{seller.name}</p>
           {isCompany && (
-            <span className="text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full border border-primary/20 flex-shrink-0">Empresa</span>
+            <span className="text-[9px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full border border-blue-100 flex-shrink-0">Empresa</span>
           )}
         </div>
         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
           {province && (
-            <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+            <span className="flex items-center gap-0.5 text-[10px]" style={{ color: "#9a7060" }}>
               <MapPin className="w-3 h-3" />{province}
             </span>
           )}
           {seller.rating > 0 && (
-            <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
-              <Star className="w-3 h-3 fill-secondary text-secondary" />{seller.rating}
+            <span className="flex items-center gap-0.5 text-[10px]" style={{ color: "#9a7060" }}>
+              <Star className="w-3 h-3 fill-amber-400 text-amber-400" />{seller.rating}
             </span>
           )}
         </div>
       </div>
       <div className="flex items-center gap-1 flex-shrink-0">
-        <span className="text-[10px] font-bold text-primary hidden sm:block">Ver perfil</span>
-        <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+        <span className="text-[10px] font-bold hidden sm:block" style={{ color: "#c0522a" }}>Ver perfil</span>
+        <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" style={{ color: "#c0522a" }} />
       </div>
     </button>
   );
@@ -268,6 +272,9 @@ const ProductDetail = () => {
   const queryClient = useQueryClient();
   const addToCart = useAddToCart();
   const { trackEvent } = useProductTracking();
+
+  // ✅ CORREÇÃO: usar useFavorites igual ao InfiniteProducts e SearchResults
+  const { isFavorite, toggleFavorite } = useFavorites();
 
   const [qty, setQty] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
@@ -366,31 +373,12 @@ const ProductDetail = () => {
     else navigate(`/vendedor/${publisher.id ?? rawSellerId}`);
   };
 
-  const { data: isFavorited = false } = useQuery({
-    queryKey: ["favorite", id, user?.id],
-    queryFn: async () => {
-      const { data } = await supabase.from("wishlists").select("id").eq("user_id", user!.id).eq("product_id", id!).maybeSingle();
-      return !!data;
-    },
-    enabled: !!user && !!isUuid,
-  });
-
-  const toggleFavorite = useMutation({
-    mutationFn: async () => {
-      if (isFavorited) await supabase.from("wishlists").delete().eq("user_id", user!.id).eq("product_id", id!);
-      else await supabase.from("wishlists").insert({ user_id: user!.id, product_id: id! });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["favorite", id, user?.id] });
-      trackEvent(id!, "favorite", { action: isFavorited ? "remove" : "add" });
-      toast.success(isFavorited ? "Removido dos favoritos" : "Adicionado aos favoritos ❤️");
-    },
-    onError: () => toast.error("Erro ao atualizar favoritos"),
-  });
-
-  const handleFavorite = () => {
+  // ✅ CORREÇÃO: handleFavorite usa useFavorites hook (igual ao InfiniteProducts)
+  const handleFavorite = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
     if (!user) { navigate("/auth"); return; }
-    toggleFavorite.mutate();
+    trackEvent(id!, "favorite", { action: isFavorite(id!) ? "remove" : "add" });
+    toggleFavorite(id!);
   };
 
   const getVariantId = () =>
@@ -523,8 +511,8 @@ const ProductDetail = () => {
 
   if (!dbProduct && isUuid && loadingProduct) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#fdf6f0" }}>
+        <Loader2 className="w-6 h-6 animate-spin" style={{ color: "#c0522a" }} />
       </div>
     );
   }
@@ -533,10 +521,10 @@ const ProductDetail = () => {
   const productBase: any = dbProduct || staticProduct;
   if (!productBase) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center text-center px-6">
+      <div className="min-h-screen flex items-center justify-center text-center px-6" style={{ background: "#fdf6f0" }}>
         <div>
-          <h2 className="text-lg font-bold text-foreground mb-2">Produto não encontrado</h2>
-          <button onClick={() => navigate("/")} className="text-sm text-primary font-semibold">Voltar à home</button>
+          <h2 className="text-lg font-bold mb-2" style={{ color: "#4a2810" }}>Produto não encontrado</h2>
+          <button onClick={() => navigate("/")} className="text-sm font-semibold" style={{ color: "#c0522a" }}>Voltar à home</button>
         </div>
       </div>
     );
@@ -581,6 +569,9 @@ const ProductDetail = () => {
   const displayImages = variantImage ? [{ url: variantImage, type: "image" }, ...images.filter(i => i.url !== variantImage)] : images;
   const currentImageUrl = displayImages[selectedImage]?.url || product.image;
 
+  // isFavorited usa o hook correto
+  const isFavorited = isFavorite(id!);
+
   const relatedProducts = relatedDb.slice(0, 10);
   const moreToExplore = relatedDb.slice(10, 20);
   const alsoLike = relatedDb.length > 5 ? relatedDb.slice(5, 15) : relatedDb.slice(0, 10);
@@ -593,41 +584,179 @@ const ProductDetail = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-28 md:pb-0">
+    <div className="min-h-screen pb-28 md:pb-0" style={{ background: "#faf5f0" }}>
       {shareOpen && <ShareSheet title={product.title} imageUrl={currentImageUrl} url={window.location.href} onClose={() => setShareOpen(false)} />}
       {zoomOpen && <ZoomLightbox images={displayImages} index={selectedImage} onClose={() => setZoomOpen(false)} onChange={setSelectedImage} onShare={() => { setZoomOpen(false); setShareOpen(true); }} />}
 
-      <div className="container mx-auto px-3 pt-3 flex items-center justify-between gap-3">
-        <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-full hover:bg-muted flex items-center justify-center transition"><ArrowLeft className="w-5 h-5 text-foreground" /></button>
-        <span className="text-sm font-bold text-foreground truncate flex-1">{product.title}</span>
-        <button onClick={handleShare} className="w-9 h-9 rounded-full hover:bg-muted flex items-center justify-center transition"><Share2 className="w-5 h-5 text-foreground" /></button>
+      {/* ── HEADER — castanho escuro, integrado com imagem ── */}
+      <div className="relative">
+
+        {/* Barra de navegação sobreposta à imagem */}
+        <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 pt-safe-or-3 pt-3 pb-2">
+          <button
+            onClick={() => navigate(-1)}
+            className="w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-md"
+            style={{ background: "rgba(253,246,240,0.82)", border: "1px solid rgba(255,255,255,0.4)" }}
+          >
+            <ArrowLeft className="w-5 h-5" style={{ color: "#4a2810" }} />
+          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleShare}
+              className="w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-md"
+              style={{ background: "rgba(253,246,240,0.82)", border: "1px solid rgba(255,255,255,0.4)" }}
+            >
+              <Share2 className="w-4 h-4" style={{ color: "#4a2810" }} />
+            </button>
+            {/* ✅ Botão favorito corrigido */}
+            <button
+              onClick={handleFavorite}
+              className="w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-md transition-all duration-200 active:scale-90"
+              style={{ background: isFavorited ? "#c0522a" : "rgba(253,246,240,0.82)", border: "1px solid rgba(255,255,255,0.4)" }}
+              aria-label={isFavorited ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+            >
+              <Heart
+                className="w-4 h-4 transition-all duration-200"
+                style={{
+                  color: isFavorited ? "#fff" : "#c0522a",
+                  fill: isFavorited ? "#fff" : "none",
+                  transform: isFavorited ? "scale(1.15)" : "scale(1)",
+                }}
+              />
+            </button>
+          </div>
+        </div>
+
+        {/* Galeria de imagens — full bleed, sem moldura */}
+        <div
+          className="relative overflow-hidden"
+          style={{ background: "#f0e4d8" }}
+          onTouchStart={e => { touchStartX.current = e.touches[0].clientX; }}
+          onTouchEnd={e => {
+            if (touchStartX.current === null) return;
+            const diff = touchStartX.current - e.changedTouches[0].clientX;
+            if (Math.abs(diff) > 40) setSelectedImage(i => diff > 0 ? Math.min(i + 1, displayImages.length - 1) : Math.max(i - 1, 0));
+            touchStartX.current = null;
+          }}
+        >
+          {/* Imagem principal */}
+          <div className="w-full" style={{ aspectRatio: "1/1", maxHeight: 420 }}>
+            {displayImages[selectedImage]?.type === "video"
+              ? <video src={displayImages[selectedImage].url} controls className="w-full h-full object-cover" />
+              : <img src={displayImages[selectedImage]?.url} alt={product.title} className="w-full h-full object-cover" style={{ maxHeight: 420 }} />
+            }
+          </div>
+
+          {/* Gradient para thumbnails ficarem legíveis */}
+          <div className="absolute bottom-0 left-0 right-0 h-24 pointer-events-none"
+            style={{ background: "linear-gradient(to top, rgba(0,0,0,0.45) 0%, transparent 100%)" }} />
+
+          {/* Badges sobre a imagem */}
+          {product.discount && (
+            <div className="absolute top-14 left-4 px-2 py-1 rounded-lg text-xs font-black text-white"
+              style={{ background: "#c0522a" }}>
+              {product.discount}
+            </div>
+          )}
+          {product.badge === "HOT" && (
+            <div className="absolute top-14 left-4 px-2 py-1 rounded-lg text-xs font-black text-white"
+              style={{ background: "#c0522a" }}>
+              🔥 Hot
+            </div>
+          )}
+
+          {/* Botão zoom */}
+          <button
+            onClick={handleZoom}
+            className="absolute bottom-16 right-3 w-8 h-8 rounded-full flex items-center justify-center backdrop-blur-md"
+            style={{ background: "rgba(255,255,255,0.25)", border: "1px solid rgba(255,255,255,0.35)" }}
+          >
+            <ZoomIn className="w-4 h-4 text-white" />
+          </button>
+
+          {/* Thumbnails em linha na parte inferior da imagem */}
+          {displayImages.length > 1 && (
+            <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-2 px-4 overflow-x-auto scrollbar-hide">
+              {displayImages.map((img, i) => (
+                <button
+                  key={i}
+                  onClick={() => setSelectedImage(i)}
+                  className="flex-shrink-0 transition-all duration-200"
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 8,
+                    overflow: "hidden",
+                    border: i === selectedImage ? "2.5px solid #fff" : "2px solid rgba(255,255,255,0.35)",
+                    opacity: i === selectedImage ? 1 : 0.65,
+                    boxShadow: i === selectedImage ? "0 2px 8px rgba(0,0,0,0.35)" : "none",
+                    transform: i === selectedImage ? "scale(1.08)" : "scale(1)",
+                  }}
+                >
+                  {img.type === "video"
+                    ? <video src={img.url} className="w-full h-full object-cover" />
+                    : <img src={img.url} alt="" className="w-full h-full object-cover" />
+                  }
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Indicadores de página quando há muitas imagens */}
+          {displayImages.length > 1 && displayImages.length <= 3 && (
+            <div className="absolute bottom-10 left-0 right-0 flex justify-center gap-1.5 pointer-events-none">
+              {displayImages.map((_, i) => (
+                <span key={i} className={`rounded-full transition-all duration-200 ${i === selectedImage ? "w-4 h-1.5 bg-white" : "w-1.5 h-1.5 bg-white/50"}`} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Título + rating logo abaixo da imagem, no cartão branco-creme */}
+        <div
+          className="px-4 pt-4 pb-3"
+          style={{ background: "#fffaf6", borderBottom: "1px solid #ecdece" }}
+        >
+          {product.rating && (
+            <div className="flex items-center gap-1 mb-1.5">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Star key={i} className={`w-3.5 h-3.5 ${i < Math.floor(product.rating!) ? "fill-amber-400 text-amber-400" : "text-[#ddd]"}`} />
+              ))}
+              <span className="text-xs ml-1" style={{ color: "#9a7060" }}>
+                {product.rating} · {product.reviews} avaliações
+              </span>
+            </div>
+          )}
+          <h1 className="text-base font-bold leading-snug" style={{ color: "#2d1505" }}>{product.title}</h1>
+
+          {/* Badges de destaque */}
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {popularityBadge && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-100">
+                🛒 {popularityBadge}
+              </span>
+            )}
+            {product.freeShipping && (
+              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
+                style={{ color: "#1a5c3a", background: "#e8f4ef" }}>
+                <Truck className="w-3 h-3" /> Frete grátis
+              </span>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="md:container md:mx-auto md:px-4 md:py-6">
         <div className="md:grid md:grid-cols-2 md:gap-6 lg:gap-10">
 
-          {/* LEFT */}
-          <div>
-            <div className="bg-card px-4 pt-3 pb-2 md:hidden">
-              {product.rating && (
-                <div className="flex items-center gap-1 mb-1">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Star key={i} className={`w-3.5 h-3.5 ${i < Math.floor(product.rating!) ? "text-secondary fill-secondary" : "text-border"}`} />
-                  ))}
-                  <span className="text-xs text-muted-foreground ml-1">({product.rating}) | {product.reviews}</span>
-                </div>
-              )}
-              <h1 className="text-sm font-bold text-foreground leading-snug">{product.title}</h1>
-              <div className="flex flex-wrap gap-1.5 mt-1.5">
-                {popularityBadge && <span className="px-2 py-0.5 rounded-sm text-[10px] font-bold border border-primary text-primary bg-primary/5">{popularityBadge}</span>}
-                {product.discount && <span className="px-2 py-0.5 rounded-sm text-[10px] font-bold border border-walmart-green text-walmart-green bg-walmart-green/5">Clearance</span>}
-                {product.badge === "HOT" && <span className="px-2 py-0.5 rounded-sm text-[10px] font-bold border border-walmart-red text-walmart-red bg-walmart-red/5">Best seller</span>}
-              </div>
-            </div>
+          {/* LEFT (desktop apenas) */}
+          <div className="hidden md:block">
 
-            <div className="bg-card md:rounded-card md:border md:border-border">
+            {/* Galeria desktop */}
+            <div className="rounded-2xl overflow-hidden border" style={{ background: "#f5ede4", borderColor: "#e8d5c0" }}>
               <div
-                className="aspect-square relative overflow-hidden md:rounded-t-card md:max-h-[450px] select-none"
+                className="relative"
+                style={{ aspectRatio: "1/1", maxHeight: 450 }}
                 onTouchStart={e => { touchStartX.current = e.touches[0].clientX; }}
                 onTouchEnd={e => {
                   if (touchStartX.current === null) return;
@@ -638,38 +767,45 @@ const ProductDetail = () => {
               >
                 {displayImages[selectedImage]?.type === "video"
                   ? <video src={displayImages[selectedImage].url} controls className="w-full h-full object-cover" />
-                  : <img src={displayImages[selectedImage]?.url} alt={product.title} className="w-full h-full object-cover" />}
-                {displayImages.length > 1 && (
-                  <div className="absolute bottom-10 left-0 right-0 flex justify-center gap-1.5 pointer-events-none">
-                    {displayImages.map((_, i) => (
-                      <span key={i} className={`rounded-full transition-all duration-200 ${i === selectedImage ? "w-4 h-1.5 bg-white" : "w-1.5 h-1.5 bg-white/50"}`} />
-                    ))}
-                  </div>
-                )}
+                  : <img src={displayImages[selectedImage]?.url} alt={product.title} className="w-full h-full object-cover" />
+                }
+                {/* Desktop side actions */}
                 <div className="absolute right-3 top-1/3 flex flex-col gap-2">
-                  <button onClick={handleShare} className="w-9 h-9 rounded-full bg-card/90 shadow-md flex items-center justify-center active:scale-95 transition">
-                    <Share2 className="w-4 h-4 text-foreground" />
+                  <button onClick={handleShare} className="w-9 h-9 rounded-full flex items-center justify-center shadow-md" style={{ background: "rgba(253,246,240,0.92)" }}>
+                    <Share2 className="w-4 h-4" style={{ color: "#4a2810" }} />
                   </button>
+                  {/* ✅ Favorito desktop também corrigido */}
                   <button
                     onClick={handleFavorite}
-                    className="w-9 h-9 rounded-full bg-card/90 shadow-md flex items-center justify-center active:scale-95 transition"
+                    className="w-9 h-9 rounded-full flex items-center justify-center shadow-md transition-all duration-200 active:scale-90"
+                    style={{ background: isFavorited ? "#c0522a" : "rgba(253,246,240,0.92)" }}
                     aria-label={isFavorited ? "Remover dos favoritos" : "Adicionar aos favoritos"}
                   >
                     <Heart
-                      className={`w-4 h-4 transition-all duration-200 ${
-                        isFavorited ? "text-red-500 fill-red-500 scale-110" : "text-foreground"
-                      }`}
+                      className="w-4 h-4 transition-all duration-200"
+                      style={{
+                        color: isFavorited ? "#fff" : "#c0522a",
+                        fill: isFavorited ? "#fff" : "none",
+                        transform: isFavorited ? "scale(1.15)" : "scale(1)",
+                      }}
                     />
                   </button>
-                  <button onClick={handleZoom} className="w-9 h-9 rounded-full bg-card/90 shadow-md flex items-center justify-center active:scale-95 transition">
-                    <ZoomIn className="w-4 h-4 text-foreground" />
+                  <button onClick={handleZoom} className="w-9 h-9 rounded-full flex items-center justify-center shadow-md" style={{ background: "rgba(253,246,240,0.92)" }}>
+                    <ZoomIn className="w-4 h-4" style={{ color: "#4a2810" }} />
                   </button>
                 </div>
               </div>
-              <div className="flex gap-2 p-3 overflow-x-auto scrollbar-hide">
+              {/* Thumbnails desktop */}
+              <div className="flex gap-2 p-3 overflow-x-auto scrollbar-hide" style={{ background: "#fffaf6" }}>
                 {displayImages.map((img, i) => (
                   <button key={i} onClick={() => setSelectedImage(i)}
-                    className={`flex-shrink-0 w-14 h-14 rounded-card overflow-hidden border-2 transition ${i === selectedImage ? "border-primary" : "border-border hover:border-primary/40"}`}>
+                    className="flex-shrink-0 w-14 h-14 rounded-xl overflow-hidden transition-all duration-200"
+                    style={{
+                      border: i === selectedImage ? "2.5px solid #c0522a" : "2px solid #e8d5c0",
+                      opacity: i === selectedImage ? 1 : 0.65,
+                      transform: i === selectedImage ? "scale(1.05)" : "scale(1)",
+                    }}
+                  >
                     {img.type === "video" ? <video src={img.url} className="w-full h-full object-cover" /> : <img src={img.url} alt="" className="w-full h-full object-cover" />}
                   </button>
                 ))}
@@ -677,12 +813,12 @@ const ProductDetail = () => {
             </div>
 
             {productAds.length > 0 && (
-              <div className="hidden md:block mt-4 space-y-3">
-                <p className="text-[10px] text-muted-foreground text-right">Publicidade</p>
+              <div className="mt-4 space-y-3">
+                <p className="text-[10px] text-right" style={{ color: "#b09080" }}>Publicidade</p>
                 {productAds.map((ad: any) => {
                   const isVid = ad.media_type === "video";
                   const inner = (
-                    <div className="rounded-card border border-border overflow-hidden hover:shadow-md hover:border-primary/30 transition-all group">
+                    <div className="rounded-2xl overflow-hidden hover:shadow-md transition-all group" style={{ border: "1px solid #e8d5c0" }}>
                       {ad.media_url ? (
                         <div className="relative">
                           {isVid ? <video src={ad.media_url} className="w-full object-cover max-h-36" autoPlay muted loop playsInline /> : <img src={ad.media_url} alt={ad.title || ""} className="w-full object-cover max-h-36 group-hover:scale-[1.01] transition-transform" />}
@@ -690,9 +826,9 @@ const ProductDetail = () => {
                           <span className="absolute top-2 right-2 text-[9px] font-bold text-white/80 bg-black/40 px-1.5 py-0.5 rounded-full">Patrocinado</span>
                         </div>
                       ) : (
-                        <div className="bg-muted px-4 py-3 flex items-center justify-between gap-3">
-                          <p className="text-sm font-bold text-foreground truncate">{ad.title}</p>
-                          <span className="text-[10px] font-bold text-primary border border-primary/30 rounded-full px-2 py-0.5">Ver mais</span>
+                        <div className="px-4 py-3 flex items-center justify-between gap-3" style={{ background: "#fdf6f0" }}>
+                          <p className="text-sm font-bold truncate" style={{ color: "#4a2810" }}>{ad.title}</p>
+                          <span className="text-[10px] font-bold border rounded-full px-2 py-0.5" style={{ color: "#c0522a", borderColor: "#e8c0a0" }}>Ver mais</span>
                         </div>
                       )}
                     </div>
@@ -701,65 +837,54 @@ const ProductDetail = () => {
                 })}
               </div>
             )}
-
-            {sponsoredSellers.length > 0 && (
-              <div className="hidden md:block mt-4">
-                <p className="text-[10px] text-muted-foreground text-right mb-2">Patrocinado</p>
-                <div className="grid grid-cols-2 gap-3">
-                  {sponsoredSellers.map((s: any) => (
-                    <div key={s.id} onClick={() => navigate(`/vendedor/${s.id}`)} className="bg-card rounded-card border border-border p-3 hover:shadow-md transition cursor-pointer">
-                      <div className="flex items-center gap-2 mb-2">
-                        {s.avatar_url ? <img src={s.avatar_url} alt={s.name} className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center"><Store className="w-4 h-4 text-primary" /></div>}
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold text-foreground truncate">{s.name}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between text-[10px]">
-                        <span className="text-muted-foreground">{s.rating ? `⭐ ${s.rating}` : ""}</span>
-                        <span className="px-2 py-1 rounded-card text-primary border border-primary/20 font-bold">Ver loja</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
 
           {/* RIGHT */}
           <div>
+            {/* Desktop: título + rating */}
             <div className="hidden md:block mb-4">
               {product.rating && (
                 <div className="flex items-center gap-1.5 mb-2">
                   {Array.from({ length: 5 }).map((_, i) => (
-                    <Star key={i} className={`w-4 h-4 ${i < Math.floor(product.rating!) ? "text-secondary fill-secondary" : "text-border"}`} />
+                    <Star key={i} className={`w-4 h-4 ${i < Math.floor(product.rating!) ? "fill-amber-400 text-amber-400" : "text-[#ddd]"}`} />
                   ))}
-                  <span className="text-sm text-muted-foreground ml-1">({product.rating})</span>
-                  <span className="text-sm text-primary font-semibold ml-1">| {product.reviews} avaliações</span>
+                  <span className="text-sm ml-1" style={{ color: "#9a7060" }}>({product.rating})</span>
+                  <span className="text-sm font-semibold ml-1" style={{ color: "#c0522a" }}>| {product.reviews} avaliações</span>
                 </div>
               )}
-              <h1 className="text-xl font-bold text-foreground leading-snug">{product.title}</h1>
+              <h1 className="text-xl font-bold leading-snug" style={{ color: "#2d1505" }}>{product.title}</h1>
               <div className="flex flex-wrap gap-1.5 mt-3">
-                {popularityBadge && <span className="px-2 py-0.5 rounded-sm text-[10px] font-bold border border-primary text-primary bg-primary/5">{popularityBadge}</span>}
-                {product.discount && <span className="px-2 py-0.5 rounded-sm text-[10px] font-bold border border-walmart-green text-walmart-green bg-walmart-green/5">Clearance</span>}
-                {product.badge === "HOT" && <span className="px-2 py-0.5 rounded-sm text-[10px] font-bold border border-walmart-red text-walmart-red bg-walmart-red/5">Best seller</span>}
+                {popularityBadge && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-100">
+                    🛒 {popularityBadge}
+                  </span>
+                )}
+                {product.freeShipping && (
+                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
+                    style={{ color: "#1a5c3a", background: "#e8f4ef" }}>
+                    <Truck className="w-3 h-3" /> Frete grátis
+                  </span>
+                )}
               </div>
             </div>
 
             <SellerCard seller={publisher} onNavigate={handlePublisherNavigate} isLoading={loadingPublisher} />
 
-            <div className="bg-card mt-0.5 md:mt-0 p-4 md:rounded-card md:border md:border-border">
-              <div className="flex items-baseline gap-1">
-                {product.discount && <span className="text-sm font-bold text-walmart-green mr-1">Now</span>}
-                <span className="text-2xl font-black text-foreground">{activePrice}</span>
+            {/* Preço + Variantes */}
+            <div className="mt-0.5 md:mt-0 p-4 md:rounded-2xl" style={{ background: "#fffaf6", border: "1px solid #ecdece" }}>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-2xl font-black" style={{ color: "#2d1505" }}>{activePrice}</span>
+                {product.discount && (
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ color: "#c0522a", background: "#fff0ed" }}>
+                    Poupa {product.discount}
+                  </span>
+                )}
               </div>
               {product.oldPrice && (
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-sm text-muted-foreground line-through">{product.oldPrice}</span>
-                  {product.discount && <span className="text-xs font-bold text-walmart-green">Poupa {product.discount}</span>}
-                </div>
+                <span className="text-sm line-through mt-0.5 block" style={{ color: "#b09080" }}>{product.oldPrice}</span>
               )}
               {product.freeShipping && (
-                <div className="flex items-center gap-1.5 mt-3 text-xs text-walmart-green font-semibold">
+                <div className="flex items-center gap-1.5 mt-2 text-xs font-semibold" style={{ color: "#1a5c3a" }}>
                   <Truck className="w-4 h-4" /><span>Frete grátis para Luanda</span>
                 </div>
               )}
@@ -770,9 +895,9 @@ const ProductDetail = () => {
                     const selId = selectedVariants[type];
                     return (
                       <div key={type}>
-                        <p className="text-[11px] font-bold text-muted-foreground mb-1.5">
+                        <p className="text-[11px] font-bold mb-1.5" style={{ color: "#9a7060" }}>
                           {typeLabels[type] || type}
-                          {selId && <span className="text-foreground ml-1">: {variants.find((v: any) => v.id === selId)?.name}</span>}
+                          {selId && <span className="ml-1" style={{ color: "#4a2810" }}>: {variants.find((v: any) => v.id === selId)?.name}</span>}
                         </p>
                         <div className="flex gap-2 flex-wrap">
                           {variants.map((v: any) => {
@@ -785,9 +910,12 @@ const ProductDetail = () => {
                                     if (isSel) setSelectedSubVariants({});
                                     trackEvent(id!, "variant_select", { variant_type: type, variant_name: v.name, variant_id: v.id });
                                   }}
-                                  className={`relative rounded-lg border-2 overflow-hidden transition ${isSel ? "border-primary ring-1 ring-primary" : "border-border"}`} title={v.name}>
+                                  className="relative rounded-xl overflow-hidden transition-all"
+                                  style={{ border: isSel ? "2.5px solid #c0522a" : "2px solid #e8d5c0" }}
+                                  title={v.name}
+                                >
                                   {v.image_url ? <img src={v.image_url} alt={v.name} className="w-10 h-10 object-cover" /> : <div className="w-10 h-10 flex items-center justify-center"><div className="w-7 h-7 rounded-full border border-border" style={{ backgroundColor: v.value }} /></div>}
-                                  {v.price_override && <span className="absolute bottom-0 inset-x-0 text-center bg-background/80 text-[7px] font-bold leading-tight py-0.5">{fmt(v.price_override)}</span>}
+                                  {v.price_override && <span className="absolute bottom-0 inset-x-0 text-center bg-black/60 text-[7px] font-bold leading-tight py-0.5 text-white">{fmt(v.price_override)}</span>}
                                 </button>
                               );
                             }
@@ -798,7 +926,13 @@ const ProductDetail = () => {
                                   if (isSel) setSelectedSubVariants({});
                                   trackEvent(id!, "variant_select", { variant_type: type, variant_name: v.name, variant_id: v.id });
                                 }}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${isSel ? "bg-primary text-primary-foreground border-primary" : "bg-muted text-foreground border-border hover:border-primary/50"}`}>
+                                className="px-3 py-1.5 rounded-xl text-xs font-bold transition-all"
+                                style={{
+                                  background: isSel ? "#c0522a" : "#fdf6f0",
+                                  color: isSel ? "#fff" : "#4a2810",
+                                  border: isSel ? "1.5px solid #c0522a" : "1.5px solid #e8d5c0",
+                                }}
+                              >
                                 {v.name}
                                 {v.price_override && <span className="block text-[9px] font-normal opacity-80">{fmt(v.price_override)}</span>}
                               </button>
@@ -812,9 +946,9 @@ const ProductDetail = () => {
                     const selId = selectedSubVariants[type];
                     return (
                       <div key={`sub-${type}`}>
-                        <p className="text-[11px] font-bold text-muted-foreground mb-1.5">
+                        <p className="text-[11px] font-bold mb-1.5" style={{ color: "#9a7060" }}>
                           {typeLabels[type] || type}
-                          {selId && <span className="text-foreground ml-1">: {variants.find((v: any) => v.id === selId)?.name}</span>}
+                          {selId && <span className="ml-1" style={{ color: "#4a2810" }}>: {variants.find((v: any) => v.id === selId)?.name}</span>}
                         </p>
                         <div className="flex gap-2 flex-wrap">
                           {variants.map((v: any) => {
@@ -825,11 +959,17 @@ const ProductDetail = () => {
                                   setSelectedSubVariants(p => ({ ...p, [type]: isSel ? "" : v.id }));
                                   trackEvent(id!, "variant_select", { variant_type: type, variant_name: v.name, variant_id: v.id });
                                 }}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${isSel ? "bg-primary text-primary-foreground border-primary" : "bg-muted text-foreground border-border hover:border-primary/50"}`}>
+                                className="px-3 py-1.5 rounded-xl text-xs font-bold transition-all"
+                                style={{
+                                  background: isSel ? "#c0522a" : "#fdf6f0",
+                                  color: isSel ? "#fff" : "#4a2810",
+                                  border: isSel ? "1.5px solid #c0522a" : "1.5px solid #e8d5c0",
+                                }}
+                              >
                                 {v.name}
                                 {v.price_override && <span className="block text-[9px] font-normal opacity-80">{fmt(v.price_override)}</span>}
                                 {v.stock != null && v.stock <= 3 && v.stock > 0 && <span className="block text-[8px] text-amber-500">Restam {v.stock}</span>}
-                                {v.stock === 0 && <span className="block text-[8px] text-destructive">Esgotado</span>}
+                                {v.stock === 0 && <span className="block text-[8px] text-red-500">Esgotado</span>}
                               </button>
                             );
                           })}
@@ -840,93 +980,69 @@ const ProductDetail = () => {
                 </div>
               )}
 
+              {/* Desktop buttons */}
               <div className="hidden md:block mt-5 space-y-3">
                 <div className="flex items-center gap-3">
-                  <div className="flex items-center border border-border rounded-card">
-                    <button onClick={() => setQty(q => Math.max(1, q - 1))} className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:bg-muted transition"><Minus className="w-4 h-4" /></button>
-                    <span className="w-9 text-center text-sm font-bold">{qty}</span>
-                    <button onClick={() => setQty(q => q + 1)} className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:bg-muted transition"><Plus className="w-4 h-4" /></button>
+                  <div className="flex items-center rounded-xl overflow-hidden" style={{ border: "1.5px solid #e8d5c0" }}>
+                    <button onClick={() => setQty(q => Math.max(1, q - 1))} className="w-9 h-9 flex items-center justify-center transition hover:opacity-70" style={{ color: "#9a7060" }}><Minus className="w-4 h-4" /></button>
+                    <span className="w-9 text-center text-sm font-bold" style={{ color: "#4a2810" }}>{qty}</span>
+                    <button onClick={() => setQty(q => q + 1)} className="w-9 h-9 flex items-center justify-center transition hover:opacity-70" style={{ color: "#9a7060" }}><Plus className="w-4 h-4" /></button>
                   </div>
                   <button onClick={handleAddToCart} disabled={addToCart.isPending}
-                    className="flex-1 py-3 rounded-full border-2 border-primary text-primary font-bold text-sm hover:bg-primary/5 transition flex items-center justify-center gap-2 disabled:opacity-50">
+                    className="flex-1 py-3 rounded-full font-bold text-sm transition flex items-center justify-center gap-2 disabled:opacity-50"
+                    style={{ border: "2px solid #c0522a", color: "#c0522a", background: "transparent" }}>
                     {addToCart.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />}
                     Adicionar ao carrinho
                   </button>
                 </div>
                 <button onClick={handleBuyNow} disabled={addToCart.isPending}
-                  className="w-full py-3 rounded-full bg-primary text-primary-foreground font-bold text-sm hover:brightness-110 transition flex items-center justify-center gap-2 disabled:opacity-50">
+                  className="w-full py-3 rounded-full font-bold text-sm text-white transition flex items-center justify-center gap-2 disabled:opacity-50 hover:brightness-110"
+                  style={{ background: "linear-gradient(135deg, #c0522a 0%, #a03d1a 100%)" }}>
                   {addToCart.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
                   Comprar agora
                 </button>
               </div>
             </div>
 
-            <div className="bg-card mt-2 p-4 md:rounded-card md:border md:border-border">
-              <h3 className="text-sm font-bold text-foreground mb-3">Entrega</h3>
-              <div className="flex items-start gap-3 text-xs text-foreground">
-                <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <p className="font-semibold">Enviar para Luanda, Angola</p>
-                  <p className="text-muted-foreground mt-0.5">Entrega estimada: 2-5 dias úteis</p>
+            {/* Entrega */}
+            <div className="mt-2 p-4 md:rounded-2xl" style={{ background: "#fffaf6", border: "1px solid #ecdece" }}>
+              <h3 className="text-sm font-bold mb-3" style={{ color: "#2d1505" }}>Entrega</h3>
+              <div className="flex items-start gap-3 text-xs">
+                <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
+                  style={{ background: "#e8f0ff" }}>
+                  <MapPin className="w-3.5 h-3.5 text-blue-600" />
                 </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-              </div>
-              <div className="flex items-start gap-3 text-xs text-foreground mt-3">
-                <Shield className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <p className="font-semibold">Garantia do vendedor</p>
-                  <p className="text-muted-foreground mt-0.5">Devolução grátis até 30 dias</p>
+                  <p className="font-semibold" style={{ color: "#4a2810" }}>Enviar para Luanda, Angola</p>
+                  <p className="mt-0.5" style={{ color: "#9a7060" }}>Entrega estimada: 2-5 dias úteis</p>
+                </div>
+                <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: "#c0a080" }} />
+              </div>
+              <div className="flex items-start gap-3 text-xs mt-3" style={{ borderTop: "1px solid #ecdece", paddingTop: 12 }}>
+                <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
+                  style={{ background: "#e8f4ef" }}>
+                  <Shield className="w-3.5 h-3.5" style={{ color: "#1a5c3a" }} />
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold" style={{ color: "#4a2810" }}>Garantia do vendedor</p>
+                  <p className="mt-0.5" style={{ color: "#9a7060" }}>Devolução grátis até 30 dias</p>
                 </div>
               </div>
             </div>
 
-            <div className="bg-card mt-2 p-4 md:rounded-card md:border md:border-border">
-              <h3 className="text-sm font-bold text-foreground mb-2">Descrição</h3>
-              <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-line">
+            {/* Descrição */}
+            <div className="mt-2 p-4 md:rounded-2xl" style={{ background: "#fffaf6", border: "1px solid #ecdece" }}>
+              <h3 className="text-sm font-bold mb-2" style={{ color: "#2d1505" }}>Descrição</h3>
+              <p className="text-xs leading-relaxed whitespace-pre-line" style={{ color: "#7a5840" }}>
                 {product.description || "Produto de alta qualidade disponível no Kwanza Market."}
               </p>
-              <ul className="text-xs text-muted-foreground mt-3 space-y-1.5">
-                <li>• Produto original com garantia</li>
-                <li>• Envio para todo o país</li>
-                <li>• Pagamento seguro</li>
-                <li>• Suporte ao cliente 24/7</li>
+              <ul className="text-xs mt-3 space-y-1.5" style={{ color: "#9a7060" }}>
+                <li className="flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" /> Produto original com garantia</li>
+                <li className="flex items-center gap-1.5"><Truck className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "#1a5c3a" }} /> Envio para todo o país</li>
+                <li className="flex items-center gap-1.5"><Shield className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" /> Pagamento seguro</li>
+                <li className="flex items-center gap-1.5"><Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400 flex-shrink-0" /> Suporte ao cliente 24/7</li>
               </ul>
             </div>
-
-            {sponsoredSellers.length > 0 && (
-              <div className="md:hidden bg-card mt-2 p-4">
-                <p className="text-[10px] text-muted-foreground text-right mb-2">Patrocinado</p>
-                {sponsoredSellers.map((s: any, i: number) => (
-                  <div key={s.id} onClick={() => navigate(`/vendedor/${s.id}`)}
-                    className={`flex items-center gap-3 py-3 cursor-pointer ${i !== sponsoredSellers.length - 1 ? "border-b border-border" : ""}`}>
-                    {s.avatar_url ? <img src={s.avatar_url} alt={s.name} className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center"><Store className="w-4 h-4 text-primary" /></div>}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-foreground truncate">{s.name}</p>
-                      <p className="text-[10px] text-muted-foreground">{s.rating ? `⭐ ${s.rating}` : ""}</p>
-                    </div>
-                    <span className="px-3 py-1.5 rounded-card text-[10px] font-bold text-primary border border-primary/20 flex-shrink-0">Ver loja</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {(() => {
-              const sp: any = (sponsoredProducts as any[]).find((p: any) => p.id !== product.id);
-              if (!sp) return null;
-              return (
-                <div className="bg-card mt-2 p-4 md:rounded-card md:border md:border-border">
-                  <p className="text-[10px] text-muted-foreground text-right mb-2">Patrocinado</p>
-                  <div onClick={() => navigate(`/produto/${sp.id}`)} className="flex items-center gap-3 p-3 border border-border rounded-card cursor-pointer hover:bg-muted/50 transition">
-                    <img src={sp.image} alt={sp.title} className="w-20 h-20 rounded-card object-cover" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-black text-foreground">{sp.priceFormatted}</p>
-                      <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{sp.title}</p>
-                      <button className="mt-2 px-4 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-bold">Ver produto</button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
           </div>
         </div>
       </div>
@@ -939,13 +1055,13 @@ const ProductDetail = () => {
         trackEvent={trackEvent}
       />
 
-      {/* ── Related / Explore / Also Like — minimal card style (image + title only) ── */}
       {[
         { title: "Produtos relacionados", list: relatedProducts, section: "related" },
         { title: "Mais para explorar",    list: moreToExplore,   section: "more_explore" },
         { title: "Também pode gostar",    list: alsoLike,         section: "also_like" },
       ].map(({ title, list, section }) => list.length > 0 && (
-        <div key={title} className="mt-2 bg-card p-4 md:container md:mx-auto md:rounded-card md:border md:border-border md:my-4">
+        <div key={title} className="mt-2 p-4 md:container md:mx-auto md:rounded-2xl md:my-4"
+          style={{ background: "#fffaf6", border: "1px solid #ecdece" }}>
           <h3 className="text-base font-black mb-4" style={{ color: "#7a4f2e" }}>{title}</h3>
           <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
             {list.map((p: any) => (
@@ -956,13 +1072,8 @@ const ProductDetail = () => {
                   trackEvent(id!, "card_tap", {
                     tapped_product_id: p.id,
                     tapped_product_title: p.title,
-                    tapped_product_price: p.price,
-                    tapped_has_discount: !!p.discount,
-                    tapped_rating: p.rating,
                     section,
                     source_product_id: id,
-                    source_product_title: product.title,
-                    source_category_id: product.category_id,
                   });
                   navigate(`/produto/${p.id}`);
                 }}
@@ -973,24 +1084,32 @@ const ProductDetail = () => {
       ))}
 
       {/* ── Mobile sticky bottom bar ── */}
-      <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border px-3 pt-2 pb-safe-or-4 z-50 md:hidden" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>
+      <div className="fixed bottom-0 left-0 right-0 z-50 px-3 pt-2 md:hidden"
+        style={{
+          background: "#fffaf6",
+          borderTop: "1px solid #e8d5c0",
+          paddingBottom: "max(1rem, env(safe-area-inset-bottom))",
+          boxShadow: "0 -4px 20px rgba(100,50,15,0.10)",
+        }}>
         <div className="flex items-center gap-2 mb-2">
-          <span className="text-[10px] text-muted-foreground font-semibold">Qtd:</span>
-          <div className="flex items-center border border-border rounded-lg">
-            <button onClick={() => setQty(q => Math.max(1, q - 1))} className="w-8 h-8 flex items-center justify-center text-muted-foreground hover:bg-muted transition"><Minus className="w-3.5 h-3.5" /></button>
-            <span className="w-8 text-center text-sm font-bold">{qty}</span>
-            <button onClick={() => setQty(q => q + 1)} className="w-8 h-8 flex items-center justify-center text-muted-foreground hover:bg-muted transition"><Plus className="w-3.5 h-3.5" /></button>
+          <span className="text-[10px] font-semibold" style={{ color: "#9a7060" }}>Qtd:</span>
+          <div className="flex items-center rounded-lg overflow-hidden" style={{ border: "1.5px solid #e8d5c0" }}>
+            <button onClick={() => setQty(q => Math.max(1, q - 1))} className="w-8 h-8 flex items-center justify-center" style={{ color: "#9a7060" }}><Minus className="w-3.5 h-3.5" /></button>
+            <span className="w-8 text-center text-sm font-bold" style={{ color: "#4a2810" }}>{qty}</span>
+            <button onClick={() => setQty(q => q + 1)} className="w-8 h-8 flex items-center justify-center" style={{ color: "#9a7060" }}><Plus className="w-3.5 h-3.5" /></button>
           </div>
-          <span className="text-sm font-black text-foreground ml-auto">{activePrice}</span>
+          <span className="text-sm font-black ml-auto" style={{ color: "#2d1505" }}>{activePrice}</span>
         </div>
         <div className="flex gap-2">
           <button onClick={handleAddToCart} disabled={addToCart.isPending}
-            className="flex-1 py-3 rounded-full border-2 border-primary text-primary font-bold text-sm hover:bg-primary/5 transition flex items-center justify-center gap-1.5 disabled:opacity-50">
+            className="flex-1 py-3 rounded-full font-bold text-sm transition flex items-center justify-center gap-1.5 disabled:opacity-50"
+            style={{ border: "2px solid #c0522a", color: "#c0522a", background: "transparent" }}>
             {addToCart.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />}
             Carrinho
           </button>
           <button onClick={handleBuyNow} disabled={addToCart.isPending}
-            className="flex-1 py-3 rounded-full bg-primary text-primary-foreground font-bold text-sm hover:brightness-110 transition flex items-center justify-center gap-1.5 disabled:opacity-50">
+            className="flex-1 py-3 rounded-full font-bold text-sm text-white transition flex items-center justify-center gap-1.5 disabled:opacity-50 hover:brightness-110"
+            style={{ background: "linear-gradient(135deg, #c0522a 0%, #a03d1a 100%)" }}>
             Comprar agora
           </button>
         </div>
@@ -1071,54 +1190,62 @@ const ProductReviewsSection = ({
   });
 
   return (
-    <div className="bg-card mt-2 p-4 md:container md:mx-auto md:rounded-card md:border md:border-border md:my-4">
+    <div className="mt-2 p-4 md:container md:mx-auto md:rounded-2xl md:my-4"
+      style={{ background: "#fffaf6", border: "1px solid #ecdece" }}>
       <div className="flex items-center justify-between mb-1">
-        <h3 className="text-base font-black text-foreground">Avaliações dos clientes</h3>
+        <h3 className="text-base font-black" style={{ color: "#2d1505" }}>Avaliações dos clientes</h3>
         {canReview && (
-          <button onClick={() => setShowForm(!showForm)} className="px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-bold">Avaliar produto</button>
+          <button onClick={() => setShowForm(!showForm)}
+            className="px-3 py-1.5 rounded-full text-xs font-bold text-white"
+            style={{ background: "#c0522a" }}>
+            Avaliar produto
+          </button>
         )}
       </div>
       <div className="flex items-center gap-2 mb-4">
         <div className="flex items-center gap-0.5">
           {Array.from({ length: 5 }).map((_, i) => (
-            <Star key={i} className={`w-4 h-4 ${i < Math.floor(product.rating || 0) ? "text-secondary fill-secondary" : "text-border"}`} />
+            <Star key={i} className={`w-4 h-4 ${i < Math.floor(product.rating || 0) ? "fill-amber-400 text-amber-400" : "text-[#ddd]"}`} />
           ))}
         </div>
-        <span className="text-sm font-semibold text-foreground">{product.rating || 0} de 5</span>
-        <span className="text-xs text-muted-foreground">({product.reviews || 0} avaliações)</span>
+        <span className="text-sm font-semibold" style={{ color: "#4a2810" }}>{product.rating || 0} de 5</span>
+        <span className="text-xs" style={{ color: "#9a7060" }}>({product.reviews || 0} avaliações)</span>
       </div>
 
       {showForm && canReview && (
-        <div className="border border-primary/20 rounded-card p-4 mb-4 bg-primary/5">
-          <p className="text-sm font-bold text-foreground mb-3">A sua avaliação</p>
+        <div className="rounded-2xl p-4 mb-4" style={{ background: "#fff5f0", border: "1.5px solid #e8c0a0" }}>
+          <p className="text-sm font-bold mb-3" style={{ color: "#2d1505" }}>A sua avaliação</p>
           <div className="flex items-center gap-1 mb-3">
             {Array.from({ length: 5 }).map((_, i) => (
               <button key={i} onClick={() => setReviewRating(i + 1)}>
-                <Star className={`w-6 h-6 transition ${i < reviewRating ? "text-secondary fill-secondary" : "text-border"}`} />
+                <Star className={`w-6 h-6 transition ${i < reviewRating ? "fill-amber-400 text-amber-400" : "text-[#ddd]"}`} />
               </button>
             ))}
-            <span className="text-sm text-muted-foreground ml-2">{reviewRating}/5</span>
+            <span className="text-sm ml-2" style={{ color: "#9a7060" }}>{reviewRating}/5</span>
           </div>
           <textarea value={reviewComment} onChange={e => setReviewComment(e.target.value)}
             placeholder="Escreva a sua opinião (opcional)..." rows={3}
-            className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground resize-none" />
+            className="w-full px-3 py-2 rounded-xl text-sm text-foreground resize-none focus:outline-none"
+            style={{ background: "#fff", border: "1.5px solid #e8d5c0" }} />
           <div className="mt-3">
             {reviewImage ? (
-              <div className="relative w-24 h-24 rounded-lg overflow-hidden border border-border">
+              <div className="relative w-24 h-24 rounded-xl overflow-hidden" style={{ border: "1.5px solid #e8d5c0" }}>
                 <img src={reviewImage} alt="Anexo" className="w-full h-full object-cover" />
-                <button onClick={() => setReviewImage("")} className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs">×</button>
+                <button onClick={() => setReviewImage("")} className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">×</button>
               </div>
             ) : (
-              <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted border border-border text-xs font-bold cursor-pointer hover:bg-accent">
+              <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition"
+                style={{ background: "#fdf6f0", border: "1.5px solid #e8d5c0", color: "#7a5840" }}>
                 {uploadingImg ? "A enviar..." : "📷 Adicionar foto"}
                 <input type="file" accept="image/*" disabled={uploadingImg} className="hidden" onChange={e => e.target.files?.[0] && uploadImg(e.target.files[0])} />
               </label>
             )}
           </div>
           <div className="flex justify-end gap-2 mt-3">
-            <button onClick={() => setShowForm(false)} className="px-4 py-2 rounded-full text-xs font-bold text-muted-foreground">Cancelar</button>
+            <button onClick={() => setShowForm(false)} className="px-4 py-2 rounded-full text-xs font-bold" style={{ color: "#9a7060" }}>Cancelar</button>
             <button onClick={() => submitReview.mutate()} disabled={submitReview.isPending}
-              className="px-4 py-2 rounded-full bg-primary text-primary-foreground text-xs font-bold disabled:opacity-50 flex items-center gap-1">
+              className="px-4 py-2 rounded-full text-xs font-bold text-white disabled:opacity-50 flex items-center gap-1"
+              style={{ background: "#c0522a" }}>
               {submitReview.isPending && <Loader2 className="w-3 h-3 animate-spin" />}
               Enviar avaliação
             </button>
@@ -1126,58 +1253,62 @@ const ProductReviewsSection = ({
         </div>
       )}
 
-      {alreadyReviewed && <p className="text-xs text-muted-foreground mb-3 italic">✓ Já avaliou este produto</p>}
+      {alreadyReviewed && <p className="text-xs italic mb-3" style={{ color: "#9a7060" }}>✓ Já avaliou este produto</p>}
 
       {reviews ? (
         <div className="space-y-4">
           {reviews.map((review: any) => (
-            <div key={review.id} className="border-t border-border pt-3">
+            <div key={review.id} className="pt-3" style={{ borderTop: "1px solid #ecdece" }}>
               <div className="flex items-center gap-2 mb-1">
                 {review.profile?.avatar_url ? (
                   <img src={review.profile.avatar_url} alt={review.profile.full_name} className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
                 ) : (
-                  <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary flex-shrink-0">
+                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0"
+                    style={{ background: "#f0e4d8", color: "#c0522a" }}>
                     {(review.profile?.full_name || "U").charAt(0).toUpperCase()}
                   </div>
                 )}
                 <div className="flex-1">
-                  <span className="text-xs font-bold text-foreground">{review.profile?.full_name || "Utilizador"}</span>
+                  <span className="text-xs font-bold" style={{ color: "#4a2810" }}>{review.profile?.full_name || "Utilizador"}</span>
                   <div className="flex items-center gap-0.5 mt-0.5">
                     {Array.from({ length: 5 }).map((_, j) => (
-                      <Star key={j} className={`w-2.5 h-2.5 ${j < review.rating ? "text-secondary fill-secondary" : "text-border"}`} />
+                      <Star key={j} className={`w-2.5 h-2.5 ${j < review.rating ? "fill-amber-400 text-amber-400" : "text-[#ddd]"}`} />
                     ))}
-                    <span className="text-[10px] text-muted-foreground ml-1">{new Date(review.created_at).toLocaleDateString("pt-AO")}</span>
+                    <span className="text-[10px] ml-1" style={{ color: "#9a7060" }}>{new Date(review.created_at).toLocaleDateString("pt-AO")}</span>
                   </div>
                 </div>
               </div>
-              {review.comment && <p className="text-xs text-foreground leading-relaxed mt-1">{review.comment}</p>}
+              {review.comment && <p className="text-xs leading-relaxed mt-1" style={{ color: "#4a2810" }}>{review.comment}</p>}
               {review.image_url && (
                 <a href={review.image_url} target="_blank" rel="noopener noreferrer" className="block mt-2">
-                  <img src={review.image_url} alt="Foto da avaliação" className="max-h-40 rounded-lg border border-border object-cover" />
+                  <img src={review.image_url} alt="Foto da avaliação" className="max-h-40 rounded-xl object-cover" style={{ border: "1px solid #ecdece" }} />
                 </a>
               )}
               {review.replies?.length > 0 && (
                 <div className="ml-6 mt-2 space-y-2">
                   {review.replies.map((reply: any) => (
-                    <div key={reply.id} className="bg-muted rounded-lg p-2">
-                      <p className="text-[10px] font-bold text-foreground">{reply.profile?.full_name || "Utilizador"}</p>
-                      <p className="text-[11px] text-muted-foreground">{reply.content}</p>
+                    <div key={reply.id} className="rounded-xl p-2" style={{ background: "#f5ede4" }}>
+                      <p className="text-[10px] font-bold" style={{ color: "#4a2810" }}>{reply.profile?.full_name || "Utilizador"}</p>
+                      <p className="text-[11px]" style={{ color: "#7a5840" }}>{reply.content}</p>
                     </div>
                   ))}
                 </div>
               )}
               {user && (
                 <button onClick={() => setReplyingTo(replyingTo === review.id ? null : review.id)}
-                  className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground mt-2">
+                  className="flex items-center gap-1 text-[10px] mt-2 transition"
+                  style={{ color: "#9a7060" }}>
                   <MessageCircle className="w-3 h-3" /> Responder
                 </button>
               )}
               {replyingTo === review.id && user && (
                 <div className="ml-6 mt-2 flex gap-2">
                   <input value={replyText} onChange={e => setReplyText(e.target.value)} placeholder="Escrever resposta..."
-                    className="flex-1 px-3 py-1.5 rounded-lg bg-muted border border-border text-xs text-foreground" />
+                    className="flex-1 px-3 py-1.5 rounded-xl text-xs focus:outline-none"
+                    style={{ background: "#fdf6f0", border: "1.5px solid #e8d5c0", color: "#4a2810" }} />
                   <button onClick={() => submitReply.mutate(review.id)} disabled={!replyText.trim() || submitReply.isPending}
-                    className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-bold disabled:opacity-50">
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold text-white disabled:opacity-50"
+                    style={{ background: "#c0522a" }}>
                     <Send className="w-3 h-3" />
                   </button>
                 </div>
@@ -1186,10 +1317,10 @@ const ProductReviewsSection = ({
           ))}
         </div>
       ) : (
-        <div className="text-center py-8 border-t border-border">
-          <MessageCircle className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
-          <p className="text-sm font-semibold text-foreground">Ainda sem avaliações</p>
-          <p className="text-xs text-muted-foreground mt-1">Seja o primeiro a avaliar após a compra.</p>
+        <div className="text-center py-8" style={{ borderTop: "1px solid #ecdece" }}>
+          <MessageCircle className="w-8 h-8 mx-auto mb-2" style={{ color: "#d4b8a0" }} />
+          <p className="text-sm font-semibold" style={{ color: "#4a2810" }}>Ainda sem avaliações</p>
+          <p className="text-xs mt-1" style={{ color: "#9a7060" }}>Seja o primeiro a avaliar após a compra.</p>
         </div>
       )}
     </div>
