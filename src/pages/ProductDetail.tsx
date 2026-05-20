@@ -1,3 +1,4 @@
+file with all changes
 bash
 cat > /home/claude/ProductDetail.tsx << 'ENDOFFILE'
 import { useParams, useNavigate } from "react-router-dom";
@@ -20,7 +21,6 @@ const fmt = (n: number) =>
   Number(n).toLocaleString("pt-AO").replace(/,/g, ".") + " Kz";
 
 // ─── Minimal Related Product Card ─────────────────────────────────────────────
-// Matches the screenshot: large square image + name label below, no price/rating/border/shadow
 const MinimalProductCard = ({ product, onClick }: { product: any; onClick?: () => void }) => {
   return (
     <div
@@ -28,16 +28,18 @@ const MinimalProductCard = ({ product, onClick }: { product: any; onClick?: () =
       className="cursor-pointer group flex flex-col"
       style={{ width: 160, minWidth: 160 }}
     >
-      <div className="w-full aspect-square rounded-xl overflow-hidden bg-muted">
+      <div className="w-full aspect-square rounded-xl overflow-hidden" style={{ backgroundColor: "#f5ede4" }}>
         <img
           src={product.image}
           alt={product.title}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
         />
       </div>
-      <p className="mt-2 text-xs text-foreground font-medium leading-snug line-clamp-2 px-0.5">
-        {product.title}
-      </p>
+      <div className="mt-1.5 px-0.5 py-1 rounded-lg" style={{ backgroundColor: "#faf3ee" }}>
+        <p className="text-xs font-semibold leading-snug line-clamp-2" style={{ color: "#7a4f2e" }}>
+          {product.title}
+        </p>
+      </div>
     </div>
   );
 };
@@ -220,6 +222,7 @@ const SellerCard = ({ seller, onNavigate, isLoading = false }: { seller: any; on
 
   const avatar: string | null = seller.logo_url || seller.avatar_url || null;
   const isCompany = seller.__type === "company";
+  const province = seller.province ? String(seller.province).replace(/0+$/, "").trim() : null;
 
   return (
     <button onClick={onNavigate}
@@ -240,9 +243,9 @@ const SellerCard = ({ seller, onNavigate, isLoading = false }: { seller: any; on
           )}
         </div>
         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-          {seller.province && (
+          {province && (
             <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
-              <MapPin className="w-3 h-3" />{seller.province}
+              <MapPin className="w-3 h-3" />{province}
             </span>
           )}
           {seller.rating && (
@@ -946,7 +949,7 @@ const ProductDetail = () => {
         { title: "Também pode gostar",    list: alsoLike,         section: "also_like" },
       ].map(({ title, list, section }) => list.length > 0 && (
         <div key={title} className="mt-2 bg-card p-4 md:container md:mx-auto md:rounded-card md:border md:border-border md:my-4">
-          <h3 className="text-base font-black text-foreground mb-4">{title}</h3>
+          <h3 className="text-base font-black mb-4" style={{ color: "#7a4f2e" }}>{title}</h3>
           <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
             {list.map((p: any) => (
               <MinimalProductCard
@@ -1197,4 +1200,3 @@ const ProductReviewsSection = ({
 };
 
 export default ProductDetail;
-ENDOF
