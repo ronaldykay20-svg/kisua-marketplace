@@ -81,57 +81,188 @@ const useProductTracking = () => {
 
 // ─── Share Sheet ──────────────────────────────────────────────────────────────
 const ShareSheet = ({
-  title, imageUrl, url, onClose,
+  title, imageUrl, url, description, price, onClose,
 }: {
-  title: string; imageUrl: string; url: string; onClose: () => void;
+  title: string;
+  imageUrl: string;
+  url: string;
+  description?: string;
+  price?: string;
+  onClose: () => void;
 }) => {
-  const handleNative = async () => {
+  const [sharing, setSharing] = useState(false);
+  const [copying, setCopying] = useState(false);
+
+  // Texto rico para partilha
+  const shortDesc = description
+    ? description.slice(0, 120).trim() + (description.length > 120 ? "…" : "")
+    : "";
+  const shareText = [
+    price ? `💰 ${price}` : "",
+    shortDesc,
+    "📦 Kwanza Market — kwanzamarket.ao",
+  ].filter(Boolean).join("\n");
+
+  // Tenta fazer fetch da imagem e partilhar como ficheiro (Web Share API Level 2)
+  const fetchImageFile = async (): Promise<File | null> => {
     try {
-      if (navigator.share) {
-        await navigator.share({ title, text: `${title} — Kwanza Market`, url });
-      } else {
-        await navigator.clipboard.writeText(url);
-        toast.success("Link copiado!");
+      const res = await fetch(imageUrl);
+      const blob = await res.blob();
+      const ext = blob.type.includes("png") ? "png" : "jpg";
+      return new File([blob], `produto.${ext}`, { type: blob.type });
+    } catch {
+      return null;
+    }
+  };
+
+  const handleNative = async () => {
+    setSharing(true);
+    try {
+      // Tenta partilha com imagem (Web Share API Level 2)
+      if (navigator.share && navigator.canShare) {
+        const imgFile = await fetchImageFile();
+        if (imgFile && navigator.canShare({ files: [imgFile] })) {
+          await navigator.share({
+            title,
+            text: shareText,
+            url,
+            files: [imgFile],
+          });
+          onClose();
+          setSharing(false);
+          return;
+        }
       }
-    } catch (_) {}
+      // Fallback: partilha sem imagem mas com texto rico
+      if (navigator.share) {
+        await navigator.share({ title, text: shareText, url });
+        onClose();
+        setSharing(false);
+        return;
+      }
+      // Último recurso: copia link
+      await navigator.clipboard.writeText(`${title}\n${shareText}\n${url}`);
+      toast.success("Link copiado!");
+      onClose();
+    } catch (err: any) {
+      // AbortError = utilizador cancelou, não é erro
+      if (err?.name !== "AbortError") {
+        toast.error("Não foi possível partilhar");
+      }
+    }
+    setSharing(false);
     onClose();
   };
 
   const handleCopyLink = async () => {
+    setCopying(true);
     try {
       await navigator.clipboard.writeText(url);
       toast.success("Link copiado!");
-    } catch (_) {
+    } catch {
       toast.error("Não foi possível copiar");
     }
+    setCopying(false);
+    onClose();
+  };
+
+  // WhatsApp com texto rico (sem imagem via URL, só texto+link)
+  const handleWhatsApp = () => {
+    const text = encodeURIComponent(`${title}\n${price ? `💰 ${price}\n` : ""}${shortDesc ? `${shortDesc}\n` : ""}${url}`);
+    window.open(`https://wa.me/?text=${text}`, "_blank");
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-[110] bg-black/60 flex items-end justify-center" onClick={onClose}>
-      <div className="bg-card w-full max-w-md rounded-t-2xl pb-8 pt-4 px-4 shadow-2xl" onClick={e => e.stopPropagation()}>
-        <div className="w-10 h-1 rounded-full bg-muted mx-auto mb-4" />
-        <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-3">Partilhar produto</p>
-        <div className="flex items-center gap-3 p-3 bg-muted rounded-xl border border-border mb-5">
-          <img src={imageUrl} alt={title} className="w-16 h-16 rounded-lg object-cover flex-shrink-0 bg-background" />
-          <div className="min-w-0">
-            <p className="text-sm font-bold text-foreground line-clamp-2 leading-snug">{title}</p>
-            <p className="text-[10px] text-muted-foreground mt-1 truncate">{url.replace(/^https?:\/\//, "")}</p>
+    <div
+      className="fixed inset-0 z-[110] flex items-end justify-center"
+      style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(3px)" }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-t-3xl pb-8 pt-2 px-4 shadow-2xl"
+        style={{ background: "#fffaf6", border: "1.5px solid #e8d5c0", borderBottom: "none" }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Handle */}
+        <div className="w-10 h-1 rounded-full mx-auto mb-4 mt-2" style={{ background: "#d4b8a0" }} />
+
+        <p className="text-[11px] font-bold uppercase tracking-widest mb-3" style={{ color: "#9a7060" }}>
+          Partilhar produto
+        </p>
+
+        {/* Preview do produto */}
+        <div
+          className="flex items-center gap-3 p-3 rounded-2xl mb-5"
+          style={{ background: "#f5ede4", border: "1px solid #e8d5c0" }}
+        >
+          <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0" style={{ background: "#ecdece" }}>
+            <img src={imageUrl} alt={title} className="w-full h-full object-cover" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold leading-snug line-clamp-2" style={{ color: "#2d1505" }}>{title}</p>
+            {price && <p className="text-xs font-black mt-0.5" style={{ color: "#c0522a" }}>{price}</p>}
+            {shortDesc && (
+              <p className="text-[10px] mt-0.5 line-clamp-1" style={{ color: "#9a7060" }}>{shortDesc}</p>
+            )}
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <button onClick={handleNative} className="flex flex-col items-center gap-2 py-4 rounded-xl bg-primary/5 border border-primary/20 hover:bg-primary/10 active:scale-95 transition">
-            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center"><Share2 className="w-5 h-5 text-white" /></div>
-            <span className="text-xs font-bold text-primary">Partilhar</span>
-            <span className="text-[9px] text-muted-foreground text-center leading-tight px-1">Usar app do dispositivo</span>
+
+        {/* Botões de partilha */}
+        <div className="grid grid-cols-3 gap-2.5 mb-3">
+          {/* Partilhar com imagem */}
+          <button
+            onClick={handleNative}
+            disabled={sharing}
+            className="flex flex-col items-center gap-2 py-3.5 rounded-2xl active:scale-95 transition-all disabled:opacity-60"
+            style={{ background: "#c0522a", border: "none" }}
+          >
+            {sharing
+              ? <Loader2 className="w-5 h-5 text-white animate-spin" />
+              : <Share2 className="w-5 h-5 text-white" />
+            }
+            <span className="text-[10px] font-bold text-white leading-tight text-center">
+              {sharing ? "A preparar…" : "Partilhar\ncom imagem"}
+            </span>
           </button>
-          <button onClick={handleCopyLink} className="flex flex-col items-center gap-2 py-4 rounded-xl bg-muted border border-border hover:bg-accent active:scale-95 transition">
-            <div className="w-10 h-10 rounded-full bg-muted-foreground/10 flex items-center justify-center"><Link2 className="w-5 h-5 text-foreground" /></div>
-            <span className="text-xs font-bold text-foreground">Copiar link</span>
-            <span className="text-[9px] text-muted-foreground text-center leading-tight px-1">Colar em qualquer app</span>
+
+          {/* WhatsApp */}
+          <button
+            onClick={handleWhatsApp}
+            className="flex flex-col items-center gap-2 py-3.5 rounded-2xl active:scale-95 transition-all"
+            style={{ background: "#25D366", border: "none" }}
+          >
+            {/* WhatsApp SVG inline */}
+            <svg viewBox="0 0 24 24" className="w-5 h-5 fill-white" xmlns="http://www.w3.org/2000/svg">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+            </svg>
+            <span className="text-[10px] font-bold text-white leading-tight text-center">WhatsApp</span>
+          </button>
+
+          {/* Copiar link */}
+          <button
+            onClick={handleCopyLink}
+            disabled={copying}
+            className="flex flex-col items-center gap-2 py-3.5 rounded-2xl active:scale-95 transition-all disabled:opacity-60"
+            style={{ background: "#f0e8e0", border: "1.5px solid #e8d5c0" }}
+          >
+            {copying
+              ? <Loader2 className="w-5 h-5 animate-spin" style={{ color: "#7a5840" }} />
+              : <Link2 className="w-5 h-5" style={{ color: "#7a5840" }} />
+            }
+            <span className="text-[10px] font-bold leading-tight text-center" style={{ color: "#7a5840" }}>
+              Copiar link
+            </span>
           </button>
         </div>
-        <button onClick={onClose} className="w-full mt-4 py-3 rounded-xl bg-muted text-sm font-bold text-muted-foreground hover:text-foreground transition">Cancelar</button>
+
+        <button
+          onClick={onClose}
+          className="w-full py-3 rounded-2xl text-sm font-bold transition"
+          style={{ background: "#f0e8e0", color: "#9a7060" }}
+        >
+          Cancelar
+        </button>
       </div>
     </div>
   );
@@ -585,7 +716,7 @@ const ProductDetail = () => {
 
   return (
     <div className="min-h-screen pb-28 md:pb-0" style={{ background: "#faf5f0" }}>
-      {shareOpen && <ShareSheet title={product.title} imageUrl={currentImageUrl} url={window.location.href} onClose={() => setShareOpen(false)} />}
+      {shareOpen && <ShareSheet title={product.title} imageUrl={currentImageUrl} url={window.location.href} description={product.description} price={activePrice} onClose={() => setShareOpen(false)} />
       {zoomOpen && <ZoomLightbox images={displayImages} index={selectedImage} onClose={() => setZoomOpen(false)} onChange={setSelectedImage} onShare={() => { setZoomOpen(false); setShareOpen(true); }} />}
 
       {/* ── HEADER — castanho escuro, integrado com imagem ── */}
