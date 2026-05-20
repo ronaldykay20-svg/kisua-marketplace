@@ -1,10 +1,14 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { Save, X, Trash2, Image as ImageIcon, Film, Plus, ChevronDown, ChevronRight, AlertTriangle, Clock } from "lucide-react";
+import {
+  Save, X, Trash2, Image as ImageIcon, Film, Plus,
+  ChevronDown, ChevronRight, AlertTriangle, Clock, Camera,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { STORAGE_BUCKETS } from "@/lib/storage";
 import { useUserRole } from "@/hooks/useUserRole";
 
+// ─── Types ────────────────────────────────────────────────
 interface ProductFormData {
   title: string;
   description: string;
@@ -48,6 +52,16 @@ export interface VariantItem {
   _expanded?: boolean;
 }
 
+interface Props {
+  editingProduct?: any;
+  existingMedia?: any[];
+  existingVariants?: any[];
+  onSave: (data: any, media: MediaItem[], variants: VariantItem[]) => void;
+  onCancel: () => void;
+  saving?: boolean;
+}
+
+// ─── Constantes ───────────────────────────────────────────
 const generateTempId = () => `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
 const createEmptyVariant = (parentId?: string | null): VariantItem => ({
@@ -64,19 +78,10 @@ const emptyForm: ProductFormData = {
   promotion_ends_at: "",
 };
 
-interface Props {
-  editingProduct?: any;
-  existingMedia?: any[];
-  existingVariants?: any[];
-  onSave: (data: any, media: MediaItem[], variants: VariantItem[]) => void;
-  onCancel: () => void;
-  saving?: boolean;
-}
-
 const provinces = [
-  "Bengo", "Benguela", "Bié", "Cabinda", "Cuando Cubango", "Cuanza Norte",
-  "Cuanza Sul", "Cunene", "Huambo", "Huíla", "Luanda", "Lunda Norte",
-  "Lunda Sul", "Malanje", "Moxico", "Namibe", "Uíge", "Zaire",
+  "Bengo","Benguela","Bié","Cabinda","Cuando Cubango","Cuanza Norte",
+  "Cuanza Sul","Cunene","Huambo","Huíla","Luanda","Lunda Norte",
+  "Lunda Sul","Malanje","Moxico","Namibe","Uíge","Zaire",
 ];
 
 const conditions = [
@@ -136,14 +141,49 @@ const toLocalDatetimeValue = (iso: string | null | undefined): string => {
     const d = new Date(iso);
     const pad = (n: number) => String(n).padStart(2, "0");
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  } catch {
-    return "";
-  }
+  } catch { return ""; }
 };
 
-const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariants = [], onSave, onCancel, saving }: Props) => {
+// ─── Componente principal ─────────────────────────────────
+const SellerProductForm = ({
+  editingProduct, existingMedia = [], existingVariants = [],
+  onSave, onCancel, saving,
+}: Props) => {
   const { isAdmin } = useUserRole();
 
+  // ── Localização automática do utilizador ──────────────
+  const [autoLocation, setAutoLocation] = useState<{ province: string; city: string } | null>(null);
+
+  useEffect(() => {
+    const fetchUserLocation = async () => {
+      if (editingProduct?.province) return; // já tem localização, não sobrescreve
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("province, city")
+          .eq("id", user.id)
+          .single();
+        if (profile?.province || profile?.city) {
+          setAutoLocation({
+            province: profile.province || "",
+            city: profile.city || "",
+          });
+          setForm(f => ({
+            ...f,
+            province: profile.province || f.province,
+            city: profile.city || f.city,
+          }));
+        }
+      } catch (err) {
+        console.warn("Não foi possível obter a localização automática:", err);
+      }
+    };
+    fetchUserLocation();
+  }, []);
+
+  // ── Estado do formulário ──────────────────────────────
   const [form, setForm] = useState<ProductFormData>(() => {
     if (editingProduct) {
       return {
@@ -167,14 +207,20 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
     return emptyForm;
   });
 
-  // Tracks which field was last edited by the user to avoid circular updates
+  // lastEdited controla qual campo foi editado por último
+  // para evitar loops de cálculo circular
   const [lastEdited, setLastEdited] = useState<"price" | "old_price" | "discount_percent" | null>(null);
 
   const set = useCallback((key: keyof ProductFormData, value: any) => {
     setForm(f => ({ ...f, [key]: value }));
   }, []);
 
-  // Auto-calculate discount_percent when price + old_price are filled
+  // ── Cálculos automáticos de preço ────────────────────
+  // Regras:
+  //   price + old_price → calcula discount_percent
+  //   old_price + discount_percent → calcula price
+  //   price + discount_percent → calcula old_price
+
   useEffect(() => {
     if (lastEdited !== "price" && lastEdited !== "old_price") return;
     const price = parseFloat(form.price);
@@ -185,18 +231,26 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
     }
   }, [form.price, form.old_price, lastEdited]);
 
-  // Auto-calculate price when old_price + discount_percent are filled
   useEffect(() => {
     if (lastEdited !== "discount_percent") return;
-    const oldPrice = parseFloat(form.old_price);
     const pct = parseInt(form.discount_percent);
-    if (!isNaN(oldPrice) && !isNaN(pct) && pct > 0 && pct < 100 && oldPrice > 0) {
+    if (isNaN(pct) || pct <= 0 || pct >= 100) return;
+
+    const oldPrice = parseFloat(form.old_price);
+    const price = parseFloat(form.price);
+
+    if (!isNaN(oldPrice) && oldPrice > 0) {
+      // tem preço antigo → calcula preço atual
       const newPrice = Math.round(oldPrice * (1 - pct / 100));
       setForm(f => ({ ...f, price: String(newPrice) }));
+    } else if (!isNaN(price) && price > 0) {
+      // tem preço atual → calcula preço antigo
+      const newOldPrice = Math.round(price / (1 - pct / 100));
+      setForm(f => ({ ...f, old_price: String(newOldPrice) }));
     }
   }, [form.discount_percent, lastEdited]);
 
-  // Auto-calculate price when old_price changes and discount_percent is already set
+  // Quando old_price muda e já existe discount_percent → recalcula price
   useEffect(() => {
     if (lastEdited !== "old_price") return;
     const oldPrice = parseFloat(form.old_price);
@@ -207,27 +261,39 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
     }
   }, [form.old_price, lastEdited]);
 
-  const handlePriceChange = (val: string) => {
-    setLastEdited("price");
-    set("price", val);
-  };
+  // Quando price muda e já existe discount_percent → recalcula old_price
+  useEffect(() => {
+    if (lastEdited !== "price") return;
+    const price = parseFloat(form.price);
+    const pct = parseInt(form.discount_percent);
+    if (!isNaN(price) && !isNaN(pct) && pct > 0 && pct < 100 && price > 0) {
+      const newOldPrice = Math.round(price / (1 - pct / 100));
+      setForm(f => ({ ...f, old_price: String(newOldPrice) }));
+    }
+  }, [form.price, lastEdited]);
 
-  const handleOldPriceChange = (val: string) => {
-    setLastEdited("old_price");
-    set("old_price", val);
-  };
+  const handlePriceChange = (val: string) => { setLastEdited("price"); set("price", val); };
+  const handleOldPriceChange = (val: string) => { setLastEdited("old_price"); set("old_price", val); };
+  const handleDiscountChange = (val: string) => { setLastEdited("discount_percent"); set("discount_percent", val); };
 
-  const handleDiscountChange = (val: string) => {
-    setLastEdited("discount_percent");
-    set("discount_percent", val);
-  };
-
+  // ── Média ─────────────────────────────────────────────
   const [media, setMedia] = useState<MediaItem[]>(() =>
     existingMedia.map((m: any, i: number) => ({
-      id: m.id, url: m.url, type: m.type || "image", is_cover: m.is_cover || false, sort_order: m.sort_order ?? i,
+      id: m.id, url: m.url, type: m.type || "image",
+      is_cover: m.is_cover || false, sort_order: m.sort_order ?? i,
     }))
   );
 
+  useEffect(() => {
+    if (existingMedia.length > 0 && media.length === 0) {
+      setMedia(existingMedia.map((m: any, i: number) => ({
+        id: m.id, url: m.url, type: m.type || "image",
+        is_cover: m.is_cover || false, sort_order: m.sort_order ?? i,
+      })));
+    }
+  }, [existingMedia]);
+
+  // ── Variações ─────────────────────────────────────────
   const [variants, setVariants] = useState<VariantItem[]>(() =>
     existingVariants.map((v: any, i: number) => ({
       id: v.id, variant_type: v.variant_type || "color", name: v.name || "", value: v.value || "",
@@ -236,14 +302,6 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
       parent_id: v.parent_id || null, _tempId: v.id || generateTempId(), _expanded: true,
     }))
   );
-
-  useEffect(() => {
-    if (existingMedia.length > 0 && media.length === 0) {
-      setMedia(existingMedia.map((m: any, i: number) => ({
-        id: m.id, url: m.url, type: m.type || "image", is_cover: m.is_cover || false, sort_order: m.sort_order ?? i,
-      })));
-    }
-  }, [existingMedia]);
 
   useEffect(() => {
     if (existingVariants.length > 0 && variants.length === 0) {
@@ -258,6 +316,7 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
 
   const [uploading, setUploading] = useState(false);
   const [uploadingVariantIdx, setUploadingVariantIdx] = useState<string | null>(null);
+  const [photoError, setPhotoError] = useState(false);
 
   const parentVariants = useMemo(() => variants.filter(v => !v.parent_id), [variants]);
   const getChildren = (parentTempId: string) => variants.filter(v => v.parent_id === parentTempId);
@@ -266,18 +325,15 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
     let total = 0;
     for (const parent of parentVariants) {
       const children = getChildren(parent._tempId);
-      if (children.length > 0) {
-        total += children.reduce((sum, c) => sum + (parseInt(c.stock) || 0), 0);
-      } else {
-        total += parseInt(parent.stock) || 0;
-      }
+      total += children.length > 0
+        ? children.reduce((sum, c) => sum + (parseInt(c.stock) || 0), 0)
+        : (parseInt(parent.stock) || 0);
     }
     return total;
   }, [variants, parentVariants]);
 
   const productStock = parseInt(form.stock) || 0;
   const stockExceeded = variants.length > 0 && totalVariantStock > productStock;
-
   const hasDiscount = !!form.discount_percent && parseInt(form.discount_percent) > 0;
 
   const promotionEndsAtPreview = useMemo(() => {
@@ -285,22 +341,22 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
     try { return new Date(form.promotion_ends_at); } catch { return null; }
   }, [form.promotion_ends_at]);
 
-  // Savings summary for the seller
   const savingsSummary = useMemo(() => {
     const price = parseFloat(form.price);
     const oldPrice = parseFloat(form.old_price);
     const pct = parseInt(form.discount_percent);
-    if (!isNaN(price) && !isNaN(oldPrice) && oldPrice > price && pct > 0) {
-      const saving = Math.round(oldPrice - price);
-      return { saving, pct };
-    }
+    if (!isNaN(price) && !isNaN(oldPrice) && oldPrice > price && pct > 0)
+      return { saving: Math.round(oldPrice - price), pct };
     return null;
   }, [form.price, form.old_price, form.discount_percent]);
 
+  // ── Categorias ────────────────────────────────────────
   const { data: allCategories = [] } = useQuery({
     queryKey: ["categories_with_subs"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("categories").select("id, name, parent_id").eq("is_active", true).order("sort_order").order("name");
+      const { data, error } = await supabase
+        .from("categories").select("id, name, parent_id")
+        .eq("is_active", true).order("sort_order").order("name");
       if (error) throw error;
       return data;
     },
@@ -309,10 +365,12 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
   const parentCategories = allCategories.filter((c: any) => !c.parent_id);
   const getSubcategories = (parentId: string) => allCategories.filter((c: any) => c.parent_id === parentId);
 
+  // ── Upload de ficheiros ───────────────────────────────
   const handleFilesUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: "image" | "video") => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
     setUploading(true);
+    setPhotoError(false);
     try {
       for (const file of Array.from(files)) {
         const ext = file.name.split(".").pop();
@@ -357,23 +415,25 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
 
   const setCover = (index: number) => setMedia(prev => prev.map((m, i) => ({ ...m, is_cover: i === index })));
 
+  // ── Variações: CRUD ───────────────────────────────────
   const addVariant = () => setVariants(prev => [...prev, createEmptyVariant()]);
   const addSubVariant = (parentTempId: string) => setVariants(prev => [...prev, createEmptyVariant(parentTempId)]);
-
-  const updateVariant = (tempId: string, key: keyof VariantItem, value: any) => {
+  const updateVariant = (tempId: string, key: keyof VariantItem, value: any) =>
     setVariants(prev => prev.map(v => v._tempId === tempId ? { ...v, [key]: value } : v));
-  };
-
-  const removeVariant = (tempId: string) => {
+  const removeVariant = (tempId: string) =>
     setVariants(prev => prev.filter(v => v._tempId !== tempId && v.parent_id !== tempId));
-  };
-
-  const toggleExpanded = (tempId: string) => {
+  const toggleExpanded = (tempId: string) =>
     setVariants(prev => prev.map(v => v._tempId === tempId ? { ...v, _expanded: !v._expanded } : v));
-  };
 
+  // ── Submit ────────────────────────────────────────────
   const handleSubmit = () => {
+    // Valida foto obrigatória
+    if (media.length === 0) {
+      setPhotoError(true);
+      return;
+    }
     if (stockExceeded) return;
+
     const payload: any = {
       title: form.title,
       description: form.description || null,
@@ -396,12 +456,14 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
     onSave(payload, media, variants);
   };
 
+  // ── Render de card de variação ────────────────────────
   const renderVariantCard = (variant: VariantItem, isChild: boolean) => {
     const children = isChild ? [] : getChildren(variant._tempId);
     const childrenStock = children.reduce((s, c) => s + (parseInt(c.stock) || 0), 0);
 
     return (
-      <div key={variant._tempId} className={`border rounded-lg p-3 relative ${isChild ? "border-border/50 bg-muted/20 ml-4" : "border-border bg-muted/30"}`}>
+      <div key={variant._tempId}
+        className={`border rounded-lg p-3 relative ${isChild ? "border-border/50 bg-muted/20 ml-4" : "border-border bg-muted/30"}`}>
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-1">
             {!isChild && (
@@ -463,9 +525,7 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
             </label>
             <input type="number" value={variant.stock} onChange={e => updateVariant(variant._tempId, "stock", e.target.value)}
               placeholder="1"
-              className={`w-full px-2 py-1.5 rounded-lg bg-muted border text-xs text-foreground ${
-                !isChild && children.length > 0 && childrenStock > (parseInt(variant.stock) || 0) ? "border-destructive" : "border-border"
-              }`} />
+              className={`w-full px-2 py-1.5 rounded-lg bg-muted border text-xs text-foreground ${!isChild && children.length > 0 && childrenStock > (parseInt(variant.stock) || 0) ? "border-destructive" : "border-border"}`} />
             {!isChild && children.length > 0 && childrenStock > (parseInt(variant.stock) || 0) && (
               <p className="text-[9px] text-destructive mt-0.5">Sub-variações excedem o stock desta variação</p>
             )}
@@ -506,32 +566,39 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
     );
   };
 
+  // ── Render ────────────────────────────────────────────
   return (
     <div className="bg-card rounded-xl border border-border p-4 mb-4">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-bold text-foreground">{editingProduct ? "Editar Produto" : "Novo Produto"}</h2>
+        <h2 className="text-sm font-bold text-foreground">
+          {editingProduct ? "Editar Produto" : "Novo Produto"}
+        </h2>
         <button onClick={onCancel} className="p-1 text-muted-foreground"><X className="w-4 h-4" /></button>
       </div>
 
       <div className="space-y-3">
 
-        {/* Title */}
+        {/* Título */}
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Nome do produto *</label>
-          <input value={form.title} onChange={e => set("title", e.target.value)} placeholder="Ex: iPhone 15 Pro Max 256GB"
+          <input value={form.title} onChange={e => set("title", e.target.value)}
+            placeholder="Ex: iPhone 15 Pro Max 256GB"
             className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
         </div>
 
-        {/* Description */}
+        {/* Descrição */}
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Descrição</label>
-          <textarea value={form.description} onChange={e => set("description", e.target.value)} placeholder="Descreva o produto em detalhe..."
+          <textarea value={form.description} onChange={e => set("description", e.target.value)}
+            placeholder="Descreva o produto em detalhe..."
             className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground h-20 resize-none" />
         </div>
 
-        {/* ═══ PREÇOS COM CÁLCULO AUTOMÁTICO ═══ */}
+        {/* ── Preços com cálculo automático ── */}
         <div>
-          <label className="text-[11px] font-bold text-muted-foreground mb-1.5 block">Preços e Promoção</label>
+          <label className="text-[11px] font-bold text-muted-foreground mb-1.5 block">
+            Preços e Promoção
+          </label>
           <div className="rounded-xl border border-border bg-muted/40 p-3 space-y-2.5">
 
             <div className="grid grid-cols-2 gap-2">
@@ -546,7 +613,7 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
                   placeholder="Ex: 50 000"
                   className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground"
                 />
-                <p className="text-[9px] text-muted-foreground mt-0.5">Preço original antes da promoção</p>
+                <p className="text-[9px] text-muted-foreground mt-0.5">Preço antes da promoção</p>
               </div>
               <div>
                 <label className="text-[10px] font-bold mb-0.5 block" style={{ color: "#C0392B" }}>
@@ -558,10 +625,13 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
                   onChange={e => handleDiscountChange(e.target.value)}
                   placeholder="Ex: 20"
                   min="1" max="99"
-                  className="w-full px-3 py-2 rounded-lg bg-background border text-sm text-foreground font-bold"
-                  style={{ borderColor: form.discount_percent ? "#C0392B" : undefined, color: form.discount_percent ? "#C0392B" : undefined }}
+                  className="w-full px-3 py-2 rounded-lg bg-background border text-sm font-bold"
+                  style={{
+                    borderColor: form.discount_percent ? "#C0392B" : undefined,
+                    color: form.discount_percent ? "#C0392B" : undefined,
+                  }}
                 />
-                <p className="text-[9px] text-muted-foreground mt-0.5">Preenche → calcula preço novo</p>
+                <p className="text-[9px] text-muted-foreground mt-0.5">Calcula o preço novo</p>
               </div>
             </div>
 
@@ -576,13 +646,21 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
                 placeholder="Ex: 40 000"
                 className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground font-bold"
               />
-              <p className="text-[9px] text-muted-foreground mt-0.5">Preenche → calcula desconto % automaticamente</p>
+              <p className="text-[9px] text-muted-foreground mt-0.5">
+                Preenche → calcula % automaticamente
+              </p>
             </div>
 
-            {/* Summary pill */}
+            {/* Resumo de poupança */}
             {savingsSummary && (
-              <div className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ background: "#FFF5F5" }}>
-                <span className="text-xs font-black px-2 py-0.5 rounded" style={{ background: "#C0392B", color: "#fff" }}>
+              <div
+                className="flex items-center gap-2 rounded-lg px-3 py-2"
+                style={{ background: "#FFF5F5" }}
+              >
+                <span
+                  className="text-xs font-black px-2 py-0.5 rounded"
+                  style={{ background: "#C0392B", color: "#fff" }}
+                >
                   -{savingsSummary.pct}%
                 </span>
                 <span className="text-xs" style={{ color: "#6B3A2A" }}>
@@ -596,10 +674,16 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
           </div>
         </div>
 
-        {/* Promotion end date — only shown when there's a discount */}
+        {/* ── Fim de promoção — visível sempre que há desconto ── */}
         {hasDiscount && (
-          <div className="rounded-lg border p-3 space-y-1.5" style={{ borderColor: "#C0392B44", background: "#FFF8F5" }}>
-            <label className="text-[11px] font-bold flex items-center gap-1.5" style={{ color: "#C0392B" }}>
+          <div
+            className="rounded-lg border p-3 space-y-1.5"
+            style={{ borderColor: "#C0392B44", background: "#FFF8F5" }}
+          >
+            <label
+              className="text-[11px] font-bold flex items-center gap-1.5"
+              style={{ color: "#C0392B" }}
+            >
               <Clock className="w-3.5 h-3.5" />
               Fim da promoção (opcional)
             </label>
@@ -621,8 +705,12 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
               </p>
             )}
             {form.promotion_ends_at && (
-              <button type="button" onClick={() => set("promotion_ends_at", "")}
-                className="text-[10px] underline" style={{ color: "#C0392B" }}>
+              <button
+                type="button"
+                onClick={() => set("promotion_ends_at", "")}
+                className="text-[10px] underline"
+                style={{ color: "#C0392B" }}
+              >
                 Remover data limite
               </button>
             )}
@@ -633,8 +721,13 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Stock total</label>
-            <input type="number" value={form.stock} onChange={e => set("stock", e.target.value)} placeholder="1"
-              className={`w-full px-3 py-2 rounded-lg bg-muted border text-sm text-foreground ${stockExceeded ? "border-destructive" : "border-border"}`} />
+            <input
+              type="number"
+              value={form.stock}
+              onChange={e => set("stock", e.target.value)}
+              placeholder="1"
+              className={`w-full px-3 py-2 rounded-lg bg-muted border text-sm text-foreground ${stockExceeded ? "border-destructive" : "border-border"}`}
+            />
             {stockExceeded && (
               <p className="text-[10px] text-destructive mt-0.5 flex items-center gap-1">
                 <AlertTriangle className="w-3 h-3" />
@@ -644,104 +737,197 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
           </div>
           <div>
             <label className="text-[11px] font-bold text-muted-foreground mb-1 block">SKU</label>
-            <input value={form.sku} onChange={e => set("sku", e.target.value)} placeholder="REF-001"
-              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
+            <input
+              value={form.sku}
+              onChange={e => set("sku", e.target.value)}
+              placeholder="REF-001"
+              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground"
+            />
           </div>
         </div>
 
-        {/* Category */}
+        {/* Categoria */}
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Categoria</label>
-          <select value={form.category_id} onChange={e => set("category_id", e.target.value)}
-            className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground">
+          <select
+            value={form.category_id}
+            onChange={e => set("category_id", e.target.value)}
+            className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground"
+          >
             <option value="">Selecionar</option>
             {parentCategories.map((c: any) => {
               const subs = getSubcategories(c.id);
               return (
                 <optgroup key={c.id} label={c.name}>
                   <option value={c.id}>{c.name} (geral)</option>
-                  {subs.map((s: any) => <option key={s.id} value={s.id}>&nbsp;&nbsp;↳ {s.name}</option>)}
+                  {subs.map((s: any) => (
+                    <option key={s.id} value={s.id}>&nbsp;&nbsp;↳ {s.name}</option>
+                  ))}
                 </optgroup>
               );
             })}
           </select>
         </div>
 
-        {/* Condition */}
+        {/* Condição */}
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Condição</label>
-          <select value={form.condition} onChange={e => set("condition", e.target.value)}
-            className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground">
+          <select
+            value={form.condition}
+            onChange={e => set("condition", e.target.value)}
+            className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground"
+          >
             {conditions.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
           </select>
         </div>
 
-        {/* Location */}
+        {/* Localização — pré-preenchida automaticamente do perfil */}
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Província</label>
-            <select value={form.province} onChange={e => set("province", e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground">
+            <label className="text-[11px] font-bold text-muted-foreground mb-1 block flex items-center gap-1">
+              Província
+              {autoLocation?.province && (
+                <span className="text-[9px] font-normal text-green-600">(automático)</span>
+              )}
+            </label>
+            <select
+              value={form.province}
+              onChange={e => set("province", e.target.value)}
+              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground"
+            >
               <option value="">Selecionar</option>
               {provinces.map(p => <option key={p} value={p}>{p}</option>)}
             </select>
           </div>
           <div>
-            <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Cidade</label>
-            <input value={form.city} onChange={e => set("city", e.target.value)} placeholder="Cidade"
-              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
+            <label className="text-[11px] font-bold text-muted-foreground mb-1 block flex items-center gap-1">
+              Cidade
+              {autoLocation?.city && (
+                <span className="text-[9px] font-normal text-green-600">(automático)</span>
+              )}
+            </label>
+            <input
+              value={form.city}
+              onChange={e => set("city", e.target.value)}
+              placeholder="Cidade"
+              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground"
+            />
           </div>
         </div>
 
         {/* Badge */}
         <div>
-          <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Badge / Destaque</label>
+          <label className="text-[11px] font-bold text-muted-foreground mb-1 block">
+            Badge / Destaque
+          </label>
           <div className="flex gap-2 flex-wrap">
             {badges.map(b => (
-              <button key={b.value} type="button" onClick={() => set("badge", b.value)}
-                className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition ${form.badge === b.value ? "bg-primary text-primary-foreground border-primary" : "bg-muted text-foreground border-border"}`}>
+              <button
+                key={b.value}
+                type="button"
+                onClick={() => set("badge", b.value)}
+                className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition ${
+                  form.badge === b.value
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-muted text-foreground border-border"
+                }`}
+              >
                 {b.label}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Media */}
+        {/* ── Imagens e Vídeos — OBRIGATÓRIO ── */}
         <div>
-          <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Imagens e Vídeos</label>
+          <label className="text-[11px] font-bold text-muted-foreground mb-1 block flex items-center gap-1">
+            <Camera className="w-3.5 h-3.5" />
+            Imagens e Vídeos *
+            <span className="text-[9px] text-destructive font-bold">(mínimo 1 foto obrigatória)</span>
+          </label>
+
           <div className="flex gap-2 mb-2">
-            <label className={`flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-bold cursor-pointer border transition ${uploading ? "opacity-50" : "bg-accent text-foreground border-border hover:bg-accent/80"}`}>
+            <label
+              className={`flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-bold cursor-pointer border transition ${
+                uploading ? "opacity-50" : "bg-accent text-foreground border-border hover:bg-accent/80"
+              }`}
+            >
               <ImageIcon className="w-3.5 h-3.5" /> Imagens
               <input type="file" accept="image/*" multiple onChange={e => handleFilesUpload(e, "image")} className="hidden" disabled={uploading} />
             </label>
-            <label className={`flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-bold cursor-pointer border transition ${uploading ? "opacity-50" : "bg-accent text-foreground border-border hover:bg-accent/80"}`}>
+            <label
+              className={`flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-bold cursor-pointer border transition ${
+                uploading ? "opacity-50" : "bg-accent text-foreground border-border hover:bg-accent/80"
+              }`}
+            >
               <Film className="w-3.5 h-3.5" /> Vídeos
               <input type="file" accept="video/*" multiple onChange={e => handleFilesUpload(e, "video")} className="hidden" disabled={uploading} />
             </label>
             {uploading && <span className="text-xs text-muted-foreground self-center">A enviar...</span>}
           </div>
-          {media.length > 0 && (
+
+          {/* Aviso de foto obrigatória */}
+          {photoError && media.length === 0 && (
+            <div
+              className="flex items-center gap-2 rounded-lg px-3 py-2 mb-2"
+              style={{ background: "#FFF0F0", border: "1.5px solid #C0392B55" }}
+            >
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" style={{ color: "#C0392B" }} />
+              <p className="text-xs font-bold" style={{ color: "#C0392B" }}>
+                É obrigatório adicionar pelo menos uma foto do produto antes de publicar.
+              </p>
+            </div>
+          )}
+
+          {media.length > 0 ? (
             <div className="grid grid-cols-4 gap-2">
               {media.map((m, i) => (
-                <div key={i} className={`relative rounded-lg border-2 overflow-hidden aspect-square ${m.is_cover ? "border-primary" : "border-border"}`}>
-                  {m.type === "image" ? <img src={m.url} alt="" className="w-full h-full object-cover" /> : <video src={m.url} className="w-full h-full object-cover" />}
-                  {m.is_cover && <span className="absolute top-0.5 left-0.5 px-1 py-0.5 rounded text-[8px] font-bold bg-primary text-primary-foreground">CAPA</span>}
+                <div
+                  key={i}
+                  className={`relative rounded-lg border-2 overflow-hidden aspect-square ${
+                    m.is_cover ? "border-primary" : "border-border"
+                  }`}
+                >
+                  {m.type === "image"
+                    ? <img src={m.url} alt="" className="w-full h-full object-cover" />
+                    : <video src={m.url} className="w-full h-full object-cover" />
+                  }
+                  {m.is_cover && (
+                    <span className="absolute top-0.5 left-0.5 px-1 py-0.5 rounded text-[8px] font-bold bg-primary text-primary-foreground">
+                      CAPA
+                    </span>
+                  )}
                   <div className="absolute bottom-0 inset-x-0 bg-background/80 flex justify-between p-0.5">
-                    {!m.is_cover && <button onClick={() => setCover(i)} className="text-[9px] font-bold text-primary px-1">Capa</button>}
-                    <button onClick={() => removeMedia(i)} className="text-destructive ml-auto p-0.5"><Trash2 className="w-3 h-3" /></button>
+                    {!m.is_cover && (
+                      <button onClick={() => setCover(i)} className="text-[9px] font-bold text-primary px-1">
+                        Capa
+                      </button>
+                    )}
+                    <button onClick={() => removeMedia(i)} className="text-destructive ml-auto p-0.5">
+                      <Trash2 className="w-3 h-3" />
+                    </button>
                   </div>
                 </div>
               ))}
             </div>
+          ) : (
+            <div
+              className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed py-6 gap-2"
+              style={{ borderColor: photoError ? "#C0392B" : undefined }}
+            >
+              <Camera className="w-8 h-8" style={{ color: photoError ? "#C0392B" : "#ccc" }} />
+              <p className="text-xs text-muted-foreground">Clique em "Imagens" para adicionar fotos</p>
+            </div>
           )}
-          {media.length === 0 && <p className="text-[10px] text-muted-foreground">Nenhuma imagem. Faça upload de pelo menos uma.</p>}
         </div>
 
-        {/* Variants */}
+        {/* Variações */}
         <div>
           <div className="flex items-center justify-between mb-2">
             <div>
-              <label className="text-[11px] font-bold text-muted-foreground">Variações (cor, tamanho, etc.)</label>
+              <label className="text-[11px] font-bold text-muted-foreground">
+                Variações (cor, tamanho, etc.)
+              </label>
               {variants.length > 0 && (
                 <p className="text-[10px] text-muted-foreground">
                   Stock total: {productStock} • Usado: {totalVariantStock}
@@ -749,13 +935,18 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
                 </p>
               )}
             </div>
-            <button type="button" onClick={addVariant}
-              className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-primary border border-primary/30 hover:bg-primary/5 transition">
+            <button
+              type="button"
+              onClick={addVariant}
+              className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-primary border border-primary/30 hover:bg-primary/5 transition"
+            >
               <Plus className="w-3 h-3" /> Variação
             </button>
           </div>
           {variants.length === 0 && (
-            <p className="text-[10px] text-muted-foreground">Sem variações. Adicione cores, tamanhos ou outros atributos.</p>
+            <p className="text-[10px] text-muted-foreground">
+              Sem variações. Adicione cores, tamanhos ou outros atributos.
+            </p>
           )}
           <div className="space-y-3">
             {parentVariants.map(variant => renderVariantCard(variant, false))}
@@ -764,21 +955,36 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
 
         {/* Checkboxes */}
         <label className="flex items-center gap-2 text-sm text-foreground">
-          <input type="checkbox" checked={form.free_shipping} onChange={e => set("free_shipping", e.target.checked)} className="rounded" />
+          <input
+            type="checkbox"
+            checked={form.free_shipping}
+            onChange={e => set("free_shipping", e.target.checked)}
+            className="rounded"
+          />
           Frete grátis
         </label>
 
         {isAdmin && (
           <label className="flex items-center gap-2 text-sm text-foreground p-2 rounded-lg border border-amber-500/30 bg-amber-500/5">
-            <input type="checkbox" checked={form.is_sponsored} onChange={e => set("is_sponsored", e.target.checked)} className="rounded" />
+            <input
+              type="checkbox"
+              checked={form.is_sponsored}
+              onChange={e => set("is_sponsored", e.target.checked)}
+              className="rounded"
+            />
             <span className="font-semibold">⭐ Patrocinado</span>
-            <span className="text-xs text-muted-foreground">— aparecerá nas secções "Patrocinado" das páginas de produto</span>
+            <span className="text-xs text-muted-foreground">
+              — aparecerá nas secções "Patrocinado"
+            </span>
           </label>
         )}
 
         {/* Submit */}
-        <button onClick={handleSubmit} disabled={!form.title || !form.price || saving || stockExceeded}
-          className="w-full py-2.5 bg-primary text-primary-foreground text-sm font-bold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2">
+        <button
+          onClick={handleSubmit}
+          disabled={!form.title || !form.price || saving || stockExceeded}
+          className="w-full py-2.5 bg-primary text-primary-foreground text-sm font-bold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2"
+        >
           <Save className="w-4 h-4" />
           {saving ? "A guardar..." : editingProduct ? "Atualizar Produto" : "Adicionar Produto"}
         </button>
