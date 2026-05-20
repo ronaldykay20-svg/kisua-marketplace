@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -43,19 +43,29 @@ import ProtectedRoute from "./components/ProtectedRoute.tsx";
 
 const queryClient = new QueryClient();
 
+// Rotas onde o BottomNav não deve aparecer
+const HIDE_BOTTOM_NAV_PATHS = [/^\/produto\/.+/];
+
 // Layout global — navbar mobile + navbar tablet/desktop + conteúdo + bottom nav
-const Layout = ({ children }: { children: React.ReactNode }) => (
-  <div className="min-h-screen bg-background pb-14 md:pb-0">
-    {/* Mobile: NewNavbar (visível só em ecrãs < md) */}
-    <div className="md:hidden">
-      <NewNavbar />
+const Layout = ({ children }: { children: React.ReactNode }) => {
+  const location = useLocation();
+  const hideBottomNav = HIDE_BOTTOM_NAV_PATHS.some((pattern) =>
+    pattern.test(location.pathname)
+  );
+
+  return (
+    <div className={`min-h-screen bg-background ${hideBottomNav ? "" : "pb-14 md:pb-0"}`}>
+      {/* Mobile: NewNavbar (visível só em ecrãs < md) */}
+      <div className="md:hidden">
+        <NewNavbar />
+      </div>
+      {/* Tablet + Desktop: DesktopNavbar (visível só em ecrãs ≥ md) */}
+      <DesktopNavbar />
+      {children}
+      {!hideBottomNav && <BottomNav />}
     </div>
-    {/* Tablet + Desktop: DesktopNavbar (visível só em ecrãs ≥ md) */}
-    <DesktopNavbar />
-    {children}
-    <BottomNav />
-  </div>
-);
+  );
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
