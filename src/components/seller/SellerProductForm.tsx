@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from "react";
-import { Save, X, Upload, Trash2, Image as ImageIcon, Film, Plus, Palette, Ruler, ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
+import { useState, useMemo, useEffect, useCallback } from "react";
+import { Save, X, Trash2, Image as ImageIcon, Film, Plus, ChevronDown, ChevronRight, AlertTriangle, Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { STORAGE_BUCKETS } from "@/lib/storage";
@@ -20,6 +20,7 @@ interface ProductFormData {
   free_shipping: boolean;
   badge: string;
   is_sponsored: boolean;
+  promotion_ends_at: string;
 }
 
 interface MediaItem {
@@ -42,7 +43,7 @@ export interface VariantItem {
   sort_order: number;
   is_active: boolean;
   parent_id?: string | null;
-  _tempId: string; // local tracking
+  _tempId: string;
   _children?: VariantItem[];
   _expanded?: boolean;
 }
@@ -60,6 +61,7 @@ const emptyForm: ProductFormData = {
   title: "", description: "", price: "", old_price: "", discount_percent: "",
   stock: "1", sku: "", condition: "new", province: "", city: "",
   category_id: "", free_shipping: false, badge: "", is_sponsored: false,
+  promotion_ends_at: "",
 };
 
 interface Props {
@@ -128,22 +130,97 @@ const getPlaceholder = (type: string) => {
   }
 };
 
+const toLocalDatetimeValue = (iso: string | null | undefined): string => {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  } catch {
+    return "";
+  }
+};
+
 const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariants = [], onSave, onCancel, saving }: Props) => {
   const { isAdmin } = useUserRole();
+
   const [form, setForm] = useState<ProductFormData>(() => {
     if (editingProduct) {
       return {
-        title: editingProduct.title || "", description: editingProduct.description || "",
-        price: String(editingProduct.price || ""), old_price: editingProduct.old_price ? String(editingProduct.old_price) : "",
+        title: editingProduct.title || "",
+        description: editingProduct.description || "",
+        price: String(editingProduct.price || ""),
+        old_price: editingProduct.old_price ? String(editingProduct.old_price) : "",
         discount_percent: editingProduct.discount_percent ? String(editingProduct.discount_percent) : "",
-        stock: String(editingProduct.stock ?? 1), sku: editingProduct.sku || "",
-        condition: editingProduct.condition || "new", province: editingProduct.province || "",
-        city: editingProduct.city || "", category_id: editingProduct.category_id || "",
-        free_shipping: editingProduct.free_shipping || false, badge: editingProduct.badge || "", is_sponsored: editingProduct.is_sponsored || false,
+        stock: String(editingProduct.stock ?? 1),
+        sku: editingProduct.sku || "",
+        condition: editingProduct.condition || "new",
+        province: editingProduct.province || "",
+        city: editingProduct.city || "",
+        category_id: editingProduct.category_id || "",
+        free_shipping: editingProduct.free_shipping || false,
+        badge: editingProduct.badge || "",
+        is_sponsored: editingProduct.is_sponsored || false,
+        promotion_ends_at: toLocalDatetimeValue(editingProduct.promotion_ends_at),
       };
     }
     return emptyForm;
   });
+
+  // Tracks which field was last edited by the user to avoid circular updates
+  const [lastEdited, setLastEdited] = useState<"price" | "old_price" | "discount_percent" | null>(null);
+
+  const set = useCallback((key: keyof ProductFormData, value: any) => {
+    setForm(f => ({ ...f, [key]: value }));
+  }, []);
+
+  // Auto-calculate discount_percent when price + old_price are filled
+  useEffect(() => {
+    if (lastEdited !== "price" && lastEdited !== "old_price") return;
+    const price = parseFloat(form.price);
+    const oldPrice = parseFloat(form.old_price);
+    if (!isNaN(price) && !isNaN(oldPrice) && oldPrice > price && price > 0) {
+      const pct = Math.round(((oldPrice - price) / oldPrice) * 100);
+      setForm(f => ({ ...f, discount_percent: String(pct) }));
+    }
+  }, [form.price, form.old_price, lastEdited]);
+
+  // Auto-calculate price when old_price + discount_percent are filled
+  useEffect(() => {
+    if (lastEdited !== "discount_percent") return;
+    const oldPrice = parseFloat(form.old_price);
+    const pct = parseInt(form.discount_percent);
+    if (!isNaN(oldPrice) && !isNaN(pct) && pct > 0 && pct < 100 && oldPrice > 0) {
+      const newPrice = Math.round(oldPrice * (1 - pct / 100));
+      setForm(f => ({ ...f, price: String(newPrice) }));
+    }
+  }, [form.discount_percent, lastEdited]);
+
+  // Auto-calculate price when old_price changes and discount_percent is already set
+  useEffect(() => {
+    if (lastEdited !== "old_price") return;
+    const oldPrice = parseFloat(form.old_price);
+    const pct = parseInt(form.discount_percent);
+    if (!isNaN(oldPrice) && !isNaN(pct) && pct > 0 && pct < 100 && oldPrice > 0) {
+      const newPrice = Math.round(oldPrice * (1 - pct / 100));
+      setForm(f => ({ ...f, price: String(newPrice) }));
+    }
+  }, [form.old_price, lastEdited]);
+
+  const handlePriceChange = (val: string) => {
+    setLastEdited("price");
+    set("price", val);
+  };
+
+  const handleOldPriceChange = (val: string) => {
+    setLastEdited("old_price");
+    set("old_price", val);
+  };
+
+  const handleDiscountChange = (val: string) => {
+    setLastEdited("discount_percent");
+    set("discount_percent", val);
+  };
 
   const [media, setMedia] = useState<MediaItem[]>(() =>
     existingMedia.map((m: any, i: number) => ({
@@ -160,7 +237,6 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
     }))
   );
 
-  // Sync media/variants when loaded asynchronously (editing)
   useEffect(() => {
     if (existingMedia.length > 0 && media.length === 0) {
       setMedia(existingMedia.map((m: any, i: number) => ({
@@ -183,13 +259,10 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
   const [uploading, setUploading] = useState(false);
   const [uploadingVariantIdx, setUploadingVariantIdx] = useState<string | null>(null);
 
-  // Organize variants into tree: parents + children
   const parentVariants = useMemo(() => variants.filter(v => !v.parent_id), [variants]);
   const getChildren = (parentTempId: string) => variants.filter(v => v.parent_id === parentTempId);
 
-  // Stock validation
   const totalVariantStock = useMemo(() => {
-    // Only count leaf variants (children if they exist, otherwise parents)
     let total = 0;
     for (const parent of parentVariants) {
       const children = getChildren(parent._tempId);
@@ -204,6 +277,25 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
 
   const productStock = parseInt(form.stock) || 0;
   const stockExceeded = variants.length > 0 && totalVariantStock > productStock;
+
+  const hasDiscount = !!form.discount_percent && parseInt(form.discount_percent) > 0;
+
+  const promotionEndsAtPreview = useMemo(() => {
+    if (!form.promotion_ends_at) return null;
+    try { return new Date(form.promotion_ends_at); } catch { return null; }
+  }, [form.promotion_ends_at]);
+
+  // Savings summary for the seller
+  const savingsSummary = useMemo(() => {
+    const price = parseFloat(form.price);
+    const oldPrice = parseFloat(form.old_price);
+    const pct = parseInt(form.discount_percent);
+    if (!isNaN(price) && !isNaN(oldPrice) && oldPrice > price && pct > 0) {
+      const saving = Math.round(oldPrice - price);
+      return { saving, pct };
+    }
+    return null;
+  }, [form.price, form.old_price, form.discount_percent]);
 
   const { data: allCategories = [] } = useQuery({
     queryKey: ["categories_with_subs"],
@@ -266,10 +358,7 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
   const setCover = (index: number) => setMedia(prev => prev.map((m, i) => ({ ...m, is_cover: i === index })));
 
   const addVariant = () => setVariants(prev => [...prev, createEmptyVariant()]);
-
-  const addSubVariant = (parentTempId: string) => {
-    setVariants(prev => [...prev, createEmptyVariant(parentTempId)]);
-  };
+  const addSubVariant = (parentTempId: string) => setVariants(prev => [...prev, createEmptyVariant(parentTempId)]);
 
   const updateVariant = (tempId: string, key: keyof VariantItem, value: any) => {
     setVariants(prev => prev.map(v => v._tempId === tempId ? { ...v, [key]: value } : v));
@@ -286,17 +375,26 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
   const handleSubmit = () => {
     if (stockExceeded) return;
     const payload: any = {
-      title: form.title, description: form.description || null,
-      price: parseFloat(form.price), old_price: form.old_price ? parseFloat(form.old_price) : null,
+      title: form.title,
+      description: form.description || null,
+      price: parseFloat(form.price),
+      old_price: form.old_price ? parseFloat(form.old_price) : null,
       discount_percent: form.discount_percent ? parseInt(form.discount_percent) : null,
-      stock: parseInt(form.stock) || 1, sku: form.sku || null, condition: form.condition,
-      province: form.province || null, city: form.city || null,
-      category_id: form.category_id || null, free_shipping: form.free_shipping, badge: form.badge || null, is_sponsored: form.is_sponsored,
+      stock: parseInt(form.stock) || 1,
+      sku: form.sku || null,
+      condition: form.condition,
+      province: form.province || null,
+      city: form.city || null,
+      category_id: form.category_id || null,
+      free_shipping: form.free_shipping,
+      badge: form.badge || null,
+      is_sponsored: form.is_sponsored,
+      promotion_ends_at: form.promotion_ends_at
+        ? new Date(form.promotion_ends_at).toISOString()
+        : null,
     };
     onSave(payload, media, variants);
   };
-
-  const set = (key: keyof ProductFormData, value: any) => setForm(f => ({ ...f, [key]: value }));
 
   const renderVariantCard = (variant: VariantItem, isChild: boolean) => {
     const children = isChild ? [] : getChildren(variant._tempId);
@@ -341,7 +439,8 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
             <label className="text-[10px] font-bold text-muted-foreground mb-1 block">Cor</label>
             <div className="flex gap-1.5 flex-wrap">
               {colorPresets.map(c => (
-                <button key={c.value} type="button" onClick={() => { updateVariant(variant._tempId, "value", c.value); if (!variant.name) updateVariant(variant._tempId, "name", c.name); }}
+                <button key={c.value} type="button"
+                  onClick={() => { updateVariant(variant._tempId, "value", c.value); if (!variant.name) updateVariant(variant._tempId, "name", c.name); }}
                   className={`w-6 h-6 rounded-full border-2 transition ${variant.value === c.value ? "border-primary scale-110" : "border-border"}`}
                   style={{ backgroundColor: c.value }} title={c.name} />
               ))}
@@ -355,16 +454,17 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
           <div>
             <label className="text-[10px] font-bold text-muted-foreground mb-0.5 block">Preço (Kz) — vazio = base</label>
             <input type="number" value={variant.price_override} onChange={e => updateVariant(variant._tempId, "price_override", e.target.value)}
-              placeholder={form.price || "Preço base"} className="w-full px-2 py-1.5 rounded-lg bg-muted border border-border text-xs text-foreground" />
+              placeholder={form.price || "Preço base"}
+              className="w-full px-2 py-1.5 rounded-lg bg-muted border border-border text-xs text-foreground" />
           </div>
           <div>
             <label className="text-[10px] font-bold text-muted-foreground mb-0.5 block">
               Stock {!isChild && children.length > 0 ? `(filhos: ${childrenStock})` : ""}
             </label>
             <input type="number" value={variant.stock} onChange={e => updateVariant(variant._tempId, "stock", e.target.value)}
-              placeholder="1" className={`w-full px-2 py-1.5 rounded-lg bg-muted border text-xs text-foreground ${
-                !isChild && children.length > 0 && childrenStock > (parseInt(variant.stock) || 0)
-                  ? "border-destructive" : "border-border"
+              placeholder="1"
+              className={`w-full px-2 py-1.5 rounded-lg bg-muted border text-xs text-foreground ${
+                !isChild && children.length > 0 && childrenStock > (parseInt(variant.stock) || 0) ? "border-destructive" : "border-border"
               }`} />
             {!isChild && children.length > 0 && childrenStock > (parseInt(variant.stock) || 0) && (
               <p className="text-[9px] text-destructive mt-0.5">Sub-variações excedem o stock desta variação</p>
@@ -372,14 +472,14 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
           </div>
         </div>
 
-        {/* Variant image */}
         <div className="mb-2">
           <label className="text-[10px] font-bold text-muted-foreground mb-0.5 block">Imagem</label>
           <div className="flex items-center gap-2">
             {variant.image_url ? (
               <div className="relative w-14 h-14 rounded-lg border border-border overflow-hidden">
                 <img src={variant.image_url} alt="" className="w-full h-full object-cover" />
-                <button onClick={() => updateVariant(variant._tempId, "image_url", "")} className="absolute top-0 right-0 bg-destructive/80 text-destructive-foreground p-0.5 rounded-bl">
+                <button onClick={() => updateVariant(variant._tempId, "image_url", "")}
+                  className="absolute top-0 right-0 bg-destructive/80 text-destructive-foreground p-0.5 rounded-bl">
                   <X className="w-2.5 h-2.5" />
                 </button>
               </div>
@@ -393,7 +493,6 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
           </div>
         </div>
 
-        {/* Sub-variants */}
         {!isChild && variant._expanded && (
           <div className="mt-2 space-y-2">
             {children.map(child => renderVariantCard(child, true))}
@@ -415,6 +514,7 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
       </div>
 
       <div className="space-y-3">
+
         {/* Title */}
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Nome do produto *</label>
@@ -429,24 +529,105 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
             className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground h-20 resize-none" />
         </div>
 
-        {/* Price row */}
-        <div className="grid grid-cols-3 gap-2">
-          <div>
-            <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Preço (Kz) *</label>
-            <input type="number" value={form.price} onChange={e => set("price", e.target.value)} placeholder="0"
-              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
-          </div>
-          <div>
-            <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Preço antigo</label>
-            <input type="number" value={form.old_price} onChange={e => set("old_price", e.target.value)} placeholder="0"
-              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
-          </div>
-          <div>
-            <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Desconto %</label>
-            <input type="number" value={form.discount_percent} onChange={e => set("discount_percent", e.target.value)} placeholder="0"
-              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
+        {/* ═══ PREÇOS COM CÁLCULO AUTOMÁTICO ═══ */}
+        <div>
+          <label className="text-[11px] font-bold text-muted-foreground mb-1.5 block">Preços e Promoção</label>
+          <div className="rounded-xl border border-border bg-muted/40 p-3 space-y-2.5">
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10px] font-bold text-muted-foreground mb-0.5 block">
+                  Preço antigo (Kz)
+                </label>
+                <input
+                  type="number"
+                  value={form.old_price}
+                  onChange={e => handleOldPriceChange(e.target.value)}
+                  placeholder="Ex: 50 000"
+                  className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground"
+                />
+                <p className="text-[9px] text-muted-foreground mt-0.5">Preço original antes da promoção</p>
+              </div>
+              <div>
+                <label className="text-[10px] font-bold mb-0.5 block" style={{ color: "#C0392B" }}>
+                  Desconto %
+                </label>
+                <input
+                  type="number"
+                  value={form.discount_percent}
+                  onChange={e => handleDiscountChange(e.target.value)}
+                  placeholder="Ex: 20"
+                  min="1" max="99"
+                  className="w-full px-3 py-2 rounded-lg bg-background border text-sm text-foreground font-bold"
+                  style={{ borderColor: form.discount_percent ? "#C0392B" : undefined, color: form.discount_percent ? "#C0392B" : undefined }}
+                />
+                <p className="text-[9px] text-muted-foreground mt-0.5">Preenche → calcula preço novo</p>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[10px] font-bold text-muted-foreground mb-0.5 block">
+                Preço actual (Kz) *
+              </label>
+              <input
+                type="number"
+                value={form.price}
+                onChange={e => handlePriceChange(e.target.value)}
+                placeholder="Ex: 40 000"
+                className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground font-bold"
+              />
+              <p className="text-[9px] text-muted-foreground mt-0.5">Preenche → calcula desconto % automaticamente</p>
+            </div>
+
+            {/* Summary pill */}
+            {savingsSummary && (
+              <div className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ background: "#FFF5F5" }}>
+                <span className="text-xs font-black px-2 py-0.5 rounded" style={{ background: "#C0392B", color: "#fff" }}>
+                  -{savingsSummary.pct}%
+                </span>
+                <span className="text-xs" style={{ color: "#6B3A2A" }}>
+                  O cliente poupa{" "}
+                  <strong>
+                    {Number(savingsSummary.saving).toLocaleString("pt-AO").replace(/,/g, ".")} Kz
+                  </strong>
+                </span>
+              </div>
+            )}
           </div>
         </div>
+
+        {/* Promotion end date — only shown when there's a discount */}
+        {hasDiscount && (
+          <div className="rounded-lg border p-3 space-y-1.5" style={{ borderColor: "#C0392B44", background: "#FFF8F5" }}>
+            <label className="text-[11px] font-bold flex items-center gap-1.5" style={{ color: "#C0392B" }}>
+              <Clock className="w-3.5 h-3.5" />
+              Fim da promoção (opcional)
+            </label>
+            <input
+              type="datetime-local"
+              value={form.promotion_ends_at}
+              onChange={e => set("promotion_ends_at", e.target.value)}
+              min={new Date().toISOString().slice(0, 16)}
+              className="w-full px-3 py-2 rounded-lg bg-white border border-border text-sm text-foreground"
+            />
+            {promotionEndsAtPreview && (
+              <p className="text-[10px]" style={{ color: "#8B4A35" }}>
+                Termina em{" "}
+                {promotionEndsAtPreview.toLocaleString("pt-AO", {
+                  day: "2-digit", month: "2-digit", year: "numeric",
+                  hour: "2-digit", minute: "2-digit",
+                })}
+                {" "}— o produto sai das Promoções automaticamente.
+              </p>
+            )}
+            {form.promotion_ends_at && (
+              <button type="button" onClick={() => set("promotion_ends_at", "")}
+                className="text-[10px] underline" style={{ color: "#C0392B" }}>
+                Remover data limite
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Stock & SKU */}
         <div className="grid grid-cols-2 gap-2">
@@ -525,7 +706,7 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
           </div>
         </div>
 
-        {/* ═══ MEDIA ═══ */}
+        {/* Media */}
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Imagens e Vídeos</label>
           <div className="flex gap-2 mb-2">
@@ -556,27 +737,26 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
           {media.length === 0 && <p className="text-[10px] text-muted-foreground">Nenhuma imagem. Faça upload de pelo menos uma.</p>}
         </div>
 
-        {/* ═══ VARIAÇÕES ═══ */}
+        {/* Variants */}
         <div>
           <div className="flex items-center justify-between mb-2">
             <div>
               <label className="text-[11px] font-bold text-muted-foreground">Variações (cor, tamanho, etc.)</label>
               {variants.length > 0 && (
                 <p className="text-[10px] text-muted-foreground">
-                  Stock total: {productStock} • Usado em variações: {totalVariantStock}
+                  Stock total: {productStock} • Usado: {totalVariantStock}
                   {stockExceeded && <span className="text-destructive font-bold"> ⚠ Excedido!</span>}
                 </p>
               )}
             </div>
-            <button type="button" onClick={addVariant} className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-primary border border-primary/30 hover:bg-primary/5 transition">
+            <button type="button" onClick={addVariant}
+              className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-primary border border-primary/30 hover:bg-primary/5 transition">
               <Plus className="w-3 h-3" /> Variação
             </button>
           </div>
-
           {variants.length === 0 && (
             <p className="text-[10px] text-muted-foreground">Sem variações. Adicione cores, tamanhos ou outros atributos.</p>
           )}
-
           <div className="space-y-3">
             {parentVariants.map(variant => renderVariantCard(variant, false))}
           </div>
@@ -600,8 +780,9 @@ const SellerProductForm = ({ editingProduct, existingMedia = [], existingVariant
         <button onClick={handleSubmit} disabled={!form.title || !form.price || saving || stockExceeded}
           className="w-full py-2.5 bg-primary text-primary-foreground text-sm font-bold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2">
           <Save className="w-4 h-4" />
-          {editingProduct ? "Atualizar Produto" : "Adicionar Produto"}
+          {saving ? "A guardar..." : editingProduct ? "Atualizar Produto" : "Adicionar Produto"}
         </button>
+
       </div>
     </div>
   );
