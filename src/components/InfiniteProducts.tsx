@@ -16,15 +16,15 @@ const RATIOS = ["3/4", "1/1", "4/5", "2/3", "1/1", "3/4"];
 // ─── Info Pill ────────────────────────────────────────────────────────────────
 const InfoPill = ({ type, children }: { type: string; children: React.ReactNode }) => {
   const styles: Record<string, string> = {
-    shipping:  "bg-[#f0e8df] text-[#6b3f1f]",
-    sales:     "bg-[#f0e8df] text-[#6b3f1f]",
-    recurrent: "bg-[#f0e8df] text-[#6b3f1f]",
-    promo:     "bg-[#f0e8df] text-[#c0522a]",
-    fast:      "bg-[#f0e8df] text-[#6b3f1f]",
-    rated:     "bg-[#f0e8df] text-[#6b3f1f]",
-    secure:    "bg-[#f0e8df] text-[#6b3f1f]",
-    category:  "bg-[#ede9ff] text-[#5b3eb5]",
-    trending:  "bg-[#f0e8df] text-[#c0522a]",
+    shipping:  "bg-[#c8773a]/20 text-[#6b3f1f]",
+    sales:     "bg-[#c8773a]/20 text-[#6b3f1f]",
+    recurrent: "bg-[#c8773a]/20 text-[#6b3f1f]",
+    promo:     "bg-[#c0522a]/25 text-[#7a2a0a]",
+    fast:      "bg-[#c8773a]/20 text-[#6b3f1f]",
+    rated:     "bg-[#c8773a]/20 text-[#6b3f1f]",
+    secure:    "bg-[#c8773a]/20 text-[#6b3f1f]",
+    category:  "bg-[#a07850]/25 text-[#5b3010]",
+    trending:  "bg-[#c0522a]/25 text-[#7a2a0a]",
   };
   return (
     <span
@@ -54,7 +54,7 @@ const buildInfoList = (p: any, isTrending: boolean) => {
   if (p.free_shipping && (p.sales_count || 0) > 5)
     list.push({ type: "fast", el: <InfoPill type="fast"><Truck className="w-2.5 h-2.5" /> Entrega rápida</InfoPill> });
   if (p.rating >= 4)
-    list.push({ type: "rated", el: <InfoPill type="rated"><Star className="w-2.5 h-2.5 fill-yellow-500 text-yellow-500" /> {Number(p.rating).toFixed(1)}</InfoPill> });
+    list.push({ type: "rated", el: <InfoPill type="rated"><Star className="w-2.5 h-2.5 fill-yellow-600 text-yellow-600" /> {Number(p.rating).toFixed(1)}</InfoPill> });
   list.push({ type: "secure", el: <InfoPill type="secure"><ShieldCheck className="w-2.5 h-2.5" /> Compra segura</InfoPill> });
   return list;
 };
@@ -192,40 +192,50 @@ const InfiniteProducts = () => {
     return (
       <div
         onClick={() => navigate(`/produto/${p.id}`)}
-        className="bg-card rounded-xl overflow-hidden cursor-pointer flex flex-col mb-2"
+        className="rounded-md overflow-hidden cursor-pointer flex flex-col mb-2"
+        style={{ background: "transparent" }}
       >
-        {/* Imagem */}
+        {/* Imagem — ligeiramente menor via scale */}
         <div
-          className="relative w-full bg-muted overflow-hidden flex-shrink-0"
-          style={{ aspectRatio: ratio }}
+          className="relative w-full overflow-hidden flex-shrink-0"
+          style={{ aspectRatio: ratio, backgroundColor: "#f0e6dc" }}
         >
           {img ? (
-            <img src={img} alt={p.title} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+            <img
+              src={img}
+              alt={p.title}
+              className="absolute inset-0 w-full h-full object-cover"
+              style={{ transform: "scale(0.95)", transformOrigin: "center" }}
+              loading="lazy"
+            />
           ) : (
-            <div className="absolute inset-0 flex items-center justify-center text-[10px] text-muted-foreground">Sem foto</div>
+            <div className="absolute inset-0 flex items-center justify-center text-[10px] text-[#6b3f1f]">Sem foto</div>
           )}
           {p.discount_percent > 0 && (
-            <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-[#f0e8df] text-[#6b3f1f] leading-none">
+            <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-sm text-[10px] font-bold bg-[#c0522a]/90 text-white leading-none">
               -{p.discount_percent}%
             </span>
           )}
           {p.badge && (
-            <span className="absolute top-1.5 right-7 px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-[#3a3a3a] text-white leading-none">
+            <span className="absolute top-1.5 right-7 px-1.5 py-0.5 rounded-sm text-[10px] font-bold bg-[#3a2010]/80 text-white leading-none">
               {p.badge}
             </span>
           )}
           <button
             onClick={handleHeart}
-            className="absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full bg-white/90 flex items-center justify-center shadow"
+            className="absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full bg-[#f5ede6]/90 flex items-center justify-center shadow"
           >
-            <Heart className={`w-3 h-3 transition-colors ${fav ? "fill-[#8B4A2A] text-[#8B4A2A]" : "text-gray-400"}`} />
+            <Heart className={`w-3 h-3 transition-colors ${fav ? "fill-[#8B4A2A] text-[#8B4A2A]" : "text-[#a07060]"}`} />
           </button>
         </div>
 
-        {/* Rodapé — altura automática, sem altura fixa */}
-        <div className="p-2 flex flex-col gap-1">
+        {/* Rodapé castanho — envolve TODAS as informações */}
+        <div
+          className="flex flex-col gap-1 px-2 pt-1.5 pb-2"
+          style={{ backgroundColor: "#6b3f1f" }}
+        >
           {/* Título */}
-          <h3 className="text-[11px] font-semibold text-foreground line-clamp-2 leading-snug">
+          <h3 className="text-[11px] font-semibold text-[#f5ede6] line-clamp-2 leading-snug">
             {p.title}
           </h3>
 
@@ -233,25 +243,25 @@ const InfiniteProducts = () => {
           <div className="flex items-center gap-1">
             {showRating && (
               <div className="flex items-center gap-0.5">
-                <Star className="w-2.5 h-2.5 text-yellow-400 fill-yellow-400" />
-                <span className="text-[10px] font-bold">{Number(p.rating).toFixed(1)}</span>
-                <span className="text-[9px] text-muted-foreground">
+                <Star className="w-2.5 h-2.5 text-yellow-300 fill-yellow-300" />
+                <span className="text-[10px] font-bold text-[#f5ede6]">{Number(p.rating).toFixed(1)}</span>
+                <span className="text-[9px] text-[#d4b49a]">
                   ({(p.total_reviews || 0) > 999 ? "1k+" : p.total_reviews || 0})
                 </span>
               </div>
             )}
             {p.sales_count > 0 && (
-              <span className="text-[9px] text-muted-foreground ml-auto">{p.sales_count}+ vendidos</span>
+              <span className="text-[9px] text-[#d4b49a] ml-auto">{p.sales_count}+ vendidos</span>
             )}
           </div>
 
           {/* Preço */}
           <div className="flex items-baseline gap-1">
-            <span className="text-[13px] font-black text-foreground">
+            <span className="text-[13px] font-black text-white">
               {Number(p.price).toLocaleString("pt-AO")} Kz
             </span>
             {p.old_price && (
-              <span className="text-[9px] text-muted-foreground line-through">
+              <span className="text-[9px] text-[#d4b49a] line-through">
                 {Number(p.old_price).toLocaleString("pt-AO")} Kz
               </span>
             )}
@@ -264,7 +274,7 @@ const InfiniteProducts = () => {
             </div>
             <button
               onClick={handleCart}
-              className="flex-shrink-0 w-7 h-7 rounded-full bg-[#8B4A2A] hover:bg-[#7a3f22] active:scale-95 transition-all flex items-center justify-center shadow"
+              className="flex-shrink-0 w-7 h-7 rounded-full bg-[#c0522a] hover:bg-[#a84420] active:scale-95 transition-all flex items-center justify-center shadow"
               aria-label="Adicionar ao carrinho"
             >
               <ShoppingCart className="w-3.5 h-3.5 text-white" />
@@ -296,36 +306,49 @@ const InfiniteProducts = () => {
     return (
       <div
         onClick={() => navigate(`/produto/${p.id}`)}
-        className="bg-card rounded-xl overflow-hidden cursor-pointer flex flex-col h-full"
+        className="rounded-md overflow-hidden cursor-pointer flex flex-col h-full"
+        style={{ background: "transparent" }}
       >
         {/* Imagem quadrada */}
-        <div className="relative w-full bg-muted overflow-hidden flex-shrink-0" style={{ aspectRatio: "1/1" }}>
+        <div
+          className="relative w-full overflow-hidden flex-shrink-0"
+          style={{ aspectRatio: "1/1", backgroundColor: "#f0e6dc" }}
+        >
           {img ? (
-            <img src={img} alt={p.title} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+            <img
+              src={img}
+              alt={p.title}
+              className="absolute inset-0 w-full h-full object-cover"
+              style={{ transform: "scale(0.93)", transformOrigin: "center" }}
+              loading="lazy"
+            />
           ) : (
-            <div className="absolute inset-0 flex items-center justify-center text-[10px] text-muted-foreground">Sem foto</div>
+            <div className="absolute inset-0 flex items-center justify-center text-[10px] text-[#6b3f1f]">Sem foto</div>
           )}
           {p.discount_percent > 0 && (
-            <span className="absolute top-1 left-1 px-1 py-0.5 rounded-md text-[9px] font-bold bg-[#f0e8df] text-[#6b3f1f] leading-none">
+            <span className="absolute top-1 left-1 px-1 py-0.5 rounded-sm text-[9px] font-bold bg-[#c0522a]/90 text-white leading-none">
               -{p.discount_percent}%
             </span>
           )}
           {(p.badge || isTrending) && (
-            <span className="absolute top-1 right-6 px-1 py-0.5 rounded-md text-[9px] font-bold bg-[#3a3a3a] text-white leading-none">
+            <span className="absolute top-1 right-6 px-1 py-0.5 rounded-sm text-[9px] font-bold bg-[#3a2010]/80 text-white leading-none">
               {p.badge || "🔥"}
             </span>
           )}
           <button
             onClick={handleHeart}
-            className="absolute top-1 right-1 w-5 h-5 rounded-full bg-white/90 flex items-center justify-center shadow-sm"
+            className="absolute top-1 right-1 w-5 h-5 rounded-full bg-[#f5ede6]/90 flex items-center justify-center shadow-sm"
           >
-            <Heart className={`w-2.5 h-2.5 transition-colors ${fav ? "fill-[#8B4A2A] text-[#8B4A2A]" : "text-gray-400"}`} />
+            <Heart className={`w-2.5 h-2.5 transition-colors ${fav ? "fill-[#8B4A2A] text-[#8B4A2A]" : "text-[#a07060]"}`} />
           </button>
         </div>
 
-        {/* Rodapé */}
-        <div className="p-1.5 flex flex-col gap-1 flex-1">
-          <p className="text-[10px] font-medium text-foreground line-clamp-2 leading-tight">
+        {/* Rodapé castanho — envolve TODAS as informações */}
+        <div
+          className="flex flex-col gap-1 px-1.5 pt-1.5 pb-2 flex-1"
+          style={{ backgroundColor: "#6b3f1f" }}
+        >
+          <p className="text-[10px] font-medium text-[#f5ede6] line-clamp-2 leading-tight">
             {p.title}
           </p>
 
@@ -333,11 +356,11 @@ const InfiniteProducts = () => {
 
           {/* Preço */}
           <div className="flex items-baseline gap-1">
-            <span className="text-[12px] font-black text-foreground leading-none">
+            <span className="text-[12px] font-black text-white leading-none">
               {Number(p.price).toLocaleString("pt-AO")} Kz
             </span>
             {p.old_price && (
-              <span className="text-[9px] text-muted-foreground line-through leading-none">
+              <span className="text-[9px] text-[#d4b49a] line-through leading-none">
                 {Number(p.old_price).toLocaleString("pt-AO")} Kz
               </span>
             )}
@@ -346,7 +369,7 @@ const InfiniteProducts = () => {
           {/* Botão carrinho */}
           <button
             onClick={handleCart}
-            className="w-full py-1 rounded-full text-[10px] font-bold text-white bg-[#8B4A2A] hover:bg-[#7a3f22] active:scale-95 transition-all leading-none flex items-center justify-center gap-1"
+            className="w-full py-1 rounded-sm text-[10px] font-bold text-white bg-[#c0522a] hover:bg-[#a84420] active:scale-95 transition-all leading-none flex items-center justify-center gap-1"
           >
             <ShoppingCart className="w-3 h-3" />
             Carrinho
