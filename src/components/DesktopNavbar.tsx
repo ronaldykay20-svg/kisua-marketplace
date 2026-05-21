@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSiteSetting } from "@/hooks/useSiteSettings";
@@ -86,7 +86,6 @@ const useSpeechRecognition = (onResult: (t: string) => void) => {
   return { listening, start, stop };
 };
 
-// Hook para pesquisa por imagem — gera embedding visual e navega
 const useImageSearch = (onResult: (base64: string) => void) => {
   const [analyzing, setAnalyzing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -117,17 +116,31 @@ const useImageSearch = (onResult: (base64: string) => void) => {
   return { analyzing, openImagePicker, handleFileChange, fileInputRef };
 };
 
+// Skeleton suave para o logo enquanto carrega
+const LogoSkeleton = () => (
+  <div
+    className="h-10 w-36 rounded-lg animate-pulse"
+    style={{ background: "rgba(74,46,10,0.12)" }}
+  />
+);
+
 const DesktopNavbar = () => {
   const navigate  = useNavigate();
   const location  = useLocation();
   const { user, userDisplayName, signOut } = useAuth();
-  const { data: logoUrl } = useSiteSetting("site_logo_url");
+  const { data: logoUrl, isLoading: logoLoading } = useSiteSetting("site_logo_url");
   const qc = useQueryClient();
 
   const [search,    setSearch]    = useState("");
   const [catOpen,   setCatOpen]   = useState(false);
   const [userOpen,  setUserOpen]  = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [logoLoaded, setLogoLoaded] = useState(false);
+
+  // Reset logoLoaded quando logoUrl muda
+  useEffect(() => {
+    if (!logoUrl) setLogoLoaded(false);
+  }, [logoUrl]);
 
   const { data: dbCats } = useCategories();
   const cats = dbCats?.length
@@ -227,6 +240,31 @@ const DesktopNavbar = () => {
     );
   };
 
+  // Renderiza o logo sem flash de texto
+  const renderLogo = () => {
+    if (logoLoading) {
+      return <LogoSkeleton />;
+    }
+    if (logoUrl) {
+      return (
+        <>
+          {!logoLoaded && <LogoSkeleton />}
+          <img
+            src={logoUrl}
+            alt="Logo"
+            className="h-10 object-contain"
+            style={{ display: logoLoaded ? "block" : "none" }}
+            onLoad={() => setLogoLoaded(true)}
+            onError={() => setLogoLoaded(true)}
+          />
+        </>
+      );
+    }
+    return (
+      <span className="text-xl font-black" style={{ color: brown }}>AngoExpress</span>
+    );
+  };
+
   return (
     <header
       className="hidden md:block sticky top-0 z-50 w-full"
@@ -242,9 +280,7 @@ const DesktopNavbar = () => {
 
       <div className="max-w-screen-xl mx-auto px-5 h-16 flex items-center gap-3">
         <a href="/" className="flex-shrink-0">
-          {logoUrl
-            ? <img src={logoUrl} alt="Logo" className="h-10 object-contain" />
-            : <span className="text-xl font-black" style={{ color: brown }}>AngoExpress</span>}
+          {renderLogo()}
         </a>
 
         <div className="relative flex-shrink-0 hidden lg:block">
@@ -293,8 +329,8 @@ const DesktopNavbar = () => {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Buscar produtos, marcas, categorias..."
-            className="flex-1 py-2.5 px-3 text-sm bg-transparent focus:outline-none"
-            style={{ color: brown }}
+            className="flex-1 py-2.5 px-3 bg-transparent focus:outline-none"
+            style={{ color: brown, fontSize: "16px" }}
           />
           <button
             type="button"
