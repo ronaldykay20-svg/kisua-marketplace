@@ -8,7 +8,6 @@ interface Props {
   sellerId: string;
 }
 
-// Upload step: "idle" | "file_selected" | "choosing_product" | "uploading" | "done"
 type UploadStep = "idle" | "file_selected" | "choosing_product" | "uploading";
 
 const SellerStoriesTab = ({ sellerId }: Props) => {
@@ -21,13 +20,13 @@ const SellerStoriesTab = ({ sellerId }: Props) => {
   const [linkedProductId, setLinkedProductId] = useState<string>("");
   const [uploading, setUploading] = useState(false);
 
-  // Stories list
+  // Stories list — tabela: seller_stories, campo: image_url
   const { data: stories = [], isLoading } = useQuery({
     queryKey: ["seller_stories", sellerId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("stories")
-        .select("*, products(title)")
+        .from("seller_stories")
+        .select("*, products(id, title, price)")
         .eq("seller_id", sellerId)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -35,13 +34,13 @@ const SellerStoriesTab = ({ sellerId }: Props) => {
     },
   });
 
-  // Seller products for linking
+  // Seller's products for linking
   const { data: products = [] } = useQuery({
     queryKey: ["seller_products_for_stories", sellerId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select("id, title")
+        .select("id, title, price")
         .eq("seller_id", sellerId)
         .eq("is_active", true)
         .order("title");
@@ -55,7 +54,7 @@ const SellerStoriesTab = ({ sellerId }: Props) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 50 * 1024 * 1024) {
-      toast.error("Ficheiro muito grande. Máximo 50MB.");
+      toast.error("Vídeo demasiado grande (máx. 50MB)");
       return;
     }
     setSelectedFile(file);
@@ -68,7 +67,7 @@ const SellerStoriesTab = ({ sellerId }: Props) => {
     setStep("choosing_product");
   };
 
-  // Step 3: publish
+  // Step 3: publish — bucket: videos, campo: image_url, is_active: true
   const handlePublish = async () => {
     if (!selectedFile) return;
     setStep("uploading");
@@ -77,45 +76,44 @@ const SellerStoriesTab = ({ sellerId }: Props) => {
       const ext = selectedFile.name.split(".").pop();
       const path = `stories/${sellerId}/${Date.now()}.${ext}`;
       const { error: uploadError } = await supabase.storage
-        .from("stories")
-        .upload(path, selectedFile, { contentType: selectedFile.type });
+        .from("videos")
+        .upload(path, selectedFile);
       if (uploadError) throw uploadError;
 
-      const { data: urlData } = supabase.storage.from("stories").getPublicUrl(path);
-      const videoUrl = urlData.publicUrl;
+      const { data: urlData } = supabase.storage.from("videos").getPublicUrl(path);
 
-      const { error: insertError } = await supabase.from("stories").insert({
+      const { error: insertError } = await supabase.from("seller_stories").insert({
         seller_id: sellerId,
-        video_url: videoUrl,
+        image_url: urlData.publicUrl,
         product_id: linkedProductId || null,
-        views: 0,
+        is_active: true,
       });
       if (insertError) throw insertError;
 
-      queryClient.invalidateQueries({ queryKey: ["seller_stories"] });
+      queryClient.invalidateQueries({ queryKey: ["seller_stories", sellerId] });
       toast.success("Story publicado!");
       resetForm();
     } catch (e: any) {
-      toast.error(e.message || "Erro ao publicar");
+      toast.error("Erro: " + e.message);
       setStep("choosing_product");
     } finally {
       setUploading(false);
     }
   };
 
-  // Republish: clone existing story as new
+  // Republicar: clona o story existente como novo
   const republishStory = useMutation({
     mutationFn: async (story: any) => {
-      const { error } = await supabase.from("stories").insert({
+      const { error } = await supabase.from("seller_stories").insert({
         seller_id: sellerId,
-        video_url: story.video_url,
+        image_url: story.image_url,
         product_id: story.product_id || null,
-        views: 0,
+        is_active: true,
       });
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["seller_stories"] });
+      queryClient.invalidateQueries({ queryKey: ["seller_stories", sellerId] });
       toast.success("Story republicado!");
     },
     onError: (e: any) => toast.error(e.message),
@@ -123,13 +121,14 @@ const SellerStoriesTab = ({ sellerId }: Props) => {
 
   const deleteStory = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("stories").delete().eq("id", id);
+      const { error } = await supabase.from("seller_stories").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["seller_stories"] });
-      toast.success("Story removido");
+      queryClient.invalidateQueries({ queryKey: ["seller_stories", sellerId] });
+      toast.success("Story removido!");
     },
+    onError: (e: any) => toast.error(e.message),
   });
 
   const resetForm = () => {
@@ -158,7 +157,7 @@ const SellerStoriesTab = ({ sellerId }: Props) => {
         </div>
 
         {/* Step indicator */}
-        <div className="flex items-center gap-0 px-4 pt-3 pb-1">
+        <div className="flex items-center px-4 pt-3 pb-1">
           {[
             { n: 1, label: "Vídeo" },
             { n: 2, label: "Produto" },
@@ -173,7 +172,7 @@ const SellerStoriesTab = ({ sellerId }: Props) => {
               (s.n === 2 && step === "file_selected") ||
               (s.n === 3 && step === "choosing_product");
             return (
-              <div key={s.n} className="flex items-center gap-0">
+              <div key={s.n} className="flex items-center">
                 <div className="flex flex-col items-center">
                   <div
                     className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all ${
@@ -186,7 +185,9 @@ const SellerStoriesTab = ({ sellerId }: Props) => {
                   >
                     {done ? <CheckCircle className="w-3.5 h-3.5" /> : s.n}
                   </div>
-                  <span className={`text-[9px] mt-0.5 ${active ? "text-primary font-bold" : "text-muted-foreground"}`}>{s.label}</span>
+                  <span className={`text-[9px] mt-0.5 ${active ? "text-primary font-bold" : "text-muted-foreground"}`}>
+                    {s.label}
+                  </span>
                 </div>
                 {i < 2 && <div className={`w-8 h-px mb-3 mx-1 ${done ? "bg-primary" : "bg-border"}`} />}
               </div>
@@ -196,13 +197,13 @@ const SellerStoriesTab = ({ sellerId }: Props) => {
 
         <div className="px-4 pb-4 pt-2 space-y-3">
 
-          {/* STEP: idle — choose file */}
+          {/* STEP: idle — escolher ficheiro */}
           {step === "idle" && (
             <>
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="video/mp4,video/quicktime,video/webm"
+                accept="video/*"
                 className="hidden"
                 onChange={handleFileSelect}
               />
@@ -219,7 +220,7 @@ const SellerStoriesTab = ({ sellerId }: Props) => {
             </>
           )}
 
-          {/* STEP: file selected — preview + continue */}
+          {/* STEP: file selected — preview + continuar */}
           {step === "file_selected" && previewUrl && (
             <div className="space-y-3">
               <div className="relative rounded-xl overflow-hidden bg-black aspect-[9/16] max-h-48 flex items-center justify-center">
@@ -259,7 +260,9 @@ const SellerStoriesTab = ({ sellerId }: Props) => {
                 >
                   <option value="">Nenhum produto</option>
                   {products.map((p: any) => (
-                    <option key={p.id} value={p.id}>{p.title}</option>
+                    <option key={p.id} value={p.id}>
+                      {p.title} — {Number(p.price).toLocaleString("pt-AO")} Kz
+                    </option>
                   ))}
                 </select>
               </div>
@@ -300,16 +303,18 @@ const SellerStoriesTab = ({ sellerId }: Props) => {
       {isLoading ? (
         <div className="text-center py-8 text-muted-foreground text-sm">A carregar…</div>
       ) : stories.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground text-sm">Ainda não tens stories publicados.</div>
+        <div className="text-center py-8 text-muted-foreground text-sm">
+          Nenhum story publicado. Publique o primeiro!
+        </div>
       ) : (
         <div className="grid grid-cols-2 gap-3">
           {stories.map((s: any) => (
             <div key={s.id} className="bg-card rounded-xl border border-border overflow-hidden">
               {/* Thumbnail */}
-              <div className="aspect-[9/16] bg-muted relative flex items-center justify-center">
-                {s.video_url ? (
+              <div className="aspect-[9/14] bg-muted relative flex items-center justify-center">
+                {s.image_url ? (
                   <video
-                    src={s.video_url}
+                    src={s.image_url}
                     className="w-full h-full object-cover"
                     muted
                     playsInline
@@ -323,12 +328,16 @@ const SellerStoriesTab = ({ sellerId }: Props) => {
               {/* Info */}
               <div className="p-2 space-y-1.5">
                 <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                  <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {s.views ?? 0}</span>
-                  <span>{new Date(s.created_at).toLocaleDateString("pt-PT", { day: "2-digit", month: "2-digit", year: "numeric" })}</span>
+                  <span className="flex items-center gap-1">
+                    <Eye className="w-3 h-3" /> {s.views_count ?? 0}
+                  </span>
+                  <span>
+                    {new Date(s.created_at).toLocaleDateString("pt-AO")}
+                  </span>
                 </div>
                 {s.products?.title && (
-                  <p className="text-[10px] text-primary font-bold truncate flex items-center gap-1">
-                    <Link2 className="w-3 h-3 flex-shrink-0" /> {s.products.title}
+                  <p className="text-[9px] text-primary font-bold truncate flex items-center gap-1">
+                    🔗 {s.products.title}
                   </p>
                 )}
 
