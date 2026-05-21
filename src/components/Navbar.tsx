@@ -1,4 +1,4 @@
-import { Search, Menu, ShoppingCart, User, MapPin, X, ChevronRight, Gavel, Radio, Store, Users, Zap, LogOut, Bell, Mic, ArrowLeft, Camera, ImageIcon } from "lucide-react";
+import { Search, Menu, ShoppingCart, User, MapPin, X, ChevronRight, Gavel, Radio, Store, Users, Zap, LogOut, Bell, Mic, ArrowLeft, Camera } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -79,7 +79,6 @@ const useSpeechRecognition = (onResult: (text: string) => void) => {
   return { listening, startListening, stopListening };
 };
 
-// Hook para pesquisa por imagem — gera embedding visual e navega
 const useImageSearch = (onResult: (base64: string) => void) => {
   const [analyzing, setAnalyzing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -100,9 +99,7 @@ const useImageSearch = (onResult: (base64: string) => void) => {
     }
   }, [onResult]);
 
-  const openImagePicker = useCallback(() => {
-    fileInputRef.current?.click();
-  }, []);
+  const openImagePicker = useCallback(() => { fileInputRef.current?.click(); }, []);
 
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -113,6 +110,14 @@ const useImageSearch = (onResult: (base64: string) => void) => {
   return { analyzing, openImagePicker, handleFileChange, fileInputRef };
 };
 
+// Skeleton suave para o logo enquanto carrega
+const LogoSkeleton = () => (
+  <div
+    className="h-9 w-32 rounded-lg animate-pulse"
+    style={{ background: "rgba(74,46,10,0.12)" }}
+  />
+);
+
 const Navbar = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -122,12 +127,13 @@ const Navbar = () => {
   const [scrollY, setScrollY] = useState(0);
   const [showCategories, setShowCategories] = useState(true);
   const [showLocation, setShowLocation] = useState(true);
+  const [logoLoaded, setLogoLoaded] = useState(false);
   const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const navigate = useNavigate();
   const location = useLocation();
   const { user, userDisplayName, signOut } = useAuth();
-  const { data: logoUrl } = useSiteSetting("site_logo_url");
+  const { data: logoUrl, isLoading: logoLoading } = useSiteSetting("site_logo_url");
   const qc = useQueryClient();
 
   const { data: dbCategories } = useCategories();
@@ -168,6 +174,11 @@ const Navbar = () => {
     setSearchQuery("");
     setCategorySearchVisible(false);
   }, [location.pathname]);
+
+  // Reset logoLoaded quando logoUrl muda
+  useEffect(() => {
+    if (!logoUrl) setLogoLoaded(false);
+  }, [logoUrl]);
 
   const { data: notifications = [] } = useQuery({
     queryKey: ["navbar_notifications", user?.id],
@@ -224,14 +235,12 @@ const Navbar = () => {
 
   const handleMicClick = () => { if (listening) stopListening(); else startListening(); };
 
-  // Pesquisa por imagem — barra normal
   const { analyzing: analyzingNormal, openImagePicker: openNormal, handleFileChange: fileChangeNormal, fileInputRef: fileRefNormal } =
     useImageSearch((base64) => {
       navigate(`/pesquisa?modo=imagem&img=${encodeURIComponent(base64)}`);
       setSearchVisible(false);
     });
 
-  // Pesquisa por imagem — barra de categoria
   const { analyzing: analyzingCat, openImagePicker: openCat, handleFileChange: fileChangeCat, fileInputRef: fileRefCat } =
     useImageSearch((base64) => {
       navigate(`/pesquisa?modo=imagem&img=${encodeURIComponent(base64)}`);
@@ -265,9 +274,38 @@ const Navbar = () => {
     ? "absolute top-0 left-0 right-0 w-full z-50"
     : "sticky top-0 z-50";
 
+  // Determina o que mostrar no lugar do logo
+  const renderLogo = () => {
+    if (logoLoading) {
+      // Enquanto carrega: skeleton suave, sem texto
+      return <LogoSkeleton />;
+    }
+    if (logoUrl) {
+      return (
+        <>
+          {/* Skeleton visível até a imagem carregar */}
+          {!logoLoaded && <LogoSkeleton />}
+          <img
+            src={logoUrl}
+            alt="Logo"
+            className="h-9 object-contain"
+            style={{ display: logoLoaded ? "block" : "none" }}
+            onLoad={() => setLogoLoaded(true)}
+            onError={() => setLogoLoaded(true)} // fallback: esconde skeleton mesmo com erro
+          />
+        </>
+      );
+    }
+    // Sem logo configurado: mostra o nome (estado definitivo, sem flash)
+    return (
+      <span className="text-xl font-black" style={{ color: brown }}>
+        AngoExpress
+      </span>
+    );
+  };
+
   return (
     <>
-      {/* Input oculto para pesquisa por imagem — barra normal */}
       <input
         ref={fileRefNormal}
         type="file"
@@ -276,7 +314,6 @@ const Navbar = () => {
         className="hidden"
         onChange={fileChangeNormal}
       />
-      {/* Input oculto para pesquisa por imagem — barra categoria */}
       <input
         ref={fileRefCat}
         type="file"
@@ -316,13 +353,7 @@ const Navbar = () => {
               </span>
             ) : (
               <a href="/" className="flex items-center gap-1 flex-shrink-0">
-                {logoUrl ? (
-                  <img src={logoUrl} alt="Logo" className="h-9 object-contain" />
-                ) : (
-                  <span className="text-xl font-black" style={{ color: brown }}>
-                    AngoExpress
-                  </span>
-                )}
+                {renderLogo()}
               </a>
             )}
 
@@ -402,10 +433,9 @@ const Navbar = () => {
                   onChange={e => setSearchQuery(e.target.value)}
                   placeholder="Buscar produtos, marcas..."
                   autoFocus
-                  className="flex-1 py-2.5 px-2.5 text-sm bg-transparent focus:outline-none"
-                  style={{ color: brown }}
+                  className="flex-1 py-2.5 px-2.5 bg-transparent focus:outline-none"
+                  style={{ color: brown, fontSize: "16px" }}
                 />
-                {/* Botão câmara — pesquisa por imagem */}
                 <button
                   type="button"
                   onClick={openCat}
@@ -462,11 +492,10 @@ const Navbar = () => {
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   placeholder="Buscar produtos, marcas..."
-                  className="flex-1 py-2.5 px-2.5 text-sm bg-transparent focus:outline-none"
-                  style={{ color: brown }}
+                  className="flex-1 py-2.5 px-2.5 bg-transparent focus:outline-none"
+                  style={{ color: brown, fontSize: "16px" }}
                   onFocus={() => setSearchVisible(true)}
                 />
-                {/* Botão câmara — pesquisa por imagem */}
                 <button
                   type="button"
                   onClick={openNormal}
@@ -479,7 +508,7 @@ const Navbar = () => {
                   title="Pesquisar por imagem"
                 >
                   {analyzingNormal
-                    ? <div className="w-4 h-4 border-2 border-brown border-t-transparent rounded-full animate-spin" style={{ borderColor: brown, borderTopColor: "transparent" }} />
+                    ? <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: brown, borderTopColor: "transparent" }} />
                     : <Camera className="w-4 h-4" style={{ color: brown }} />
                   }
                 </button>
