@@ -39,7 +39,6 @@ const SellerDashboard = () => {
     enabled: !!seller,
   });
 
-  // Load media for editing product
   const { data: editingMedia = [] } = useQuery({
     queryKey: ["product_media", editingProduct?.id],
     queryFn: async () => {
@@ -50,7 +49,6 @@ const SellerDashboard = () => {
     enabled: !!editingProduct?.id,
   });
 
-  // Load variants for editing product
   const { data: editingVariants = [] } = useQuery({
     queryKey: ["product_variants_edit", editingProduct?.id],
     queryFn: async () => {
@@ -61,7 +59,6 @@ const SellerDashboard = () => {
     enabled: !!editingProduct?.id,
   });
 
-  // Load cover images for product list
   const { data: productCovers = {} } = useQuery({
     queryKey: ["product_covers", seller?.id],
     queryFn: async () => {
@@ -95,7 +92,6 @@ const SellerDashboard = () => {
         productId = data.id;
       }
 
-      // Insert media
       if (media.length > 0 && productId) {
         const mediaRows = media.map((m: any, i: number) => ({
           product_id: productId, url: m.url, type: m.type, is_cover: m.is_cover, sort_order: i,
@@ -104,9 +100,7 @@ const SellerDashboard = () => {
         if (error) throw error;
       }
 
-      // Insert variants with parent_id support
       if (variants && variants.length > 0 && productId) {
-        // First insert parent variants (no parent_id)
         const parents = variants.filter((v: any) => v.name && !v.parent_id);
         const tempIdToDbId: Record<string, string> = {};
 
@@ -123,7 +117,6 @@ const SellerDashboard = () => {
           tempIdToDbId[v._tempId] = data.id;
         }
 
-        // Then insert children with resolved parent_id
         const children = variants.filter((v: any) => v.name && v.parent_id);
         if (children.length > 0) {
           const childRows = children.map((v: any, i: number) => ({
@@ -177,9 +170,18 @@ const SellerDashboard = () => {
     );
   }
 
+  const tabs: { key: Tab; label: string; icon: any }[] = [
+    { key: "produtos", label: "Produtos", icon: Package },
+    { key: "pedidos", label: "Pedidos", icon: ClipboardList },
+    { key: "stories", label: "Stories", icon: Eye },
+    { key: "leiloes", label: "Leilões", icon: Gavel },
+    { key: "perfil",  label: "Perfil",  icon: Settings },
+  ];
+
   return (
     <div className="min-h-screen bg-background pb-14 md:pb-0">
       <div className="container mx-auto px-3 py-4 max-w-2xl">
+
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
@@ -194,33 +196,50 @@ const SellerDashboard = () => {
             </div>
           </div>
           {tab === "produtos" && (
-            <button onClick={() => { setEditingProduct(null); setShowForm(true); }}
-              className="flex items-center gap-1 px-3 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-lg">
+            <button
+              onClick={() => { setEditingProduct(null); setShowForm(true); }}
+              className="flex items-center gap-1 px-3 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-lg flex-shrink-0"
+            >
               <Plus className="w-4 h-4" /> Produto
             </button>
           )}
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-1 mb-4">
-          {([
-            { key: "produtos" as Tab, label: "Produtos", icon: Package },
-            { key: "pedidos" as Tab, label: "Pedidos", icon: ClipboardList },
-            { key: "stories" as Tab, label: "Stories", icon: Eye },
-            { key: "leiloes" as Tab, label: "Leilões", icon: Gavel },
-            { key: "perfil" as Tab, label: "Perfil", icon: Settings },
-          ]).map(t => (
-            <button key={t.key} onClick={() => setTab(t.key)}
-              className={`flex items-center gap-1 px-3 py-2 text-xs font-bold rounded-lg border ${tab === t.key ? "bg-primary text-primary-foreground border-primary" : "bg-card text-foreground border-border"}`}>
-              <t.icon className="w-3.5 h-3.5" /> {t.label}
-            </button>
-          ))}
+        {/* ── Tabs em carrossel horizontal ── */}
+        <div
+          className="flex gap-2 mb-4 overflow-x-auto"
+          style={{
+            scrollbarWidth: "none",
+            msOverflowStyle: "none",
+            WebkitOverflowScrolling: "touch",
+            paddingBottom: "2px", // evita corte da sombra do botão activo
+          }}
+        >
+          <style>{`.seller-tabs::-webkit-scrollbar { display: none; }`}</style>
+          {tabs.map(t => {
+            const active = tab === t.key;
+            return (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg border flex-shrink-0 transition-all"
+                style={{
+                  background: active ? "hsl(var(--primary))" : "hsl(var(--card))",
+                  color: active ? "hsl(var(--primary-foreground))" : "hsl(var(--foreground))",
+                  borderColor: active ? "hsl(var(--primary))" : "hsl(var(--border))",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <t.icon className="w-3.5 h-3.5 flex-shrink-0" />
+                {t.label}
+              </button>
+            );
+          })}
         </div>
 
         {/* ═══ PRODUTOS ═══ */}
         {tab === "produtos" && (
           <>
-            {/* Stats */}
             <div className="grid grid-cols-3 gap-2 mb-4">
               <div className="bg-card rounded-xl border border-border p-3 text-center">
                 <Package className="w-5 h-5 mx-auto mb-1 text-primary" />
@@ -239,7 +258,6 @@ const SellerDashboard = () => {
               </div>
             </div>
 
-            {/* Form */}
             {showForm && (
               <SellerProductForm
                 editingProduct={editingProduct}
@@ -251,7 +269,6 @@ const SellerDashboard = () => {
               />
             )}
 
-            {/* Products List */}
             <h2 className="text-sm font-bold text-foreground mb-2 flex items-center gap-2">
               <Package className="w-4 h-4" /> Meus Produtos ({totalProducts})
             </h2>
@@ -293,17 +310,11 @@ const SellerDashboard = () => {
           </>
         )}
 
-        {/* ═══ PEDIDOS ═══ */}
         {tab === "pedidos" && <SellerOrdersTab sellerId={seller.id} />}
-
-        {/* ═══ STORIES ═══ */}
         {tab === "stories" && <SellerStoriesTab sellerId={seller.id} />}
-
-        {/* ═══ LEILÕES ═══ */}
         {tab === "leiloes" && <SellerAuctionsTab sellerId={seller.id} />}
+        {tab === "perfil"  && <SellerProfileEditor seller={seller} />}
 
-        {/* ═══ PERFIL ═══ */}
-        {tab === "perfil" && <SellerProfileEditor seller={seller} />}
       </div>
     </div>
   );
