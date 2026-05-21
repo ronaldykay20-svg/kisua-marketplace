@@ -93,7 +93,6 @@ const ShareSheet = ({
   const [sharing, setSharing] = useState(false);
   const [copying, setCopying] = useState(false);
 
-  // Texto rico para partilha
   const shortDesc = description
     ? description.slice(0, 120).trim() + (description.length > 120 ? "…" : "")
     : "";
@@ -103,7 +102,6 @@ const ShareSheet = ({
     "📦 Kwanza Market — kwanzamarket.ao",
   ].filter(Boolean).join("\n");
 
-  // Tenta fazer fetch da imagem e partilhar como ficheiro (Web Share API Level 2)
   const fetchImageFile = async (): Promise<File | null> => {
     try {
       const res = await fetch(imageUrl);
@@ -118,34 +116,25 @@ const ShareSheet = ({
   const handleNative = async () => {
     setSharing(true);
     try {
-      // Tenta partilha com imagem (Web Share API Level 2)
       if (navigator.share && navigator.canShare) {
         const imgFile = await fetchImageFile();
         if (imgFile && navigator.canShare({ files: [imgFile] })) {
-          await navigator.share({
-            title,
-            text: shareText,
-            url,
-            files: [imgFile],
-          });
+          await navigator.share({ title, text: shareText, url, files: [imgFile] });
           onClose();
           setSharing(false);
           return;
         }
       }
-      // Fallback: partilha sem imagem mas com texto rico
       if (navigator.share) {
         await navigator.share({ title, text: shareText, url });
         onClose();
         setSharing(false);
         return;
       }
-      // Último recurso: copia link
       await navigator.clipboard.writeText(`${title}\n${shareText}\n${url}`);
       toast.success("Link copiado!");
       onClose();
     } catch (err: any) {
-      // AbortError = utilizador cancelou, não é erro
       if (err?.name !== "AbortError") {
         toast.error("Não foi possível partilhar");
       }
@@ -166,7 +155,6 @@ const ShareSheet = ({
     onClose();
   };
 
-  // WhatsApp com texto rico (sem imagem via URL, só texto+link)
   const handleWhatsApp = () => {
     const text = encodeURIComponent(`${title}\n${price ? `💰 ${price}\n` : ""}${shortDesc ? `${shortDesc}\n` : ""}${url}`);
     window.open(`https://wa.me/?text=${text}`, "_blank");
@@ -184,14 +172,12 @@ const ShareSheet = ({
         style={{ background: "#fffaf6", border: "1.5px solid #e8d5c0", borderBottom: "none" }}
         onClick={e => e.stopPropagation()}
       >
-        {/* Handle */}
         <div className="w-10 h-1 rounded-full mx-auto mb-4 mt-2" style={{ background: "#d4b8a0" }} />
 
         <p className="text-[11px] font-bold uppercase tracking-widest mb-3" style={{ color: "#9a7060" }}>
           Partilhar produto
         </p>
 
-        {/* Preview do produto */}
         <div
           className="flex items-center gap-3 p-3 rounded-2xl mb-5"
           style={{ background: "#f5ede4", border: "1px solid #e8d5c0" }}
@@ -208,9 +194,7 @@ const ShareSheet = ({
           </div>
         </div>
 
-        {/* Botões de partilha */}
         <div className="grid grid-cols-3 gap-2.5 mb-3">
-          {/* Partilhar com imagem */}
           <button
             onClick={handleNative}
             disabled={sharing}
@@ -226,20 +210,17 @@ const ShareSheet = ({
             </span>
           </button>
 
-          {/* WhatsApp */}
           <button
             onClick={handleWhatsApp}
             className="flex flex-col items-center gap-2 py-3.5 rounded-2xl active:scale-95 transition-all"
             style={{ background: "#25D366", border: "none" }}
           >
-            {/* WhatsApp SVG inline */}
             <svg viewBox="0 0 24 24" className="w-5 h-5 fill-white" xmlns="http://www.w3.org/2000/svg">
               <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
             </svg>
             <span className="text-[10px] font-bold text-white leading-tight text-center">WhatsApp</span>
           </button>
 
-          {/* Copiar link */}
           <button
             onClick={handleCopyLink}
             disabled={copying}
@@ -404,7 +385,6 @@ const ProductDetail = () => {
   const addToCart = useAddToCart();
   const { trackEvent } = useProductTracking();
 
-  // ✅ CORREÇÃO: usar useFavorites igual ao InfiniteProducts e SearchResults
   const { isFavorite, toggleFavorite } = useFavorites();
 
   const [qty, setQty] = useState(1);
@@ -504,7 +484,6 @@ const ProductDetail = () => {
     else navigate(`/vendedor/${publisher.id ?? rawSellerId}`);
   };
 
-  // ✅ CORREÇÃO: handleFavorite usa useFavorites hook (igual ao InfiniteProducts)
   const handleFavorite = (e?: React.MouseEvent) => {
     e?.stopPropagation();
     if (!user) { navigate("/auth"); return; }
@@ -629,17 +608,6 @@ const ProductDetail = () => {
     enabled: !!isUuid,
   });
 
-  const sponsoredSellers = (() => {
-    const seen = new Set<string>();
-    const out: any[] = [];
-    for (const p of sponsoredProducts as any[]) {
-      const s = p.sellers;
-      if (s && !seen.has(s.id)) { seen.add(s.id); out.push(s); }
-      if (out.length >= 2) break;
-    }
-    return out;
-  })();
-
   if (!dbProduct && isUuid && loadingProduct) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: "#fdf6f0" }}>
@@ -700,7 +668,6 @@ const ProductDetail = () => {
   const displayImages = variantImage ? [{ url: variantImage, type: "image" }, ...images.filter(i => i.url !== variantImage)] : images;
   const currentImageUrl = displayImages[selectedImage]?.url || product.image;
 
-  // isFavorited usa o hook correto
   const isFavorited = isFavorite(id!);
 
   const relatedProducts = relatedDb.slice(0, 10);
@@ -716,13 +683,29 @@ const ProductDetail = () => {
 
   return (
     <div className="min-h-screen pb-28 md:pb-0" style={{ background: "#faf5f0" }}>
-      {shareOpen && <ShareSheet title={product.title} imageUrl={currentImageUrl} url={window.location.href} description={product.description} price={activePrice} onClose={() => setShareOpen(false)} />
-      {zoomOpen && <ZoomLightbox images={displayImages} index={selectedImage} onClose={() => setZoomOpen(false)} onChange={setSelectedImage} onShare={() => { setZoomOpen(false); setShareOpen(true); }} />}
+      {shareOpen && (
+        <ShareSheet
+          title={product.title}
+          imageUrl={currentImageUrl}
+          url={window.location.href}
+          description={product.description}
+          price={activePrice}
+          onClose={() => setShareOpen(false)}
+        />
+      )}
+      {zoomOpen && (
+        <ZoomLightbox
+          images={displayImages}
+          index={selectedImage}
+          onClose={() => setZoomOpen(false)}
+          onChange={setSelectedImage}
+          onShare={() => { setZoomOpen(false); setShareOpen(true); }}
+        />
+      )}
 
-      {/* ── HEADER — castanho escuro, integrado com imagem ── */}
+      {/* ── HEADER ── */}
       <div className="relative">
 
-        {/* Barra de navegação sobreposta à imagem */}
         <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 pt-safe-or-3 pt-3 pb-2">
           <button
             onClick={() => navigate(-1)}
@@ -739,7 +722,6 @@ const ProductDetail = () => {
             >
               <Share2 className="w-4 h-4" style={{ color: "#4a2810" }} />
             </button>
-            {/* ✅ Botão favorito corrigido */}
             <button
               onClick={handleFavorite}
               className="w-9 h-9 rounded-full flex items-center justify-center backdrop-blur-md transition-all duration-200 active:scale-90"
@@ -758,7 +740,6 @@ const ProductDetail = () => {
           </div>
         </div>
 
-        {/* Galeria de imagens — full bleed, sem moldura */}
         <div
           className="relative overflow-hidden"
           style={{ background: "#f0e4d8" }}
@@ -770,7 +751,6 @@ const ProductDetail = () => {
             touchStartX.current = null;
           }}
         >
-          {/* Imagem principal */}
           <div className="w-full" style={{ aspectRatio: "1/1", maxHeight: 420 }}>
             {displayImages[selectedImage]?.type === "video"
               ? <video src={displayImages[selectedImage].url} controls className="w-full h-full object-cover" />
@@ -778,11 +758,9 @@ const ProductDetail = () => {
             }
           </div>
 
-          {/* Gradient para thumbnails ficarem legíveis */}
           <div className="absolute bottom-0 left-0 right-0 h-24 pointer-events-none"
             style={{ background: "linear-gradient(to top, rgba(0,0,0,0.45) 0%, transparent 100%)" }} />
 
-          {/* Badges sobre a imagem */}
           {product.discount && (
             <div className="absolute top-14 left-4 px-2 py-1 rounded-lg text-xs font-black text-white"
               style={{ background: "#c0522a" }}>
@@ -796,7 +774,6 @@ const ProductDetail = () => {
             </div>
           )}
 
-          {/* Botão zoom */}
           <button
             onClick={handleZoom}
             className="absolute bottom-16 right-3 w-8 h-8 rounded-full flex items-center justify-center backdrop-blur-md"
@@ -805,7 +782,6 @@ const ProductDetail = () => {
             <ZoomIn className="w-4 h-4 text-white" />
           </button>
 
-          {/* Thumbnails em linha na parte inferior da imagem */}
           {displayImages.length > 1 && (
             <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-2 px-4 overflow-x-auto scrollbar-hide">
               {displayImages.map((img, i) => (
@@ -833,7 +809,6 @@ const ProductDetail = () => {
             </div>
           )}
 
-          {/* Indicadores de página quando há muitas imagens */}
           {displayImages.length > 1 && displayImages.length <= 3 && (
             <div className="absolute bottom-10 left-0 right-0 flex justify-center gap-1.5 pointer-events-none">
               {displayImages.map((_, i) => (
@@ -843,7 +818,6 @@ const ProductDetail = () => {
           )}
         </div>
 
-        {/* Título + rating logo abaixo da imagem, no cartão branco-creme */}
         <div
           className="px-4 pt-4 pb-3"
           style={{ background: "#fffaf6", borderBottom: "1px solid #ecdece" }}
@@ -860,7 +834,6 @@ const ProductDetail = () => {
           )}
           <h1 className="text-base font-bold leading-snug" style={{ color: "#2d1505" }}>{product.title}</h1>
 
-          {/* Badges de destaque */}
           <div className="flex flex-wrap gap-1.5 mt-2">
             {popularityBadge && (
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-100">
@@ -883,7 +856,6 @@ const ProductDetail = () => {
           {/* LEFT (desktop apenas) */}
           <div className="hidden md:block">
 
-            {/* Galeria desktop */}
             <div className="rounded-2xl overflow-hidden border" style={{ background: "#f5ede4", borderColor: "#e8d5c0" }}>
               <div
                 className="relative"
@@ -900,12 +872,10 @@ const ProductDetail = () => {
                   ? <video src={displayImages[selectedImage].url} controls className="w-full h-full object-cover" />
                   : <img src={displayImages[selectedImage]?.url} alt={product.title} className="w-full h-full object-cover" />
                 }
-                {/* Desktop side actions */}
                 <div className="absolute right-3 top-1/3 flex flex-col gap-2">
                   <button onClick={handleShare} className="w-9 h-9 rounded-full flex items-center justify-center shadow-md" style={{ background: "rgba(253,246,240,0.92)" }}>
                     <Share2 className="w-4 h-4" style={{ color: "#4a2810" }} />
                   </button>
-                  {/* ✅ Favorito desktop também corrigido */}
                   <button
                     onClick={handleFavorite}
                     className="w-9 h-9 rounded-full flex items-center justify-center shadow-md transition-all duration-200 active:scale-90"
@@ -926,7 +896,6 @@ const ProductDetail = () => {
                   </button>
                 </div>
               </div>
-              {/* Thumbnails desktop */}
               <div className="flex gap-2 p-3 overflow-x-auto scrollbar-hide" style={{ background: "#fffaf6" }}>
                 {displayImages.map((img, i) => (
                   <button key={i} onClick={() => setSelectedImage(i)}
@@ -972,7 +941,6 @@ const ProductDetail = () => {
 
           {/* RIGHT */}
           <div>
-            {/* Desktop: título + rating */}
             <div className="hidden md:block mb-4">
               {product.rating && (
                 <div className="flex items-center gap-1.5 mb-2">
