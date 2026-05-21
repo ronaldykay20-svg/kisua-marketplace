@@ -44,10 +44,10 @@ const Footer = () => {
             <ul className="space-y-2 text-[13px]">
               <li><a href="#" className="text-[#d9bfa5] hover:text-white">Central de ajuda</a></li>
               <li>
-                <a 
-                  href="https://wa.me/244958348564" 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
+                
+                  href="https://wa.me/244958348564"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="text-[#d9bfa5] hover:text-white"
                 >
                   WhatsApp
