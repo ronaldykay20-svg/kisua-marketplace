@@ -2,7 +2,7 @@ const Footer = () => {
   return (
     <footer className="bg-[#5C3A1E] text-[#f5e6d3] mt-6">
       <div className="container mx-auto px-4 py-10">
-        
+
         {/* Logo + tagline */}
         <div className="flex items-center gap-3 mb-6">
           <div>
