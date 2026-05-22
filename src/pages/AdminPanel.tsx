@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Shield, Users, Search, Plus, Trash2, Crown, Building2, Store, CheckCircle, XCircle, ShieldCheck, UserCheck, UsersRound, FolderTree, ImageIcon, ShoppingBag, Settings, Star, Gavel, Upload, Eye, EyeOff, Copy, Megaphone, Play, TrendingUp, Users as UsersIcon, X, Loader2 } from "lucide-react";
+import { Shield, Users, Search, Plus, Trash2, Crown, Building2, Store, CheckCircle, XCircle, ShieldCheck, UserCheck, UsersRound, FolderTree, ImageIcon, ShoppingBag, Settings, Star, Gavel, Upload, Eye, EyeOff, Copy, Megaphone, Play, TrendingUp, Users as UsersIcon, X, Loader2, Truck } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,6 +11,7 @@ import AdminCategoriesTab from "@/components/admin/AdminCategoriesTab";
 import AdminOrdersTab from "@/components/admin/AdminOrdersTab";
 import AdminSettingsTab from "@/components/admin/AdminSettingsTab";
 import AdminBannersTab from "@/components/admin/AdminBannersTab";
+import AdminFreightTab from "@/components/admin/AdminFreightTab";
 import { toast } from "sonner";
 
 const roleBadge: Record<string, { label: string; color: string; icon: any }> = {
@@ -19,7 +20,7 @@ const roleBadge: Record<string, { label: string; color: string; icon: any }> = {
   user: { label: "Utilizador", color: "bg-primary/10 text-primary border-primary/20", icon: Users },
 };
 
-type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos" | "encomendas" | "categorias" | "banners" | "definicoes" | "leiloes" | "publicidade";
+type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos" | "encomendas" | "categorias" | "banners" | "definicoes" | "leiloes" | "publicidade" | "frete";
 
 // ─── Tipos de anúncio ────────────────────────────────────────────────────────
 const AD_TYPES = [
@@ -629,6 +630,7 @@ const AdminPanel = () => {
     { key: "encomendas",   label: "Encomendas",    icon: ShoppingBag },
     { key: "banners",      label: "Banners",       icon: ImageIcon },
     { key: "publicidade",  label: "Publicidade",   icon: Megaphone },
+    { key: "frete",        label: "Frete",         icon: Truck },
     { key: "pedidos",      label: "Candidaturas",  icon: UserCheck },
     { key: "leiloes",      label: "Leilões",       icon: Gavel },
     { key: "definicoes",   label: "Definições",    icon: Settings },
@@ -657,6 +659,7 @@ const AdminPanel = () => {
         {tab === "banners"      && <AdminBannersTab />}
         {tab === "definicoes"   && <AdminSettingsTab />}
         {tab === "leiloes"      && <AdminLeiloesTab />}
+        {tab === "frete"        && <AdminFreightTab />}
 
         {tab === "cargos" && (
           <>
