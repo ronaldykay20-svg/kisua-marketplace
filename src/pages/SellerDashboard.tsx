@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Store, Package, Plus, Edit, Trash2, Eye, EyeOff, ShoppingCart, Settings, Image as ImageIcon, ClipboardList, Gavel } from "lucide-react";
+import { Store, Package, Plus, Edit, Trash2, Eye, EyeOff, ShoppingCart, Settings, Image as ImageIcon, ClipboardList, Gavel, Truck } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -9,8 +9,9 @@ import SellerProfileEditor from "@/components/seller/SellerProfileEditor";
 import SellerOrdersTab from "@/components/seller/SellerOrdersTab";
 import SellerStoriesTab from "@/components/seller/SellerStoriesTab";
 import SellerAuctionsTab from "@/components/seller/SellerAuctionsTab";
+import SellerFreightSettings from "@/components/seller/SellerFreightSettings";
 
-type Tab = "produtos" | "pedidos" | "stories" | "leiloes" | "perfil";
+type Tab = "produtos" | "pedidos" | "stories" | "leiloes" | "entregas" | "perfil";
 
 const SellerDashboard = () => {
   const { user } = useAuth();
@@ -171,11 +172,12 @@ const SellerDashboard = () => {
   }
 
   const tabs: { key: Tab; label: string; icon: any }[] = [
-    { key: "produtos", label: "Produtos", icon: Package },
-    { key: "pedidos", label: "Pedidos", icon: ClipboardList },
-    { key: "stories", label: "Stories", icon: Eye },
-    { key: "leiloes", label: "Leilões", icon: Gavel },
-    { key: "perfil",  label: "Perfil",  icon: Settings },
+    { key: "produtos",  label: "Produtos",  icon: Package },
+    { key: "pedidos",   label: "Pedidos",   icon: ClipboardList },
+    { key: "stories",   label: "Stories",   icon: Eye },
+    { key: "leiloes",   label: "Leilões",   icon: Gavel },
+    { key: "entregas",  label: "Entregas",  icon: Truck },
+    { key: "perfil",    label: "Perfil",    icon: Settings },
   ];
 
   return (
@@ -205,14 +207,14 @@ const SellerDashboard = () => {
           )}
         </div>
 
-        {/* ── Tabs em carrossel horizontal ── */}
+        {/* Tabs */}
         <div
           className="flex gap-2 mb-4 overflow-x-auto"
           style={{
             scrollbarWidth: "none",
             msOverflowStyle: "none",
             WebkitOverflowScrolling: "touch",
-            paddingBottom: "2px", // evita corte da sombra do botão activo
+            paddingBottom: "2px",
           }}
         >
           <style>{`.seller-tabs::-webkit-scrollbar { display: none; }`}</style>
@@ -310,10 +312,11 @@ const SellerDashboard = () => {
           </>
         )}
 
-        {tab === "pedidos" && <SellerOrdersTab sellerId={seller.id} />}
-        {tab === "stories" && <SellerStoriesTab sellerId={seller.id} />}
-        {tab === "leiloes" && <SellerAuctionsTab sellerId={seller.id} />}
-        {tab === "perfil"  && <SellerProfileEditor seller={seller} />}
+        {tab === "pedidos"  && <SellerOrdersTab sellerId={seller.id} />}
+        {tab === "stories"  && <SellerStoriesTab sellerId={seller.id} />}
+        {tab === "leiloes"  && <SellerAuctionsTab sellerId={seller.id} />}
+        {tab === "entregas" && <SellerFreightSettings sellerId={seller.id} />}
+        {tab === "perfil"   && <SellerProfileEditor seller={seller} />}
 
       </div>
     </div>
