@@ -19,6 +19,16 @@ export interface Municipality {
   name: string;
 }
 
+export interface FreightZoneTier {
+  id?: number;
+  zone_id?: number;
+  measure_type: "weight" | "volume";
+  min_value: number;
+  max_value: number | null;
+  price_kwz: number;
+  express_price_kwz: number | null;
+}
+
 export interface FreightZone {
   id: number;
   zone_type: "intra_municipal" | "intra_provincial" | "interprovincial";
@@ -35,6 +45,21 @@ export interface FreightZone {
   express_days_max: number | null;
   is_active: boolean;
   notes: string | null;
+  // Campos de medida / preço
+  measure_type: "weight" | "volume" | "dimensions" | "weight_volume" | null;
+  pricing_model: "fixed" | "per_unit" | "tiers";
+  base_price_kwz: number | null;
+  price_per_kg: number | null;
+  price_per_m3: number | null;
+  max_weight_kg: number | null;
+  max_volume_m3: number | null;
+  max_length_cm: number | null;
+  max_width_cm: number | null;
+  max_height_cm: number | null;
+  is_auto_expanded: boolean | null;
+  parent_zone_id: number | null;
+  expand_all_dest_municipalities: boolean | null;
+  tiers?: FreightZoneTier[];
 }
 
 export interface FreightSettings {
@@ -110,6 +135,44 @@ async function fetchSettingsSafe(): Promise<FreightSettings | null> {
     .select("*")
     .limit(1);
   return data && data.length > 0 ? (data[0] as FreightSettings) : null;
+}
+
+// Busca tiers de uma lista de zone_ids e agrupa por zone_id
+async function fetchTiersForZones(
+  zoneIds: number[],
+  table: "freight_zone_tiers" | "seller_freight_zone_tiers"
+): Promise<Record<number, FreightZoneTier[]>> {
+  if (zoneIds.length === 0) return {};
+  const { data } = await supabase
+    .from(table)
+    .select("*")
+    .in("zone_id", zoneIds)
+    .order("min_value");
+  const map: Record<number, FreightZoneTier[]> = {};
+  (data ?? []).forEach((t: any) => {
+    if (!map[t.zone_id]) map[t.zone_id] = [];
+    map[t.zone_id].push(t as FreightZoneTier);
+  });
+  return map;
+}
+
+async function saveTiersForZone(
+  zoneId: number,
+  tiers: FreightZoneTier[],
+  table: "freight_zone_tiers" | "seller_freight_zone_tiers"
+): Promise<void> {
+  // Apaga os tiers existentes e re-insere
+  await supabase.from(table).delete().eq("zone_id", zoneId);
+  if (tiers.length === 0) return;
+  const rows = tiers.map((t) => ({
+    zone_id: zoneId,
+    measure_type: t.measure_type,
+    min_value: t.min_value,
+    max_value: t.max_value ?? null,
+    price_kwz: t.price_kwz,
+    express_price_kwz: t.express_price_kwz ?? null,
+  }));
+  await supabase.from(table).insert(rows);
 }
 
 // ─── useFreight (base / checkout) ────────────────────────────────────────────
@@ -211,37 +274,37 @@ export function useAdminFreight() {
       setLoading(true);
       setError(null);
       try {
-        // 1. Geo
-        console.log("🔄 [useAdminFreight] A carregar geo...");
         const { provinces: p, municipalities: m } = await fetchGeo();
-        console.log("✅ [useAdminFreight] Geo carregado:", p.length, "províncias,", m.length, "municípios");
-        console.log("📍 Primeiras 3 províncias:", p.slice(0, 3));
-
         if (cancelled) return;
         provincesRef.current = p;
         municipalitiesRef.current = m;
         setProvinces(p);
         setMunicipalities(m);
 
-        // 2. Zones
-        console.log("🔄 [useAdminFreight] A carregar zonas...");
         const { data: zonesData, error: zErr } = await supabase
           .from("freight_zones")
           .select("*")
           .order("zone_type")
           .order("origin_province_id");
-        if (zErr) {
-          console.error("❌ [useAdminFreight] Erro ao carregar zonas:", zErr);
-          throw zErr;
-        }
-        console.log("✅ [useAdminFreight] Zonas carregadas:", zonesData?.length ?? 0);
-        if (!cancelled) setZones(enrichZones(zonesData ?? [], p, m));
+        if (zErr) throw zErr;
 
-        // 3. Settings
+        const enriched = enrichZones(zonesData ?? [], p, m);
+
+        // Buscar tiers
+        const tierZoneIds = enriched
+          .filter((z) => z.pricing_model === "tiers")
+          .map((z) => z.id);
+        const tiersMap = await fetchTiersForZones(tierZoneIds, "freight_zone_tiers");
+        const withTiers = enriched.map((z) => ({
+          ...z,
+          tiers: tiersMap[z.id] ?? [],
+        }));
+
+        if (!cancelled) setZones(withTiers);
+
         const sett = await fetchSettingsSafe();
         if (!cancelled && sett) setSettings(sett);
       } catch (err: any) {
-        console.error("❌ [useAdminFreight] Erro na inicialização:", err);
         if (!cancelled) setError(err.message ?? "Erro ao inicializar");
       } finally {
         if (!cancelled) setLoading(false);
@@ -261,11 +324,18 @@ export function useAdminFreight() {
         .order("zone_type")
         .order("origin_province_id");
       if (error) throw error;
-      setZones(enrichZones(
+
+      const enriched = enrichZones(
         data ?? [],
         provincesRef.current,
         municipalitiesRef.current
-      ));
+      );
+
+      const tierZoneIds = enriched
+        .filter((z) => z.pricing_model === "tiers")
+        .map((z) => z.id);
+      const tiersMap = await fetchTiersForZones(tierZoneIds, "freight_zone_tiers");
+      setZones(enriched.map((z) => ({ ...z, tiers: tiersMap[z.id] ?? [] })));
     } catch (err: any) {
       setError(err.message ?? "Erro ao carregar zonas");
     } finally {
@@ -279,7 +349,9 @@ export function useAdminFreight() {
   }, []);
 
   const saveZone = useCallback(
-    async (zone: Partial<FreightZone> & { id?: number }): Promise<boolean> => {
+    async (
+      zone: Partial<FreightZone> & { id?: number; tiers?: FreightZoneTier[] }
+    ): Promise<boolean> => {
       setSaving(true);
       setError(null);
       try {
@@ -289,7 +361,7 @@ export function useAdminFreight() {
           origin_municipality_id: zone.origin_municipality_id ?? null,
           dest_province_id: zone.dest_province_id,
           dest_municipality_id: zone.dest_municipality_id ?? null,
-          price_kwz: zone.price_kwz,
+          price_kwz: zone.price_kwz ?? 0,
           has_express: zone.has_express ?? false,
           express_price_kwz: zone.express_price_kwz ?? null,
           standard_days_min: zone.standard_days_min ?? 1,
@@ -298,16 +370,46 @@ export function useAdminFreight() {
           express_days_max: zone.express_days_max ?? null,
           is_active: zone.is_active ?? true,
           notes: zone.notes ?? null,
+          measure_type: zone.measure_type ?? null,
+          pricing_model: zone.pricing_model ?? "fixed",
+          base_price_kwz: zone.base_price_kwz ?? null,
+          price_per_kg: zone.price_per_kg ?? null,
+          price_per_m3: zone.price_per_m3 ?? null,
+          max_weight_kg: zone.max_weight_kg ?? null,
+          max_volume_m3: zone.max_volume_m3 ?? null,
+          max_length_cm: zone.max_length_cm ?? null,
+          max_width_cm: zone.max_width_cm ?? null,
+          max_height_cm: zone.max_height_cm ?? null,
+          expand_all_dest_municipalities:
+            zone.expand_all_dest_municipalities ?? false,
         };
+
+        let zoneId = zone.id;
+
         if (zone.id) {
           const { error } = await supabase
-            .from("freight_zones").update(payload).eq("id", zone.id);
+            .from("freight_zones")
+            .update(payload)
+            .eq("id", zone.id);
           if (error) throw error;
         } else {
-          const { error } = await supabase
-            .from("freight_zones").insert(payload);
+          const { data, error } = await supabase
+            .from("freight_zones")
+            .insert(payload)
+            .select("id")
+            .single();
           if (error) throw error;
+          zoneId = data.id;
         }
+
+        // Guardar tiers
+        if (zone.pricing_model === "tiers" && zoneId && zone.tiers) {
+          await saveTiersForZone(zoneId, zone.tiers, "freight_zone_tiers");
+        } else if (zoneId) {
+          // Limpa tiers se o modelo mudou
+          await supabase.from("freight_zone_tiers").delete().eq("zone_id", zoneId);
+        }
+
         await fetchZones();
         return true;
       } catch (err: any) {
@@ -323,7 +425,9 @@ export function useAdminFreight() {
   const toggleZone = useCallback(
     async (id: number, isActive: boolean): Promise<void> => {
       const { error } = await supabase
-        .from("freight_zones").update({ is_active: isActive }).eq("id", id);
+        .from("freight_zones")
+        .update({ is_active: isActive })
+        .eq("id", id);
       if (!error) await fetchZones();
     },
     [fetchZones]
@@ -331,8 +435,12 @@ export function useAdminFreight() {
 
   const deleteZone = useCallback(
     async (id: number): Promise<void> => {
+      // Apaga tiers primeiro (FK)
+      await supabase.from("freight_zone_tiers").delete().eq("zone_id", id);
       const { error } = await supabase
-        .from("freight_zones").delete().eq("id", id);
+        .from("freight_zones")
+        .delete()
+        .eq("id", id);
       if (!error) await fetchZones();
     },
     [fetchZones]
@@ -345,11 +453,14 @@ export function useAdminFreight() {
       try {
         if (settings?.id) {
           const { error } = await supabase
-            .from("freight_settings").update(updated).eq("id", settings.id);
+            .from("freight_settings")
+            .update(updated)
+            .eq("id", settings.id);
           if (error) throw error;
         } else {
           const { error } = await supabase
-            .from("freight_settings").insert(updated);
+            .from("freight_settings")
+            .insert(updated);
           if (error) throw error;
         }
         await fetchSettings();
@@ -422,7 +533,16 @@ export function useSellerFreight(sellerId: string | null) {
 
         if (!cancelled) {
           setConfig(configRes.data as SellerFreightConfig | null);
-          setZones(enrichZones(zonesRes.data ?? [], p, m));
+
+          const enriched = enrichZones(zonesRes.data ?? [], p, m);
+          const tierZoneIds = enriched
+            .filter((z) => z.pricing_model === "tiers")
+            .map((z) => z.id);
+          const tiersMap = await fetchTiersForZones(
+            tierZoneIds,
+            "seller_freight_zone_tiers"
+          );
+          setZones(enriched.map((z) => ({ ...z, tiers: tiersMap[z.id] ?? [] })));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -449,11 +569,20 @@ export function useSellerFreight(sellerId: string | null) {
       .select("*")
       .eq("seller_id", sellerId)
       .order("zone_type");
-    setZones(enrichZones(
+
+    const enriched = enrichZones(
       data ?? [],
       provincesRef.current,
       municipalitiesRef.current
-    ));
+    );
+    const tierZoneIds = enriched
+      .filter((z) => z.pricing_model === "tiers")
+      .map((z) => z.id);
+    const tiersMap = await fetchTiersForZones(
+      tierZoneIds,
+      "seller_freight_zone_tiers"
+    );
+    setZones(enriched.map((z) => ({ ...z, tiers: tiersMap[z.id] ?? [] })));
   }, [sellerId]);
 
   const saveConfig = useCallback(
@@ -487,7 +616,9 @@ export function useSellerFreight(sellerId: string | null) {
   );
 
   const saveZone = useCallback(
-    async (zone: Partial<FreightZone> & { id?: number }): Promise<boolean> => {
+    async (
+      zone: Partial<FreightZone> & { id?: number; tiers?: FreightZoneTier[] }
+    ): Promise<boolean> => {
       if (!sellerId) return false;
       setSaving(true);
       setError(null);
@@ -499,7 +630,7 @@ export function useSellerFreight(sellerId: string | null) {
           origin_municipality_id: zone.origin_municipality_id ?? null,
           dest_province_id: zone.dest_province_id,
           dest_municipality_id: zone.dest_municipality_id ?? null,
-          price_kwz: zone.price_kwz,
+          price_kwz: zone.price_kwz ?? 0,
           has_express: zone.has_express ?? false,
           express_price_kwz: zone.express_price_kwz ?? null,
           standard_days_min: zone.standard_days_min ?? 1,
@@ -507,16 +638,53 @@ export function useSellerFreight(sellerId: string | null) {
           express_days_min: zone.express_days_min ?? null,
           express_days_max: zone.express_days_max ?? null,
           is_active: zone.is_active ?? true,
+          notes: zone.notes ?? null,
+          measure_type: zone.measure_type ?? null,
+          pricing_model: zone.pricing_model ?? "fixed",
+          base_price_kwz: zone.base_price_kwz ?? null,
+          price_per_kg: zone.price_per_kg ?? null,
+          price_per_m3: zone.price_per_m3 ?? null,
+          max_weight_kg: zone.max_weight_kg ?? null,
+          max_volume_m3: zone.max_volume_m3 ?? null,
+          max_length_cm: zone.max_length_cm ?? null,
+          max_width_cm: zone.max_width_cm ?? null,
+          max_height_cm: zone.max_height_cm ?? null,
+          expand_all_dest_municipalities:
+            zone.expand_all_dest_municipalities ?? false,
         };
+
+        let zoneId = zone.id;
+
         if (zone.id) {
           const { error } = await supabase
-            .from("seller_freight_zones").update(payload).eq("id", zone.id);
+            .from("seller_freight_zones")
+            .update(payload)
+            .eq("id", zone.id);
           if (error) throw error;
         } else {
-          const { error } = await supabase
-            .from("seller_freight_zones").insert(payload);
+          const { data, error } = await supabase
+            .from("seller_freight_zones")
+            .insert(payload)
+            .select("id")
+            .single();
           if (error) throw error;
+          zoneId = data.id;
         }
+
+        // Guardar tiers
+        if (zone.pricing_model === "tiers" && zoneId && zone.tiers) {
+          await saveTiersForZone(
+            zoneId,
+            zone.tiers,
+            "seller_freight_zone_tiers"
+          );
+        } else if (zoneId) {
+          await supabase
+            .from("seller_freight_zone_tiers")
+            .delete()
+            .eq("zone_id", zoneId);
+        }
+
         await fetchZones();
         return true;
       } catch (err: any) {
@@ -542,6 +710,10 @@ export function useSellerFreight(sellerId: string | null) {
 
   const deleteZone = useCallback(
     async (id: number): Promise<void> => {
+      await supabase
+        .from("seller_freight_zone_tiers")
+        .delete()
+        .eq("zone_id", id);
       await supabase.from("seller_freight_zones").delete().eq("id", id);
       await fetchZones();
     },
