@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, MapPin, CreditCard, Truck, CheckCircle, Loader2, ShieldCheck } from "lucide-react";
 import { useCart } from "@/hooks/useSupabaseData";
 import { useClearCart } from "@/hooks/useCartActions";
 import { useAuth } from "@/contexts/AuthContext";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import FreightCalculator from "@/components/freight/FreightCalculator";
 
 const formatPrice = (price: number) =>
   price.toLocaleString("pt-AO").replace(/,/g, ".") + " Kz";
@@ -21,25 +22,91 @@ const Checkout = () => {
   const queryClient = useQueryClient();
 
   const [step, setStep] = useState<Step>("address");
-  const [address, setAddress] = useState({ name: "", phone: "", province: "Luanda", city: "Luanda", street: "" });
+  const [address, setAddress] = useState({
+    name: "",
+    phone: "",
+    province: "Luanda",
+    city: "Luanda",
+    street: "",
+    municipalityCode: "" as string | null,
+  });
   const [paymentMethod, setPaymentMethod] = useState("cash_on_delivery");
 
-  const total = cartItems.reduce((sum: number, item: any) => {
+  // ── Frete ──────────────────────────────────────────────────────────────────
+  const [freightSelections, setFreightSelections] = useState<any[]>([]);
+  const [freightTotal, setFreightTotal] = useState(0);
+
+  const handleFreightChange = useCallback((selections: any[], total: number) => {
+    setFreightSelections(selections);
+    setFreightTotal(total);
+  }, []);
+
+  // Buscar sellers dos produtos no carrinho para montar os cartGroups
+  const productIds = cartItems.map((item: any) => item.product_id);
+  const { data: productSellers = [] } = useQuery({
+    queryKey: ["checkout_product_sellers", productIds],
+    queryFn: async () => {
+      if (!productIds.length) return [];
+      const { data } = await supabase
+        .from("products")
+        .select("id, title, price, image_url, seller_id, sellers(id, name, municipality_code)")
+        .in("id", productIds);
+      return data || [];
+    },
+    enabled: productIds.length > 0,
+  });
+
+  // Agrupar itens por vendedor para o FreightCalculator
+  const cartGroups = (() => {
+    const map = new Map<string, any>();
+    for (const item of cartItems as any[]) {
+      const prod = productSellers.find((p: any) => p.id === item.product_id);
+      if (!prod?.sellers) continue;
+      const seller = prod.sellers;
+      if (!map.has(seller.id)) {
+        map.set(seller.id, {
+          seller: {
+            sellerId: seller.id,
+            sellerName: seller.name,
+            originMunicipalityCode: seller.municipality_code ?? "",
+          },
+          items: [],
+          subtotal: 0,
+        });
+      }
+      const group = map.get(seller.id)!;
+      group.items.push({
+        id: item.id,
+        name: prod.title,
+        quantity: item.quantity,
+        price: prod.price,
+        imageUrl: prod.image_url,
+      });
+      group.subtotal += prod.price * item.quantity;
+    }
+    return Array.from(map.values());
+  })();
+
+  const subtotal = cartItems.reduce((sum: number, item: any) => {
     return sum + (item.products?.price || 0) * item.quantity;
   }, 0);
+
+  const total = subtotal + freightTotal;
 
   const placeOrder = useMutation({
     mutationFn: async () => {
       const fullAddress = `${address.name} - ${address.phone}\n${address.street}, ${address.city}, ${address.province}`;
 
-      // Create order
       const { data: order, error: orderError } = await supabase
         .from("orders")
         .insert({
           user_id: user!.id,
           total_amount: total,
+          subtotal_amount: subtotal,
+          freight_amount: freightTotal,
           status: "pending",
           shipping_address: fullAddress,
+          shipping_municipality_code: address.municipalityCode,
           payment_method: paymentMethod,
         })
         .select("id")
@@ -47,7 +114,6 @@ const Checkout = () => {
 
       if (orderError) throw orderError;
 
-      // Create order items
       const items = cartItems.map((item: any) => ({
         order_id: order.id,
         product_id: item.product_id,
@@ -59,14 +125,22 @@ const Checkout = () => {
       const { error: itemsError } = await supabase.from("order_items").insert(items);
       if (itemsError) throw itemsError;
 
-      // Notify seller(s) — find seller user_id from products
-      const productIds = cartItems.map((item: any) => item.product_id);
-      const { data: prods } = await supabase
-        .from("products")
-        .select("seller_id")
-        .in("id", productIds);
-      const sellerIds = [...new Set((prods || []).map((p: any) => p.seller_id))];
+      // Guardar selecções de frete por vendedor
+      if (freightSelections.length > 0) {
+        const freightRows = freightSelections.map((s: any) => ({
+          order_id: order.id,
+          seller_id: s.sellerId,
+          delivery_type: s.deliveryType,
+          price: s.price,
+          days_min: s.daysMin,
+          days_max: s.daysMax,
+          source: s.source,
+        }));
+        await supabase.from("order_freight").insert(freightRows);
+      }
 
+      // Notificar vendedores
+      const sellerIds = [...new Set(freightSelections.map((s: any) => s.sellerId))];
       if (sellerIds.length > 0) {
         const { data: sellers } = await supabase
           .from("sellers")
@@ -85,9 +159,7 @@ const Checkout = () => {
         await supabase.from("notifications").insert(notifications);
       }
 
-      // Clear cart
       await clearCart.mutateAsync();
-
       return order;
     },
     onSuccess: () => {
@@ -112,8 +184,12 @@ const Checkout = () => {
   return (
     <div className="min-h-screen bg-background pb-14">
       <div className="container mx-auto px-3 pt-3 flex items-center gap-3">
-        <button onClick={() => step === "success" ? navigate("/") : navigate(-1)} className="text-foreground"><ArrowLeft className="w-5 h-5" /></button>
-        <span className="text-base font-bold text-foreground">{step === "success" ? "Pedido confirmado" : "Finalizar compra"}</span>
+        <button onClick={() => step === "success" ? navigate("/") : navigate(-1)} className="text-foreground">
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <span className="text-base font-bold text-foreground">
+          {step === "success" ? "Pedido confirmado" : "Finalizar compra"}
+        </span>
       </div>
 
       {/* Steps indicator */}
@@ -141,6 +217,7 @@ const Checkout = () => {
       )}
 
       <div className="container mx-auto px-3 max-w-2xl">
+
         {/* STEP 1: Address */}
         {step === "address" && (
           <div className="space-y-4">
@@ -179,6 +256,15 @@ const Checkout = () => {
                 </div>
               </div>
             </div>
+
+            {/* Frete — selector de município + opções por vendedor */}
+            <FreightCalculator
+              cartGroups={cartGroups}
+              destMunicipalityCode={address.municipalityCode}
+              onFreightChange={handleFreightChange}
+              showAddressSelector={true}
+            />
+
             <button
               onClick={() => setStep("payment")}
               disabled={!address.name || !address.phone || !address.street}
@@ -267,8 +353,10 @@ const Checkout = () => {
               <div className="space-y-2">
                 {cartItems.map((item: any) => (
                   <div key={item.id} className="flex items-center gap-3">
-                    <img src={item.products?.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=80&h=80&fit=crop"}
-                      className="w-12 h-12 rounded-lg object-cover" alt="" />
+                    <img
+                      src={item.products?.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=80&h=80&fit=crop"}
+                      className="w-12 h-12 rounded-lg object-cover" alt=""
+                    />
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-semibold text-foreground line-clamp-1">{item.products?.title}</p>
                       <p className="text-xs text-muted-foreground">Qtd: {item.quantity}</p>
@@ -277,9 +365,29 @@ const Checkout = () => {
                   </div>
                 ))}
               </div>
-              <div className="border-t border-border mt-3 pt-3 flex justify-between">
-                <span className="text-sm font-black text-foreground">Total</span>
-                <span className="text-sm font-black text-foreground">{formatPrice(total)}</span>
+
+              {/* Resumo de valores */}
+              <div className="border-t border-border mt-3 pt-3 space-y-1.5">
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>Subtotal</span>
+                  <span>{formatPrice(subtotal)}</span>
+                </div>
+                {freightTotal > 0 && (
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>Frete</span>
+                    <span>{formatPrice(freightTotal)}</span>
+                  </div>
+                )}
+                {freightTotal === 0 && freightSelections.length > 0 && (
+                  <div className="flex justify-between text-xs text-green-500">
+                    <span>Frete</span>
+                    <span>Grátis</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-sm font-black text-foreground pt-1 border-t border-border">
+                  <span>Total</span>
+                  <span>{formatPrice(total)}</span>
+                </div>
               </div>
             </div>
 
