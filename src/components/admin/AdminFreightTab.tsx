@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useAdminFreight, useFreight, FreightZone, FreightSettings } from "@/hooks/useFreight";
+import { useState, useEffect, useCallback } from "react";
+import { useAdminFreight, FreightZone, FreightSettings } from "@/hooks/useFreight";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -123,10 +123,23 @@ export default function AdminFreightTab() {
     toggleZone,
     deleteZone,
     saveSettings,
+    // ✅ CORRIGIDO: provinces e municipalities vêm directamente do useAdminFreight
+    // eliminando a dependência do useFreight() que causava instâncias duplicadas
+    // e o loadingGeo a bloquear o render indefinidamente
+    provinces,
+    municipalities,
   } = useAdminFreight();
 
-  const { provinces, municipalities, getMunicipalitiesByProvince, loadingGeo } =
-    useFreight();
+  // ✅ CORRIGIDO: helper criado localmente em vez de depender do useFreight()
+  const getMunicipalitiesByProvince = useCallback(
+    (provinceId: number) =>
+      municipalities.filter((m) => m.province_id === provinceId),
+    [municipalities]
+  );
+
+  // ✅ CORRIGIDO: loadingGeo derivado do loading do useAdminFreight
+  // Só mostra spinner se ainda estiver a carregar E ainda não tiver províncias
+  const loadingGeo = loading && provinces.length === 0;
 
   // Estado do modal
   const [modalOpen, setModalOpen] = useState(false);
