@@ -101,6 +101,9 @@ const ZONE_COLORS: Record<ZoneType, string> = {
   interprovincial: "bg-purple-500/15 text-purple-400 border-purple-500/30",
 };
 
+// Sentinela para "nenhum município seleccionado" — o Radix não aceita value=""
+const NO_MUN = "none";
+
 // ─── Utilitário: formatar Kz ──────────────────────────────────────────────────
 
 const fmtKz = (v: number) =>
@@ -123,36 +126,27 @@ export default function AdminFreightTab() {
     toggleZone,
     deleteZone,
     saveSettings,
-    // ✅ CORRIGIDO: provinces e municipalities vêm directamente do useAdminFreight
-    // eliminando a dependência do useFreight() que causava instâncias duplicadas
-    // e o loadingGeo a bloquear o render indefinidamente
     provinces,
     municipalities,
   } = useAdminFreight();
 
-  // ✅ CORRIGIDO: helper criado localmente em vez de depender do useFreight()
   const getMunicipalitiesByProvince = useCallback(
     (provinceId: number) =>
       municipalities.filter((m) => m.province_id === provinceId),
     [municipalities]
   );
 
-  // ✅ CORRIGIDO: loadingGeo derivado do loading do useAdminFreight
-  // Só mostra spinner se ainda estiver a carregar E ainda não tiver províncias
   const loadingGeo = loading && provinces.length === 0;
 
-  // Estado do modal
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState<ZoneForm>(EMPTY_FORM);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
 
-  // Filtros da tabela
   const [filterType, setFilterType] = useState<ZoneType | "all">("all");
   const [filterOriginProv, setFilterOriginProv] = useState<string>("all");
   const [filterDestProv, setFilterDestProv] = useState<string>("all");
   const [search, setSearch] = useState("");
 
-  // Settings locais
   const [localSettings, setLocalSettings] = useState<Partial<FreightSettings>>({});
 
   useEffect(() => {
@@ -196,7 +190,6 @@ export default function AdminFreightTab() {
   const setField = (key: keyof ZoneForm, value: any) =>
     setForm((f) => ({ ...f, [key]: value }));
 
-  // Quando muda tipo de zona, limpar municípios se não aplicável
   const handleZoneTypeChange = (val: ZoneType) => {
     setField("zone_type", val);
     if (val === "intra_provincial" || val === "interprovincial") {
@@ -326,7 +319,6 @@ export default function AdminFreightTab() {
               <Plus className="w-4 h-4" /> Nova Zona
             </Button>
 
-            {/* Pesquisa */}
             <div className="relative flex-1 min-w-[180px] max-w-xs">
               <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground" />
               <Input
@@ -337,11 +329,7 @@ export default function AdminFreightTab() {
               />
             </div>
 
-            {/* Filtro tipo */}
-            <Select
-              value={filterType}
-              onValueChange={(v) => setFilterType(v as any)}
-            >
+            <Select value={filterType} onValueChange={(v) => setFilterType(v as any)}>
               <SelectTrigger className="w-44 h-9">
                 <SelectValue placeholder="Tipo" />
               </SelectTrigger>
@@ -353,38 +341,26 @@ export default function AdminFreightTab() {
               </SelectContent>
             </Select>
 
-            {/* Filtro origem */}
-            <Select
-              value={filterOriginProv}
-              onValueChange={setFilterOriginProv}
-            >
+            <Select value={filterOriginProv} onValueChange={setFilterOriginProv}>
               <SelectTrigger className="w-44 h-9">
                 <SelectValue placeholder="Origem" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todas as origens</SelectItem>
                 {provinces.map((p) => (
-                  <SelectItem key={p.id} value={String(p.id)}>
-                    {p.name}
-                  </SelectItem>
+                  <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
 
-            {/* Filtro destino */}
-            <Select
-              value={filterDestProv}
-              onValueChange={setFilterDestProv}
-            >
+            <Select value={filterDestProv} onValueChange={setFilterDestProv}>
               <SelectTrigger className="w-44 h-9">
                 <SelectValue placeholder="Destino" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os destinos</SelectItem>
                 {provinces.map((p) => (
-                  <SelectItem key={p.id} value={String(p.id)}>
-                    {p.name}
-                  </SelectItem>
+                  <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -394,7 +370,6 @@ export default function AdminFreightTab() {
             </span>
           </div>
 
-          {/* Erro */}
           {error && (
             <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-md">
               <AlertCircle className="w-4 h-4 shrink-0" />
@@ -402,7 +377,6 @@ export default function AdminFreightTab() {
             </div>
           )}
 
-          {/* Tabela */}
           {loading ? (
             <div className="flex justify-center py-12">
               <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
@@ -434,91 +408,55 @@ export default function AdminFreightTab() {
                   {filtered.map((zone: any) => (
                     <TableRow key={zone.id} className="group">
                       <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={`text-xs ${ZONE_COLORS[zone.zone_type as ZoneType]}`}
-                        >
+                        <Badge variant="outline" className={`text-xs ${ZONE_COLORS[zone.zone_type as ZoneType]}`}>
                           {ZONE_LABELS[zone.zone_type as ZoneType]}
                         </Badge>
                       </TableCell>
-
                       <TableCell>
                         <div className="flex items-center gap-1 text-sm">
                           <MapPin className="w-3 h-3 text-muted-foreground shrink-0" />
-                          <span className="font-medium">
-                            {zone.origin_province?.name ?? "—"}
-                          </span>
+                          <span className="font-medium">{zone.origin_province?.name ?? "—"}</span>
                           {zone.origin_municipality && (
-                            <span className="text-muted-foreground">
-                              › {zone.origin_municipality.name}
-                            </span>
+                            <span className="text-muted-foreground">› {zone.origin_municipality.name}</span>
                           )}
                         </div>
                       </TableCell>
-
                       <TableCell>
                         <div className="flex items-center gap-1 text-sm">
                           <MapPin className="w-3 h-3 text-muted-foreground shrink-0" />
-                          <span className="font-medium">
-                            {zone.dest_province?.name ?? "—"}
-                          </span>
+                          <span className="font-medium">{zone.dest_province?.name ?? "—"}</span>
                           {zone.dest_municipality && (
-                            <span className="text-muted-foreground">
-                              › {zone.dest_municipality.name}
-                            </span>
+                            <span className="text-muted-foreground">› {zone.dest_municipality.name}</span>
                           )}
                         </div>
                       </TableCell>
-
-                      <TableCell className="text-right font-mono text-sm">
-                        {fmtKz(zone.price_kwz)}
-                      </TableCell>
-
+                      <TableCell className="text-right font-mono text-sm">{fmtKz(zone.price_kwz)}</TableCell>
                       <TableCell className="text-right font-mono text-sm">
                         {zone.has_express && zone.express_price_kwz
                           ? fmtKz(zone.express_price_kwz)
                           : <span className="text-muted-foreground text-xs">—</span>}
                       </TableCell>
-
                       <TableCell className="text-sm text-muted-foreground">
                         {zone.standard_days_min}–{zone.standard_days_max} dias
                       </TableCell>
-
                       <TableCell>
                         <button
                           onClick={() => toggleZone(zone.id, !zone.is_active)}
                           className="flex items-center gap-1 text-xs"
                         >
                           {zone.is_active ? (
-                            <>
-                              <ToggleRight className="w-4 h-4 text-green-500" />
-                              <span className="text-green-500">Activa</span>
-                            </>
+                            <><ToggleRight className="w-4 h-4 text-green-500" /><span className="text-green-500">Activa</span></>
                           ) : (
-                            <>
-                              <ToggleLeft className="w-4 h-4 text-muted-foreground" />
-                              <span className="text-muted-foreground">Inactiva</span>
-                            </>
+                            <><ToggleLeft className="w-4 h-4 text-muted-foreground" /><span className="text-muted-foreground">Inactiva</span></>
                           )}
                         </button>
                       </TableCell>
-
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7"
-                            onClick={() => openEdit(zone)}
-                          >
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(zone)}>
                             <Pencil className="w-3.5 h-3.5" />
                           </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7 text-destructive hover:text-destructive"
-                            onClick={() => setDeleteConfirm(zone.id)}
-                          >
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteConfirm(zone.id)}>
                             <Trash2 className="w-3.5 h-3.5" />
                           </Button>
                         </div>
@@ -533,43 +471,28 @@ export default function AdminFreightTab() {
 
         {/* ══════════════════ TAB: SETTINGS ══════════════════ */}
         <TabsContent value="settings" className="space-y-6 max-w-xl">
-
           <div className="rounded-lg border p-5 space-y-5">
             <h3 className="font-semibold flex items-center gap-2">
               <Globe className="w-4 h-4" /> Preço padrão global
             </h3>
-
             <div className="space-y-2">
               <Label>Preço padrão (Kz)</Label>
               <Input
-                type="number"
-                min={0}
+                type="number" min={0}
                 value={localSettings.default_price_kwz ?? ""}
-                onChange={(e) =>
-                  setLocalSettings((s) => ({
-                    ...s,
-                    default_price_kwz: Number(e.target.value),
-                  }))
-                }
+                onChange={(e) => setLocalSettings((s) => ({ ...s, default_price_kwz: Number(e.target.value) }))}
                 placeholder="1500.00"
               />
               <p className="text-xs text-muted-foreground">
                 Usado como fallback quando nenhuma regra de zona existe para a rota.
               </p>
             </div>
-
             <div className="space-y-2">
               <Label>Frete grátis acima de (Kz)</Label>
               <Input
-                type="number"
-                min={0}
+                type="number" min={0}
                 value={localSettings.free_shipping_threshold ?? ""}
-                onChange={(e) =>
-                  setLocalSettings((s) => ({
-                    ...s,
-                    free_shipping_threshold: Number(e.target.value),
-                  }))
-                }
+                onChange={(e) => setLocalSettings((s) => ({ ...s, free_shipping_threshold: Number(e.target.value) }))}
                 placeholder="0 = desactivado"
               />
               <p className="text-xs text-muted-foreground">
@@ -582,26 +505,18 @@ export default function AdminFreightTab() {
             <h3 className="font-semibold flex items-center gap-2">
               <Truck className="w-4 h-4" /> Controlo dos vendedores
             </h3>
-
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium">Forçar preço padrão global</p>
                 <p className="text-xs text-muted-foreground">
-                  Todos os vendedores usam o preço padrão acima, independentemente
-                  das suas configurações.
+                  Todos os vendedores usam o preço padrão acima, independentemente das suas configurações.
                 </p>
               </div>
               <Switch
                 checked={localSettings.force_default_for_sellers ?? false}
-                onCheckedChange={(v) =>
-                  setLocalSettings((s) => ({
-                    ...s,
-                    force_default_for_sellers: v,
-                  }))
-                }
+                onCheckedChange={(v) => setLocalSettings((s) => ({ ...s, force_default_for_sellers: v }))}
               />
             </div>
-
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium">Permitir frete personalizado</p>
@@ -611,12 +526,7 @@ export default function AdminFreightTab() {
               </div>
               <Switch
                 checked={localSettings.allow_seller_custom ?? true}
-                onCheckedChange={(v) =>
-                  setLocalSettings((s) => ({
-                    ...s,
-                    allow_seller_custom: v,
-                  }))
-                }
+                onCheckedChange={(v) => setLocalSettings((s) => ({ ...s, allow_seller_custom: v }))}
               />
             </div>
           </div>
@@ -643,29 +553,27 @@ export default function AdminFreightTab() {
             <div className="space-y-2">
               <Label>Tipo de zona</Label>
               <div className="grid grid-cols-3 gap-2">
-                {(["intra_municipal", "intra_provincial", "interprovincial"] as ZoneType[]).map(
-                  (t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => handleZoneTypeChange(t)}
-                      className={`rounded-lg border p-3 text-sm text-left transition-all ${
-                        form.zone_type === t
-                          ? "border-primary bg-primary/10 font-medium"
-                          : "border-border hover:border-muted-foreground"
-                      }`}
-                    >
-                      <span className={`block text-xs mb-1 ${ZONE_COLORS[t]} px-1.5 py-0.5 rounded w-fit`}>
-                        {ZONE_LABELS[t]}
-                      </span>
-                      <span className="text-muted-foreground text-xs">
-                        {t === "intra_municipal" && "Municípios da mesma província"}
-                        {t === "intra_provincial" && "Toda a província"}
-                        {t === "interprovincial" && "Entre províncias"}
-                      </span>
-                    </button>
-                  )
-                )}
+                {(["intra_municipal", "intra_provincial", "interprovincial"] as ZoneType[]).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => handleZoneTypeChange(t)}
+                    className={`rounded-lg border p-3 text-sm text-left transition-all ${
+                      form.zone_type === t
+                        ? "border-primary bg-primary/10 font-medium"
+                        : "border-border hover:border-muted-foreground"
+                    }`}
+                  >
+                    <span className={`block text-xs mb-1 ${ZONE_COLORS[t]} px-1.5 py-0.5 rounded w-fit`}>
+                      {ZONE_LABELS[t]}
+                    </span>
+                    <span className="text-muted-foreground text-xs">
+                      {t === "intra_municipal" && "Municípios da mesma província"}
+                      {t === "intra_provincial" && "Toda a província"}
+                      {t === "interprovincial" && "Entre províncias"}
+                    </span>
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -680,14 +588,10 @@ export default function AdminFreightTab() {
                     setField("origin_municipality_id", "");
                   }}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar…" />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Seleccionar…" /></SelectTrigger>
                   <SelectContent>
                     {provinces.map((p) => (
-                      <SelectItem key={p.id} value={String(p.id)}>
-                        {p.name}
-                      </SelectItem>
+                      <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -699,20 +603,17 @@ export default function AdminFreightTab() {
                     Município de origem{" "}
                     <span className="text-muted-foreground text-xs">(opcional)</span>
                   </Label>
+                  {/* FIX: value="" proibido pelo Radix — usar NO_MUN="none" como sentinela */}
                   <Select
-                    value={form.origin_municipality_id}
-                    onValueChange={(v) => setField("origin_municipality_id", v)}
+                    value={form.origin_municipality_id || NO_MUN}
+                    onValueChange={(v) => setField("origin_municipality_id", v === NO_MUN ? "" : v)}
                     disabled={!form.origin_province_id}
                   >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Todos os municípios" />
-                    </SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Todos os municípios" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Todos os municípios</SelectItem>
+                      <SelectItem value={NO_MUN}>Todos os municípios</SelectItem>
                       {originMunicipalities.map((m) => (
-                        <SelectItem key={m.id} value={String(m.id)}>
-                          {m.name}
-                        </SelectItem>
+                        <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -731,14 +632,10 @@ export default function AdminFreightTab() {
                     setField("dest_municipality_id", "");
                   }}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar…" />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Seleccionar…" /></SelectTrigger>
                   <SelectContent>
                     {provinces.map((p) => (
-                      <SelectItem key={p.id} value={String(p.id)}>
-                        {p.name}
-                      </SelectItem>
+                      <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -749,20 +646,17 @@ export default function AdminFreightTab() {
                   Município de destino{" "}
                   <span className="text-muted-foreground text-xs">(opcional)</span>
                 </Label>
+                {/* FIX: value="" proibido pelo Radix — usar NO_MUN="none" como sentinela */}
                 <Select
-                  value={form.dest_municipality_id}
-                  onValueChange={(v) => setField("dest_municipality_id", v)}
+                  value={form.dest_municipality_id || NO_MUN}
+                  onValueChange={(v) => setField("dest_municipality_id", v === NO_MUN ? "" : v)}
                   disabled={!form.dest_province_id}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todos os municípios" />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Todos os municípios" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Todos os municípios</SelectItem>
+                    <SelectItem value={NO_MUN}>Todos os municípios</SelectItem>
                     {destMunicipalities.map((m) => (
-                      <SelectItem key={m.id} value={String(m.id)}>
-                        {m.name}
-                      </SelectItem>
+                      <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -774,26 +668,20 @@ export default function AdminFreightTab() {
               <div className="space-y-2">
                 <Label>Preço normal (Kz)</Label>
                 <Input
-                  type="number"
-                  min={0}
+                  type="number" min={0}
                   value={form.price_kwz}
                   onChange={(e) => setField("price_kwz", e.target.value)}
                   placeholder="ex: 1200"
                 />
               </div>
-
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label>Entrega expressa</Label>
-                  <Switch
-                    checked={form.has_express}
-                    onCheckedChange={(v) => setField("has_express", v)}
-                  />
+                  <Switch checked={form.has_express} onCheckedChange={(v) => setField("has_express", v)} />
                 </div>
                 {form.has_express && (
                   <Input
-                    type="number"
-                    min={0}
+                    type="number" min={0}
                     value={form.express_price_kwz}
                     onChange={(e) => setField("express_price_kwz", e.target.value)}
                     placeholder="Preço expressa (Kz)"
@@ -802,52 +690,25 @@ export default function AdminFreightTab() {
               </div>
             </div>
 
-            {/* Prazos */}
+            {/* Prazos normais */}
             <div className="space-y-2">
               <Label>Prazo de entrega normal (dias úteis)</Label>
               <div className="flex items-center gap-2">
-                <Input
-                  type="number"
-                  min={0}
-                  value={form.standard_days_min}
-                  onChange={(e) => setField("standard_days_min", e.target.value)}
-                  className="w-24"
-                  placeholder="Min"
-                />
+                <Input type="number" min={0} value={form.standard_days_min} onChange={(e) => setField("standard_days_min", e.target.value)} className="w-24" placeholder="Min" />
                 <span className="text-muted-foreground text-sm">a</span>
-                <Input
-                  type="number"
-                  min={0}
-                  value={form.standard_days_max}
-                  onChange={(e) => setField("standard_days_max", e.target.value)}
-                  className="w-24"
-                  placeholder="Max"
-                />
+                <Input type="number" min={0} value={form.standard_days_max} onChange={(e) => setField("standard_days_max", e.target.value)} className="w-24" placeholder="Max" />
                 <span className="text-muted-foreground text-sm">dias</span>
               </div>
             </div>
 
+            {/* Prazos expressos */}
             {form.has_express && (
               <div className="space-y-2">
                 <Label>Prazo de entrega expressa (dias úteis)</Label>
                 <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    min={0}
-                    value={form.express_days_min}
-                    onChange={(e) => setField("express_days_min", e.target.value)}
-                    className="w-24"
-                    placeholder="Min"
-                  />
+                  <Input type="number" min={0} value={form.express_days_min} onChange={(e) => setField("express_days_min", e.target.value)} className="w-24" placeholder="Min" />
                   <span className="text-muted-foreground text-sm">a</span>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={form.express_days_max}
-                    onChange={(e) => setField("express_days_max", e.target.value)}
-                    className="w-24"
-                    placeholder="Max"
-                  />
+                  <Input type="number" min={0} value={form.express_days_max} onChange={(e) => setField("express_days_max", e.target.value)} className="w-24" placeholder="Max" />
                   <span className="text-muted-foreground text-sm">dias</span>
                 </div>
               </div>
@@ -855,10 +716,7 @@ export default function AdminFreightTab() {
 
             {/* Notas */}
             <div className="space-y-2">
-              <Label>
-                Notas internas{" "}
-                <span className="text-muted-foreground text-xs">(opcional)</span>
-              </Label>
+              <Label>Notas internas <span className="text-muted-foreground text-xs">(opcional)</span></Label>
               <Textarea
                 value={form.notes}
                 onChange={(e) => setField("notes", e.target.value)}
@@ -871,21 +729,14 @@ export default function AdminFreightTab() {
             <div className="flex items-center justify-between rounded-lg border p-3">
               <div>
                 <p className="text-sm font-medium">Zona activa</p>
-                <p className="text-xs text-muted-foreground">
-                  Zonas inactivas não são usadas no cálculo de frete.
-                </p>
+                <p className="text-xs text-muted-foreground">Zonas inactivas não são usadas no cálculo de frete.</p>
               </div>
-              <Switch
-                checked={form.is_active}
-                onCheckedChange={(v) => setField("is_active", v)}
-              />
+              <Switch checked={form.is_active} onCheckedChange={(v) => setField("is_active", v)} />
             </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setModalOpen(false)}>
-              Cancelar
-            </Button>
+            <Button variant="outline" onClick={() => setModalOpen(false)}>Cancelar</Button>
             <Button onClick={handleSubmit} disabled={saving} className="gap-2">
               {saving && <Loader2 className="w-4 h-4 animate-spin" />}
               {form.id ? "Actualizar" : "Criar zona"}
@@ -895,10 +746,7 @@ export default function AdminFreightTab() {
       </Dialog>
 
       {/* ══════════════════ MODAL: CONFIRMAR ELIMINAÇÃO ══════════════════ */}
-      <Dialog
-        open={deleteConfirm !== null}
-        onOpenChange={() => setDeleteConfirm(null)}
-      >
+      <Dialog open={deleteConfirm !== null} onOpenChange={() => setDeleteConfirm(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Eliminar zona?</DialogTitle>
@@ -908,9 +756,7 @@ export default function AdminFreightTab() {
             os vendedores que a usavam passarão a usar o preço padrão.
           </p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>
-              Cancelar
-            </Button>
+            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>Cancelar</Button>
             <Button
               variant="destructive"
               onClick={async () => {
