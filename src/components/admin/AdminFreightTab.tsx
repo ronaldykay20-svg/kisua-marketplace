@@ -589,7 +589,7 @@ export default function AdminFreightTab() {
                   }}
                 >
                   <SelectTrigger><SelectValue placeholder="Seleccionar…" /></SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="popper" sideOffset={4}>
                     {provinces.map((p) => (
                       <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
                     ))}
@@ -603,14 +603,13 @@ export default function AdminFreightTab() {
                     Município de origem{" "}
                     <span className="text-muted-foreground text-xs">(opcional)</span>
                   </Label>
-                  {/* FIX: value="" proibido pelo Radix — usar NO_MUN="none" como sentinela */}
                   <Select
                     value={form.origin_municipality_id || NO_MUN}
                     onValueChange={(v) => setField("origin_municipality_id", v === NO_MUN ? "" : v)}
                     disabled={!form.origin_province_id}
                   >
                     <SelectTrigger><SelectValue placeholder="Todos os municípios" /></SelectTrigger>
-                    <SelectContent>
+                    <SelectContent position="popper" sideOffset={4}>
                       <SelectItem value={NO_MUN}>Todos os municípios</SelectItem>
                       {originMunicipalities.map((m) => (
                         <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
@@ -633,7 +632,7 @@ export default function AdminFreightTab() {
                   }}
                 >
                   <SelectTrigger><SelectValue placeholder="Seleccionar…" /></SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="popper" sideOffset={4}>
                     {provinces.map((p) => (
                       <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
                     ))}
@@ -646,14 +645,13 @@ export default function AdminFreightTab() {
                   Município de destino{" "}
                   <span className="text-muted-foreground text-xs">(opcional)</span>
                 </Label>
-                {/* FIX: value="" proibido pelo Radix — usar NO_MUN="none" como sentinela */}
                 <Select
                   value={form.dest_municipality_id || NO_MUN}
                   onValueChange={(v) => setField("dest_municipality_id", v === NO_MUN ? "" : v)}
                   disabled={!form.dest_province_id}
                 >
                   <SelectTrigger><SelectValue placeholder="Todos os municípios" /></SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="popper" sideOffset={4}>
                     <SelectItem value={NO_MUN}>Todos os municípios</SelectItem>
                     {destMunicipalities.map((m) => (
                       <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
