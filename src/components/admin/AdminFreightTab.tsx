@@ -6,13 +6,6 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -94,6 +87,7 @@ interface ZoneForm {
   max_width_cm: string;
   max_height_cm: string;
   tiers: Tier[];
+  expand_all_dest_municipalities: boolean;
 }
 
 const EMPTY_TIER: Tier = {
@@ -130,6 +124,7 @@ const EMPTY_FORM: ZoneForm = {
   max_width_cm: "",
   max_height_cm: "",
   tiers: [],
+  expand_all_dest_municipalities: false,
 };
 
 const ZONE_LABELS: Record<ZoneType, string> = {
@@ -374,6 +369,7 @@ export default function AdminFreightTab() {
       max_length_cm: form.max_length_cm ? Number(form.max_length_cm) : null,
       max_width_cm: form.max_width_cm ? Number(form.max_width_cm) : null,
       max_height_cm: form.max_height_cm ? Number(form.max_height_cm) : null,
+      expand_all_dest_municipalities: form.expand_all_dest_municipalities,
       tiers:
         form.pricing_model === "tiers"
           ? form.tiers.map((t) => ({
@@ -523,48 +519,38 @@ export default function AdminFreightTab() {
               />
             </div>
 
-            <Select
+            <select
+              className={nativeSelectClass + " w-44 h-9"}
               value={filterType}
-              onValueChange={(v) => setFilterType(v as any)}
+              onChange={(e) => setFilterType(e.target.value as any)}
             >
-              <SelectTrigger className="w-44 h-9">
-                <SelectValue placeholder="Tipo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os tipos</SelectItem>
-                <SelectItem value="intra_municipal">Intra-municipal</SelectItem>
-                <SelectItem value="intra_provincial">Intra-provincial</SelectItem>
-                <SelectItem value="interprovincial">Interprovincial</SelectItem>
-              </SelectContent>
-            </Select>
+              <option value="all">Todos os tipos</option>
+              <option value="intra_municipal">Intra-municipal</option>
+              <option value="intra_provincial">Intra-provincial</option>
+              <option value="interprovincial">Interprovincial</option>
+            </select>
 
-            <Select value={filterOriginProv} onValueChange={setFilterOriginProv}>
-              <SelectTrigger className="w-44 h-9">
-                <SelectValue placeholder="Origem" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas as origens</SelectItem>
-                {provinces.map((p) => (
-                  <SelectItem key={p.id} value={String(p.id)}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <select
+              className={nativeSelectClass + " w-44 h-9"}
+              value={filterOriginProv}
+              onChange={(e) => setFilterOriginProv(e.target.value)}
+            >
+              <option value="all">Todas as origens</option>
+              {provinces.map((p) => (
+                <option key={p.id} value={String(p.id)}>{p.name}</option>
+              ))}
+            </select>
 
-            <Select value={filterDestProv} onValueChange={setFilterDestProv}>
-              <SelectTrigger className="w-44 h-9">
-                <SelectValue placeholder="Destino" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os destinos</SelectItem>
-                {provinces.map((p) => (
-                  <SelectItem key={p.id} value={String(p.id)}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <select
+              className={nativeSelectClass + " w-44 h-9"}
+              value={filterDestProv}
+              onChange={(e) => setFilterDestProv(e.target.value)}
+            >
+              <option value="all">Todos os destinos</option>
+              {provinces.map((p) => (
+                <option key={p.id} value={String(p.id)}>{p.name}</option>
+              ))}
+            </select>
 
             <span className="text-xs text-muted-foreground ml-auto">
               {filtered.length} zona{filtered.length !== 1 ? "s" : ""}
@@ -810,6 +796,68 @@ export default function AdminFreightTab() {
             </div>
           </div>
 
+          <div className="rounded-lg border p-5 space-y-4">
+            <h3 className="font-semibold flex items-center gap-2">
+              <Scale className="w-4 h-4" /> Preço da empresa por tipo de zona
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Quando activado, todos os vendedores usam o preço definido pela empresa
+              para cada tipo de zona, independentemente das suas configurações individuais.
+            </p>
+            {(["intra_municipal", "intra_provincial", "interprovincial"] as ZoneType[]).map((zt) => (
+              <div key={zt} className="space-y-2 rounded-lg border p-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">{ZONE_LABELS[zt]}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Forçar preço da empresa para rotas {ZONE_LABELS[zt].toLowerCase()}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={!!(localSettings as any)[`force_price_${zt}`]}
+                    onCheckedChange={(v) =>
+                      setLocalSettings((s) => ({ ...s, [`force_price_${zt}`]: v }))
+                    }
+                  />
+                </div>
+                {(localSettings as any)[`force_price_${zt}`] && (
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Preço normal (Kz)</Label>
+                      <Input
+                        type="number" min={0}
+                        value={(localSettings as any)[`company_price_${zt}`] ?? ""}
+                        onChange={(e) =>
+                          setLocalSettings((s) => ({
+                            ...s,
+                            [`company_price_${zt}`]: Number(e.target.value),
+                          }))
+                        }
+                        placeholder="ex: 1500"
+                        className="h-8"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Preço expressa (Kz)</Label>
+                      <Input
+                        type="number" min={0}
+                        value={(localSettings as any)[`company_express_price_${zt}`] ?? ""}
+                        onChange={(e) =>
+                          setLocalSettings((s) => ({
+                            ...s,
+                            [`company_express_price_${zt}`]: Number(e.target.value),
+                          }))
+                        }
+                        placeholder="opcional"
+                        className="h-8"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
           <Button
             onClick={handleSaveSettings}
             disabled={saving}
@@ -966,6 +1014,27 @@ export default function AdminFreightTab() {
                 </select>
               </div>
             </div>
+
+            {/* Expandir para todos os municípios */}
+            {!form.dest_municipality_id && form.dest_province_id && (
+              <div className="flex items-center justify-between rounded-lg border border-dashed p-3 bg-muted/30">
+                <div>
+                  <p className="text-sm font-medium flex items-center gap-1.5">
+                    <ArrowLeftRight className="w-3.5 h-3.5 text-muted-foreground" />
+                    Aplicar a todos os municípios do destino
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Cria automaticamente uma rota individual para cada município da
+                    província de destino seleccionada. Se mais tarde configurares uma
+                    rota específica para um município, ela terá prioridade.
+                  </p>
+                </div>
+                <Switch
+                  checked={form.expand_all_dest_municipalities}
+                  onCheckedChange={(v) => setField("expand_all_dest_municipalities", v)}
+                />
+              </div>
+            )}
 
             {/* ── MEDIDAS ── */}
             <SectionDivider label="Medidas e preço" />
