@@ -202,11 +202,9 @@ export function useAdminFreight() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Refs para usar dentro de callbacks sem causar loops de dependências
   const provincesRef = useRef<Province[]>([]);
   const municipalitiesRef = useRef<Municipality[]>([]);
 
-  // Carregar tudo em sequência: geo primeiro, depois zones e settings
   useEffect(() => {
     let cancelled = false;
     const init = async () => {
@@ -214,26 +212,36 @@ export function useAdminFreight() {
       setError(null);
       try {
         // 1. Geo
+        console.log("🔄 [useAdminFreight] A carregar geo...");
         const { provinces: p, municipalities: m } = await fetchGeo();
+        console.log("✅ [useAdminFreight] Geo carregado:", p.length, "províncias,", m.length, "municípios");
+        console.log("📍 Primeiras 3 províncias:", p.slice(0, 3));
+
         if (cancelled) return;
         provincesRef.current = p;
         municipalitiesRef.current = m;
         setProvinces(p);
         setMunicipalities(m);
 
-        // 2. Zones (geo já disponível via variáveis locais p e m)
+        // 2. Zones
+        console.log("🔄 [useAdminFreight] A carregar zonas...");
         const { data: zonesData, error: zErr } = await supabase
           .from("freight_zones")
           .select("*")
           .order("zone_type")
           .order("origin_province_id");
-        if (zErr) throw zErr;
+        if (zErr) {
+          console.error("❌ [useAdminFreight] Erro ao carregar zonas:", zErr);
+          throw zErr;
+        }
+        console.log("✅ [useAdminFreight] Zonas carregadas:", zonesData?.length ?? 0);
         if (!cancelled) setZones(enrichZones(zonesData ?? [], p, m));
 
         // 3. Settings
         const sett = await fetchSettingsSafe();
         if (!cancelled && sett) setSettings(sett);
       } catch (err: any) {
+        console.error("❌ [useAdminFreight] Erro na inicialização:", err);
         if (!cancelled) setError(err.message ?? "Erro ao inicializar");
       } finally {
         if (!cancelled) setLoading(false);
@@ -243,7 +251,6 @@ export function useAdminFreight() {
     return () => { cancelled = true; };
   }, []);
 
-  // fetchZones usa refs — sem dependências que causam re-render loops
   const fetchZones = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -358,7 +365,6 @@ export function useAdminFreight() {
   );
 
   return {
-    // FIX: provinces e municipalities agora expostos para o AdminFreightTab
     provinces,
     municipalities,
     zones,
