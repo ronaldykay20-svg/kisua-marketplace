@@ -101,8 +101,9 @@ const ZONE_COLORS: Record<ZoneType, string> = {
   interprovincial: "bg-purple-500/15 text-purple-400 border-purple-500/30",
 };
 
-// Sentinela para "nenhum município seleccionado" — o Radix não aceita value=""
-const NO_MUN = "none";
+// ─── Estilo para <select> nativo ──────────────────────────────────────────────
+const nativeSelectClass =
+  "w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 appearance-none";
 
 // ─── Utilitário: formatar Kz ──────────────────────────────────────────────────
 
@@ -577,87 +578,85 @@ export default function AdminFreightTab() {
               </div>
             </div>
 
-            {/* Origem */}
+            {/* Origem — select nativos */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Província de origem</Label>
-                <Select
+                <Label htmlFor="origin_province">Província de origem</Label>
+                <select
+                  id="origin_province"
+                  className={nativeSelectClass}
                   value={form.origin_province_id}
-                  onValueChange={(v) => {
-                    setField("origin_province_id", v);
+                  onChange={(e) => {
+                    setField("origin_province_id", e.target.value);
                     setField("origin_municipality_id", "");
                   }}
                 >
-                  <SelectTrigger><SelectValue placeholder="Seleccionar…" /></SelectTrigger>
-                  <SelectContent position="popper" sideOffset={4}>
-                    {provinces.map((p) => (
-                      <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <option value="">Seleccionar…</option>
+                  {provinces.map((p) => (
+                    <option key={p.id} value={String(p.id)}>{p.name}</option>
+                  ))}
+                </select>
               </div>
 
               {showMunicipalities && (
                 <div className="space-y-2">
-                  <Label>
+                  <Label htmlFor="origin_municipality">
                     Município de origem{" "}
                     <span className="text-muted-foreground text-xs">(opcional)</span>
                   </Label>
-                  <Select
-                    value={form.origin_municipality_id || NO_MUN}
-                    onValueChange={(v) => setField("origin_municipality_id", v === NO_MUN ? "" : v)}
+                  <select
+                    id="origin_municipality"
+                    className={nativeSelectClass}
+                    value={form.origin_municipality_id}
                     disabled={!form.origin_province_id}
+                    onChange={(e) => setField("origin_municipality_id", e.target.value)}
                   >
-                    <SelectTrigger><SelectValue placeholder="Todos os municípios" /></SelectTrigger>
-                    <SelectContent position="popper" sideOffset={4}>
-                      <SelectItem value={NO_MUN}>Todos os municípios</SelectItem>
-                      {originMunicipalities.map((m) => (
-                        <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    <option value="">Todos os municípios</option>
+                    {originMunicipalities.map((m) => (
+                      <option key={m.id} value={String(m.id)}>{m.name}</option>
+                    ))}
+                  </select>
                 </div>
               )}
             </div>
 
-            {/* Destino */}
+            {/* Destino — select nativos */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Província de destino</Label>
-                <Select
+                <Label htmlFor="dest_province">Província de destino</Label>
+                <select
+                  id="dest_province"
+                  className={nativeSelectClass}
                   value={form.dest_province_id}
-                  onValueChange={(v) => {
-                    setField("dest_province_id", v);
+                  onChange={(e) => {
+                    setField("dest_province_id", e.target.value);
                     setField("dest_municipality_id", "");
                   }}
                 >
-                  <SelectTrigger><SelectValue placeholder="Seleccionar…" /></SelectTrigger>
-                  <SelectContent position="popper" sideOffset={4}>
-                    {provinces.map((p) => (
-                      <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <option value="">Seleccionar…</option>
+                  {provinces.map((p) => (
+                    <option key={p.id} value={String(p.id)}>{p.name}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="space-y-2">
-                <Label>
+                <Label htmlFor="dest_municipality">
                   Município de destino{" "}
                   <span className="text-muted-foreground text-xs">(opcional)</span>
                 </Label>
-                <Select
-                  value={form.dest_municipality_id || NO_MUN}
-                  onValueChange={(v) => setField("dest_municipality_id", v === NO_MUN ? "" : v)}
+                <select
+                  id="dest_municipality"
+                  className={nativeSelectClass}
+                  value={form.dest_municipality_id}
                   disabled={!form.dest_province_id}
+                  onChange={(e) => setField("dest_municipality_id", e.target.value)}
                 >
-                  <SelectTrigger><SelectValue placeholder="Todos os municípios" /></SelectTrigger>
-                  <SelectContent position="popper" sideOffset={4}>
-                    <SelectItem value={NO_MUN}>Todos os municípios</SelectItem>
-                    {destMunicipalities.map((m) => (
-                      <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <option value="">Todos os municípios</option>
+                  {destMunicipalities.map((m) => (
+                    <option key={m.id} value={String(m.id)}>{m.name}</option>
+                  ))}
+                </select>
               </div>
             </div>
 
