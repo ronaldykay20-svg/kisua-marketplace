@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
+// ─── Tipos ────────────────────────────────────────────────────────────────────
+
 export type DeliveryType = "standard" | "express";
 export type FreightMode = "admin" | "custom" | "mixed" | "free" | "pickup";
 
@@ -66,7 +68,7 @@ export interface FreightResult {
   error?: string;
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Helpers internos ─────────────────────────────────────────────────────────
 
 function enrichZones(
   rawZones: any[],
@@ -110,7 +112,7 @@ async function fetchSettingsSafe(): Promise<FreightSettings | null> {
   return data && data.length > 0 ? (data[0] as FreightSettings) : null;
 }
 
-// ─── useFreight (base, checkout) ─────────────────────────────────────────────
+// ─── useFreight (base / checkout) ────────────────────────────────────────────
 
 export function useFreight() {
   const [provinces, setProvinces] = useState<Province[]>([]);
@@ -166,8 +168,11 @@ export function useFreight() {
         return data as FreightResult;
       } catch (err: any) {
         return {
-          price: 0, days_min: 0, days_max: 0,
-          source: "error", currency: "AOA",
+          price: 0,
+          days_min: 0,
+          days_max: 0,
+          source: "error",
+          currency: "AOA",
           error: err.message ?? "Erro ao calcular frete",
         };
       }
@@ -176,8 +181,13 @@ export function useFreight() {
   );
 
   return {
-    provinces, municipalities, getMunicipalitiesByProvince,
-    settings, loadingGeo, error, calculateFreight,
+    provinces,
+    municipalities,
+    getMunicipalitiesByProvince,
+    settings,
+    loadingGeo,
+    error,
+    calculateFreight,
   };
 }
 
@@ -192,34 +202,33 @@ export function useAdminFreight() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // FIX: guardar geo em refs para usar dentro de callbacks sem dependências
+  // Refs para usar dentro de callbacks sem causar loops de dependências
   const provincesRef = useRef<Province[]>([]);
   const municipalitiesRef = useRef<Municipality[]>([]);
 
-  // FIX: carregar geo + zones numa única sequência, sem race conditions
+  // Carregar tudo em sequência: geo primeiro, depois zones e settings
   useEffect(() => {
     let cancelled = false;
     const init = async () => {
       setLoading(true);
       setError(null);
       try {
-        // 1. Carregar geo primeiro
+        // 1. Geo
         const { provinces: p, municipalities: m } = await fetchGeo();
         if (cancelled) return;
-        
         provincesRef.current = p;
         municipalitiesRef.current = m;
         setProvinces(p);
         setMunicipalities(m);
 
-        // 2. Agora carregar zones — geo já está disponível via refs
-        const { data, error: zErr } = await supabase
+        // 2. Zones (geo já disponível via variáveis locais p e m)
+        const { data: zonesData, error: zErr } = await supabase
           .from("freight_zones")
           .select("*")
           .order("zone_type")
           .order("origin_province_id");
         if (zErr) throw zErr;
-        if (!cancelled) setZones(enrichZones(data ?? [], p, m));
+        if (!cancelled) setZones(enrichZones(zonesData ?? [], p, m));
 
         // 3. Settings
         const sett = await fetchSettingsSafe();
@@ -234,7 +243,7 @@ export function useAdminFreight() {
     return () => { cancelled = true; };
   }, []);
 
-  // FIX: fetchZones usa refs — não precisa de dependências que causam loops
+  // fetchZones usa refs — sem dependências que causam re-render loops
   const fetchZones = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -255,7 +264,7 @@ export function useAdminFreight() {
     } finally {
       setLoading(false);
     }
-  }, []); // sem dependências — usa refs
+  }, []);
 
   const fetchSettings = useCallback(async () => {
     const sett = await fetchSettingsSafe();
@@ -283,7 +292,6 @@ export function useAdminFreight() {
           is_active: zone.is_active ?? true,
           notes: zone.notes ?? null,
         };
-
         if (zone.id) {
           const { error } = await supabase
             .from("freight_zones").update(payload).eq("id", zone.id);
@@ -329,12 +337,10 @@ export function useAdminFreight() {
       setError(null);
       try {
         if (settings?.id) {
-          // FIX: só update se existe linha
           const { error } = await supabase
             .from("freight_settings").update(updated).eq("id", settings.id);
           if (error) throw error;
         } else {
-          // FIX: insert se não existe
           const { error } = await supabase
             .from("freight_settings").insert(updated);
           if (error) throw error;
@@ -352,9 +358,19 @@ export function useAdminFreight() {
   );
 
   return {
-    provinces, municipalities, zones, settings,
-    loading, saving, error,
-    fetchZones, saveZone, toggleZone, deleteZone, saveSettings,
+    // FIX: provinces e municipalities agora expostos para o AdminFreightTab
+    provinces,
+    municipalities,
+    zones,
+    settings,
+    loading,
+    saving,
+    error,
+    fetchZones,
+    saveZone,
+    toggleZone,
+    deleteZone,
+    saveSettings,
   };
 }
 
@@ -386,10 +402,16 @@ export function useSellerFreight(sellerId: string | null) {
         setMunicipalities(m);
 
         const [configRes, zonesRes] = await Promise.all([
-          supabase.from("seller_freight_config")
-            .select("*").eq("seller_id", sellerId).maybeSingle(),
-          supabase.from("seller_freight_zones")
-            .select("*").eq("seller_id", sellerId).order("zone_type"),
+          supabase
+            .from("seller_freight_config")
+            .select("*")
+            .eq("seller_id", sellerId)
+            .maybeSingle(),
+          supabase
+            .from("seller_freight_zones")
+            .select("*")
+            .eq("seller_id", sellerId)
+            .order("zone_type"),
         ]);
 
         if (!cancelled) {
@@ -406,15 +428,21 @@ export function useSellerFreight(sellerId: string | null) {
 
   const fetchConfig = useCallback(async () => {
     if (!sellerId) return;
-    const { data } = await supabase.from("seller_freight_config")
-      .select("*").eq("seller_id", sellerId).maybeSingle();
+    const { data } = await supabase
+      .from("seller_freight_config")
+      .select("*")
+      .eq("seller_id", sellerId)
+      .maybeSingle();
     setConfig(data as SellerFreightConfig | null);
   }, [sellerId]);
 
   const fetchZones = useCallback(async () => {
     if (!sellerId) return;
-    const { data } = await supabase.from("seller_freight_zones")
-      .select("*").eq("seller_id", sellerId).order("zone_type");
+    const { data } = await supabase
+      .from("seller_freight_zones")
+      .select("*")
+      .eq("seller_id", sellerId)
+      .order("zone_type");
     setZones(enrichZones(
       data ?? [],
       provincesRef.current,
@@ -429,11 +457,14 @@ export function useSellerFreight(sellerId: string | null) {
       setError(null);
       try {
         if (config?.id) {
-          const { error } = await supabase.from("seller_freight_config")
-            .update(updates).eq("seller_id", sellerId);
+          const { error } = await supabase
+            .from("seller_freight_config")
+            .update(updates)
+            .eq("seller_id", sellerId);
           if (error) throw error;
         } else {
-          const { error } = await supabase.from("seller_freight_config")
+          const { error } = await supabase
+            .from("seller_freight_config")
             .insert({ ...updates, seller_id: sellerId });
           if (error) throw error;
         }
@@ -472,12 +503,12 @@ export function useSellerFreight(sellerId: string | null) {
           is_active: zone.is_active ?? true,
         };
         if (zone.id) {
-          const { error } = await supabase.from("seller_freight_zones")
-            .update(payload).eq("id", zone.id);
+          const { error } = await supabase
+            .from("seller_freight_zones").update(payload).eq("id", zone.id);
           if (error) throw error;
         } else {
-          const { error } = await supabase.from("seller_freight_zones")
-            .insert(payload);
+          const { error } = await supabase
+            .from("seller_freight_zones").insert(payload);
           if (error) throw error;
         }
         await fetchZones();
@@ -494,8 +525,10 @@ export function useSellerFreight(sellerId: string | null) {
 
   const toggleZone = useCallback(
     async (id: number, isActive: boolean): Promise<void> => {
-      await supabase.from("seller_freight_zones")
-        .update({ is_active: isActive }).eq("id", id);
+      await supabase
+        .from("seller_freight_zones")
+        .update({ is_active: isActive })
+        .eq("id", id);
       await fetchZones();
     },
     [fetchZones]
@@ -510,9 +543,18 @@ export function useSellerFreight(sellerId: string | null) {
   );
 
   return {
-    config, zones, loading, saving, error,
-    provinces, municipalities,
-    saveConfig, saveZone, toggleZone, deleteZone, fetchZones,
+    config,
+    zones,
+    loading,
+    saving,
+    error,
+    provinces,
+    municipalities,
+    saveConfig,
+    saveZone,
+    toggleZone,
+    deleteZone,
+    fetchZones,
   };
 }
 
@@ -536,9 +578,15 @@ export function useCheckoutFreight(
     const run = async () => {
       setLoading(true);
       const res = await calculateFreight(
-        sellerId, originMunicipalityCode, destMunicipalityCode, "standard"
+        sellerId,
+        originMunicipalityCode,
+        destMunicipalityCode,
+        "standard"
       );
-      if (!cancelled) { setResult(res); setLoading(false); }
+      if (!cancelled) {
+        setResult(res);
+        setLoading(false);
+      }
     };
     run();
     return () => { cancelled = true; };
@@ -549,7 +597,10 @@ export function useCheckoutFreight(
       if (!sellerId || !originMunicipalityCode || !destMunicipalityCode) return;
       setLoading(true);
       const res = await calculateFreight(
-        sellerId, originMunicipalityCode, destMunicipalityCode, deliveryType
+        sellerId,
+        originMunicipalityCode,
+        destMunicipalityCode,
+        deliveryType
       );
       setResult(res);
       setLoading(false);
