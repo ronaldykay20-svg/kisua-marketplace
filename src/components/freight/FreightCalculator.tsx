@@ -3,13 +3,6 @@ import { useFreight, useCheckoutFreight, DeliveryType } from "@/hooks/useFreight
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Truck,
@@ -120,13 +113,12 @@ function AlternativeRoutes({
   onPickup,
   pickupAddress,
 }: AlternativeRoutesProps) {
-  const [alternatives, setAlternatives] = useState<
+  const [alternatives, setAlternatives] = useState
     { municipality: any; result: any }[]
   >([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
 
-  // Encontrar municípios da mesma província do destino
   useEffect(() => {
     const destMun = municipalities.find((m: any) => m.code === currentDestCode);
     if (!destMun) { setLoading(false); return; }
@@ -140,7 +132,6 @@ function AlternativeRoutes({
       setLoading(true);
       const results: { municipality: any; result: any }[] = [];
 
-      // Testar até 6 municípios da mesma província
       const candidates = sameProv.slice(0, 6);
       await Promise.all(
         candidates.map(async (mun: any) => {
@@ -157,7 +148,6 @@ function AlternativeRoutes({
       );
 
       if (!cancelled) {
-        // Ordenar pelo preço
         results.sort((a, b) => a.result.price - b.result.price);
         setAlternatives(results.slice(0, 3));
         setLoading(false);
@@ -182,7 +172,6 @@ function AlternativeRoutes({
 
   return (
     <div className="rounded-xl border border-amber-900/30 bg-amber-950/10 overflow-hidden">
-      {/* Header */}
       <div className="px-4 py-3 border-b border-amber-900/20 flex items-start gap-3">
         <AlertCircle className="w-4 h-4 text-amber-700/70 mt-0.5 shrink-0" />
         <div>
@@ -197,8 +186,6 @@ function AlternativeRoutes({
       </div>
 
       <div className="p-4 space-y-3">
-
-        {/* Opção: Levantamento na loja */}
         <button
           onClick={onPickup}
           className={cn(
@@ -223,7 +210,6 @@ function AlternativeRoutes({
           </Badge>
         </button>
 
-        {/* Municípios alternativos */}
         {loading ? (
           <div className="flex items-center gap-2 text-xs text-amber-700/60 py-2">
             <Loader2 className="w-3 h-3 animate-spin" />
@@ -331,7 +317,6 @@ function SellerFreightRow({
     destMunicipalityCode
   );
 
-  // Pré-carregar expressa em paralelo
   useEffect(() => {
     if (!group.seller.sellerId || !group.seller.originMunicipalityCode || !destMunicipalityCode)
       return;
@@ -348,7 +333,6 @@ function SellerFreightRow({
     return () => { cancelled = true; };
   }, [group.seller.sellerId, group.seller.originMunicipalityCode, destMunicipalityCode, calculateFreight]);
 
-  // Notificar pai
   useEffect(() => {
     const activeResult = deliveryType === "express" ? expressResult : result;
     if (!activeResult || activeResult.error) return;
@@ -372,13 +356,10 @@ function SellerFreightRow({
   const isPickup = activeResult?.source === "pickup" || showPickup;
   const isFree = activeResult?.price === 0 && activeResult?.source !== "pickup";
   const hasExpress = expressResult && !expressResult.error && expressResult.source !== "pickup";
-
-  // Pickup info para alternativas
   const pickupAddress = result?.pickup_address ?? undefined;
 
   return (
     <div className="rounded-xl border bg-card overflow-hidden">
-      {/* Cabeçalho */}
       <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
         <div className="flex items-center gap-2">
           <Package className="w-4 h-4 text-muted-foreground" />
@@ -395,7 +376,6 @@ function SellerFreightRow({
         </button>
       </div>
 
-      {/* Itens expandidos */}
       {expanded && (
         <div className="px-4 py-2 border-b space-y-1.5 bg-muted/10">
           {group.items.map((item) => (
@@ -416,7 +396,6 @@ function SellerFreightRow({
         </div>
       )}
 
-      {/* Opções de entrega */}
       <div className="p-4 space-y-3">
         {loading ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -424,7 +403,6 @@ function SellerFreightRow({
             A calcular frete…
           </div>
         ) : noRoute ? (
-          /* ── SEM ROTA: mostrar alternativas ── */
           <AlternativeRoutes
             group={group}
             originCode={group.seller.originMunicipalityCode}
@@ -447,7 +425,6 @@ function SellerFreightRow({
             pickupAddress={pickupAddress}
           />
         ) : isPickup ? (
-          /* ── RETIRADA NA LOJA ── */
           <div className="flex items-center gap-3 rounded-lg border border-rose-500/30 bg-rose-500/5 p-3">
             <Store className="w-5 h-5 text-rose-400 shrink-0" />
             <div>
@@ -462,13 +439,11 @@ function SellerFreightRow({
             <Badge className="ml-auto bg-rose-500/20 text-rose-400 border-rose-500/30">Grátis</Badge>
           </div>
         ) : (
-          /* ── OPÇÕES NORMAL / EXPRESSA ── */
           <RadioGroup
             value={deliveryType}
             onValueChange={(v) => handleTypeChange(v as DeliveryType)}
             className="space-y-2"
           >
-            {/* Normal */}
             <Label
               htmlFor={`std-${group.seller.sellerId}`}
               className={cn(
@@ -507,7 +482,6 @@ function SellerFreightRow({
               </div>
             </Label>
 
-            {/* Expressa */}
             {hasExpress && (
               <Label
                 htmlFor={`exp-${group.seller.sellerId}`}
@@ -554,7 +528,7 @@ function SellerFreightRow({
   );
 }
 
-// ─── Selector de endereço ─────────────────────────────────────────────────────
+// ─── Selector de endereço (select nativo — compatível com iOS Safari) ──────────
 
 interface AddressSelectorProps {
   onMunicipalitySelect: (code: string) => void;
@@ -576,27 +550,42 @@ function AddressSelector({ onMunicipalitySelect, selectedCode }: AddressSelector
         <span className="font-medium text-sm">Endereço de entrega</span>
       </div>
       <div className="grid grid-cols-2 gap-3">
+        {/* Província */}
         <div className="space-y-1">
           <Label className="text-xs">Província</Label>
-          <Select value={selectedProvince} onValueChange={(v) => { setSelectedProvince(v); onMunicipalitySelect(""); }}>
-            <SelectTrigger className="h-9"><SelectValue placeholder="Seleccionar…" /></SelectTrigger>
-            <SelectContent>
-              {provinces.map((p) => (
-                <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <select
+            value={selectedProvince}
+            onChange={(e) => {
+              setSelectedProvince(e.target.value);
+              onMunicipalitySelect("");
+            }}
+            className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring appearance-none"
+          >
+            <option value="">Seleccionar…</option>
+            {provinces.map((p) => (
+              <option key={p.id} value={String(p.id)}>
+                {p.name}
+              </option>
+            ))}
+          </select>
         </div>
+
+        {/* Município */}
         <div className="space-y-1">
           <Label className="text-xs">Município</Label>
-          <Select value={selectedCode ?? ""} onValueChange={onMunicipalitySelect} disabled={!selectedProvince}>
-            <SelectTrigger className="h-9"><SelectValue placeholder="Seleccionar…" /></SelectTrigger>
-            <SelectContent>
-              {municipalities.map((m) => (
-                <SelectItem key={m.id} value={m.code}>{m.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <select
+            value={selectedCode ?? ""}
+            onChange={(e) => onMunicipalitySelect(e.target.value)}
+            disabled={!selectedProvince}
+            className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <option value="">Seleccionar…</option>
+            {municipalities.map((m) => (
+              <option key={m.id} value={m.code}>
+                {m.name}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
     </div>
@@ -638,7 +627,6 @@ export default function FreightCalculator({
 
   return (
     <div className="space-y-4">
-
       {showAddressSelector && (
         <AddressSelector
           selectedCode={internalDestCode}
