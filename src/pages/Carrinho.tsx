@@ -3,7 +3,7 @@ import { Minus, Plus, Trash2, ShoppingCart, Loader2, MapPin, Tag, ShieldCheck, R
 import { useCart } from "@/hooks/useSupabaseData";
 import { useUpdateCartItem, useRemoveCartItem } from "@/hooks/useCartActions";
 import { useAuth } from "@/contexts/AuthContext";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useState, useMemo } from "react";
 
@@ -12,9 +12,6 @@ const sandDark   = "#B8956A";
 const cream      = "#F7F0E6";
 const brown      = "#4A2E0A";
 const brownLight = "rgba(74,46,10,0.10)";
-
-const FREE_SHIPPING_THRESHOLD = 50000;
-const SHIPPING_FEE = 2500;
 
 const formatPrice = (price: number) =>
   price.toLocaleString("pt-AO").replace(/,/g, " ") + " Kz";
@@ -32,6 +29,7 @@ const ImagePlaceholder = ({ className = "w-24 h-24" }: { className?: string }) =
 const Carrinho = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const { data: cartItems = [], isLoading } = useCart();
   const updateItem = useUpdateCartItem();
   const removeItem = useRemoveCartItem();
@@ -39,13 +37,40 @@ const Carrinho = () => {
   const [couponOpen, setCouponOpen] = useState(false);
   const [favorites, setFavorites] = useState<string[]>([]);
 
+  // ── Optimistic quantity update ──────────────────────────────────────────────
+  const handleQuantity = (item: any, delta: number) => {
+    const newQty = item.quantity + delta;
+    if (newQty < 1) return;
+
+    // Actualiza o cache imediatamente (sem esperar pelo servidor)
+    queryClient.setQueryData(["cart"], (old: any[]) =>
+      (old ?? []).map((i: any) =>
+        i.id === item.id ? { ...i, quantity: newQty } : i
+      )
+    );
+
+    // Sincroniza com o servidor em background
+    updateItem.mutate(
+      { id: item.id, quantity: newQty },
+      {
+        onError: () => {
+          // Se falhar, reverte
+          queryClient.setQueryData(["cart"], (old: any[]) =>
+            (old ?? []).map((i: any) =>
+              i.id === item.id ? { ...i, quantity: item.quantity } : i
+            )
+          );
+        },
+      }
+    );
+  };
+
   /* ── IDs dos produtos no carrinho ── */
   const cartProductIds = useMemo(
     () => (cartItems as any[]).map((i: any) => i.products?.id).filter(Boolean),
     [cartItems]
   );
 
-  /* ── IDs de categorias dos produtos no carrinho ── */
   const categoryIds = useMemo(
     () =>
       Array.from(
@@ -58,10 +83,6 @@ const Carrinho = () => {
     [cartItems]
   );
 
-  /* ── Sugestões ──
-     Roda sempre que o carrinho terminar de carregar (isLoading = false).
-     Se houver category_id filtra pela categoria, senão traz os mais recentes.
-     Exclui sempre os produtos já no carrinho. ── */
   const { data: suggestions = [] } = useQuery({
     queryKey: ["cart_suggestions", categoryIds.join(","), cartProductIds.join(",")],
     queryFn: async () => {
@@ -79,14 +100,11 @@ const Carrinho = () => {
       const { data, error } = await query;
       if (error) return [];
 
-      /* Exclui produtos já no carrinho */
       const filtered = (data || []).filter(
         (p: any) => !cartProductIds.includes(p.id)
       );
-
       if (filtered.length === 0) return [];
 
-      /* Busca covers via product_media */
       const ids = filtered.map((p: any) => p.id);
       const { data: mediaData } = await supabase
         .from("product_media")
@@ -102,19 +120,12 @@ const Carrinho = () => {
         cover_url: coverMap[p.id] || null,
       }));
     },
-    /* Espera o carrinho terminar de carregar antes de correr */
     enabled: !isLoading && cartProductIds.length > 0,
   });
 
-  /* ── Totais ── */
+  /* ── Totais (sem frete — calculado no checkout) ── */
   const subtotal = (cartItems as any[]).reduce((sum: number, item: any) =>
     sum + (item.products?.price || 0) * item.quantity, 0);
-
-  const freeShipping = subtotal >= FREE_SHIPPING_THRESHOLD;
-  const shippingCost = freeShipping ? 0 : SHIPPING_FEE;
-  const total = subtotal + shippingCost;
-  const progressPct = Math.min((subtotal / FREE_SHIPPING_THRESHOLD) * 100, 100);
-  const remaining = FREE_SHIPPING_THRESHOLD - subtotal;
 
   /* ── Não autenticado ── */
   if (!user) {
@@ -186,33 +197,6 @@ const Carrinho = () => {
           </div>
         ) : (
           <>
-            {/* ── Barra frete grátis ── */}
-            <div className="rounded-2xl p-4" style={{ background: "#fff", border: `1px solid ${sand}` }}>
-              {freeShipping ? (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-lg">🚚</span>
-                  <p className="text-sm font-bold flex-1" style={{ color: "#2E7D32" }}>
-                    Parabéns! Você ganhou frete grátis para todo o pedido.
-                  </p>
-                  <span className="text-xs font-black px-2 py-1 rounded-full text-white" style={{ background: "#2E7D32" }}>
-                    ✓ Frete grátis
-                  </span>
-                </div>
-              ) : (
-                <>
-                  <p className="text-xs font-semibold mb-2" style={{ color: brown }}>
-                    Falta <span className="font-black">{formatPrice(remaining)}</span> para frete grátis
-                  </p>
-                  <div className="h-2 rounded-full overflow-hidden" style={{ background: brownLight }}>
-                    <div
-                      className="h-full rounded-full transition-all duration-500"
-                      style={{ width: `${progressPct}%`, background: `linear-gradient(90deg, ${sandDark}, ${brown})` }}
-                    />
-                  </div>
-                </>
-              )}
-            </div>
-
             {/* ── Itens ── */}
             <div className="space-y-3">
               {(cartItems as any[]).map((item: any) => {
@@ -249,10 +233,6 @@ const Carrinho = () => {
                         {product.title}
                       </p>
 
-                      {(freeShipping || product.free_shipping) && (
-                        <p className="text-[11px] font-bold mt-0.5" style={{ color: "#2E7D32" }}>Frete grátis</p>
-                      )}
-
                       <p className="text-[11px] mt-1 px-2 py-0.5 rounded-full inline-block" style={{ background: brownLight, color: sandDark }}>
                         🛡 Vendido e entregue por Ango Express
                       </p>
@@ -264,7 +244,7 @@ const Carrinho = () => {
                         <div className="flex items-center gap-2">
                           <div className="flex items-center rounded-xl overflow-hidden" style={{ border: `1.5px solid ${sand}` }}>
                             <button
-                              onClick={() => updateItem.mutate({ id: item.id, quantity: item.quantity - 1 })}
+                              onClick={() => handleQuantity(item, -1)}
                               className="w-8 h-8 flex items-center justify-center"
                               style={{ color: sandDark }}
                             >
@@ -274,7 +254,7 @@ const Carrinho = () => {
                               {item.quantity}
                             </span>
                             <button
-                              onClick={() => updateItem.mutate({ id: item.id, quantity: item.quantity + 1 })}
+                              onClick={() => handleQuantity(item, +1)}
                               className="w-8 h-8 flex items-center justify-center"
                               style={{ color: sandDark }}
                             >
@@ -296,28 +276,18 @@ const Carrinho = () => {
               })}
             </div>
 
-            {/* ── Entrega + Cupom ── */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-2xl p-3 flex items-start gap-2" style={{ background: "#fff", border: `1px solid ${sand}` }}>
-                <MapPin className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: sandDark }} />
-                <div>
-                  <p className="text-xs font-bold" style={{ color: brown }}>Previsão de entrega</p>
-                  <p className="text-[11px] mt-0.5" style={{ color: sandDark }}>De 24 a 26 de Maio</p>
-                  <p className="text-[11px]" style={{ color: sandDark }}>Para Luanda, Angola</p>
-                </div>
+            {/* ── Cupom ── */}
+            <button
+              onClick={() => setCouponOpen(v => !v)}
+              className="w-full rounded-2xl p-3 flex items-center gap-2 text-left"
+              style={{ background: "#fff", border: `1px solid ${sand}` }}
+            >
+              <Tag className="w-4 h-4 flex-shrink-0" style={{ color: sandDark }} />
+              <div>
+                <p className="text-xs font-bold" style={{ color: brown }}>Tem um cupom?</p>
+                <p className="text-[11px] font-semibold" style={{ color: sandDark }}>Adicionar cupom</p>
               </div>
-              <button
-                onClick={() => setCouponOpen(v => !v)}
-                className="rounded-2xl p-3 flex items-start gap-2 text-left w-full"
-                style={{ background: "#fff", border: `1px solid ${sand}` }}
-              >
-                <Tag className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: sandDark }} />
-                <div>
-                  <p className="text-xs font-bold" style={{ color: brown }}>Tem um cupom?</p>
-                  <p className="text-[11px] font-semibold mt-0.5" style={{ color: sandDark }}>Adicionar cupom</p>
-                </div>
-              </button>
-            </div>
+            </button>
 
             {couponOpen && (
               <div className="rounded-2xl p-3 flex gap-2" style={{ background: "#fff", border: `1px solid ${sand}` }}>
@@ -350,11 +320,7 @@ const Carrinho = () => {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span style={{ color: sandDark }}>Frete</span>
-                  {freeShipping ? (
-                    <span className="font-bold" style={{ color: "#2E7D32" }}>Grátis</span>
-                  ) : (
-                    <span className="font-bold" style={{ color: brown }}>{formatPrice(shippingCost)}</span>
-                  )}
+                  <span className="font-semibold text-xs" style={{ color: sandDark }}>Calculado no checkout</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span style={{ color: sandDark }}>Descontos</span>
@@ -362,8 +328,8 @@ const Carrinho = () => {
                 </div>
               </div>
               <div className="border-t pt-3 flex justify-between" style={{ borderColor: sand }}>
-                <span className="text-base font-black" style={{ color: brown }}>Total</span>
-                <span className="text-base font-black" style={{ color: brown }}>{formatPrice(total)}</span>
+                <span className="text-base font-black" style={{ color: brown }}>Subtotal</span>
+                <span className="text-base font-black" style={{ color: brown }}>{formatPrice(subtotal)}</span>
               </div>
 
               {/* Garantias */}
@@ -386,11 +352,7 @@ const Carrinho = () => {
               </div>
             </div>
 
-            {/* ────────────────────────────────────────────
-                SUGESTÕES — logo antes do botão fixo
-                Mostra sapatos e outros produtos da mesma
-                categoria que estão no carrinho
-            ──────────────────────────────────────────── */}
+            {/* ── Sugestões ── */}
             {suggestions.length > 0 && (
               <div className="rounded-2xl overflow-hidden" style={{ background: "#fff", border: `1px solid ${sand}` }}>
                 <div
@@ -498,9 +460,7 @@ const Carrinho = () => {
         )}
       </div>
 
-      {/* ────────────────────────────────────────────
-          BOTÃO FIXO — sempre suspenso no fundo
-      ──────────────────────────────────────────── */}
+      {/* ── Botão fixo ── */}
       {(cartItems as any[]).length > 0 && (
         <div
           className="fixed bottom-14 md:bottom-0 left-0 right-0 z-50 px-4 py-3"
@@ -512,8 +472,8 @@ const Carrinho = () => {
         >
           <div className="max-w-2xl mx-auto flex items-center gap-4">
             <div>
-              <p className="text-[11px]" style={{ color: sandDark }}>Total</p>
-              <p className="text-lg font-black" style={{ color: brown }}>{formatPrice(total)}</p>
+              <p className="text-[11px]" style={{ color: sandDark }}>Subtotal</p>
+              <p className="text-lg font-black" style={{ color: brown }}>{formatPrice(subtotal)}</p>
             </div>
             <button
               onClick={() => navigate("/checkout")}
