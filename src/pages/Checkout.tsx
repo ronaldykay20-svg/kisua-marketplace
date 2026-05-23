@@ -48,7 +48,7 @@ const Checkout = () => {
 
   const productIds = cartItems.map((item: any) => item.product_id);
 
-  // Busca produtos com seller OU company
+  // Busca produtos com seller OU company — municipality_code vem SEMPRE do seller/company
   const { data: productSellers = [] } = useQuery({
     queryKey: ["checkout_product_sellers", productIds],
     queryFn: async () => {
@@ -56,7 +56,7 @@ const Checkout = () => {
       const { data } = await supabase
         .from("products")
         .select(`
-          id, title, price, image_url, seller_id, company_id, municipality_code,
+          id, title, price, image_url, seller_id, company_id,
           sellers(id, name, municipality_code),
           companies(id, name, municipality_code)
         `)
@@ -67,6 +67,7 @@ const Checkout = () => {
   });
 
   // Agrupa por vendedor OU empresa
+  // municipality_code vem SEMPRE do seller ou company em tempo real
   const cartGroups = (() => {
     const map = new Map<string, any>();
     for (const item of cartItems as any[]) {
@@ -81,21 +82,18 @@ const Checkout = () => {
       if (prod.sellers) {
         entityId = prod.sellers.id;
         entityName = prod.sellers.name;
-        originMunicipalityCode = prod.sellers.municipality_code ?? prod.municipality_code ?? "";
+        // Sempre do seller, nunca do produto
+        originMunicipalityCode = prod.sellers.municipality_code ?? "";
         isCompany = false;
       } else if (prod.companies) {
         entityId = prod.companies.id;
         entityName = prod.companies.name;
-        originMunicipalityCode = prod.companies.municipality_code ?? prod.municipality_code ?? "";
+        // Sempre da company, nunca do produto
+        originMunicipalityCode = prod.companies.municipality_code ?? "";
         isCompany = true;
-      } else if (prod.municipality_code) {
-        entityId = prod.id;
-        entityName = "Vendedor";
-        originMunicipalityCode = prod.municipality_code ?? "";
-        isCompany = false;
       }
 
-      if (!entityId) continue;
+      if (!entityId || !originMunicipalityCode) continue;
 
       if (!map.has(entityId)) {
         map.set(entityId, {
@@ -220,13 +218,11 @@ const Checkout = () => {
     },
   });
 
-  // 1. Utilizador não autenticado
   if (!user) {
     navigate("/auth");
     return null;
   }
 
-  // 2. Spinner enquanto o carrinho carrega
   if (cartLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -235,7 +231,6 @@ const Checkout = () => {
     );
   }
 
-  // 3. Só redireciona depois de confirmar que está vazio
   if (cartItems.length === 0 && step !== "success") {
     navigate("/carrinho");
     return null;
