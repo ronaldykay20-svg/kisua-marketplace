@@ -2,13 +2,18 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Save, X, Trash2, Image as ImageIcon, Film, Plus,
   ChevronDown, ChevronRight, AlertTriangle, Clock, Camera,
+  Truck, Gift, Store, Layers, Zap,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { STORAGE_BUCKETS } from "@/lib/storage";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useSellerFreight } from "@/hooks/useFreight";
 
 // ─── Types ────────────────────────────────────────────────
+
+type ProductFreightMode = "global" | "platform" | "custom" | "free" | "pickup";
+
 interface ProductFormData {
   title: string;
   description: string;
@@ -25,6 +30,8 @@ interface ProductFormData {
   badge: string;
   is_sponsored: boolean;
   promotion_ends_at: string;
+  freight_mode: ProductFreightMode;
+  pickup_address: string;
 }
 
 interface MediaItem {
@@ -56,12 +63,14 @@ interface Props {
   editingProduct?: any;
   existingMedia?: any[];
   existingVariants?: any[];
+  sellerId: string;
   onSave: (data: any, media: MediaItem[], variants: VariantItem[]) => void;
   onCancel: () => void;
   saving?: boolean;
 }
 
 // ─── Constantes ───────────────────────────────────────────
+
 const generateTempId = () => `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
 const createEmptyVariant = (parentId?: string | null): VariantItem => ({
@@ -75,7 +84,7 @@ const emptyForm: ProductFormData = {
   title: "", description: "", price: "", old_price: "", discount_percent: "",
   stock: "1", sku: "", condition: "new", province: "", city: "",
   category_id: "", free_shipping: false, badge: "", is_sponsored: false,
-  promotion_ends_at: "",
+  promotion_ends_at: "", freight_mode: "global", pickup_address: "",
 };
 
 const provinces = [
@@ -144,32 +153,192 @@ const toLocalDatetimeValue = (iso: string | null | undefined): string => {
   } catch { return ""; }
 };
 
+// ─── Opções de frete por produto ──────────────────────────
+
+interface FreightOption {
+  value: ProductFreightMode;
+  label: string;
+  description: string;
+  icon: React.ReactNode;
+  color: string;
+}
+
+const FREIGHT_OPTIONS: FreightOption[] = [
+  {
+    value: "global",
+    label: "Usar configuração global",
+    description: "Aplica o modo de entrega que configuraste nas definições da loja.",
+    icon: <Zap className="w-4 h-4" />,
+    color: "border-blue-500 bg-blue-500/10 text-blue-400",
+  },
+  {
+    value: "platform",
+    label: "Tabela da plataforma",
+    description: "Usa os preços de frete definidos pelo administrador da Kisua.",
+    icon: <Layers className="w-4 h-4" />,
+    color: "border-indigo-500 bg-indigo-500/10 text-indigo-400",
+  },
+  {
+    value: "custom",
+    label: "Frota própria",
+    description: "Usa as zonas de frete que configuraste na tua loja.",
+    icon: <Truck className="w-4 h-4" />,
+    color: "border-green-500 bg-green-500/10 text-green-400",
+  },
+  {
+    value: "free",
+    label: "Entrega grátis",
+    description: "O comprador não paga frete neste produto.",
+    icon: <Gift className="w-4 h-4" />,
+    color: "border-purple-500 bg-purple-500/10 text-purple-400",
+  },
+  {
+    value: "pickup",
+    label: "Retirada na loja",
+    description: "O comprador retira pessoalmente. Sem entrega ao domicílio.",
+    icon: <Store className="w-4 h-4" />,
+    color: "border-rose-500 bg-rose-500/10 text-rose-400",
+  },
+];
+
+// ─── Componente de selecção de frete ─────────────────────
+
+function FreightSection({
+  value,
+  pickupAddress,
+  globalMode,
+  hasCustomZones,
+  onChange,
+  onPickupChange,
+}: {
+  value: ProductFreightMode;
+  pickupAddress: string;
+  globalMode: string | null;
+  hasCustomZones: boolean;
+  onChange: (v: ProductFreightMode) => void;
+  onPickupChange: (v: string) => void;
+}) {
+  const globalLabel = globalMode
+    ? FREIGHT_OPTIONS.find(o => o.value === globalMode)?.label ?? globalMode
+    : "Não configurado";
+
+  return (
+    <div className="space-y-2">
+      <label className="text-[11px] font-bold text-muted-foreground block">
+        Frete deste produto
+      </label>
+
+      <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-2">
+
+        {/* Opção global — mostra o modo actual da loja */}
+        <button
+          type="button"
+          onClick={() => onChange("global")}
+          className={`w-full rounded-lg border-2 p-3 text-left transition-all ${
+            value === "global"
+              ? "border-blue-500 bg-blue-500/10"
+              : "border-border hover:border-muted-foreground bg-card"
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <Zap className={`w-4 h-4 ${value === "global" ? "text-blue-400" : "text-muted-foreground"}`} />
+            <span className="text-xs font-bold">Usar configuração global</span>
+            <span className="ml-auto text-[10px] text-muted-foreground border border-border rounded px-1.5 py-0.5">
+              {globalLabel}
+            </span>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-1 ml-6">
+            Aplica o modo de entrega configurado nas definições da loja.
+          </p>
+        </button>
+
+        {/* Separador */}
+        <div className="flex items-center gap-2">
+          <div className="h-px flex-1 bg-border" />
+          <span className="text-[10px] text-muted-foreground">ou sobrepor para este produto</span>
+          <div className="h-px flex-1 bg-border" />
+        </div>
+
+        {/* Restantes opções */}
+        <div className="grid grid-cols-2 gap-2">
+          {FREIGHT_OPTIONS.filter(o => o.value !== "global").map(opt => {
+            const disabled = opt.value === "custom" && !hasCustomZones;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                disabled={disabled}
+                onClick={() => onChange(opt.value)}
+                className={`rounded-lg border-2 p-2.5 text-left transition-all ${
+                  disabled ? "opacity-40 cursor-not-allowed border-border bg-card" :
+                  value === opt.value
+                    ? opt.color + " border-2"
+                    : "border-border hover:border-muted-foreground bg-card"
+                }`}
+              >
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className={value === opt.value ? "" : "text-muted-foreground"}>
+                    {opt.icon}
+                  </span>
+                  <span className="text-[11px] font-bold">{opt.label}</span>
+                </div>
+                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                  {disabled ? "Configura zonas na tab Entregas primeiro." : opt.description}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Morada de retirada — só para pickup */}
+        {value === "pickup" && (
+          <div className="rounded-lg border border-rose-500/30 p-3 bg-rose-500/5 space-y-1">
+            <label className="text-[10px] font-bold text-rose-400 flex items-center gap-1">
+              <Store className="w-3.5 h-3.5" /> Morada de retirada
+            </label>
+            <textarea
+              value={pickupAddress}
+              onChange={e => onPickupChange(e.target.value)}
+              placeholder="ex: Rua da Missão, nº 12, Ingombota, Luanda"
+              rows={2}
+              className="w-full px-2 py-1.5 rounded-lg bg-background border border-border text-xs text-foreground resize-none"
+            />
+            <p className="text-[9px] text-muted-foreground">
+              Deixa vazio para usar a morada configurada na loja.
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Componente principal ─────────────────────────────────
+
 const SellerProductForm = ({
   editingProduct, existingMedia = [], existingVariants = [],
-  onSave, onCancel, saving,
+  sellerId, onSave, onCancel, saving,
 }: Props) => {
   const { isAdmin } = useUserRole();
 
-  // ── Localização automática do utilizador ──────────────
+  // Config global da loja (para mostrar o modo actual na opção "global")
+  const { config, zones } = useSellerFreight(sellerId);
+  const globalFreightMode = config?.freight_mode ?? null;
+  const hasCustomZones = zones.length > 0;
+
+  // ── Localização automática ────────────────────────────
   const [autoLocation, setAutoLocation] = useState<{ province: string; city: string } | null>(null);
 
   useEffect(() => {
     const fetchUserLocation = async () => {
-      if (editingProduct?.province) return; // já tem localização, não sobrescreve
+      if (editingProduct?.province) return;
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
         const { data: profile } = await supabase
-          .from("profiles")
-          .select("province, city")
-          .eq("id", user.id)
-          .single();
+          .from("profiles").select("province, city").eq("id", user.id).single();
         if (profile?.province || profile?.city) {
-          setAutoLocation({
-            province: profile.province || "",
-            city: profile.city || "",
-          });
+          setAutoLocation({ province: profile.province || "", city: profile.city || "" });
           setForm(f => ({
             ...f,
             province: profile.province || f.province,
@@ -202,13 +371,13 @@ const SellerProductForm = ({
         badge: editingProduct.badge || "",
         is_sponsored: editingProduct.is_sponsored || false,
         promotion_ends_at: toLocalDatetimeValue(editingProduct.promotion_ends_at),
+        freight_mode: editingProduct.freight_mode || "global",
+        pickup_address: editingProduct.pickup_address || "",
       };
     }
     return emptyForm;
   });
 
-  // lastEdited controla qual campo foi editado por último
-  // para evitar loops de cálculo circular
   const [lastEdited, setLastEdited] = useState<"price" | "old_price" | "discount_percent" | null>(null);
 
   const set = useCallback((key: keyof ProductFormData, value: any) => {
@@ -216,11 +385,6 @@ const SellerProductForm = ({
   }, []);
 
   // ── Cálculos automáticos de preço ────────────────────
-  // Regras:
-  //   price + old_price → calcula discount_percent
-  //   old_price + discount_percent → calcula price
-  //   price + discount_percent → calcula old_price
-
   useEffect(() => {
     if (lastEdited !== "price" && lastEdited !== "old_price") return;
     const price = parseFloat(form.price);
@@ -235,41 +399,29 @@ const SellerProductForm = ({
     if (lastEdited !== "discount_percent") return;
     const pct = parseInt(form.discount_percent);
     if (isNaN(pct) || pct <= 0 || pct >= 100) return;
-
     const oldPrice = parseFloat(form.old_price);
     const price = parseFloat(form.price);
-
     if (!isNaN(oldPrice) && oldPrice > 0) {
-      // tem preço antigo → calcula preço atual
-      const newPrice = Math.round(oldPrice * (1 - pct / 100));
-      setForm(f => ({ ...f, price: String(newPrice) }));
+      setForm(f => ({ ...f, price: String(Math.round(oldPrice * (1 - pct / 100))) }));
     } else if (!isNaN(price) && price > 0) {
-      // tem preço atual → calcula preço antigo
-      const newOldPrice = Math.round(price / (1 - pct / 100));
-      setForm(f => ({ ...f, old_price: String(newOldPrice) }));
+      setForm(f => ({ ...f, old_price: String(Math.round(price / (1 - pct / 100))) }));
     }
   }, [form.discount_percent, lastEdited]);
 
-  // Quando old_price muda e já existe discount_percent → recalcula price
   useEffect(() => {
     if (lastEdited !== "old_price") return;
     const oldPrice = parseFloat(form.old_price);
     const pct = parseInt(form.discount_percent);
-    if (!isNaN(oldPrice) && !isNaN(pct) && pct > 0 && pct < 100 && oldPrice > 0) {
-      const newPrice = Math.round(oldPrice * (1 - pct / 100));
-      setForm(f => ({ ...f, price: String(newPrice) }));
-    }
+    if (!isNaN(oldPrice) && !isNaN(pct) && pct > 0 && pct < 100 && oldPrice > 0)
+      setForm(f => ({ ...f, price: String(Math.round(oldPrice * (1 - pct / 100))) }));
   }, [form.old_price, lastEdited]);
 
-  // Quando price muda e já existe discount_percent → recalcula old_price
   useEffect(() => {
     if (lastEdited !== "price") return;
     const price = parseFloat(form.price);
     const pct = parseInt(form.discount_percent);
-    if (!isNaN(price) && !isNaN(pct) && pct > 0 && pct < 100 && price > 0) {
-      const newOldPrice = Math.round(price / (1 - pct / 100));
-      setForm(f => ({ ...f, old_price: String(newOldPrice) }));
-    }
+    if (!isNaN(price) && !isNaN(pct) && pct > 0 && pct < 100 && price > 0)
+      setForm(f => ({ ...f, old_price: String(Math.round(price / (1 - pct / 100))) }));
   }, [form.price, lastEdited]);
 
   const handlePriceChange = (val: string) => { setLastEdited("price"); set("price", val); };
@@ -365,7 +517,7 @@ const SellerProductForm = ({
   const parentCategories = allCategories.filter((c: any) => !c.parent_id);
   const getSubcategories = (parentId: string) => allCategories.filter((c: any) => c.parent_id === parentId);
 
-  // ── Upload de ficheiros ───────────────────────────────
+  // ── Upload ────────────────────────────────────────────
   const handleFilesUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: "image" | "video") => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -427,11 +579,7 @@ const SellerProductForm = ({
 
   // ── Submit ────────────────────────────────────────────
   const handleSubmit = () => {
-    // Valida foto obrigatória
-    if (media.length === 0) {
-      setPhotoError(true);
-      return;
-    }
+    if (media.length === 0) { setPhotoError(true); return; }
     if (stockExceeded) return;
 
     const payload: any = {
@@ -446,11 +594,15 @@ const SellerProductForm = ({
       province: form.province || null,
       city: form.city || null,
       category_id: form.category_id || null,
-      free_shipping: form.free_shipping,
+      free_shipping: form.freight_mode === "free" || form.free_shipping,
       badge: form.badge || null,
       is_sponsored: form.is_sponsored,
       promotion_ends_at: form.promotion_ends_at
         ? new Date(form.promotion_ends_at).toISOString()
+        : null,
+      freight_mode: form.freight_mode,
+      pickup_address: form.freight_mode === "pickup" && form.pickup_address
+        ? form.pickup_address
         : null,
     };
     onSave(payload, media, variants);
@@ -594,123 +746,67 @@ const SellerProductForm = ({
             className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground h-20 resize-none" />
         </div>
 
-        {/* ── Preços com cálculo automático ── */}
+        {/* Preços */}
         <div>
-          <label className="text-[11px] font-bold text-muted-foreground mb-1.5 block">
-            Preços e Promoção
-          </label>
+          <label className="text-[11px] font-bold text-muted-foreground mb-1.5 block">Preços e Promoção</label>
           <div className="rounded-xl border border-border bg-muted/40 p-3 space-y-2.5">
-
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-[10px] font-bold text-muted-foreground mb-0.5 block">
-                  Preço antigo (Kz)
-                </label>
-                <input
-                  type="number"
-                  value={form.old_price}
-                  onChange={e => handleOldPriceChange(e.target.value)}
+                <label className="text-[10px] font-bold text-muted-foreground mb-0.5 block">Preço antigo (Kz)</label>
+                <input type="number" value={form.old_price} onChange={e => handleOldPriceChange(e.target.value)}
                   placeholder="Ex: 50 000"
-                  className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground"
-                />
+                  className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground" />
                 <p className="text-[9px] text-muted-foreground mt-0.5">Preço antes da promoção</p>
               </div>
               <div>
-                <label className="text-[10px] font-bold mb-0.5 block" style={{ color: "#C0392B" }}>
-                  Desconto %
-                </label>
-                <input
-                  type="number"
-                  value={form.discount_percent}
-                  onChange={e => handleDiscountChange(e.target.value)}
-                  placeholder="Ex: 20"
-                  min="1" max="99"
+                <label className="text-[10px] font-bold mb-0.5 block" style={{ color: "#C0392B" }}>Desconto %</label>
+                <input type="number" value={form.discount_percent} onChange={e => handleDiscountChange(e.target.value)}
+                  placeholder="Ex: 20" min="1" max="99"
                   className="w-full px-3 py-2 rounded-lg bg-background border text-sm font-bold"
-                  style={{
-                    borderColor: form.discount_percent ? "#C0392B" : undefined,
-                    color: form.discount_percent ? "#C0392B" : undefined,
-                  }}
-                />
+                  style={{ borderColor: form.discount_percent ? "#C0392B" : undefined, color: form.discount_percent ? "#C0392B" : undefined }} />
                 <p className="text-[9px] text-muted-foreground mt-0.5">Calcula o preço novo</p>
               </div>
             </div>
-
             <div>
-              <label className="text-[10px] font-bold text-muted-foreground mb-0.5 block">
-                Preço actual (Kz) *
-              </label>
-              <input
-                type="number"
-                value={form.price}
-                onChange={e => handlePriceChange(e.target.value)}
+              <label className="text-[10px] font-bold text-muted-foreground mb-0.5 block">Preço actual (Kz) *</label>
+              <input type="number" value={form.price} onChange={e => handlePriceChange(e.target.value)}
                 placeholder="Ex: 40 000"
-                className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground font-bold"
-              />
-              <p className="text-[9px] text-muted-foreground mt-0.5">
-                Preenche → calcula % automaticamente
-              </p>
+                className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground font-bold" />
+              <p className="text-[9px] text-muted-foreground mt-0.5">Preenche → calcula % automaticamente</p>
             </div>
-
-            {/* Resumo de poupança */}
             {savingsSummary && (
-              <div
-                className="flex items-center gap-2 rounded-lg px-3 py-2"
-                style={{ background: "#FFF5F5" }}
-              >
-                <span
-                  className="text-xs font-black px-2 py-0.5 rounded"
-                  style={{ background: "#C0392B", color: "#fff" }}
-                >
+              <div className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ background: "#FFF5F5" }}>
+                <span className="text-xs font-black px-2 py-0.5 rounded" style={{ background: "#C0392B", color: "#fff" }}>
                   -{savingsSummary.pct}%
                 </span>
                 <span className="text-xs" style={{ color: "#6B3A2A" }}>
-                  O cliente poupa{" "}
-                  <strong>
-                    {Number(savingsSummary.saving).toLocaleString("pt-AO").replace(/,/g, ".")} Kz
-                  </strong>
+                  O cliente poupa <strong>{Number(savingsSummary.saving).toLocaleString("pt-AO").replace(/,/g, ".")} Kz</strong>
                 </span>
               </div>
             )}
           </div>
         </div>
 
-        {/* ── Fim de promoção — visível sempre que há desconto ── */}
+        {/* Fim de promoção */}
         {hasDiscount && (
-          <div
-            className="rounded-lg border p-3 space-y-1.5"
-            style={{ borderColor: "#C0392B44", background: "#FFF8F5" }}
-          >
-            <label
-              className="text-[11px] font-bold flex items-center gap-1.5"
-              style={{ color: "#C0392B" }}
-            >
-              <Clock className="w-3.5 h-3.5" />
-              Fim da promoção (opcional)
+          <div className="rounded-lg border p-3 space-y-1.5" style={{ borderColor: "#C0392B44", background: "#FFF8F5" }}>
+            <label className="text-[11px] font-bold flex items-center gap-1.5" style={{ color: "#C0392B" }}>
+              <Clock className="w-3.5 h-3.5" /> Fim da promoção (opcional)
             </label>
-            <input
-              type="datetime-local"
-              value={form.promotion_ends_at}
+            <input type="datetime-local" value={form.promotion_ends_at}
               onChange={e => set("promotion_ends_at", e.target.value)}
               min={new Date().toISOString().slice(0, 16)}
-              className="w-full px-3 py-2 rounded-lg bg-white border border-border text-sm text-foreground"
-            />
+              className="w-full px-3 py-2 rounded-lg bg-white border border-border text-sm text-foreground" />
             {promotionEndsAtPreview && (
               <p className="text-[10px]" style={{ color: "#8B4A35" }}>
-                Termina em{" "}
-                {promotionEndsAtPreview.toLocaleString("pt-AO", {
-                  day: "2-digit", month: "2-digit", year: "numeric",
-                  hour: "2-digit", minute: "2-digit",
-                })}
-                {" "}— o produto sai das Promoções automaticamente.
+                Termina em {promotionEndsAtPreview.toLocaleString("pt-AO", {
+                  day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
+                })} — o produto sai das Promoções automaticamente.
               </p>
             )}
             {form.promotion_ends_at && (
-              <button
-                type="button"
-                onClick={() => set("promotion_ends_at", "")}
-                className="text-[10px] underline"
-                style={{ color: "#C0392B" }}
-              >
+              <button type="button" onClick={() => set("promotion_ends_at", "")}
+                className="text-[10px] underline" style={{ color: "#C0392B" }}>
                 Remover data limite
               </button>
             )}
@@ -721,13 +817,8 @@ const SellerProductForm = ({
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Stock total</label>
-            <input
-              type="number"
-              value={form.stock}
-              onChange={e => set("stock", e.target.value)}
-              placeholder="1"
-              className={`w-full px-3 py-2 rounded-lg bg-muted border text-sm text-foreground ${stockExceeded ? "border-destructive" : "border-border"}`}
-            />
+            <input type="number" value={form.stock} onChange={e => set("stock", e.target.value)} placeholder="1"
+              className={`w-full px-3 py-2 rounded-lg bg-muted border text-sm text-foreground ${stockExceeded ? "border-destructive" : "border-border"}`} />
             {stockExceeded && (
               <p className="text-[10px] text-destructive mt-0.5 flex items-center gap-1">
                 <AlertTriangle className="w-3 h-3" />
@@ -737,32 +828,23 @@ const SellerProductForm = ({
           </div>
           <div>
             <label className="text-[11px] font-bold text-muted-foreground mb-1 block">SKU</label>
-            <input
-              value={form.sku}
-              onChange={e => set("sku", e.target.value)}
-              placeholder="REF-001"
-              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground"
-            />
+            <input value={form.sku} onChange={e => set("sku", e.target.value)} placeholder="REF-001"
+              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
           </div>
         </div>
 
         {/* Categoria */}
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Categoria</label>
-          <select
-            value={form.category_id}
-            onChange={e => set("category_id", e.target.value)}
-            className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground"
-          >
+          <select value={form.category_id} onChange={e => set("category_id", e.target.value)}
+            className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground">
             <option value="">Selecionar</option>
             {parentCategories.map((c: any) => {
               const subs = getSubcategories(c.id);
               return (
                 <optgroup key={c.id} label={c.name}>
                   <option value={c.id}>{c.name} (geral)</option>
-                  {subs.map((s: any) => (
-                    <option key={s.id} value={s.id}>&nbsp;&nbsp;↳ {s.name}</option>
-                  ))}
+                  {subs.map((s: any) => <option key={s.id} value={s.id}>&nbsp;&nbsp;↳ {s.name}</option>)}
                 </optgroup>
               );
             })}
@@ -772,29 +854,21 @@ const SellerProductForm = ({
         {/* Condição */}
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Condição</label>
-          <select
-            value={form.condition}
-            onChange={e => set("condition", e.target.value)}
-            className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground"
-          >
+          <select value={form.condition} onChange={e => set("condition", e.target.value)}
+            className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground">
             {conditions.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
           </select>
         </div>
 
-        {/* Localização — pré-preenchida automaticamente do perfil */}
+        {/* Localização */}
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label className="text-[11px] font-bold text-muted-foreground mb-1 block flex items-center gap-1">
               Província
-              {autoLocation?.province && (
-                <span className="text-[9px] font-normal text-green-600">(automático)</span>
-              )}
+              {autoLocation?.province && <span className="text-[9px] font-normal text-green-600">(automático)</span>}
             </label>
-            <select
-              value={form.province}
-              onChange={e => set("province", e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground"
-            >
+            <select value={form.province} onChange={e => set("province", e.target.value)}
+              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground">
               <option value="">Selecionar</option>
               {provinces.map(p => <option key={p} value={p}>{p}</option>)}
             </select>
@@ -802,119 +876,84 @@ const SellerProductForm = ({
           <div>
             <label className="text-[11px] font-bold text-muted-foreground mb-1 block flex items-center gap-1">
               Cidade
-              {autoLocation?.city && (
-                <span className="text-[9px] font-normal text-green-600">(automático)</span>
-              )}
+              {autoLocation?.city && <span className="text-[9px] font-normal text-green-600">(automático)</span>}
             </label>
-            <input
-              value={form.city}
-              onChange={e => set("city", e.target.value)}
-              placeholder="Cidade"
-              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground"
-            />
+            <input value={form.city} onChange={e => set("city", e.target.value)} placeholder="Cidade"
+              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
           </div>
         </div>
 
         {/* Badge */}
         <div>
-          <label className="text-[11px] font-bold text-muted-foreground mb-1 block">
-            Badge / Destaque
-          </label>
+          <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Badge / Destaque</label>
           <div className="flex gap-2 flex-wrap">
             {badges.map(b => (
-              <button
-                key={b.value}
-                type="button"
-                onClick={() => set("badge", b.value)}
+              <button key={b.value} type="button" onClick={() => set("badge", b.value)}
                 className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition ${
-                  form.badge === b.value
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-muted text-foreground border-border"
-                }`}
-              >
+                  form.badge === b.value ? "bg-primary text-primary-foreground border-primary" : "bg-muted text-foreground border-border"
+                }`}>
                 {b.label}
               </button>
             ))}
           </div>
         </div>
 
-        {/* ── Imagens e Vídeos — OBRIGATÓRIO ── */}
+        {/* ── FRETE DO PRODUTO ── */}
+        <FreightSection
+          value={form.freight_mode}
+          pickupAddress={form.pickup_address}
+          globalMode={globalFreightMode}
+          hasCustomZones={hasCustomZones}
+          onChange={(v) => set("freight_mode", v)}
+          onPickupChange={(v) => set("pickup_address", v)}
+        />
+
+        {/* Imagens e Vídeos */}
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block flex items-center gap-1">
             <Camera className="w-3.5 h-3.5" />
             Imagens e Vídeos *
             <span className="text-[9px] text-destructive font-bold">(mínimo 1 foto obrigatória)</span>
           </label>
-
           <div className="flex gap-2 mb-2">
-            <label
-              className={`flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-bold cursor-pointer border transition ${
-                uploading ? "opacity-50" : "bg-accent text-foreground border-border hover:bg-accent/80"
-              }`}
-            >
+            <label className={`flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-bold cursor-pointer border transition ${uploading ? "opacity-50" : "bg-accent text-foreground border-border hover:bg-accent/80"}`}>
               <ImageIcon className="w-3.5 h-3.5" /> Imagens
               <input type="file" accept="image/*" multiple onChange={e => handleFilesUpload(e, "image")} className="hidden" disabled={uploading} />
             </label>
-            <label
-              className={`flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-bold cursor-pointer border transition ${
-                uploading ? "opacity-50" : "bg-accent text-foreground border-border hover:bg-accent/80"
-              }`}
-            >
+            <label className={`flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-bold cursor-pointer border transition ${uploading ? "opacity-50" : "bg-accent text-foreground border-border hover:bg-accent/80"}`}>
               <Film className="w-3.5 h-3.5" /> Vídeos
               <input type="file" accept="video/*" multiple onChange={e => handleFilesUpload(e, "video")} className="hidden" disabled={uploading} />
             </label>
             {uploading && <span className="text-xs text-muted-foreground self-center">A enviar...</span>}
           </div>
-
-          {/* Aviso de foto obrigatória */}
           {photoError && media.length === 0 && (
-            <div
-              className="flex items-center gap-2 rounded-lg px-3 py-2 mb-2"
-              style={{ background: "#FFF0F0", border: "1.5px solid #C0392B55" }}
-            >
+            <div className="flex items-center gap-2 rounded-lg px-3 py-2 mb-2" style={{ background: "#FFF0F0", border: "1.5px solid #C0392B55" }}>
               <AlertTriangle className="w-4 h-4 flex-shrink-0" style={{ color: "#C0392B" }} />
               <p className="text-xs font-bold" style={{ color: "#C0392B" }}>
                 É obrigatório adicionar pelo menos uma foto do produto antes de publicar.
               </p>
             </div>
           )}
-
           {media.length > 0 ? (
             <div className="grid grid-cols-4 gap-2">
               {media.map((m, i) => (
-                <div
-                  key={i}
-                  className={`relative rounded-lg border-2 overflow-hidden aspect-square ${
-                    m.is_cover ? "border-primary" : "border-border"
-                  }`}
-                >
+                <div key={i} className={`relative rounded-lg border-2 overflow-hidden aspect-square ${m.is_cover ? "border-primary" : "border-border"}`}>
                   {m.type === "image"
                     ? <img src={m.url} alt="" className="w-full h-full object-cover" />
-                    : <video src={m.url} className="w-full h-full object-cover" />
-                  }
+                    : <video src={m.url} className="w-full h-full object-cover" />}
                   {m.is_cover && (
-                    <span className="absolute top-0.5 left-0.5 px-1 py-0.5 rounded text-[8px] font-bold bg-primary text-primary-foreground">
-                      CAPA
-                    </span>
+                    <span className="absolute top-0.5 left-0.5 px-1 py-0.5 rounded text-[8px] font-bold bg-primary text-primary-foreground">CAPA</span>
                   )}
                   <div className="absolute bottom-0 inset-x-0 bg-background/80 flex justify-between p-0.5">
-                    {!m.is_cover && (
-                      <button onClick={() => setCover(i)} className="text-[9px] font-bold text-primary px-1">
-                        Capa
-                      </button>
-                    )}
-                    <button onClick={() => removeMedia(i)} className="text-destructive ml-auto p-0.5">
-                      <Trash2 className="w-3 h-3" />
-                    </button>
+                    {!m.is_cover && <button onClick={() => setCover(i)} className="text-[9px] font-bold text-primary px-1">Capa</button>}
+                    <button onClick={() => removeMedia(i)} className="text-destructive ml-auto p-0.5"><Trash2 className="w-3 h-3" /></button>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div
-              className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed py-6 gap-2"
-              style={{ borderColor: photoError ? "#C0392B" : undefined }}
-            >
+            <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed py-6 gap-2"
+              style={{ borderColor: photoError ? "#C0392B" : undefined }}>
               <Camera className="w-8 h-8" style={{ color: photoError ? "#C0392B" : "#ccc" }} />
               <p className="text-xs text-muted-foreground">Clique em "Imagens" para adicionar fotos</p>
             </div>
@@ -925,9 +964,7 @@ const SellerProductForm = ({
         <div>
           <div className="flex items-center justify-between mb-2">
             <div>
-              <label className="text-[11px] font-bold text-muted-foreground">
-                Variações (cor, tamanho, etc.)
-              </label>
+              <label className="text-[11px] font-bold text-muted-foreground">Variações (cor, tamanho, etc.)</label>
               {variants.length > 0 && (
                 <p className="text-[10px] text-muted-foreground">
                   Stock total: {productStock} • Usado: {totalVariantStock}
@@ -935,56 +972,31 @@ const SellerProductForm = ({
                 </p>
               )}
             </div>
-            <button
-              type="button"
-              onClick={addVariant}
-              className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-primary border border-primary/30 hover:bg-primary/5 transition"
-            >
+            <button type="button" onClick={addVariant}
+              className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-primary border border-primary/30 hover:bg-primary/5 transition">
               <Plus className="w-3 h-3" /> Variação
             </button>
           </div>
           {variants.length === 0 && (
-            <p className="text-[10px] text-muted-foreground">
-              Sem variações. Adicione cores, tamanhos ou outros atributos.
-            </p>
+            <p className="text-[10px] text-muted-foreground">Sem variações. Adicione cores, tamanhos ou outros atributos.</p>
           )}
           <div className="space-y-3">
             {parentVariants.map(variant => renderVariantCard(variant, false))}
           </div>
         </div>
 
-        {/* Checkboxes */}
-        <label className="flex items-center gap-2 text-sm text-foreground">
-          <input
-            type="checkbox"
-            checked={form.free_shipping}
-            onChange={e => set("free_shipping", e.target.checked)}
-            className="rounded"
-          />
-          Frete grátis
-        </label>
-
+        {/* Patrocinado (só admin) */}
         {isAdmin && (
           <label className="flex items-center gap-2 text-sm text-foreground p-2 rounded-lg border border-amber-500/30 bg-amber-500/5">
-            <input
-              type="checkbox"
-              checked={form.is_sponsored}
-              onChange={e => set("is_sponsored", e.target.checked)}
-              className="rounded"
-            />
+            <input type="checkbox" checked={form.is_sponsored} onChange={e => set("is_sponsored", e.target.checked)} className="rounded" />
             <span className="font-semibold">⭐ Patrocinado</span>
-            <span className="text-xs text-muted-foreground">
-              — aparecerá nas secções "Patrocinado"
-            </span>
+            <span className="text-xs text-muted-foreground">— aparecerá nas secções "Patrocinado"</span>
           </label>
         )}
 
         {/* Submit */}
-        <button
-          onClick={handleSubmit}
-          disabled={!form.title || !form.price || saving || stockExceeded}
-          className="w-full py-2.5 bg-primary text-primary-foreground text-sm font-bold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2"
-        >
+        <button onClick={handleSubmit} disabled={!form.title || !form.price || saving || stockExceeded}
+          className="w-full py-2.5 bg-primary text-primary-foreground text-sm font-bold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2">
           <Save className="w-4 h-4" />
           {saving ? "A guardar..." : editingProduct ? "Atualizar Produto" : "Adicionar Produto"}
         </button>
