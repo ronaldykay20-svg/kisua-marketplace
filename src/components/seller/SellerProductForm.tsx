@@ -2,18 +2,14 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Save, X, Trash2, Image as ImageIcon, Film, Plus,
   ChevronDown, ChevronRight, AlertTriangle, Clock, Camera,
-  Truck, Gift, Store, Layers, Zap,
+  Weight, Package2, Ruler, Info,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { STORAGE_BUCKETS } from "@/lib/storage";
 import { useUserRole } from "@/hooks/useUserRole";
-import { useSellerFreight } from "@/hooks/useFreight";
 
 // ─── Types ────────────────────────────────────────────────
-
-type ProductFreightMode = "global" | "platform" | "custom" | "free" | "pickup";
-
 interface ProductFormData {
   title: string;
   description: string;
@@ -30,8 +26,12 @@ interface ProductFormData {
   badge: string;
   is_sponsored: boolean;
   promotion_ends_at: string;
-  freight_mode: ProductFreightMode;
-  pickup_address: string;
+  // Medidas
+  weight_kg: string;
+  volume_m3: string;
+  length_cm: string;
+  width_cm: string;
+  height_cm: string;
 }
 
 interface MediaItem {
@@ -63,14 +63,12 @@ interface Props {
   editingProduct?: any;
   existingMedia?: any[];
   existingVariants?: any[];
-  sellerId: string;
   onSave: (data: any, media: MediaItem[], variants: VariantItem[]) => void;
   onCancel: () => void;
   saving?: boolean;
 }
 
 // ─── Constantes ───────────────────────────────────────────
-
 const generateTempId = () => `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
 const createEmptyVariant = (parentId?: string | null): VariantItem => ({
@@ -84,7 +82,8 @@ const emptyForm: ProductFormData = {
   title: "", description: "", price: "", old_price: "", discount_percent: "",
   stock: "1", sku: "", condition: "new", province: "", city: "",
   category_id: "", free_shipping: false, badge: "", is_sponsored: false,
-  promotion_ends_at: "", freight_mode: "global", pickup_address: "",
+  promotion_ends_at: "",
+  weight_kg: "", volume_m3: "", length_cm: "", width_cm: "", height_cm: "",
 };
 
 const provinces = [
@@ -153,178 +152,28 @@ const toLocalDatetimeValue = (iso: string | null | undefined): string => {
   } catch { return ""; }
 };
 
-// ─── Opções de frete por produto ──────────────────────────
-
-interface FreightOption {
-  value: ProductFreightMode;
-  label: string;
-  description: string;
-  icon: React.ReactNode;
-  color: string;
-}
-
-const FREIGHT_OPTIONS: FreightOption[] = [
-  {
-    value: "global",
-    label: "Usar configuração global",
-    description: "Aplica o modo de entrega que configuraste nas definições da loja.",
-    icon: <Zap className="w-4 h-4" />,
-    color: "border-blue-500 bg-blue-500/10 text-blue-400",
-  },
-  {
-    value: "platform",
-    label: "Tabela da plataforma",
-    description: "Usa os preços de frete definidos pelo administrador da Kisua.",
-    icon: <Layers className="w-4 h-4" />,
-    color: "border-indigo-500 bg-indigo-500/10 text-indigo-400",
-  },
-  {
-    value: "custom",
-    label: "Frota própria",
-    description: "Usa as zonas de frete que configuraste na tua loja.",
-    icon: <Truck className="w-4 h-4" />,
-    color: "border-green-500 bg-green-500/10 text-green-400",
-  },
-  {
-    value: "free",
-    label: "Entrega grátis",
-    description: "O comprador não paga frete neste produto.",
-    icon: <Gift className="w-4 h-4" />,
-    color: "border-purple-500 bg-purple-500/10 text-purple-400",
-  },
-  {
-    value: "pickup",
-    label: "Retirada na loja",
-    description: "O comprador retira pessoalmente. Sem entrega ao domicílio.",
-    icon: <Store className="w-4 h-4" />,
-    color: "border-rose-500 bg-rose-500/10 text-rose-400",
-  },
-];
-
-// ─── Componente de selecção de frete ─────────────────────
-
-function FreightSection({
-  value,
-  pickupAddress,
-  globalMode,
-  hasCustomZones,
-  onChange,
-  onPickupChange,
-}: {
-  value: ProductFreightMode;
-  pickupAddress: string;
-  globalMode: string | null;
-  hasCustomZones: boolean;
-  onChange: (v: ProductFreightMode) => void;
-  onPickupChange: (v: string) => void;
-}) {
-  const globalLabel = globalMode
-    ? FREIGHT_OPTIONS.find(o => o.value === globalMode)?.label ?? globalMode
-    : "Não configurado";
-
-  return (
-    <div className="space-y-2">
-      <label className="text-[11px] font-bold text-muted-foreground block">
-        Frete deste produto
-      </label>
-
-      <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-2">
-
-        {/* Opção global — mostra o modo actual da loja */}
-        <button
-          type="button"
-          onClick={() => onChange("global")}
-          className={`w-full rounded-lg border-2 p-3 text-left transition-all ${
-            value === "global"
-              ? "border-blue-500 bg-blue-500/10"
-              : "border-border hover:border-muted-foreground bg-card"
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            <Zap className={`w-4 h-4 ${value === "global" ? "text-blue-400" : "text-muted-foreground"}`} />
-            <span className="text-xs font-bold">Usar configuração global</span>
-            <span className="ml-auto text-[10px] text-muted-foreground border border-border rounded px-1.5 py-0.5">
-              {globalLabel}
-            </span>
-          </div>
-          <p className="text-[10px] text-muted-foreground mt-1 ml-6">
-            Aplica o modo de entrega configurado nas definições da loja.
-          </p>
-        </button>
-
-        {/* Separador */}
-        <div className="flex items-center gap-2">
-          <div className="h-px flex-1 bg-border" />
-          <span className="text-[10px] text-muted-foreground">ou sobrepor para este produto</span>
-          <div className="h-px flex-1 bg-border" />
-        </div>
-
-        {/* Restantes opções */}
-        <div className="grid grid-cols-2 gap-2">
-          {FREIGHT_OPTIONS.filter(o => o.value !== "global").map(opt => {
-            const disabled = opt.value === "custom" && !hasCustomZones;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                disabled={disabled}
-                onClick={() => onChange(opt.value)}
-                className={`rounded-lg border-2 p-2.5 text-left transition-all ${
-                  disabled ? "opacity-40 cursor-not-allowed border-border bg-card" :
-                  value === opt.value
-                    ? opt.color + " border-2"
-                    : "border-border hover:border-muted-foreground bg-card"
-                }`}
-              >
-                <div className="flex items-center gap-1.5 mb-1">
-                  <span className={value === opt.value ? "" : "text-muted-foreground"}>
-                    {opt.icon}
-                  </span>
-                  <span className="text-[11px] font-bold">{opt.label}</span>
-                </div>
-                <p className="text-[10px] text-muted-foreground leading-relaxed">
-                  {disabled ? "Configura zonas na tab Entregas primeiro." : opt.description}
-                </p>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Morada de retirada — só para pickup */}
-        {value === "pickup" && (
-          <div className="rounded-lg border border-rose-500/30 p-3 bg-rose-500/5 space-y-1">
-            <label className="text-[10px] font-bold text-rose-400 flex items-center gap-1">
-              <Store className="w-3.5 h-3.5" /> Morada de retirada
-            </label>
-            <textarea
-              value={pickupAddress}
-              onChange={e => onPickupChange(e.target.value)}
-              placeholder="ex: Rua da Missão, nº 12, Ingombota, Luanda"
-              rows={2}
-              className="w-full px-2 py-1.5 rounded-lg bg-background border border-border text-xs text-foreground resize-none"
-            />
-            <p className="text-[9px] text-muted-foreground">
-              Deixa vazio para usar a morada configurada na loja.
-            </p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+// ─── Paleta castanha / âmbar para a secção de medidas ────
+const amber = {
+  bg: "rgba(120, 80, 40, 0.06)",
+  border: "rgba(160, 100, 40, 0.25)",
+  borderFocus: "rgba(180, 120, 50, 0.6)",
+  label: "#7C5328",
+  labelLight: "#A0743C",
+  inputBg: "rgba(255, 248, 235, 0.6)",
+  accent: "#92400E",
+  accentBg: "rgba(146, 64, 14, 0.10)",
+  accentBorder: "rgba(146, 64, 14, 0.30)",
+  warningBg: "rgba(146, 64, 14, 0.07)",
+  warningBorder: "rgba(180, 100, 30, 0.35)",
+  warningText: "#7C3D10",
+};
 
 // ─── Componente principal ─────────────────────────────────
-
 const SellerProductForm = ({
   editingProduct, existingMedia = [], existingVariants = [],
-  sellerId, onSave, onCancel, saving,
+  onSave, onCancel, saving,
 }: Props) => {
   const { isAdmin } = useUserRole();
-
-  // Config global da loja (para mostrar o modo actual na opção "global")
-  const { config, zones } = useSellerFreight(sellerId);
-  const globalFreightMode = config?.freight_mode ?? null;
-  const hasCustomZones = zones.length > 0;
 
   // ── Localização automática ────────────────────────────
   const [autoLocation, setAutoLocation] = useState<{ province: string; city: string } | null>(null);
@@ -336,7 +185,10 @@ const SellerProductForm = ({
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
         const { data: profile } = await supabase
-          .from("profiles").select("province, city").eq("id", user.id).single();
+          .from("profiles")
+          .select("province, city")
+          .eq("id", user.id)
+          .single();
         if (profile?.province || profile?.city) {
           setAutoLocation({ province: profile.province || "", city: profile.city || "" });
           setForm(f => ({
@@ -371,8 +223,11 @@ const SellerProductForm = ({
         badge: editingProduct.badge || "",
         is_sponsored: editingProduct.is_sponsored || false,
         promotion_ends_at: toLocalDatetimeValue(editingProduct.promotion_ends_at),
-        freight_mode: editingProduct.freight_mode || "global",
-        pickup_address: editingProduct.pickup_address || "",
+        weight_kg: editingProduct.weight_kg ? String(editingProduct.weight_kg) : "",
+        volume_m3: editingProduct.volume_m3 ? String(editingProduct.volume_m3) : "",
+        length_cm: editingProduct.length_cm ? String(editingProduct.length_cm) : "",
+        width_cm: editingProduct.width_cm ? String(editingProduct.width_cm) : "",
+        height_cm: editingProduct.height_cm ? String(editingProduct.height_cm) : "",
       };
     }
     return emptyForm;
@@ -412,21 +267,40 @@ const SellerProductForm = ({
     if (lastEdited !== "old_price") return;
     const oldPrice = parseFloat(form.old_price);
     const pct = parseInt(form.discount_percent);
-    if (!isNaN(oldPrice) && !isNaN(pct) && pct > 0 && pct < 100 && oldPrice > 0)
+    if (!isNaN(oldPrice) && !isNaN(pct) && pct > 0 && pct < 100 && oldPrice > 0) {
       setForm(f => ({ ...f, price: String(Math.round(oldPrice * (1 - pct / 100))) }));
+    }
   }, [form.old_price, lastEdited]);
 
   useEffect(() => {
     if (lastEdited !== "price") return;
     const price = parseFloat(form.price);
     const pct = parseInt(form.discount_percent);
-    if (!isNaN(price) && !isNaN(pct) && pct > 0 && pct < 100 && price > 0)
+    if (!isNaN(price) && !isNaN(pct) && pct > 0 && pct < 100 && price > 0) {
       setForm(f => ({ ...f, old_price: String(Math.round(price / (1 - pct / 100))) }));
+    }
   }, [form.price, lastEdited]);
 
   const handlePriceChange = (val: string) => { setLastEdited("price"); set("price", val); };
   const handleOldPriceChange = (val: string) => { setLastEdited("old_price"); set("old_price", val); };
   const handleDiscountChange = (val: string) => { setLastEdited("discount_percent"); set("discount_percent", val); };
+
+  // ── Medidas: lógica de estado ─────────────────────────
+  const hasWeight = !!form.weight_kg && parseFloat(form.weight_kg) > 0;
+  const hasDimensions = !!(form.length_cm || form.width_cm || form.height_cm);
+  const hasVolume = !!form.volume_m3 && parseFloat(form.volume_m3) > 0;
+  const hasAnyMeasure = hasWeight || hasVolume || hasDimensions;
+
+  // Calcular volume automaticamente a partir das dimensões
+  useEffect(() => {
+    const l = parseFloat(form.length_cm);
+    const w = parseFloat(form.width_cm);
+    const h = parseFloat(form.height_cm);
+    if (!isNaN(l) && !isNaN(w) && !isNaN(h) && l > 0 && w > 0 && h > 0) {
+      const volM3 = (l * w * h) / 1_000_000;
+      setForm(f => ({ ...f, volume_m3: volM3.toFixed(4) }));
+    }
+  }, [form.length_cm, form.width_cm, form.height_cm]);
 
   // ── Média ─────────────────────────────────────────────
   const [media, setMedia] = useState<MediaItem[]>(() =>
@@ -567,7 +441,7 @@ const SellerProductForm = ({
 
   const setCover = (index: number) => setMedia(prev => prev.map((m, i) => ({ ...m, is_cover: i === index })));
 
-  // ── Variações: CRUD ───────────────────────────────────
+  // ── Variações CRUD ────────────────────────────────────
   const addVariant = () => setVariants(prev => [...prev, createEmptyVariant()]);
   const addSubVariant = (parentTempId: string) => setVariants(prev => [...prev, createEmptyVariant(parentTempId)]);
   const updateVariant = (tempId: string, key: keyof VariantItem, value: any) =>
@@ -594,21 +468,25 @@ const SellerProductForm = ({
       province: form.province || null,
       city: form.city || null,
       category_id: form.category_id || null,
-      free_shipping: form.freight_mode === "free" || form.free_shipping,
+      free_shipping: form.free_shipping,
       badge: form.badge || null,
       is_sponsored: form.is_sponsored,
       promotion_ends_at: form.promotion_ends_at
         ? new Date(form.promotion_ends_at).toISOString()
         : null,
-      freight_mode: form.freight_mode,
-      pickup_address: form.freight_mode === "pickup" && form.pickup_address
-        ? form.pickup_address
-        : null,
+      // Medidas
+      weight_kg: form.weight_kg ? parseFloat(form.weight_kg) : null,
+      volume_m3: form.volume_m3 ? parseFloat(form.volume_m3) : null,
+      length_cm: form.length_cm ? parseFloat(form.length_cm) : null,
+      width_cm: form.width_cm ? parseFloat(form.width_cm) : null,
+      height_cm: form.height_cm ? parseFloat(form.height_cm) : null,
+      // Flag automática: sem peso = sem interprovincial
+      interprovincial_available: hasWeight,
     };
     onSave(payload, media, variants);
   };
 
-  // ── Render de card de variação ────────────────────────
+  // ── Render de variação ────────────────────────────────
   const renderVariantCard = (variant: VariantItem, isChild: boolean) => {
     const children = isChild ? [] : getChildren(variant._tempId);
     const childrenStock = children.reduce((s, c) => s + (parseInt(c.stock) || 0), 0);
@@ -678,9 +556,6 @@ const SellerProductForm = ({
             <input type="number" value={variant.stock} onChange={e => updateVariant(variant._tempId, "stock", e.target.value)}
               placeholder="1"
               className={`w-full px-2 py-1.5 rounded-lg bg-muted border text-xs text-foreground ${!isChild && children.length > 0 && childrenStock > (parseInt(variant.stock) || 0) ? "border-destructive" : "border-border"}`} />
-            {!isChild && children.length > 0 && childrenStock > (parseInt(variant.stock) || 0) && (
-              <p className="text-[9px] text-destructive mt-0.5">Sub-variações excedem o stock desta variação</p>
-            )}
           </div>
         </div>
 
@@ -701,7 +576,6 @@ const SellerProductForm = ({
                 <input type="file" accept="image/*" onChange={e => handleVariantImageUpload(e, variant._tempId)} className="hidden" disabled={uploadingVariantIdx === variant._tempId} />
               </label>
             )}
-            {uploadingVariantIdx === variant._tempId && <span className="text-[10px] text-muted-foreground">A enviar...</span>}
           </div>
         </div>
 
@@ -799,9 +673,7 @@ const SellerProductForm = ({
               className="w-full px-3 py-2 rounded-lg bg-white border border-border text-sm text-foreground" />
             {promotionEndsAtPreview && (
               <p className="text-[10px]" style={{ color: "#8B4A35" }}>
-                Termina em {promotionEndsAtPreview.toLocaleString("pt-AO", {
-                  day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
-                })} — o produto sai das Promoções automaticamente.
+                Termina em {promotionEndsAtPreview.toLocaleString("pt-AO", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })} — o produto sai das Promoções automaticamente.
               </p>
             )}
             {form.promotion_ends_at && (
@@ -817,7 +689,8 @@ const SellerProductForm = ({
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Stock total</label>
-            <input type="number" value={form.stock} onChange={e => set("stock", e.target.value)} placeholder="1"
+            <input type="number" value={form.stock} onChange={e => set("stock", e.target.value)}
+              placeholder="1"
               className={`w-full px-3 py-2 rounded-lg bg-muted border text-sm text-foreground ${stockExceeded ? "border-destructive" : "border-border"}`} />
             {stockExceeded && (
               <p className="text-[10px] text-destructive mt-0.5 flex items-center gap-1">
@@ -828,10 +701,146 @@ const SellerProductForm = ({
           </div>
           <div>
             <label className="text-[11px] font-bold text-muted-foreground mb-1 block">SKU</label>
-            <input value={form.sku} onChange={e => set("sku", e.target.value)} placeholder="REF-001"
+            <input value={form.sku} onChange={e => set("sku", e.target.value)}
+              placeholder="REF-001"
               className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
           </div>
         </div>
+
+        {/* ══════════════════════════════════════════════════════
+            SECÇÃO DE MEDIDAS — Design castanho/âmbar
+        ══════════════════════════════════════════════════════ */}
+        <div
+          className="rounded-xl p-3.5 space-y-3"
+          style={{ background: amber.bg, border: `1.5px solid ${amber.border}` }}
+        >
+          {/* Cabeçalho */}
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-[11px] font-bold flex items-center gap-1.5" style={{ color: amber.label }}>
+                <Package2 className="w-3.5 h-3.5" />
+                Medidas do produto
+              </p>
+              <p className="text-[10px] mt-0.5" style={{ color: amber.labelLight }}>
+                Usadas para calcular o frete. Preenche o que se aplica.
+              </p>
+            </div>
+            {/* Badge de estado */}
+            {hasWeight ? (
+              <span
+                className="text-[9px] font-bold px-2 py-0.5 rounded-full"
+                style={{ background: amber.accentBg, color: amber.accent, border: `1px solid ${amber.accentBorder}` }}
+              >
+                ✓ Interprovincial disponível
+              </span>
+            ) : (
+              <span
+                className="text-[9px] font-bold px-2 py-0.5 rounded-full"
+                style={{ background: amber.warningBg, color: amber.warningText, border: `1px solid ${amber.warningBorder}` }}
+              >
+                Sem entrega interprovincial
+              </span>
+            )}
+          </div>
+
+          {/* Peso */}
+          <div>
+            <label className="text-[10px] font-bold mb-1 block" style={{ color: amber.label }}>
+              <Weight className="w-3 h-3 inline mr-1" />
+              Peso (kg)
+            </label>
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              value={form.weight_kg}
+              onChange={e => set("weight_kg", e.target.value)}
+              placeholder="Ex: 1.5"
+              className="w-full px-3 py-2 rounded-lg text-sm"
+              style={{
+                background: amber.inputBg,
+                border: `1px solid ${form.weight_kg ? amber.accentBorder : amber.border}`,
+                color: "inherit",
+                outline: "none",
+              }}
+            />
+            {!hasWeight && (
+              <p className="text-[9px] mt-1 flex items-center gap-1" style={{ color: amber.warningText }}>
+                <AlertTriangle className="w-3 h-3 shrink-0" />
+                Sem peso definido — entrega interprovincial não estará disponível para este produto.
+              </p>
+            )}
+          </div>
+
+          {/* Dimensões — expansível */}
+          <div>
+            <label className="text-[10px] font-bold mb-1 block" style={{ color: amber.label }}>
+              <Ruler className="w-3 h-3 inline mr-1" />
+              Dimensões (cm) — opcional
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { key: "length_cm" as const, label: "Comprimento" },
+                { key: "width_cm" as const, label: "Largura" },
+                { key: "height_cm" as const, label: "Altura" },
+              ].map(({ key, label }) => (
+                <div key={key}>
+                  <p className="text-[9px] mb-0.5" style={{ color: amber.labelLight }}>{label}</p>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.1"
+                    value={form[key]}
+                    onChange={e => set(key, e.target.value)}
+                    placeholder="0"
+                    className="w-full px-2 py-1.5 rounded-lg text-xs"
+                    style={{ background: amber.inputBg, border: `1px solid ${amber.border}`, color: "inherit" }}
+                  />
+                </div>
+              ))}
+            </div>
+            {hasDimensions && form.volume_m3 && (
+              <p className="text-[9px] mt-1" style={{ color: amber.labelLight }}>
+                Volume calculado: <strong>{parseFloat(form.volume_m3).toFixed(4)} m³</strong>
+              </p>
+            )}
+          </div>
+
+          {/* Volume manual (se não usar dimensões) */}
+          {!hasDimensions && (
+            <div>
+              <label className="text-[10px] font-bold mb-1 block" style={{ color: amber.label }}>
+                Volume (m³) — opcional
+              </label>
+              <input
+                type="number"
+                min={0}
+                step="0.0001"
+                value={form.volume_m3}
+                onChange={e => set("volume_m3", e.target.value)}
+                placeholder="Ex: 0.02"
+                className="w-full px-3 py-2 rounded-lg text-sm"
+                style={{ background: amber.inputBg, border: `1px solid ${amber.border}`, color: "inherit" }}
+              />
+              <p className="text-[9px] mt-0.5" style={{ color: amber.labelLight }}>
+                Ou preenche as dimensões acima e o volume é calculado automaticamente.
+              </p>
+            </div>
+          )}
+
+          {/* Info de frete */}
+          <div
+            className="flex items-start gap-2 rounded-lg px-3 py-2"
+            style={{ background: amber.accentBg, border: `1px solid ${amber.accentBorder}` }}
+          >
+            <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: amber.accent }} />
+            <p className="text-[10px] leading-relaxed" style={{ color: amber.label }}>
+              O peso e volume são usados para calcular o custo de frete com base nas tabelas de zonas configuradas.
+              {!hasWeight && " Sem peso, apenas entregas locais (intra-municipal e intra-provincial) estarão disponíveis."}
+            </p>
+          </div>
+        </div>
+        {/* ══ FIM MEDIDAS ══ */}
 
         {/* Categoria */}
         <div>
@@ -878,7 +887,8 @@ const SellerProductForm = ({
               Cidade
               {autoLocation?.city && <span className="text-[9px] font-normal text-green-600">(automático)</span>}
             </label>
-            <input value={form.city} onChange={e => set("city", e.target.value)} placeholder="Cidade"
+            <input value={form.city} onChange={e => set("city", e.target.value)}
+              placeholder="Cidade"
               className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
           </div>
         </div>
@@ -889,26 +899,14 @@ const SellerProductForm = ({
           <div className="flex gap-2 flex-wrap">
             {badges.map(b => (
               <button key={b.value} type="button" onClick={() => set("badge", b.value)}
-                className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition ${
-                  form.badge === b.value ? "bg-primary text-primary-foreground border-primary" : "bg-muted text-foreground border-border"
-                }`}>
+                className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition ${form.badge === b.value ? "bg-primary text-primary-foreground border-primary" : "bg-muted text-foreground border-border"}`}>
                 {b.label}
               </button>
             ))}
           </div>
         </div>
 
-        {/* ── FRETE DO PRODUTO ── */}
-        <FreightSection
-          value={form.freight_mode}
-          pickupAddress={form.pickup_address}
-          globalMode={globalFreightMode}
-          hasCustomZones={hasCustomZones}
-          onChange={(v) => set("freight_mode", v)}
-          onPickupChange={(v) => set("pickup_address", v)}
-        />
-
-        {/* Imagens e Vídeos */}
+        {/* Imagens */}
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block flex items-center gap-1">
             <Camera className="w-3.5 h-3.5" />
@@ -929,21 +927,15 @@ const SellerProductForm = ({
           {photoError && media.length === 0 && (
             <div className="flex items-center gap-2 rounded-lg px-3 py-2 mb-2" style={{ background: "#FFF0F0", border: "1.5px solid #C0392B55" }}>
               <AlertTriangle className="w-4 h-4 flex-shrink-0" style={{ color: "#C0392B" }} />
-              <p className="text-xs font-bold" style={{ color: "#C0392B" }}>
-                É obrigatório adicionar pelo menos uma foto do produto antes de publicar.
-              </p>
+              <p className="text-xs font-bold" style={{ color: "#C0392B" }}>É obrigatório adicionar pelo menos uma foto do produto antes de publicar.</p>
             </div>
           )}
           {media.length > 0 ? (
             <div className="grid grid-cols-4 gap-2">
               {media.map((m, i) => (
                 <div key={i} className={`relative rounded-lg border-2 overflow-hidden aspect-square ${m.is_cover ? "border-primary" : "border-border"}`}>
-                  {m.type === "image"
-                    ? <img src={m.url} alt="" className="w-full h-full object-cover" />
-                    : <video src={m.url} className="w-full h-full object-cover" />}
-                  {m.is_cover && (
-                    <span className="absolute top-0.5 left-0.5 px-1 py-0.5 rounded text-[8px] font-bold bg-primary text-primary-foreground">CAPA</span>
-                  )}
+                  {m.type === "image" ? <img src={m.url} alt="" className="w-full h-full object-cover" /> : <video src={m.url} className="w-full h-full object-cover" />}
+                  {m.is_cover && <span className="absolute top-0.5 left-0.5 px-1 py-0.5 rounded text-[8px] font-bold bg-primary text-primary-foreground">CAPA</span>}
                   <div className="absolute bottom-0 inset-x-0 bg-background/80 flex justify-between p-0.5">
                     {!m.is_cover && <button onClick={() => setCover(i)} className="text-[9px] font-bold text-primary px-1">Capa</button>}
                     <button onClick={() => removeMedia(i)} className="text-destructive ml-auto p-0.5"><Trash2 className="w-3 h-3" /></button>
@@ -980,12 +972,15 @@ const SellerProductForm = ({
           {variants.length === 0 && (
             <p className="text-[10px] text-muted-foreground">Sem variações. Adicione cores, tamanhos ou outros atributos.</p>
           )}
-          <div className="space-y-3">
-            {parentVariants.map(variant => renderVariantCard(variant, false))}
-          </div>
+          <div className="space-y-3">{parentVariants.map(v => renderVariantCard(v, false))}</div>
         </div>
 
-        {/* Patrocinado (só admin) */}
+        {/* Checkboxes */}
+        <label className="flex items-center gap-2 text-sm text-foreground">
+          <input type="checkbox" checked={form.free_shipping} onChange={e => set("free_shipping", e.target.checked)} className="rounded" />
+          Frete grátis
+        </label>
+
         {isAdmin && (
           <label className="flex items-center gap-2 text-sm text-foreground p-2 rounded-lg border border-amber-500/30 bg-amber-500/5">
             <input type="checkbox" checked={form.is_sponsored} onChange={e => set("is_sponsored", e.target.checked)} className="rounded" />
@@ -995,8 +990,11 @@ const SellerProductForm = ({
         )}
 
         {/* Submit */}
-        <button onClick={handleSubmit} disabled={!form.title || !form.price || saving || stockExceeded}
-          className="w-full py-2.5 bg-primary text-primary-foreground text-sm font-bold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2">
+        <button
+          onClick={handleSubmit}
+          disabled={!form.title || !form.price || saving || stockExceeded}
+          className="w-full py-2.5 bg-primary text-primary-foreground text-sm font-bold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2"
+        >
           <Save className="w-4 h-4" />
           {saving ? "A guardar..." : editingProduct ? "Atualizar Produto" : "Adicionar Produto"}
         </button>
