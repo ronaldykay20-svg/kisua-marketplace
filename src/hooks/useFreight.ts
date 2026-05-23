@@ -45,7 +45,6 @@ export interface FreightZone {
   express_days_max: number | null;
   is_active: boolean;
   notes: string | null;
-  // Campos de medida / preço
   measure_type: "weight" | "volume" | "dimensions" | "weight_volume" | null;
   pricing_model: "fixed" | "per_unit" | "tiers";
   base_price_kwz: number | null;
@@ -93,6 +92,36 @@ export interface FreightResult {
   error?: string;
 }
 
+// ─── Função estática de cálculo (fora de qualquer hook) ───────────────────────
+// Estável — não muda entre renders, não causa loops
+
+async function calculateFreightStatic(
+  sellerId: string,
+  originCode: string,
+  destCode: string,
+  deliveryType: DeliveryType = "standard"
+): Promise<FreightResult> {
+  try {
+    const { data, error } = await supabase.rpc("calculate_freight", {
+      p_seller_id: sellerId,
+      p_origin_municipality: originCode,
+      p_dest_municipality: destCode,
+      p_delivery_type: deliveryType,
+    });
+    if (error) throw error;
+    return data as FreightResult;
+  } catch (err: any) {
+    return {
+      price: 0,
+      days_min: 0,
+      days_max: 0,
+      source: "error",
+      currency: "AOA",
+      error: err.message ?? "Erro ao calcular frete",
+    };
+  }
+}
+
 // ─── Helpers internos ─────────────────────────────────────────────────────────
 
 function enrichZones(
@@ -137,7 +166,6 @@ async function fetchSettingsSafe(): Promise<FreightSettings | null> {
   return data && data.length > 0 ? (data[0] as FreightSettings) : null;
 }
 
-// Busca tiers de uma lista de zone_ids e agrupa por zone_id
 async function fetchTiersForZones(
   zoneIds: number[],
   table: "freight_zone_tiers" | "seller_freight_zone_tiers"
@@ -161,7 +189,6 @@ async function saveTiersForZone(
   tiers: FreightZoneTier[],
   table: "freight_zone_tiers" | "seller_freight_zone_tiers"
 ): Promise<void> {
-  // Apaga os tiers existentes e re-insere
   await supabase.from(table).delete().eq("zone_id", zoneId);
   if (tiers.length === 0) return;
   const rows = tiers.map((t) => ({
@@ -213,35 +240,8 @@ export function useFreight() {
     [municipalities]
   );
 
-  const calculateFreight = useCallback(
-    async (
-      sellerId: string,
-      originCode: string,
-      destCode: string,
-      deliveryType: DeliveryType = "standard"
-    ): Promise<FreightResult> => {
-      try {
-        const { data, error } = await supabase.rpc("calculate_freight", {
-          p_seller_id: sellerId,
-          p_origin_municipality: originCode,
-          p_dest_municipality: destCode,
-          p_delivery_type: deliveryType,
-        });
-        if (error) throw error;
-        return data as FreightResult;
-      } catch (err: any) {
-        return {
-          price: 0,
-          days_min: 0,
-          days_max: 0,
-          source: "error",
-          currency: "AOA",
-          error: err.message ?? "Erro ao calcular frete",
-        };
-      }
-    },
-    []
-  );
+  // Usa a função estática — referência estável, nunca causa re-renders
+  const calculateFreight = useCallback(calculateFreightStatic, []);
 
   return {
     provinces,
@@ -252,6 +252,59 @@ export function useFreight() {
     error,
     calculateFreight,
   };
+}
+
+// ─── useCheckoutFreight ───────────────────────────────────────────────────────
+// Corrigido: usa calculateFreightStatic directamente, sem depender de useFreight
+
+export function useCheckoutFreight(
+  sellerId: string | null,
+  originMunicipalityCode: string | null,
+  destMunicipalityCode: string | null
+) {
+  const [result, setResult] = useState<FreightResult | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!sellerId || !originMunicipalityCode || !destMunicipalityCode) {
+      setResult(null);
+      return;
+    }
+    let cancelled = false;
+    const run = async () => {
+      setLoading(true);
+      const res = await calculateFreightStatic(
+        sellerId,
+        originMunicipalityCode,
+        destMunicipalityCode,
+        "standard"
+      );
+      if (!cancelled) {
+        setResult(res);
+        setLoading(false);
+      }
+    };
+    run();
+    return () => { cancelled = true; };
+  }, [sellerId, originMunicipalityCode, destMunicipalityCode]);
+
+  const recalculate = useCallback(
+    async (deliveryType: DeliveryType = "standard") => {
+      if (!sellerId || !originMunicipalityCode || !destMunicipalityCode) return;
+      setLoading(true);
+      const res = await calculateFreightStatic(
+        sellerId,
+        originMunicipalityCode,
+        destMunicipalityCode,
+        deliveryType
+      );
+      setResult(res);
+      setLoading(false);
+    },
+    [sellerId, originMunicipalityCode, destMunicipalityCode]
+  );
+
+  return { result, loading, recalculate };
 }
 
 // ─── useAdminFreight ──────────────────────────────────────────────────────────
@@ -289,8 +342,6 @@ export function useAdminFreight() {
         if (zErr) throw zErr;
 
         const enriched = enrichZones(zonesData ?? [], p, m);
-
-        // Buscar tiers
         const tierZoneIds = enriched
           .filter((z) => z.pricing_model === "tiers")
           .map((z) => z.id);
@@ -402,11 +453,9 @@ export function useAdminFreight() {
           zoneId = data.id;
         }
 
-        // Guardar tiers
         if (zone.pricing_model === "tiers" && zoneId && zone.tiers) {
           await saveTiersForZone(zoneId, zone.tiers, "freight_zone_tiers");
         } else if (zoneId) {
-          // Limpa tiers se o modelo mudou
           await supabase.from("freight_zone_tiers").delete().eq("zone_id", zoneId);
         }
 
@@ -435,7 +484,6 @@ export function useAdminFreight() {
 
   const deleteZone = useCallback(
     async (id: number): Promise<void> => {
-      // Apaga tiers primeiro (FK)
       await supabase.from("freight_zone_tiers").delete().eq("zone_id", id);
       const { error } = await supabase
         .from("freight_zones")
@@ -533,7 +581,6 @@ export function useSellerFreight(sellerId: string | null) {
 
         if (!cancelled) {
           setConfig(configRes.data as SellerFreightConfig | null);
-
           const enriched = enrichZones(zonesRes.data ?? [], p, m);
           const tierZoneIds = enriched
             .filter((z) => z.pricing_model === "tiers")
@@ -671,13 +718,8 @@ export function useSellerFreight(sellerId: string | null) {
           zoneId = data.id;
         }
 
-        // Guardar tiers
         if (zone.pricing_model === "tiers" && zoneId && zone.tiers) {
-          await saveTiersForZone(
-            zoneId,
-            zone.tiers,
-            "seller_freight_zone_tiers"
-          );
+          await saveTiersForZone(zoneId, zone.tiers, "seller_freight_zone_tiers");
         } else if (zoneId) {
           await supabase
             .from("seller_freight_zone_tiers")
@@ -734,57 +776,4 @@ export function useSellerFreight(sellerId: string | null) {
     deleteZone,
     fetchZones,
   };
-}
-
-// ─── useCheckoutFreight ───────────────────────────────────────────────────────
-
-export function useCheckoutFreight(
-  sellerId: string | null,
-  originMunicipalityCode: string | null,
-  destMunicipalityCode: string | null
-) {
-  const [result, setResult] = useState<FreightResult | null>(null);
-  const [loading, setLoading] = useState(false);
-  const { calculateFreight } = useFreight();
-
-  useEffect(() => {
-    if (!sellerId || !originMunicipalityCode || !destMunicipalityCode) {
-      setResult(null);
-      return;
-    }
-    let cancelled = false;
-    const run = async () => {
-      setLoading(true);
-      const res = await calculateFreight(
-        sellerId,
-        originMunicipalityCode,
-        destMunicipalityCode,
-        "standard"
-      );
-      if (!cancelled) {
-        setResult(res);
-        setLoading(false);
-      }
-    };
-    run();
-    return () => { cancelled = true; };
-  }, [sellerId, originMunicipalityCode, destMunicipalityCode, calculateFreight]);
-
-  const recalculate = useCallback(
-    async (deliveryType: DeliveryType = "standard") => {
-      if (!sellerId || !originMunicipalityCode || !destMunicipalityCode) return;
-      setLoading(true);
-      const res = await calculateFreight(
-        sellerId,
-        originMunicipalityCode,
-        destMunicipalityCode,
-        deliveryType
-      );
-      setResult(res);
-      setLoading(false);
-    },
-    [sellerId, originMunicipalityCode, destMunicipalityCode, calculateFreight]
-  );
-
-  return { result, loading, recalculate };
 }
