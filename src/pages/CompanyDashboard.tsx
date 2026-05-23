@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Building2, Package, Plus, Edit, Trash2, Eye, EyeOff, Users, UserPlus, Save, X, Crown, ShieldCheck, Image as ImageIcon, Camera, Search, ShoppingCart } from "lucide-react";
 import SellerProductForm from "@/components/seller/SellerProductForm";
 import { useAuth } from "@/contexts/AuthContext";
@@ -47,6 +47,21 @@ const CompanyDashboard = () => {
 
   const [profileForm, setProfileForm] = useState<any>(null);
 
+  // Sincroniza profileForm sempre que os dados da empresa mudam
+  useEffect(() => {
+    if (company) {
+      setProfileForm({
+        description: company.description || "",
+        phone: company.phone || "",
+        email: company.email || "",
+        website: company.website || "",
+        address: company.address || "",
+        province_id: company.province_id ? String(company.province_id) : "",
+        municipality_id: company.municipality_id ? String(company.municipality_id) : "",
+      });
+    }
+  }, [company]);
+
   // Províncias
   const { data: provinces = [] } = useQuery({
     queryKey: ["provinces"],
@@ -74,7 +89,7 @@ const CompanyDashboard = () => {
   });
 
   const filteredMunicipalities = municipalities.filter(
-    (m: any) => profileForm && String(m.province_id) === profileForm.province_id
+    (m: any) => profileForm && String(m.province_id) === String(profileForm.province_id)
   );
 
   // Company products
@@ -459,18 +474,7 @@ const CompanyDashboard = () => {
           </button>
           {isOwner && (
             <button
-              onClick={() => {
-                setTab("perfil");
-                if (!profileForm) setProfileForm({
-                  description: company.description || "",
-                  phone: company.phone || "",
-                  email: company.email || "",
-                  website: company.website || "",
-                  address: company.address || "",
-                  province_id: company.province_id ? String(company.province_id) : "",
-                  municipality_id: company.municipality_id ? String(company.municipality_id) : "",
-                });
-              }}
+              onClick={() => setTab("perfil")}
               className={`flex-1 py-2 text-xs font-bold rounded-lg border ${tab === "perfil" ? "bg-primary text-primary-foreground border-primary" : "bg-card text-foreground border-border"}`}
             >
               <Edit className="w-4 h-4 inline mr-1" /> Perfil
@@ -745,9 +749,11 @@ const CompanyDashboard = () => {
 
             <button
               onClick={() => saveProfile.mutate()}
-              className="w-full py-2 bg-primary text-primary-foreground text-sm font-bold rounded-lg"
+              disabled={saveProfile.isPending}
+              className="w-full py-2 bg-primary text-primary-foreground text-sm font-bold rounded-lg disabled:opacity-60"
             >
-              <Save className="w-4 h-4 inline mr-1" /> Guardar Alterações
+              <Save className="w-4 h-4 inline mr-1" />
+              {saveProfile.isPending ? "A guardar..." : "Guardar Alterações"}
             </button>
           </div>
         )}
