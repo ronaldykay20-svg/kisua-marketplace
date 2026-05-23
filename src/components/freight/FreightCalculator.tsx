@@ -113,7 +113,7 @@ function AlternativeRoutes({
   onPickup,
   pickupAddress,
 }: AlternativeRoutesProps) {
-  const [alternatives, setAlternatives] = useState
+  const [alternatives, setAlternatives] = useState<
     { municipality: any; result: any }[]
   >([]);
   const [loading, setLoading] = useState(true);
@@ -528,7 +528,7 @@ function SellerFreightRow({
   );
 }
 
-// ─── Selector de endereço (select nativo — compatível com iOS Safari) ──────────
+// ─── Selector de endereço ─────────────────────────────────────────────────────
 
 interface AddressSelectorProps {
   onMunicipalitySelect: (code: string) => void;
@@ -550,7 +550,6 @@ function AddressSelector({ onMunicipalitySelect, selectedCode }: AddressSelector
         <span className="font-medium text-sm">Endereço de entrega</span>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        {/* Província */}
         <div className="space-y-1">
           <Label className="text-xs">Província</Label>
           <select
@@ -570,7 +569,6 @@ function AddressSelector({ onMunicipalitySelect, selectedCode }: AddressSelector
           </select>
         </div>
 
-        {/* Município */}
         <div className="space-y-1">
           <Label className="text-xs">Município</Label>
           <select
