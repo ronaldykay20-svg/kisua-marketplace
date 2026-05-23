@@ -19,8 +19,6 @@ interface ProductFormData {
   stock: string;
   sku: string;
   condition: string;
-  province: string;
-  city: string;
   category_id: string;
   free_shipping: boolean;
   badge: string;
@@ -80,17 +78,11 @@ const createEmptyVariant = (parentId?: string | null): VariantItem => ({
 
 const emptyForm: ProductFormData = {
   title: "", description: "", price: "", old_price: "", discount_percent: "",
-  stock: "1", sku: "", condition: "new", province: "", city: "",
+  stock: "1", sku: "", condition: "new",
   category_id: "", free_shipping: false, badge: "", is_sponsored: false,
   promotion_ends_at: "",
   weight_kg: "", volume_m3: "", length_cm: "", width_cm: "", height_cm: "",
 };
-
-const provinces = [
-  "Bengo","Benguela","Bié","Cabinda","Cuando Cubango","Cuanza Norte",
-  "Cuanza Sul","Cunene","Huambo","Huíla","Luanda","Lunda Norte",
-  "Lunda Sul","Malanje","Moxico","Namibe","Uíge","Zaire",
-];
 
 const conditions = [
   { value: "new", label: "Novo" },
@@ -175,35 +167,6 @@ const SellerProductForm = ({
 }: Props) => {
   const { isAdmin } = useUserRole();
 
-  // ── Localização automática ────────────────────────────
-  const [autoLocation, setAutoLocation] = useState<{ province: string; city: string } | null>(null);
-
-  useEffect(() => {
-    const fetchUserLocation = async () => {
-      if (editingProduct?.province) return;
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("province, city")
-          .eq("id", user.id)
-          .single();
-        if (profile?.province || profile?.city) {
-          setAutoLocation({ province: profile.province || "", city: profile.city || "" });
-          setForm(f => ({
-            ...f,
-            province: profile.province || f.province,
-            city: profile.city || f.city,
-          }));
-        }
-      } catch (err) {
-        console.warn("Não foi possível obter a localização automática:", err);
-      }
-    };
-    fetchUserLocation();
-  }, []);
-
   // ── Estado do formulário ──────────────────────────────
   const [form, setForm] = useState<ProductFormData>(() => {
     if (editingProduct) {
@@ -216,8 +179,6 @@ const SellerProductForm = ({
         stock: String(editingProduct.stock ?? 1),
         sku: editingProduct.sku || "",
         condition: editingProduct.condition || "new",
-        province: editingProduct.province || "",
-        city: editingProduct.city || "",
         category_id: editingProduct.category_id || "",
         free_shipping: editingProduct.free_shipping || false,
         badge: editingProduct.badge || "",
@@ -285,13 +246,10 @@ const SellerProductForm = ({
   const handleOldPriceChange = (val: string) => { setLastEdited("old_price"); set("old_price", val); };
   const handleDiscountChange = (val: string) => { setLastEdited("discount_percent"); set("discount_percent", val); };
 
-  // ── Medidas: lógica de estado ─────────────────────────
+  // ── Medidas ───────────────────────────────────────────
   const hasWeight = !!form.weight_kg && parseFloat(form.weight_kg) > 0;
   const hasDimensions = !!(form.length_cm || form.width_cm || form.height_cm);
-  const hasVolume = !!form.volume_m3 && parseFloat(form.volume_m3) > 0;
-  const hasAnyMeasure = hasWeight || hasVolume || hasDimensions;
 
-  // Calcular volume automaticamente a partir das dimensões
   useEffect(() => {
     const l = parseFloat(form.length_cm);
     const w = parseFloat(form.width_cm);
@@ -465,8 +423,6 @@ const SellerProductForm = ({
       stock: parseInt(form.stock) || 1,
       sku: form.sku || null,
       condition: form.condition,
-      province: form.province || null,
-      city: form.city || null,
       category_id: form.category_id || null,
       free_shipping: form.free_shipping,
       badge: form.badge || null,
@@ -474,13 +430,11 @@ const SellerProductForm = ({
       promotion_ends_at: form.promotion_ends_at
         ? new Date(form.promotion_ends_at).toISOString()
         : null,
-      // Medidas
       weight_kg: form.weight_kg ? parseFloat(form.weight_kg) : null,
       volume_m3: form.volume_m3 ? parseFloat(form.volume_m3) : null,
       length_cm: form.length_cm ? parseFloat(form.length_cm) : null,
       width_cm: form.width_cm ? parseFloat(form.width_cm) : null,
       height_cm: form.height_cm ? parseFloat(form.height_cm) : null,
-      // Flag automática: sem peso = sem interprovincial
       interprovincial_available: hasWeight,
     };
     onSave(payload, media, variants);
@@ -707,14 +661,11 @@ const SellerProductForm = ({
           </div>
         </div>
 
-        {/* ══════════════════════════════════════════════════════
-            SECÇÃO DE MEDIDAS — Design castanho/âmbar
-        ══════════════════════════════════════════════════════ */}
+        {/* Medidas */}
         <div
           className="rounded-xl p-3.5 space-y-3"
           style={{ background: amber.bg, border: `1.5px solid ${amber.border}` }}
         >
-          {/* Cabeçalho */}
           <div className="flex items-start justify-between">
             <div>
               <p className="text-[11px] font-bold flex items-center gap-1.5" style={{ color: amber.label }}>
@@ -725,44 +676,30 @@ const SellerProductForm = ({
                 Usadas para calcular o frete. Preenche o que se aplica.
               </p>
             </div>
-            {/* Badge de estado */}
             {hasWeight ? (
-              <span
-                className="text-[9px] font-bold px-2 py-0.5 rounded-full"
-                style={{ background: amber.accentBg, color: amber.accent, border: `1px solid ${amber.accentBorder}` }}
-              >
+              <span className="text-[9px] font-bold px-2 py-0.5 rounded-full"
+                style={{ background: amber.accentBg, color: amber.accent, border: `1px solid ${amber.accentBorder}` }}>
                 ✓ Interprovincial disponível
               </span>
             ) : (
-              <span
-                className="text-[9px] font-bold px-2 py-0.5 rounded-full"
-                style={{ background: amber.warningBg, color: amber.warningText, border: `1px solid ${amber.warningBorder}` }}
-              >
+              <span className="text-[9px] font-bold px-2 py-0.5 rounded-full"
+                style={{ background: amber.warningBg, color: amber.warningText, border: `1px solid ${amber.warningBorder}` }}>
                 Sem entrega interprovincial
               </span>
             )}
           </div>
 
-          {/* Peso */}
           <div>
             <label className="text-[10px] font-bold mb-1 block" style={{ color: amber.label }}>
               <Weight className="w-3 h-3 inline mr-1" />
               Peso (kg)
             </label>
             <input
-              type="number"
-              min={0}
-              step="0.01"
-              value={form.weight_kg}
+              type="number" min={0} step="0.01" value={form.weight_kg}
               onChange={e => set("weight_kg", e.target.value)}
               placeholder="Ex: 1.5"
               className="w-full px-3 py-2 rounded-lg text-sm"
-              style={{
-                background: amber.inputBg,
-                border: `1px solid ${form.weight_kg ? amber.accentBorder : amber.border}`,
-                color: "inherit",
-                outline: "none",
-              }}
+              style={{ background: amber.inputBg, border: `1px solid ${form.weight_kg ? amber.accentBorder : amber.border}`, color: "inherit" }}
             />
             {!hasWeight && (
               <p className="text-[9px] mt-1 flex items-center gap-1" style={{ color: amber.warningText }}>
@@ -772,7 +709,6 @@ const SellerProductForm = ({
             )}
           </div>
 
-          {/* Dimensões — expansível */}
           <div>
             <label className="text-[10px] font-bold mb-1 block" style={{ color: amber.label }}>
               <Ruler className="w-3 h-3 inline mr-1" />
@@ -787,10 +723,7 @@ const SellerProductForm = ({
                 <div key={key}>
                   <p className="text-[9px] mb-0.5" style={{ color: amber.labelLight }}>{label}</p>
                   <input
-                    type="number"
-                    min={0}
-                    step="0.1"
-                    value={form[key]}
+                    type="number" min={0} step="0.1" value={form[key]}
                     onChange={e => set(key, e.target.value)}
                     placeholder="0"
                     className="w-full px-2 py-1.5 rounded-lg text-xs"
@@ -806,17 +739,13 @@ const SellerProductForm = ({
             )}
           </div>
 
-          {/* Volume manual (se não usar dimensões) */}
           {!hasDimensions && (
             <div>
               <label className="text-[10px] font-bold mb-1 block" style={{ color: amber.label }}>
                 Volume (m³) — opcional
               </label>
               <input
-                type="number"
-                min={0}
-                step="0.0001"
-                value={form.volume_m3}
+                type="number" min={0} step="0.0001" value={form.volume_m3}
                 onChange={e => set("volume_m3", e.target.value)}
                 placeholder="Ex: 0.02"
                 className="w-full px-3 py-2 rounded-lg text-sm"
@@ -828,11 +757,8 @@ const SellerProductForm = ({
             </div>
           )}
 
-          {/* Info de frete */}
-          <div
-            className="flex items-start gap-2 rounded-lg px-3 py-2"
-            style={{ background: amber.accentBg, border: `1px solid ${amber.accentBorder}` }}
-          >
+          <div className="flex items-start gap-2 rounded-lg px-3 py-2"
+            style={{ background: amber.accentBg, border: `1px solid ${amber.accentBorder}` }}>
             <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: amber.accent }} />
             <p className="text-[10px] leading-relaxed" style={{ color: amber.label }}>
               O peso e volume são usados para calcular o custo de frete com base nas tabelas de zonas configuradas.
@@ -840,7 +766,6 @@ const SellerProductForm = ({
             </p>
           </div>
         </div>
-        {/* ══ FIM MEDIDAS ══ */}
 
         {/* Categoria */}
         <div>
@@ -867,30 +792,6 @@ const SellerProductForm = ({
             className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground">
             {conditions.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
           </select>
-        </div>
-
-        {/* Localização */}
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className="text-[11px] font-bold text-muted-foreground mb-1 block flex items-center gap-1">
-              Província
-              {autoLocation?.province && <span className="text-[9px] font-normal text-green-600">(automático)</span>}
-            </label>
-            <select value={form.province} onChange={e => set("province", e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground">
-              <option value="">Selecionar</option>
-              {provinces.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="text-[11px] font-bold text-muted-foreground mb-1 block flex items-center gap-1">
-              Cidade
-              {autoLocation?.city && <span className="text-[9px] font-normal text-green-600">(automático)</span>}
-            </label>
-            <input value={form.city} onChange={e => set("city", e.target.value)}
-              placeholder="Cidade"
-              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
-          </div>
         </div>
 
         {/* Badge */}
