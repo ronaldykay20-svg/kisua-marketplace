@@ -1,15 +1,9 @@
 import { useState } from "react";
 import { Save, Upload, X, User, Image as ImageIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { STORAGE_BUCKETS } from "@/lib/storage";
-
-const provinces = [
-  "Bengo", "Benguela", "Bié", "Cabinda", "Cuando Cubango", "Cuanza Norte",
-  "Cuanza Sul", "Cunene", "Huambo", "Huíla", "Luanda", "Lunda Norte",
-  "Lunda Sul", "Malanje", "Moxico", "Namibe", "Uíge", "Zaire",
-];
 
 interface Props {
   seller: any;
@@ -23,14 +17,44 @@ const SellerProfileEditor = ({ seller }: Props) => {
     phone: seller.phone || "",
     whatsapp: seller.whatsapp || "",
     email: seller.email || "",
-    province: seller.province || "",
-    city: seller.city || "",
+    province_id: seller.province_id ? String(seller.province_id) : "",
+    municipality_id: seller.municipality_id ? String(seller.municipality_id) : "",
     address: seller.address || "",
     website: seller.website || "",
     logo_url: seller.logo_url || "",
     cover_url: seller.cover_url || "",
   });
   const [uploading, setUploading] = useState<string | null>(null);
+
+  // Províncias
+  const { data: provinces = [] } = useQuery({
+    queryKey: ["provinces"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("provinces")
+        .select("id, name")
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Municípios
+  const { data: municipalities = [] } = useQuery({
+    queryKey: ["municipalities"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("municipalities")
+        .select("id, name, province_id")
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const filteredMunicipalities = municipalities.filter(
+    (m: any) => String(m.province_id) === form.province_id
+  );
 
   const updateProfile = useMutation({
     mutationFn: async () => {
@@ -40,8 +64,8 @@ const SellerProfileEditor = ({ seller }: Props) => {
         phone: form.phone || null,
         whatsapp: form.whatsapp || null,
         email: form.email || null,
-        province: form.province || null,
-        city: form.city || null,
+        province_id: form.province_id ? Number(form.province_id) : null,
+        municipality_id: form.municipality_id ? Number(form.municipality_id) : null,
         address: form.address || null,
         website: form.website || null,
         logo_url: form.logo_url || null,
@@ -165,26 +189,46 @@ const SellerProfileEditor = ({ seller }: Props) => {
           <input value={form.email} onChange={e => set("email", e.target.value)}
             className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Província</label>
-            <select value={form.province} onChange={e => set("province", e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground">
-              <option value="">Selecionar</option>
-              {provinces.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Cidade</label>
-            <input value={form.city} onChange={e => set("city", e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
-          </div>
+
+        {/* ═══ LOCALIZAÇÃO ═══ */}
+        <div>
+          <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Província</label>
+          <select
+            value={form.province_id}
+            onChange={e => {
+              setForm(f => ({ ...f, province_id: e.target.value, municipality_id: "" }));
+            }}
+            className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground appearance-none"
+          >
+            <option value="">Seleccionar província…</option>
+            {provinces.map((p: any) => (
+              <option key={p.id} value={String(p.id)}>{p.name}</option>
+            ))}
+          </select>
         </div>
         <div>
-          <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Endereço</label>
-          <input value={form.address} onChange={e => set("address", e.target.value)}
-            className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
+          <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Município</label>
+          <select
+            value={form.municipality_id}
+            disabled={!form.province_id}
+            onChange={e => set("municipality_id", e.target.value)}
+            className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground appearance-none disabled:opacity-50"
+          >
+            <option value="">Seleccionar município…</option>
+            {filteredMunicipalities.map((m: any) => (
+              <option key={m.id} value={String(m.id)}>{m.name}</option>
+            ))}
+          </select>
         </div>
+        <div>
+          <label className="text-[11px] font-bold text-muted-foreground mb-1 block">
+            Endereço <span className="opacity-60">(rua/detalhe, opcional)</span>
+          </label>
+          <input value={form.address} onChange={e => set("address", e.target.value)}
+            className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground"
+            placeholder="ex: Rua da Missão, nº 42" />
+        </div>
+
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Website</label>
           <input value={form.website} onChange={e => set("website", e.target.value)}
