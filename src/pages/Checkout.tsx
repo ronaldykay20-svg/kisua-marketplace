@@ -18,7 +18,7 @@ type Step = "address" | "payment" | "confirm" | "success";
 const Checkout = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { data: cartItems = [] } = useCart();
+  const { data: cartItems = [], isLoading: cartLoading } = useCart();
   const clearCart = useClearCart();
   const queryClient = useQueryClient();
   const { provinces, getMunicipalitiesByProvince } = useFreight();
@@ -99,7 +99,6 @@ const Checkout = () => {
 
   const placeOrder = useMutation({
     mutationFn: async () => {
-      // Pegar o seller_id principal (primeiro vendedor do carrinho)
       const primarySellerId = cartGroups[0]?.seller?.sellerId ?? null;
 
       const { data: order, error: orderError } = await supabase
@@ -107,13 +106,11 @@ const Checkout = () => {
         .insert({
           user_id: user!.id,
           seller_id: primarySellerId,
-          // Nomes correctos das colunas da tabela
           total: total,
           subtotal: subtotal,
           shipping_cost: freightTotal,
           discount_amount: 0,
           status: "pending",
-          // Endereço separado nos campos correctos
           shipping_name: address.name,
           shipping_phone: address.phone,
           shipping_province: address.provinceName,
@@ -121,7 +118,6 @@ const Checkout = () => {
           shipping_address: address.street,
           shipping_municipality_code: address.municipalityCode,
           payment_method: paymentMethod,
-          // Manter também os campos novos para compatibilidade
           total_amount: total,
           subtotal_amount: subtotal,
           freight_amount: freightTotal,
@@ -188,8 +184,26 @@ const Checkout = () => {
     },
   });
 
-  if (!user) { navigate("/auth"); return null; }
-  if (cartItems.length === 0 && step !== "success") { navigate("/carrinho"); return null; }
+  // 1. Utilizador não autenticado
+  if (!user) {
+    navigate("/auth");
+    return null;
+  }
+
+  // 2. Mostrar spinner enquanto o carrinho carrega
+  if (cartLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // 3. Só redireciona para o carrinho depois de confirmar que está mesmo vazio
+  if (cartItems.length === 0 && step !== "success") {
+    navigate("/carrinho");
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-background pb-14">
