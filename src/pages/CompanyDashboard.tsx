@@ -47,6 +47,36 @@ const CompanyDashboard = () => {
 
   const [profileForm, setProfileForm] = useState<any>(null);
 
+  // Províncias
+  const { data: provinces = [] } = useQuery({
+    queryKey: ["provinces"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("provinces")
+        .select("id, name")
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Municípios
+  const { data: municipalities = [] } = useQuery({
+    queryKey: ["municipalities"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("municipalities")
+        .select("id, name, province_id")
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const filteredMunicipalities = municipalities.filter(
+    (m: any) => profileForm && String(m.province_id) === profileForm.province_id
+  );
+
   // Company products
   const { data: products = [], isLoading } = useQuery({
     queryKey: ["company_products", company?.id],
@@ -130,7 +160,6 @@ const CompanyDashboard = () => {
     enabled: !!editingProduct?.id,
   });
 
-  // CORRIGIDO: busca TODAS as imagens com fallback (igual ao SellerDashboard mas sem is_cover filter)
   const { data: productCovers = {} } = useQuery({
     queryKey: ["company_product_covers", company?.id],
     queryFn: async () => {
@@ -145,7 +174,6 @@ const CompanyDashboard = () => {
         .order("sort_order", { ascending: true });
       if (error) throw error;
       const map: Record<string, string> = {};
-      // Primeira imagem de cada produto (is_cover=true vem primeiro pelo order)
       (data || []).forEach((m: any) => {
         if (!map[m.product_id]) map[m.product_id] = m.url;
       });
@@ -323,6 +351,8 @@ const CompanyDashboard = () => {
         email: profileForm.email,
         website: profileForm.website,
         address: profileForm.address,
+        province_id: profileForm.province_id ? Number(profileForm.province_id) : null,
+        municipality_id: profileForm.municipality_id ? Number(profileForm.municipality_id) : null,
       }).eq("id", company.id);
       if (error) throw error;
     },
@@ -437,6 +467,8 @@ const CompanyDashboard = () => {
                   email: company.email || "",
                   website: company.website || "",
                   address: company.address || "",
+                  province_id: company.province_id ? String(company.province_id) : "",
+                  municipality_id: company.municipality_id ? String(company.municipality_id) : "",
                 });
               }}
               className={`flex-1 py-2 text-xs font-bold rounded-lg border ${tab === "perfil" ? "bg-primary text-primary-foreground border-primary" : "bg-card text-foreground border-border"}`}
@@ -490,7 +522,6 @@ const CompanyDashboard = () => {
 
             <div className="space-y-2">
               {products.map((p: any) => {
-                // CORRIGIDO: usa productCovers com fallback para image_url (igual ao SellerDashboard)
                 const coverUrl = (productCovers as Record<string, string>)[p.id] || p.image_url;
                 return (
                   <div
@@ -671,15 +702,47 @@ const CompanyDashboard = () => {
                 placeholder="https://..."
               />
             </div>
+
+            {/* ═══ LOCALIZAÇÃO ═══ */}
             <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Endereço</label>
+              <label className="text-xs text-muted-foreground mb-1 block">Província</label>
+              <select
+                value={profileForm.province_id}
+                onChange={e => setProfileForm({ ...profileForm, province_id: e.target.value, municipality_id: "" })}
+                className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground appearance-none"
+              >
+                <option value="">Seleccionar província…</option>
+                {provinces.map((p: any) => (
+                  <option key={p.id} value={String(p.id)}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Município</label>
+              <select
+                value={profileForm.municipality_id}
+                disabled={!profileForm.province_id}
+                onChange={e => setProfileForm({ ...profileForm, municipality_id: e.target.value })}
+                className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground appearance-none disabled:opacity-50"
+              >
+                <option value="">Seleccionar município…</option>
+                {filteredMunicipalities.map((m: any) => (
+                  <option key={m.id} value={String(m.id)}>{m.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">
+                Endereço <span className="opacity-60">(rua/detalhe, opcional)</span>
+              </label>
               <input
                 value={profileForm.address}
                 onChange={e => setProfileForm({ ...profileForm, address: e.target.value })}
                 className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground"
-                placeholder="Luanda, Angola"
+                placeholder="ex: Rua da Missão, nº 42"
               />
             </div>
+
             <button
               onClick={() => saveProfile.mutate()}
               className="w-full py-2 bg-primary text-primary-foreground text-sm font-bold rounded-lg"
