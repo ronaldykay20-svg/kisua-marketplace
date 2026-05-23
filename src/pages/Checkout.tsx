@@ -34,7 +34,6 @@ const Checkout = () => {
     municipalityName: "",
   });
   const [paymentMethod, setPaymentMethod] = useState("cash_on_delivery");
-
   const [freightSelections, setFreightSelections] = useState<any[]>([]);
   const [freightTotal, setFreightTotal] = useState(0);
 
@@ -48,37 +47,69 @@ const Checkout = () => {
     : [];
 
   const productIds = cartItems.map((item: any) => item.product_id);
+
+  // Busca produtos com seller OU company
   const { data: productSellers = [] } = useQuery({
     queryKey: ["checkout_product_sellers", productIds],
     queryFn: async () => {
       if (!productIds.length) return [];
       const { data } = await supabase
         .from("products")
-        .select("id, title, price, image_url, seller_id, sellers(id, name, municipality_code)")
+        .select(`
+          id, title, price, image_url, seller_id, company_id, municipality_code,
+          sellers(id, name, municipality_code),
+          companies(id, name, municipality_code)
+        `)
         .in("id", productIds);
       return data || [];
     },
     enabled: productIds.length > 0,
   });
 
+  // Agrupa por vendedor OU empresa
   const cartGroups = (() => {
     const map = new Map<string, any>();
     for (const item of cartItems as any[]) {
       const prod = productSellers.find((p: any) => p.id === item.product_id);
-      if (!prod?.sellers) continue;
-      const seller = prod.sellers;
-      if (!map.has(seller.id)) {
-        map.set(seller.id, {
+      if (!prod) continue;
+
+      let entityId: string | null = null;
+      let entityName: string = "Vendedor";
+      let originMunicipalityCode: string = "";
+      let isCompany = false;
+
+      if (prod.sellers) {
+        entityId = prod.sellers.id;
+        entityName = prod.sellers.name;
+        originMunicipalityCode = prod.sellers.municipality_code ?? prod.municipality_code ?? "";
+        isCompany = false;
+      } else if (prod.companies) {
+        entityId = prod.companies.id;
+        entityName = prod.companies.name;
+        originMunicipalityCode = prod.companies.municipality_code ?? prod.municipality_code ?? "";
+        isCompany = true;
+      } else if (prod.municipality_code) {
+        entityId = prod.id;
+        entityName = "Vendedor";
+        originMunicipalityCode = prod.municipality_code ?? "";
+        isCompany = false;
+      }
+
+      if (!entityId) continue;
+
+      if (!map.has(entityId)) {
+        map.set(entityId, {
           seller: {
-            sellerId: seller.id,
-            sellerName: seller.name,
-            originMunicipalityCode: seller.municipality_code ?? "",
+            sellerId: entityId,
+            sellerName: entityName,
+            originMunicipalityCode,
           },
           items: [],
           subtotal: 0,
+          isCompany,
         });
       }
-      const group = map.get(seller.id)!;
+      const group = map.get(entityId)!;
       group.items.push({
         id: item.id,
         name: prod.title,
@@ -99,7 +130,8 @@ const Checkout = () => {
 
   const placeOrder = useMutation({
     mutationFn: async () => {
-      const primarySellerId = cartGroups[0]?.seller?.sellerId ?? null;
+      const primaryGroup = cartGroups[0];
+      const primarySellerId = primaryGroup?.isCompany ? null : primaryGroup?.seller?.sellerId ?? null;
 
       const { data: order, error: orderError } = await supabase
         .from("orders")
@@ -151,7 +183,11 @@ const Checkout = () => {
         await supabase.from("order_freight").insert(freightRows);
       }
 
-      const sellerIds = [...new Set(freightSelections.map((s: any) => s.sellerId))];
+      // Notificar apenas sellers (não companies directamente)
+      const sellerIds = cartGroups
+        .filter((g: any) => !g.isCompany)
+        .map((g: any) => g.seller.sellerId);
+
       if (sellerIds.length > 0) {
         const { data: sellers } = await supabase
           .from("sellers")
@@ -190,7 +226,7 @@ const Checkout = () => {
     return null;
   }
 
-  // 2. Mostrar spinner enquanto o carrinho carrega
+  // 2. Spinner enquanto o carrinho carrega
   if (cartLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -199,7 +235,7 @@ const Checkout = () => {
     );
   }
 
-  // 3. Só redireciona para o carrinho depois de confirmar que está mesmo vazio
+  // 3. Só redireciona depois de confirmar que está vazio
   if (cartItems.length === 0 && step !== "success") {
     navigate("/carrinho");
     return null;
@@ -241,7 +277,7 @@ const Checkout = () => {
 
       <div className="container mx-auto px-3 max-w-2xl">
 
-        {/* ── STEP 1: Endereço ── */}
+        {/* STEP 1: Endereço */}
         {step === "address" && (
           <div className="space-y-4">
             <div className="bg-card rounded-card border border-border p-4">
@@ -343,7 +379,7 @@ const Checkout = () => {
           </div>
         )}
 
-        {/* ── STEP 2: Pagamento ── */}
+        {/* STEP 2: Pagamento */}
         {step === "payment" && (
           <div className="space-y-4">
             <div className="bg-card rounded-card border border-border p-4">
@@ -381,7 +417,7 @@ const Checkout = () => {
           </div>
         )}
 
-        {/* ── STEP 3: Confirmar ── */}
+        {/* STEP 3: Confirmar */}
         {step === "confirm" && (
           <div className="space-y-4">
             <div className="bg-card rounded-card border border-border p-4">
@@ -475,7 +511,7 @@ const Checkout = () => {
           </div>
         )}
 
-        {/* ── SUCCESS ── */}
+        {/* SUCCESS */}
         {step === "success" && (
           <div className="text-center py-16">
             <CheckCircle className="w-20 h-20 text-primary mx-auto mb-4" />
