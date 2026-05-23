@@ -28,7 +28,6 @@ const Checkout = () => {
     name: "",
     phone: "",
     street: "",
-    // Novos: controlados pelos selects nativos
     provinceId: "",
     provinceName: "",
     municipalityCode: "" as string | null,
@@ -36,7 +35,6 @@ const Checkout = () => {
   });
   const [paymentMethod, setPaymentMethod] = useState("cash_on_delivery");
 
-  // ── Frete ──────────────────────────────────────────────────────────────────
   const [freightSelections, setFreightSelections] = useState<any[]>([]);
   const [freightTotal, setFreightTotal] = useState(0);
 
@@ -45,12 +43,10 @@ const Checkout = () => {
     setFreightTotal(total);
   }, []);
 
-  // Municípios da província seleccionada
   const municipalities = address.provinceId
     ? getMunicipalitiesByProvince(Number(address.provinceId))
     : [];
 
-  // ── Sellers / cartGroups ───────────────────────────────────────────────────
   const productIds = cartItems.map((item: any) => item.product_id);
   const { data: productSellers = [] } = useQuery({
     queryKey: ["checkout_product_sellers", productIds],
@@ -101,22 +97,34 @@ const Checkout = () => {
 
   const total = subtotal + freightTotal;
 
-  // ── Criar pedido ───────────────────────────────────────────────────────────
   const placeOrder = useMutation({
     mutationFn: async () => {
-      const fullAddress = `${address.name} - ${address.phone}\n${address.street}, ${address.municipalityName}, ${address.provinceName}`;
+      // Pegar o seller_id principal (primeiro vendedor do carrinho)
+      const primarySellerId = cartGroups[0]?.seller?.sellerId ?? null;
 
       const { data: order, error: orderError } = await supabase
         .from("orders")
         .insert({
           user_id: user!.id,
+          seller_id: primarySellerId,
+          // Nomes correctos das colunas da tabela
+          total: total,
+          subtotal: subtotal,
+          shipping_cost: freightTotal,
+          discount_amount: 0,
+          status: "pending",
+          // Endereço separado nos campos correctos
+          shipping_name: address.name,
+          shipping_phone: address.phone,
+          shipping_province: address.provinceName,
+          shipping_city: address.municipalityName,
+          shipping_address: address.street,
+          shipping_municipality_code: address.municipalityCode,
+          payment_method: paymentMethod,
+          // Manter também os campos novos para compatibilidade
           total_amount: total,
           subtotal_amount: subtotal,
           freight_amount: freightTotal,
-          status: "pending",
-          shipping_address: fullAddress,
-          shipping_municipality_code: address.municipalityCode,
-          payment_method: paymentMethod,
         })
         .select("id")
         .single();
@@ -163,7 +171,9 @@ const Checkout = () => {
           is_read: false,
         }));
 
-        await supabase.from("notifications").insert(notifications);
+        if (notifications.length > 0) {
+          await supabase.from("notifications").insert(notifications);
+        }
       }
 
       await clearCart.mutateAsync();
@@ -192,7 +202,6 @@ const Checkout = () => {
         </span>
       </div>
 
-      {/* Steps indicator */}
       {step !== "success" && (
         <div className="container mx-auto px-3 max-w-2xl py-4">
           <div className="flex items-center gap-2 justify-center">
@@ -227,8 +236,6 @@ const Checkout = () => {
                 <h3 className="text-sm font-bold text-foreground">Endereço de entrega</h3>
               </div>
               <div className="space-y-3">
-
-                {/* Nome */}
                 <div>
                   <label className="text-xs font-semibold text-muted-foreground">Nome completo</label>
                   <input
@@ -238,8 +245,6 @@ const Checkout = () => {
                     placeholder="Seu nome"
                   />
                 </div>
-
-                {/* Telefone */}
                 <div>
                   <label className="text-xs font-semibold text-muted-foreground">Telefone</label>
                   <input
@@ -249,8 +254,6 @@ const Checkout = () => {
                     placeholder="+244 9XX XXX XXX"
                   />
                 </div>
-
-                {/* Província + Município — selects nativos ligados ao frete */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-semibold text-muted-foreground">Província</label>
@@ -296,8 +299,6 @@ const Checkout = () => {
                     </select>
                   </div>
                 </div>
-
-                {/* Rua */}
                 <div>
                   <label className="text-xs font-semibold text-muted-foreground">Rua / Bairro / Referência</label>
                   <textarea
@@ -311,7 +312,6 @@ const Checkout = () => {
               </div>
             </div>
 
-            {/* FreightCalculator — recebe o município do formulário acima */}
             <FreightCalculator
               cartGroups={cartGroups}
               destMunicipalityCode={address.municipalityCode}
@@ -421,7 +421,6 @@ const Checkout = () => {
                 ))}
               </div>
 
-              {/* Resumo de valores */}
               <div className="border-t border-border mt-3 pt-3 space-y-1.5">
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>Subtotal</span>
