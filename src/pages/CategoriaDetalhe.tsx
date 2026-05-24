@@ -144,10 +144,10 @@ const CategoriaDetalhe = () => {
         .select("*, product_media(url, is_cover), product_variants(variant_type, value, name)")
         .eq("is_active", true);
       if (categoryId) query = query.eq("category_id", categoryId);
-      if (sortBy === "Menor preço")    query = query.order("price",       { ascending: true  });
-      else if (sortBy === "Maior preço")   query = query.order("price",   { ascending: false });
+      if (sortBy === "Menor preço")        query = query.order("price",       { ascending: true  });
+      else if (sortBy === "Maior preço")   query = query.order("price",       { ascending: false });
       else if (sortBy === "Mais vendidos") query = query.order("sales_count", { ascending: false });
-      else query = query.order("created_at", { ascending: false });
+      else                                 query = query.order("created_at",  { ascending: false });
       const { data, error } = await query;
       if (error) throw error;
       return data || [];
@@ -208,10 +208,9 @@ const CategoriaDetalhe = () => {
   const toggleColor = (c: string) =>
     setSelectedColors(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]);
 
-  const activeFiltersCount =
-    (selectedSub ? 1 : 0) + selectedColors.length + (selectedPrice ? 1 : 0);
+  const activeFiltersCount = (selectedSub ? 1 : 0) + selectedColors.length + (selectedPrice ? 1 : 0);
 
-  // Usa cover_image_url para o hero banner
+  // Usa cover_image_url para o hero
   const heroImage =
     category?.cover_image_url ||
     categoryHeroImages[categoryName] ||
@@ -262,7 +261,7 @@ const CategoriaDetalhe = () => {
                 background: selectedColors.includes(c.name) ? brownLight : "transparent",
                 color:      selectedColors.includes(c.name) ? brown : "#555",
                 fontWeight: selectedColors.includes(c.name) ? 700 : 400,
-                border: selectedColors.includes(c.name) ? `1px solid ${brownMid}` : "1px solid transparent",
+                border:     selectedColors.includes(c.name) ? `1px solid ${brownMid}` : "1px solid transparent",
               }}>
               <div className={`w-4 h-4 rounded-full ${c.color} flex-shrink-0`} />
               {c.name}
@@ -342,8 +341,8 @@ const CategoriaDetalhe = () => {
   return (
     <div className="relative min-h-screen pb-14 md:pb-0" style={{ backgroundColor: "#F5F5F5" }}>
 
-      {/* ══ HERO BANNER — texto sempre legível ══ */}
-      <div className="relative w-full overflow-hidden" style={{ minHeight: 300 }}>
+      {/* ══ HERO BANNER — imagem visível, texto branco legível ══ */}
+      <div className="relative w-full overflow-hidden" style={{ minHeight: 280 }}>
         <img
           src={heroImage}
           alt={categoryName}
@@ -351,55 +350,52 @@ const CategoriaDetalhe = () => {
           style={{ objectPosition: "center" }}
         />
 
-        {/* Overlay escuro uniforme para garantir legibilidade */}
-        <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.45)" }} />
-
-        {/* Gradiente extra na zona do texto (parte inferior) */}
+        {/* Overlay muito leve no topo (zona sem texto) */}
         <div
           className="absolute inset-0"
           style={{
-            background: "linear-gradient(to top, rgba(0,0,0,0.70) 0%, rgba(0,0,0,0.30) 50%, rgba(0,0,0,0.10) 100%)",
+            background: "linear-gradient(to bottom, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.10) 40%, rgba(0,0,0,0.55) 75%, rgba(0,0,0,0.72) 100%)",
           }}
         />
 
-        {/* Conteúdo do hero */}
-        <div className="relative z-10 flex flex-col justify-end px-4 pb-6" style={{ paddingTop: 68, minHeight: 300 }}>
-          {/* Breadcrumb */}
-          <div className="flex items-center gap-1 text-[11px] mb-3">
+        {/* Conteúdo */}
+        <div className="relative z-10 flex flex-col justify-end px-4 pb-6" style={{ paddingTop: 68, minHeight: 280 }}>
+          {/* Breadcrumb — branco */}
+          <div className="flex items-center gap-1 text-[11px] mb-2">
             <button onClick={() => navigate("/")}
-              className="hover:opacity-80 transition-opacity font-medium"
-              style={{ color: "rgba(255,255,255,0.80)", textShadow: "0 1px 3px rgba(0,0,0,0.5)" }}>
+              className="hover:opacity-75 transition-opacity font-medium"
+              style={{ color: "rgba(255,255,255,0.85)", textShadow: "0 1px 4px rgba(0,0,0,0.5)" }}>
               Início
             </button>
             <span style={{ color: "rgba(255,255,255,0.50)" }}>/</span>
             <button onClick={() => navigate("/categorias")}
-              className="hover:opacity-80 transition-opacity font-medium"
-              style={{ color: "rgba(255,255,255,0.80)", textShadow: "0 1px 3px rgba(0,0,0,0.5)" }}>
+              className="hover:opacity-75 transition-opacity font-medium"
+              style={{ color: "rgba(255,255,255,0.85)", textShadow: "0 1px 4px rgba(0,0,0,0.5)" }}>
               Categorias
             </button>
             <span style={{ color: "rgba(255,255,255,0.50)" }}>/</span>
-            <span className="font-black" style={{ color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,0.6)" }}>
+            <span className="font-black" style={{ color: "#fff", textShadow: "0 1px 4px rgba(0,0,0,0.6)" }}>
               {categoryName}
             </span>
           </div>
 
-          {/* Título */}
+          {/* Título — branco com sombra suave */}
           <h1
-            className="text-3xl font-black leading-tight mb-2"
+            className="text-3xl font-black leading-tight mb-1.5"
             style={{
               color: "#fff",
-              textShadow: "0 2px 8px rgba(0,0,0,0.7), 0 1px 3px rgba(0,0,0,0.9)",
+              textShadow: "0 2px 6px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4)",
             }}
           >
             {categoryName}
           </h1>
 
-          {/* Subtítulo */}
+          {/* Subtítulo — branco suave */}
           <p
             className="text-sm font-medium max-w-xs"
             style={{
-              color: "rgba(255,255,255,0.90)",
-              textShadow: "0 1px 4px rgba(0,0,0,0.7)",
+              color: "rgba(255,255,255,0.88)",
+              textShadow: "0 1px 4px rgba(0,0,0,0.5)",
             }}
           >
             {heroSubtitle}
@@ -424,7 +420,7 @@ const CategoriaDetalhe = () => {
                   <button key={opt} onClick={() => { setSortBy(opt); setShowSort(false); }}
                     className="block w-full text-left px-3 py-2 text-xs transition-colors hover:bg-amber-50"
                     style={{
-                      color: opt === sortBy ? sandDark : brown,
+                      color:      opt === sortBy ? sandDark : brown,
                       fontWeight: opt === sortBy ? 800 : 400,
                       background: opt === sortBy ? brownLight : "transparent",
                     }}>
