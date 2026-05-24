@@ -107,7 +107,7 @@ const useImageSearch = (onResult: (base64: string) => void) => {
 };
 
 const LogoSkeleton = () => (
-  <div className="rounded-lg animate-pulse" style={{ height: 52, width: 120, background: "rgba(74,46,10,0.12)" }} />
+  <div className="rounded-lg animate-pulse" style={{ height: 104, width: 160, background: "rgba(74,46,10,0.12)" }} />
 );
 
 const Navbar = () => {
@@ -271,7 +271,7 @@ const Navbar = () => {
           <img
             src={logoUrl}
             alt="Logo"
-            style={{ height: 52, maxWidth: 140, objectFit: "contain", display: logoLoaded ? "block" : "none" }}
+            style={{ height: 104, maxWidth: 200, objectFit: "contain", display: logoLoaded ? "block" : "none" }}
             onLoad={() => setLogoLoaded(true)}
             onError={() => setLogoLoaded(true)}
           />
@@ -290,7 +290,7 @@ const Navbar = () => {
         <div className="px-3">
 
           {/* ── Linha 1: ícones ── */}
-          <div className="flex items-center gap-2" style={{ height: 68 }}>
+          <div className="flex items-center gap-2" style={{ height: 116 }}>
 
             {/* Esquerda: menu ou voltar */}
             {isCategoriaDetalhePage ? (
@@ -512,8 +512,8 @@ const Navbar = () => {
             >
               <div className="flex items-center gap-1.5 pb-2" style={{ color: brown }}>
                 <MapPin className="w-3.5 h-3.5 flex-shrink-0" style={{ color: sandDark }} />
-                <span className="text-xs">Retirada ou entrega?</span>
-                <span className="text-xs font-bold ml-auto">Luanda, Angola</span>
+                <span className="text-xs font-medium">Entregas rápidas</span>
+                <span className="text-xs font-bold ml-auto">Em todo o país</span>
               </div>
             </div>
           )}
