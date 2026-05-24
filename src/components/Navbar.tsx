@@ -107,7 +107,7 @@ const useImageSearch = (onResult: (base64: string) => void) => {
 };
 
 const LogoSkeleton = () => (
-  <div className="rounded-lg animate-pulse" style={{ height: 104, width: 160, background: "rgba(74,46,10,0.12)" }} />
+  <div className="rounded-lg animate-pulse" style={{ height: 80, width: 160, background: "rgba(74,46,10,0.12)" }} />
 );
 
 const Navbar = () => {
@@ -271,7 +271,7 @@ const Navbar = () => {
           <img
             src={logoUrl}
             alt="Logo"
-            style={{ height: 104, maxWidth: 200, objectFit: "contain", display: logoLoaded ? "block" : "none" }}
+            style={{ height: 80, maxWidth: 200, objectFit: "contain", display: logoLoaded ? "block" : "none" }}
             onLoad={() => setLogoLoaded(true)}
             onError={() => setLogoLoaded(true)}
           />
@@ -290,7 +290,7 @@ const Navbar = () => {
         <div className="px-3">
 
           {/* ── Linha 1: ícones ── */}
-          <div className="flex items-center gap-2" style={{ height: 116 }}>
+          <div className="flex items-start gap-2 pt-2" style={{ height: 88 }}>
 
             {/* Esquerda: menu ou voltar */}
             {isCategoriaDetalhePage ? (
@@ -523,7 +523,7 @@ const Navbar = () => {
             <div
               className="overflow-hidden"
               style={{
-                maxHeight: showCategories && !searchBarOpen ? "100px" : "0px",
+                maxHeight: showCategories && !searchBarOpen ? "80px" : "0px",
                 opacity: showCategories && !searchBarOpen ? 1 : 0,
                 transition: "max-height 0.45s cubic-bezier(0.4,0,0.2,1), opacity 0.35s ease",
               }}
@@ -542,12 +542,12 @@ const Navbar = () => {
                     className="flex flex-col items-center gap-1 flex-shrink-0"
                   >
                     <div
-                      className="w-11 h-11 rounded-xl overflow-hidden"
-                      style={{ border: "2px solid rgba(74,46,10,0.15)", boxShadow: "0 2px 6px rgba(74,46,10,0.10)" }}
+                      className="w-9 h-9 rounded-xl overflow-hidden"
+                      style={{ border: "2px solid rgba(74,46,10,0.15)", boxShadow: "0 1px 4px rgba(74,46,10,0.10)" }}
                     >
                       <img src={cat.image} alt={cat.name} className="w-full h-full object-cover" />
                     </div>
-                    <span className="text-[9px] font-semibold text-center leading-tight" style={{ color: brown, maxWidth: 44 }}>
+                    <span className="text-[8px] font-semibold text-center leading-tight" style={{ color: brown, maxWidth: 36 }}>
                       {cat.name}
                     </span>
                   </button>
@@ -558,16 +558,16 @@ const Navbar = () => {
                   className="flex flex-col items-center gap-1 flex-shrink-0"
                 >
                   <div
-                    className="w-11 h-11 rounded-xl flex items-center justify-center"
+                    className="w-9 h-9 rounded-xl flex items-center justify-center"
                     style={{
                       background: "linear-gradient(135deg, #6B3F12, #4A2E0A)",
                       border: "2px solid rgba(74,46,10,0.35)",
-                      boxShadow: "0 2px 6px rgba(74,46,10,0.18)",
+                      boxShadow: "0 1px 4px rgba(74,46,10,0.18)",
                     }}
                   >
-                    <span style={{ fontSize: 18, color: "#FFFFFF", lineHeight: 1 }}>&#8862;</span>
+                    <span style={{ fontSize: 16, color: "#FFFFFF", lineHeight: 1 }}>&#8862;</span>
                   </div>
-                  <span className="text-[9px] font-semibold text-center" style={{ color: brown }}>Ver todas</span>
+                  <span className="text-[8px] font-semibold text-center" style={{ color: brown }}>Ver todas</span>
                 </button>
               </div>
             </div>
