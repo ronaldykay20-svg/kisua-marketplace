@@ -113,7 +113,7 @@ const useImageSearch = (onResult: (base64: string) => void) => {
 // Skeleton suave para o logo enquanto carrega
 const LogoSkeleton = () => (
   <div
-    className="h-9 w-32 rounded-lg animate-pulse"
+    className="h-14 w-36 rounded-lg animate-pulse"
     style={{ background: "rgba(74,46,10,0.12)" }}
   />
 );
@@ -122,7 +122,6 @@ const Navbar = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchVisible, setSearchVisible] = useState(true);
   const [categorySearchVisible, setCategorySearchVisible] = useState(false);
   const [scrollY, setScrollY] = useState(0);
   const [showCategories, setShowCategories] = useState(true);
@@ -170,7 +169,6 @@ const Navbar = () => {
   }, []);
 
   useEffect(() => {
-    setSearchVisible(true);
     setSearchQuery("");
     setCategorySearchVisible(false);
   }, [location.pathname]);
@@ -214,32 +212,17 @@ const Navbar = () => {
     e.preventDefault();
     if (searchQuery.trim()) {
       navigate(`/pesquisa?q=${encodeURIComponent(searchQuery.trim())}`);
-      setSearchQuery(""); setSearchVisible(false); setCategorySearchVisible(false);
-    }
-  };
-
-  const handleSearchIconClick = () => {
-    if (searchVisible && !searchQuery.trim()) setSearchVisible(false);
-    else if (!searchVisible) setSearchVisible(true);
-    else if (searchQuery.trim()) {
-      navigate(`/pesquisa?q=${encodeURIComponent(searchQuery.trim())}`);
-      setSearchQuery(""); setSearchVisible(false);
+      setSearchQuery(""); setCategorySearchVisible(false);
     }
   };
 
   const { listening, startListening, stopListening } = useSpeechRecognition((text) => {
     setSearchQuery(text);
     navigate(`/pesquisa?q=${encodeURIComponent(text)}`);
-    setSearchVisible(false); setCategorySearchVisible(false);
+    setCategorySearchVisible(false);
   });
 
   const handleMicClick = () => { if (listening) stopListening(); else startListening(); };
-
-  const { analyzing: analyzingNormal, openImagePicker: openNormal, handleFileChange: fileChangeNormal, fileInputRef: fileRefNormal } =
-    useImageSearch((base64) => {
-      navigate(`/pesquisa?modo=imagem&img=${encodeURIComponent(base64)}`);
-      setSearchVisible(false);
-    });
 
   const { analyzing: analyzingCat, openImagePicker: openCat, handleFileChange: fileChangeCat, fileInputRef: fileRefCat } =
     useImageSearch((base64) => {
@@ -277,28 +260,25 @@ const Navbar = () => {
   // Determina o que mostrar no lugar do logo
   const renderLogo = () => {
     if (logoLoading) {
-      // Enquanto carrega: skeleton suave, sem texto
       return <LogoSkeleton />;
     }
     if (logoUrl) {
       return (
         <>
-          {/* Skeleton visível até a imagem carregar */}
           {!logoLoaded && <LogoSkeleton />}
           <img
             src={logoUrl}
             alt="Logo"
-            className="h-9 object-contain"
+            className="h-14 object-contain"
             style={{ display: logoLoaded ? "block" : "none" }}
             onLoad={() => setLogoLoaded(true)}
-            onError={() => setLogoLoaded(true)} // fallback: esconde skeleton mesmo com erro
+            onError={() => setLogoLoaded(true)}
           />
         </>
       );
     }
-    // Sem logo configurado: mostra o nome (estado definitivo, sem flash)
     return (
-      <span className="text-xl font-black" style={{ color: brown }}>
+      <span className="text-2xl font-black" style={{ color: brown }}>
         AngoExpress
       </span>
     );
@@ -306,14 +286,6 @@ const Navbar = () => {
 
   return (
     <>
-      <input
-        ref={fileRefNormal}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        className="hidden"
-        onChange={fileChangeNormal}
-      />
       <input
         ref={fileRefCat}
         type="file"
@@ -327,7 +299,7 @@ const Navbar = () => {
         <div className="px-3">
 
           {/* ── Linha 1 ── */}
-          <div className="flex items-center gap-2.5 h-14">
+          <div className="flex items-center gap-2.5 h-16">
 
             {isCategoriaDetalhePage ? (
               <button
@@ -359,7 +331,19 @@ const Navbar = () => {
 
             <div className="flex-1" />
 
-            {isCategoriaDetalhePage ? (
+            {/* Lupa azul — navega direto para /pesquisa (exceto na página de categoria detalhe) */}
+            {!isCategoriaDetalhePage && (
+              <button
+                className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
+                style={{ background: "#1565C0", border: "none" }}
+                onClick={() => navigate("/pesquisa")}
+              >
+                <Search className="w-5 h-5 text-white" />
+              </button>
+            )}
+
+            {/* Lupa na página de categoria detalhe */}
+            {isCategoriaDetalhePage && (
               <button
                 className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
                 style={{ background: brownLight, border: "1px solid rgba(74,46,10,0.18)" }}
@@ -367,16 +351,6 @@ const Navbar = () => {
               >
                 <Search className="w-5 h-5" style={{ color: brown }} />
               </button>
-            ) : (
-              !searchVisible && (
-                <button
-                  className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
-                  style={{ background: iconBg, border: iconBorder }}
-                  onClick={() => setSearchVisible(true)}
-                >
-                  <Search className="w-5 h-5" style={{ color: iconColor }} />
-                </button>
-              )
             )}
 
             {user && (
@@ -461,67 +435,6 @@ const Navbar = () => {
                     boxShadow: listening ? "0 0 0 4px rgba(229,57,53,0.25)" : "none",
                     animation: listening ? "pulse 1.2s ease-in-out infinite" : "none",
                   }}
-                >
-                  <Mic className="w-4 h-4 text-white" />
-                </button>
-              </form>
-            </div>
-          )}
-
-          {/* ── Barra de pesquisa normal ── */}
-          {!isCategoriasPage && !isPesquisaPage && !isCategoriaDetalhePage && (
-            <div
-              className="overflow-hidden"
-              style={{
-                maxHeight: searchVisible ? "56px" : "0px",
-                opacity: searchVisible ? 1 : 0,
-                paddingBottom: searchVisible ? "8px" : "0px",
-                transition: "max-height 0.3s ease, opacity 0.25s ease, padding 0.25s ease",
-              }}
-            >
-              <form
-                onSubmit={handleSearch}
-                className="flex items-center rounded-2xl overflow-hidden"
-                style={{ background: "#fff", boxShadow: "0 1px 6px rgba(74,46,10,0.12)" }}
-              >
-                <button type="button" onClick={handleSearchIconClick} className="ml-3 flex-shrink-0 p-1">
-                  <Search className="w-4 h-4" style={{ color: sandDark }} />
-                </button>
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  placeholder="Buscar produtos, marcas..."
-                  className="flex-1 py-2.5 px-2.5 bg-transparent focus:outline-none"
-                  style={{ color: brown, fontSize: "16px" }}
-                  onFocus={() => setSearchVisible(true)}
-                />
-                <button
-                  type="button"
-                  onClick={openNormal}
-                  disabled={analyzingNormal}
-                  className="w-9 h-9 flex items-center justify-center flex-shrink-0 rounded-xl m-0.5 transition-all"
-                  style={{
-                    background: analyzingNormal ? "#F9A825" : brownLight,
-                    border: `1px solid rgba(74,46,10,0.18)`,
-                  }}
-                  title="Pesquisar por imagem"
-                >
-                  {analyzingNormal
-                    ? <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: brown, borderTopColor: "transparent" }} />
-                    : <Camera className="w-4 h-4" style={{ color: brown }} />
-                  }
-                </button>
-                <button
-                  type="button"
-                  onClick={handleMicClick}
-                  className="w-11 h-10 flex items-center justify-center flex-shrink-0 rounded-xl m-0.5 transition-all"
-                  style={{
-                    background: listening ? "#E53935" : `linear-gradient(135deg, ${sandDark}, ${sand})`,
-                    boxShadow: listening ? "0 0 0 4px rgba(229,57,53,0.25)" : "none",
-                    animation: listening ? "pulse 1.2s ease-in-out infinite" : "none",
-                  }}
-                  title={listening ? "A ouvir... clique para parar" : "Pesquisar por voz"}
                 >
                   <Mic className="w-4 h-4 text-white" />
                 </button>
