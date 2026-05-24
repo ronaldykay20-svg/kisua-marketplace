@@ -115,6 +115,7 @@ const Navbar = () => {
   const [notifOpen, setNotifOpen]                           = useState(false);
   const [searchQuery, setSearchQuery]                       = useState("");
   const [searchBarOpen, setSearchBarOpen]                   = useState(false);
+  const [categoriesExpanded, setCategoriesExpanded]         = useState(true);
   const [categorySearchVisible, setCategorySearchVisible]   = useState(false);
   const [scrollY, setScrollY]                               = useState(0);
   const [showCategories, setShowCategories]                 = useState(true);
@@ -166,6 +167,7 @@ const Navbar = () => {
     setSearchQuery("");
     setSearchBarOpen(false);
     setCategorySearchVisible(false);
+    setCategoriesExpanded(true);
   }, [location.pathname]);
 
   useEffect(() => {
@@ -290,7 +292,7 @@ const Navbar = () => {
         <div className="px-3">
 
           {/* ── Linha 1: ícones ── */}
-          <div className="flex items-start gap-2 pt-2" style={{ height: 88 }}>
+          <div className="flex items-start gap-2 pt-1" style={{ height: 88 }}>
 
             {/* Esquerda: menu ou voltar */}
             {isCategoriaDetalhePage ? (
@@ -500,17 +502,19 @@ const Navbar = () => {
             </div>
           )}
 
-          {/* ── Localização ── */}
+          {/* ── Traço superior + Localização ── */}
           {!isCategoriasPage && !isPesquisaPage && !isCategoriaDetalhePage && (
             <div
               className="overflow-hidden"
               style={{
-                maxHeight: showLocation && !searchBarOpen ? "32px" : "0px",
+                maxHeight: showLocation && !searchBarOpen ? "40px" : "0px",
                 opacity: showLocation && !searchBarOpen ? 1 : 0,
                 transition: "max-height 0.3s ease, opacity 0.25s ease",
               }}
             >
-              <div className="flex items-center gap-1.5 pb-2" style={{ color: brown }}>
+              {/* Traço superior */}
+              <div style={{ height: 1, background: "rgba(74,46,10,0.14)", marginBottom: 5 }} />
+              <div className="flex items-center gap-1.5 pb-1" style={{ color: brown }}>
                 <MapPin className="w-3.5 h-3.5 flex-shrink-0" style={{ color: sandDark }} />
                 <span className="text-xs font-medium">Entregas rápidas</span>
                 <span className="text-xs font-bold ml-auto">Em todo o país</span>
@@ -518,59 +522,75 @@ const Navbar = () => {
             </div>
           )}
 
-          {/* ── Divisor + Categorias ── */}
+          {/* ── Divisor clicável + Categorias ── */}
           {!isCategoriasPage && !isPesquisaPage && !isCategoriaDetalhePage && (
-            <div
-              className="overflow-hidden"
-              style={{
-                maxHeight: showCategories && !searchBarOpen ? "80px" : "0px",
-                opacity: showCategories && !searchBarOpen ? 1 : 0,
-                transition: "max-height 0.45s cubic-bezier(0.4,0,0.2,1), opacity 0.35s ease",
-              }}
-            >
-              {/* Traço divisor */}
-              <div style={{ height: 1, background: "rgba(74,46,10,0.14)", marginBottom: 8 }} />
+            <>
+              {/* Traço inferior — clicável para minimizar/expandir */}
+              <button
+                className="w-full flex items-center justify-center"
+                style={{ height: 16, gap: 6 }}
+                onClick={() => setCategoriesExpanded(v => !v)}
+                title={categoriesExpanded ? "Minimizar categorias" : "Expandir categorias"}
+              >
+                <div style={{ flex: 1, height: 1, background: "rgba(74,46,10,0.14)" }} />
+                <div style={{
+                  width: 28, height: 4, borderRadius: 2,
+                  background: "rgba(74,46,10,0.22)",
+                  transition: "transform 0.3s ease",
+                  transform: categoriesExpanded ? "rotate(0deg)" : "rotate(180deg)",
+                }} />
+                <div style={{ flex: 1, height: 1, background: "rgba(74,46,10,0.14)" }} />
+              </button>
 
               <div
-                className="pb-3 overflow-x-auto scrollbar-hide"
-                style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}
+                className="overflow-hidden"
+                style={{
+                  maxHeight: showCategories && !searchBarOpen && categoriesExpanded ? "80px" : "0px",
+                  opacity: showCategories && !searchBarOpen && categoriesExpanded ? 1 : 0,
+                  transition: "max-height 0.4s cubic-bezier(0.4,0,0.2,1), opacity 0.3s ease",
+                }}
               >
-                {categories.map((cat: any) => (
+                <div
+                  className="pb-2 overflow-x-auto scrollbar-hide"
+                  style={{ display: "flex", gap: "10px", alignItems: "flex-start", paddingTop: 4 }}
+                >
+                  {categories.map((cat: any) => (
+                    <button
+                      key={cat.name}
+                      onClick={() => navigate(`/categoria/${encodeURIComponent(cat.name)}`)}
+                      className="flex flex-col items-center gap-1 flex-shrink-0"
+                    >
+                      <div
+                        className="w-9 h-9 rounded-xl overflow-hidden"
+                        style={{ border: "2px solid rgba(74,46,10,0.15)", boxShadow: "0 1px 4px rgba(74,46,10,0.10)" }}
+                      >
+                        <img src={cat.image} alt={cat.name} className="w-full h-full object-cover" />
+                      </div>
+                      <span className="text-[8px] font-semibold text-center leading-tight" style={{ color: brown, maxWidth: 36 }}>
+                        {cat.name}
+                      </span>
+                    </button>
+                  ))}
+
                   <button
-                    key={cat.name}
-                    onClick={() => navigate(`/categoria/${encodeURIComponent(cat.name)}`)}
+                    onClick={() => navigate("/categorias")}
                     className="flex flex-col items-center gap-1 flex-shrink-0"
                   >
                     <div
-                      className="w-9 h-9 rounded-xl overflow-hidden"
-                      style={{ border: "2px solid rgba(74,46,10,0.15)", boxShadow: "0 1px 4px rgba(74,46,10,0.10)" }}
+                      className="w-9 h-9 rounded-xl flex items-center justify-center"
+                      style={{
+                        background: "linear-gradient(135deg, #6B3F12, #4A2E0A)",
+                        border: "2px solid rgba(74,46,10,0.35)",
+                        boxShadow: "0 1px 4px rgba(74,46,10,0.18)",
+                      }}
                     >
-                      <img src={cat.image} alt={cat.name} className="w-full h-full object-cover" />
+                      <span style={{ fontSize: 16, color: "#FFFFFF", lineHeight: 1 }}>&#8862;</span>
                     </div>
-                    <span className="text-[8px] font-semibold text-center leading-tight" style={{ color: brown, maxWidth: 36 }}>
-                      {cat.name}
-                    </span>
+                    <span className="text-[8px] font-semibold text-center" style={{ color: brown }}>Ver todas</span>
                   </button>
-                ))}
-
-                <button
-                  onClick={() => navigate("/categorias")}
-                  className="flex flex-col items-center gap-1 flex-shrink-0"
-                >
-                  <div
-                    className="w-9 h-9 rounded-xl flex items-center justify-center"
-                    style={{
-                      background: "linear-gradient(135deg, #6B3F12, #4A2E0A)",
-                      border: "2px solid rgba(74,46,10,0.35)",
-                      boxShadow: "0 1px 4px rgba(74,46,10,0.18)",
-                    }}
-                  >
-                    <span style={{ fontSize: 16, color: "#FFFFFF", lineHeight: 1 }}>&#8862;</span>
-                  </div>
-                  <span className="text-[8px] font-semibold text-center" style={{ color: brown }}>Ver todas</span>
-                </button>
+                </div>
               </div>
-            </div>
+            </>
           )}
 
         </div>
