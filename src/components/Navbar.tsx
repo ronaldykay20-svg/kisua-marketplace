@@ -63,7 +63,7 @@ const useSpeechRecognition = (onResult: (text: string) => void) => {
   const recognitionRef = useRef<any>(null);
   const startListening = useCallback(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) { alert("O seu dispositivo não suporta pesquisa por voz."); return; }
+    if (!SpeechRecognition) { alert("O seu dispositivo nao suporta pesquisa por voz."); return; }
     const recognition = new SpeechRecognition();
     recognitionRef.current = recognition;
     recognition.lang = "pt-AO";
@@ -82,7 +82,6 @@ const useSpeechRecognition = (onResult: (text: string) => void) => {
 const useImageSearch = (onResult: (base64: string) => void) => {
   const [analyzing, setAnalyzing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
   const analyzeImage = useCallback(async (file: File) => {
     setAnalyzing(true);
     try {
@@ -98,39 +97,34 @@ const useImageSearch = (onResult: (base64: string) => void) => {
       setAnalyzing(false);
     }
   }, [onResult]);
-
   const openImagePicker = useCallback(() => { fileInputRef.current?.click(); }, []);
-
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) analyzeImage(file);
     e.target.value = "";
   }, [analyzeImage]);
-
   return { analyzing, openImagePicker, handleFileChange, fileInputRef };
 };
 
-// Skeleton suave para o logo enquanto carrega
 const LogoSkeleton = () => (
-  <div
-    className="h-14 w-36 rounded-lg animate-pulse"
-    style={{ background: "rgba(74,46,10,0.12)" }}
-  />
+  <div className="rounded-lg animate-pulse" style={{ height: 52, width: 120, background: "rgba(74,46,10,0.12)" }} />
 );
 
 const Navbar = () => {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [notifOpen, setNotifOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [categorySearchVisible, setCategorySearchVisible] = useState(false);
-  const [scrollY, setScrollY] = useState(0);
-  const [showCategories, setShowCategories] = useState(true);
-  const [showLocation, setShowLocation] = useState(true);
-  const [logoLoaded, setLogoLoaded] = useState(false);
-  const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [menuOpen, setMenuOpen]                             = useState(false);
+  const [notifOpen, setNotifOpen]                           = useState(false);
+  const [searchQuery, setSearchQuery]                       = useState("");
+  const [searchBarOpen, setSearchBarOpen]                   = useState(false);
+  const [categorySearchVisible, setCategorySearchVisible]   = useState(false);
+  const [scrollY, setScrollY]                               = useState(0);
+  const [showCategories, setShowCategories]                 = useState(true);
+  const [showLocation, setShowLocation]                     = useState(true);
+  const [logoLoaded, setLogoLoaded]                         = useState(false);
+  const collapseTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchInputRef    = useRef<HTMLInputElement>(null);
 
-  const navigate = useNavigate();
-  const location = useLocation();
+  const navigate  = useNavigate();
+  const location  = useLocation();
   const { user, userDisplayName, signOut } = useAuth();
   const { data: logoUrl, isLoading: logoLoading } = useSiteSetting("site_logo_url");
   const qc = useQueryClient();
@@ -170,10 +164,16 @@ const Navbar = () => {
 
   useEffect(() => {
     setSearchQuery("");
+    setSearchBarOpen(false);
     setCategorySearchVisible(false);
   }, [location.pathname]);
 
-  // Reset logoLoaded quando logoUrl muda
+  useEffect(() => {
+    if (searchBarOpen) {
+      setTimeout(() => searchInputRef.current?.focus(), 80);
+    }
+  }, [searchBarOpen]);
+
   useEffect(() => {
     if (!logoUrl) setLogoLoaded(false);
   }, [logoUrl]);
@@ -210,19 +210,27 @@ const Navbar = () => {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/pesquisa?q=${encodeURIComponent(searchQuery.trim())}`);
-      setSearchQuery(""); setCategorySearchVisible(false);
+    const q = searchQuery.trim();
+    if (q) {
+      navigate(`/pesquisa?q=${encodeURIComponent(q)}`);
+      setSearchQuery("");
+      setSearchBarOpen(false);
+      setCategorySearchVisible(false);
     }
   };
 
   const { listening, startListening, stopListening } = useSpeechRecognition((text) => {
-    setSearchQuery(text);
     navigate(`/pesquisa?q=${encodeURIComponent(text)}`);
+    setSearchBarOpen(false);
     setCategorySearchVisible(false);
   });
-
   const handleMicClick = () => { if (listening) stopListening(); else startListening(); };
+
+  const { analyzing: analyzingBar, openImagePicker: openBar, handleFileChange: fileChangeBar, fileInputRef: fileRefBar } =
+    useImageSearch((base64) => {
+      navigate(`/pesquisa?modo=imagem&img=${encodeURIComponent(base64)}`);
+      setSearchBarOpen(false);
+    });
 
   const { analyzing: analyzingCat, openImagePicker: openCat, handleFileChange: fileChangeCat, fileInputRef: fileRefCat } =
     useImageSearch((base64) => {
@@ -235,8 +243,7 @@ const Navbar = () => {
   const cream      = "#F7F0E6";
   const brown      = "#4A2E0A";
   const brownLight = "rgba(74,46,10,0.12)";
-
-  const scrolled = scrollY > 4;
+  const scrolled   = scrollY > 4;
 
   let navbarStyle: React.CSSProperties;
   if (isCategoriaDetalhePage) {
@@ -249,19 +256,14 @@ const Navbar = () => {
     };
   }
 
-  const iconColor  = brown;
-  const iconBg     = brownLight;
   const iconBorder = "1px solid rgba(74,46,10,0.18)";
 
   const navPositionClass = isCategoriaDetalhePage
     ? "absolute top-0 left-0 right-0 w-full z-50"
     : "sticky top-0 z-50";
 
-  // Determina o que mostrar no lugar do logo
   const renderLogo = () => {
-    if (logoLoading) {
-      return <LogoSkeleton />;
-    }
+    if (logoLoading) return <LogoSkeleton />;
     if (logoUrl) {
       return (
         <>
@@ -269,42 +271,32 @@ const Navbar = () => {
           <img
             src={logoUrl}
             alt="Logo"
-            className="h-14 object-contain"
-            style={{ display: logoLoaded ? "block" : "none" }}
+            style={{ height: 52, maxWidth: 140, objectFit: "contain", display: logoLoaded ? "block" : "none" }}
             onLoad={() => setLogoLoaded(true)}
             onError={() => setLogoLoaded(true)}
           />
         </>
       );
     }
-    return (
-      <span className="text-2xl font-black" style={{ color: brown }}>
-        AngoExpress
-      </span>
-    );
+    return <span className="text-2xl font-black" style={{ color: brown }}>AngoExpress</span>;
   };
 
   return (
     <>
-      <input
-        ref={fileRefCat}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        className="hidden"
-        onChange={fileChangeCat}
-      />
+      <input ref={fileRefBar} type="file" accept="image/*" capture="environment" className="hidden" onChange={fileChangeBar} />
+      <input ref={fileRefCat} type="file" accept="image/*" capture="environment" className="hidden" onChange={fileChangeCat} />
 
       <nav className={navPositionClass} style={navbarStyle}>
         <div className="px-3">
 
-          {/* ── Linha 1 ── */}
-          <div className="flex items-center gap-2.5 h-16">
+          {/* ── Linha 1: ícones ── */}
+          <div className="flex items-center gap-2" style={{ height: 68 }}>
 
+            {/* Esquerda: menu ou voltar */}
             {isCategoriaDetalhePage ? (
               <button
                 className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
-                style={{ background: brownLight, border: "1px solid rgba(74,46,10,0.18)" }}
+                style={{ background: brownLight, border: iconBorder }}
                 onClick={() => navigate(-1)}
               >
                 <ArrowLeft className="w-5 h-5" style={{ color: brown }} />
@@ -312,56 +304,67 @@ const Navbar = () => {
             ) : (
               <button
                 className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
-                style={{ background: iconBg, border: iconBorder }}
+                style={{ background: brownLight, border: iconBorder }}
                 onClick={() => { setMenuOpen(!menuOpen); setNotifOpen(false); }}
               >
-                <Menu className="w-5 h-5" style={{ color: iconColor }} />
+                <Menu className="w-5 h-5" style={{ color: brown }} />
               </button>
             )}
 
+            {/* Centro: logo centrado absolutamente ou título */}
             {isCategoriaDetalhePage ? (
               <span className="flex-1 text-base font-black text-center" style={{ color: brown }}>
                 {categoryNameFromUrl}
               </span>
             ) : (
-              <a href="/" className="flex items-center gap-1 flex-shrink-0">
-                {renderLogo()}
-              </a>
+              <>
+                <div className="flex-1" />
+                <a href="/" className="flex items-center flex-shrink-0">
+                  {renderLogo()}
+                </a>
+                <div className="flex-1" />
+              </>
             )}
 
-            <div className="flex-1" />
+            {/* Direita: lupa + notif + carrinho */}
 
-            {/* Lupa azul — navega direto para /pesquisa (exceto na página de categoria detalhe) */}
-            {!isCategoriaDetalhePage && (
+            {/* Lupa */}
+            {isCategoriaDetalhePage ? (
+              <button
+                className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
+                style={{ background: brownLight, border: iconBorder }}
+                onClick={() => setCategorySearchVisible(v => !v)}
+              >
+                <Search className="w-5 h-5" style={{ color: brown }} />
+              </button>
+            ) : searchBarOpen ? (
+              <button
+                className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
+                style={{ background: "#E53935", border: "none" }}
+                onClick={() => { setSearchBarOpen(false); setSearchQuery(""); }}
+              >
+                <X className="w-5 h-5 text-white" />
+              </button>
+            ) : (
               <button
                 className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
                 style={{ background: "#1565C0", border: "none" }}
-                onClick={() => navigate("/pesquisa")}
+                onClick={() => setSearchBarOpen(true)}
               >
                 <Search className="w-5 h-5 text-white" />
               </button>
             )}
 
-            {/* Lupa na página de categoria detalhe */}
-            {isCategoriaDetalhePage && (
-              <button
-                className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
-                style={{ background: brownLight, border: "1px solid rgba(74,46,10,0.18)" }}
-                onClick={() => setCategorySearchVisible(v => !v)}
-              >
-                <Search className="w-5 h-5" style={{ color: brown }} />
-              </button>
-            )}
-
+            {/* Notificações */}
             {user && (
               <button
-                className="relative flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
-                style={{ background: iconBg, border: iconBorder }}
+                className="relative flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
+                style={{ background: brownLight, border: iconBorder }}
                 onClick={() => { setNotifOpen(!notifOpen); setMenuOpen(false); }}
               >
-                <Bell className="w-5 h-5" style={{ color: iconColor }} />
+                <Bell className="w-5 h-5" style={{ color: brown }} />
                 {unread > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full text-white text-[9px] font-black flex items-center justify-center px-1"
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 rounded-full text-white text-[8px] font-black flex items-center justify-center px-0.5"
                     style={{ background: "#E53935" }}>
                     {unread > 9 ? "9+" : unread}
                   </span>
@@ -369,14 +372,15 @@ const Navbar = () => {
               </button>
             )}
 
+            {/* Carrinho */}
             <button
-              className="relative flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
-              style={{ background: iconBg, border: iconBorder }}
+              className="relative flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
+              style={{ background: brownLight, border: iconBorder }}
               onClick={() => navigate("/carrinho")}
             >
-              <ShoppingCart className="w-5 h-5" style={{ color: iconColor }} />
+              <ShoppingCart className="w-5 h-5" style={{ color: brown }} />
               {cartCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full text-white text-[9px] font-black flex items-center justify-center px-1"
+                <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 rounded-full text-white text-[8px] font-black flex items-center justify-center px-0.5"
                   style={{ background: "#E53935" }}>
                   {cartCount > 9 ? "9+" : cartCount}
                 </span>
@@ -384,7 +388,65 @@ const Navbar = () => {
             </button>
           </div>
 
-          {/* ── Barra de pesquisa na categoria detalhe ── */}
+          {/* ── Barra de pesquisa inline (páginas normais) ── */}
+          {!isCategoriasPage && !isPesquisaPage && !isCategoriaDetalhePage && (
+            <div
+              className="overflow-hidden"
+              style={{
+                maxHeight: searchBarOpen ? "56px" : "0px",
+                opacity: searchBarOpen ? 1 : 0,
+                paddingBottom: searchBarOpen ? "8px" : "0px",
+                transition: "max-height 0.3s ease, opacity 0.25s ease, padding 0.25s ease",
+              }}
+            >
+              <form
+                onSubmit={handleSearch}
+                className="flex items-center rounded-2xl overflow-hidden"
+                style={{ background: "#fff", boxShadow: "0 1px 6px rgba(74,46,10,0.14)" }}
+              >
+                <button type="submit" className="ml-3 flex-shrink-0 p-1">
+                  <Search className="w-4 h-4" style={{ color: "#1565C0" }} />
+                </button>
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="Buscar produtos, marcas..."
+                  className="flex-1 py-2.5 px-2 bg-transparent focus:outline-none"
+                  style={{ color: brown, fontSize: "16px" }}
+                />
+                <button
+                  type="button"
+                  onClick={openBar}
+                  disabled={analyzingBar}
+                  className="w-9 h-9 flex items-center justify-center flex-shrink-0 rounded-xl m-0.5"
+                  style={{ background: analyzingBar ? "#F9A825" : brownLight, border: iconBorder }}
+                  title="Pesquisar por imagem"
+                >
+                  {analyzingBar
+                    ? <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: brown, borderTopColor: "transparent" }} />
+                    : <Camera className="w-4 h-4" style={{ color: brown }} />
+                  }
+                </button>
+                <button
+                  type="button"
+                  onClick={handleMicClick}
+                  className="w-10 h-9 flex items-center justify-center flex-shrink-0 rounded-xl m-0.5"
+                  style={{
+                    background: listening ? "#E53935" : `linear-gradient(135deg, ${sandDark}, ${sand})`,
+                    boxShadow: listening ? "0 0 0 4px rgba(229,57,53,0.25)" : "none",
+                    animation: listening ? "pulse 1.2s ease-in-out infinite" : "none",
+                  }}
+                  title={listening ? "A ouvir... clique para parar" : "Pesquisar por voz"}
+                >
+                  <Mic className="w-4 h-4 text-white" />
+                </button>
+              </form>
+            </div>
+          )}
+
+          {/* ── Barra de pesquisa: categoria detalhe ── */}
           {isCategoriaDetalhePage && (
             <div
               className="overflow-hidden"
@@ -414,12 +476,8 @@ const Navbar = () => {
                   type="button"
                   onClick={openCat}
                   disabled={analyzingCat}
-                  className="w-9 h-9 flex items-center justify-center flex-shrink-0 rounded-xl m-0.5 transition-all"
-                  style={{
-                    background: analyzingCat ? "#F9A825" : brownLight,
-                    border: `1px solid rgba(74,46,10,0.18)`,
-                  }}
-                  title="Pesquisar por imagem"
+                  className="w-9 h-9 flex items-center justify-center flex-shrink-0 rounded-xl m-0.5"
+                  style={{ background: analyzingCat ? "#F9A825" : brownLight, border: iconBorder }}
                 >
                   {analyzingCat
                     ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -429,7 +487,7 @@ const Navbar = () => {
                 <button
                   type="button"
                   onClick={handleMicClick}
-                  className="w-11 h-10 flex items-center justify-center flex-shrink-0 rounded-xl m-0.5 transition-all"
+                  className="w-10 h-9 flex items-center justify-center flex-shrink-0 rounded-xl m-0.5"
                   style={{
                     background: listening ? "#E53935" : `linear-gradient(135deg, ${sandDark}, ${sand})`,
                     boxShadow: listening ? "0 0 0 4px rgba(229,57,53,0.25)" : "none",
@@ -447,8 +505,8 @@ const Navbar = () => {
             <div
               className="overflow-hidden"
               style={{
-                maxHeight: showLocation ? "32px" : "0px",
-                opacity: showLocation ? 1 : 0,
+                maxHeight: showLocation && !searchBarOpen ? "32px" : "0px",
+                opacity: showLocation && !searchBarOpen ? 1 : 0,
                 transition: "max-height 0.3s ease, opacity 0.25s ease",
               }}
             >
@@ -460,33 +518,36 @@ const Navbar = () => {
             </div>
           )}
 
-          {/* ── Categorias com fotos ── */}
+          {/* ── Divisor + Categorias ── */}
           {!isCategoriasPage && !isPesquisaPage && !isCategoriaDetalhePage && (
             <div
               className="overflow-hidden"
               style={{
-                maxHeight: showCategories ? "88px" : "0px",
-                opacity: showCategories ? 1 : 0,
+                maxHeight: showCategories && !searchBarOpen ? "100px" : "0px",
+                opacity: showCategories && !searchBarOpen ? 1 : 0,
                 transition: "max-height 0.45s cubic-bezier(0.4,0,0.2,1), opacity 0.35s ease",
               }}
             >
+              {/* Traço divisor */}
+              <div style={{ height: 1, background: "rgba(74,46,10,0.14)", marginBottom: 8 }} />
+
               <div
                 className="pb-3 overflow-x-auto scrollbar-hide"
-                style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}
+                style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}
               >
                 {categories.map((cat: any) => (
                   <button
                     key={cat.name}
                     onClick={() => navigate(`/categoria/${encodeURIComponent(cat.name)}`)}
-                    className="flex flex-col items-center gap-1.5 flex-shrink-0"
+                    className="flex flex-col items-center gap-1 flex-shrink-0"
                   >
                     <div
-                      className="w-14 h-14 rounded-xl overflow-hidden"
-                      style={{ border: "2px solid rgba(74,46,10,0.15)", boxShadow: "0 2px 8px rgba(74,46,10,0.12)" }}
+                      className="w-11 h-11 rounded-xl overflow-hidden"
+                      style={{ border: "2px solid rgba(74,46,10,0.15)", boxShadow: "0 2px 6px rgba(74,46,10,0.10)" }}
                     >
                       <img src={cat.image} alt={cat.name} className="w-full h-full object-cover" />
                     </div>
-                    <span className="text-[10px] font-semibold text-center leading-tight" style={{ color: brown, maxWidth: 56 }}>
+                    <span className="text-[9px] font-semibold text-center leading-tight" style={{ color: brown, maxWidth: 44 }}>
                       {cat.name}
                     </span>
                   </button>
@@ -494,19 +555,19 @@ const Navbar = () => {
 
                 <button
                   onClick={() => navigate("/categorias")}
-                  className="flex flex-col items-center gap-1.5 flex-shrink-0"
+                  className="flex flex-col items-center gap-1 flex-shrink-0"
                 >
                   <div
-                    className="w-14 h-14 rounded-xl flex items-center justify-center"
+                    className="w-11 h-11 rounded-xl flex items-center justify-center"
                     style={{
-                      background: `linear-gradient(135deg, #6B3F12, #4A2E0A)`,
+                      background: "linear-gradient(135deg, #6B3F12, #4A2E0A)",
                       border: "2px solid rgba(74,46,10,0.35)",
-                      boxShadow: "0 2px 8px rgba(74,46,10,0.18)",
+                      boxShadow: "0 2px 6px rgba(74,46,10,0.18)",
                     }}
                   >
-                    <span style={{ fontSize: 22, color: "#FFFFFF", lineHeight: 1 }}>⊞</span>
+                    <span style={{ fontSize: 18, color: "#FFFFFF", lineHeight: 1 }}>&#8862;</span>
                   </div>
-                  <span className="text-[10px] font-semibold text-center" style={{ color: brown }}>Ver todas</span>
+                  <span className="text-[9px] font-semibold text-center" style={{ color: brown }}>Ver todas</span>
                 </button>
               </div>
             </div>
@@ -533,7 +594,7 @@ const Navbar = () => {
               className="flex items-center justify-between px-4 py-3 border-b border-border"
               style={{ background: `linear-gradient(135deg, ${sand}, ${sandDark})` }}
             >
-              <h3 className="text-sm font-black" style={{ color: brown }}>Notificações</h3>
+              <h3 className="text-sm font-black" style={{ color: brown }}>Notificacoes</h3>
               <div className="flex items-center gap-2">
                 {unread > 0 && (
                   <button onClick={markAllRead} className="text-[10px] font-bold underline" style={{ color: brown }}>
@@ -549,7 +610,7 @@ const Navbar = () => {
               {notifications.length === 0 && (
                 <div className="py-8 text-center">
                   <Bell className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                  <p className="text-xs text-muted-foreground">Sem notificações</p>
+                  <p className="text-xs text-muted-foreground">Sem notificacoes</p>
                 </div>
               )}
               {notifications.map((n: any) => (
@@ -589,7 +650,7 @@ const Navbar = () => {
                     {userDisplayName.charAt(0).toUpperCase()}
                   </div>
                   <div>
-                    <p className="text-sm font-bold" style={{ color: brown }}>Olá, {userDisplayName}</p>
+                    <p className="text-sm font-bold" style={{ color: brown }}>Ola, {userDisplayName}</p>
                     <p className="text-[10px]" style={{ color: sandDark }}>{user.email}</p>
                   </div>
                 </div>
