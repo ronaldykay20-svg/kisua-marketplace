@@ -193,7 +193,6 @@ const CategoriaDetalhe = () => {
         badge:          p.badge,
         salesCount:     p.sales_count  || 0,
         colorHexes:     productColorHexes,
-        /* subcategoria guardada no campo badge ou num campo customizado — usa p.subcategory se existir */
         subcategory:    p.subcategory  || null,
       };
     }),
@@ -203,26 +202,21 @@ const CategoriaDetalhe = () => {
   const products = useMemo(() => {
     let list = allProducts;
 
-    /* Filtro de sub-categoria */
     if (selectedSub) {
-      list = list.filter(p =>
-        p.subcategory === selectedSub
-      );
+      list = list.filter(p => p.subcategory === selectedSub);
     }
 
-    /* Filtro de cores — verifica se alguma variante de cor corresponde */
     if (selectedColors.length > 0) {
       list = list.filter(p => {
         if (p.colorHexes.length === 0) return false;
         return selectedColors.some(colorName => {
           const filterHex = colorOptions.find(c => c.name === colorName)?.hex;
-          if (!filterHex) return false; // "Múltiplo" — passa se tiver >1 cor
+          if (!filterHex) return false;
           return p.colorHexes.some((h: string) => hexClose(h, filterHex));
         });
       });
     }
 
-    /* Filtro de preço */
     if (selectedPrice) {
       const range = priceRanges.find(r => r.label === selectedPrice);
       if (range) list = list.filter(p => p.price >= range.min && p.price < range.max);
@@ -238,8 +232,9 @@ const CategoriaDetalhe = () => {
   const activeFiltersCount =
     (selectedSub ? 1 : 0) + selectedColors.length + (selectedPrice ? 1 : 0);
 
+  // ── ALTERAÇÃO: usa cover_image_url em vez de image_url para o hero banner ──
   const heroImage =
-    category?.image_url ||
+    category?.cover_image_url ||
     categoryHeroImages[categoryName] ||
     "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800&h=400&fit=crop";
 
@@ -252,7 +247,6 @@ const CategoriaDetalhe = () => {
   const FiltersPanel = () => (
     <div className="space-y-5">
 
-      {/* Limpar todos */}
       {activeFiltersCount > 0 && (
         <button
           onClick={() => { setSelectedSub(null); setSelectedColors([]); setSelectedPrice(null); }}
@@ -263,7 +257,6 @@ const CategoriaDetalhe = () => {
         </button>
       )}
 
-      {/* Subcategoria */}
       <div>
         <h3 className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: sandDark }}>Categoria</h3>
         <div className="space-y-0.5">
@@ -287,7 +280,6 @@ const CategoriaDetalhe = () => {
         </div>
       </div>
 
-      {/* Cor */}
       <div>
         <h3 className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: sandDark }}>Cor</h3>
         <div className="grid grid-cols-2 gap-1.5">
@@ -307,7 +299,6 @@ const CategoriaDetalhe = () => {
         </div>
       </div>
 
-      {/* Preço */}
       <div>
         <h3 className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: sandDark }}>Preço</h3>
         <div className="space-y-0.5">
@@ -338,7 +329,7 @@ const CategoriaDetalhe = () => {
     </div>
   );
 
-  /* ── Card de produto — compacto e quadrado ── */
+  /* ── Card de produto ── */
   const ProductCard = ({ product }: { product: any }) => (
     <div
       className="w-full overflow-hidden group"
@@ -349,7 +340,6 @@ const CategoriaDetalhe = () => {
         boxShadow: "0 1px 6px rgba(74,46,10,0.07)",
       }}
     >
-      {/* Imagem quadrada */}
       <button className="w-full text-left" onClick={() => navigate(`/produto/${product.id}`)}>
         <div
           className="relative w-full overflow-hidden"
@@ -384,10 +374,8 @@ const CategoriaDetalhe = () => {
         </div>
       </button>
 
-      {/* Info — padding reduzido */}
       <div className="px-2 pt-1.5 pb-2">
         <button className="w-full text-left" onClick={() => navigate(`/produto/${product.id}`)}>
-          {/* Título: 1 linha, ellipsis */}
           <h3
             className="text-[11px] font-semibold leading-snug mb-1 truncate"
             style={{ color: brown }}
@@ -395,7 +383,6 @@ const CategoriaDetalhe = () => {
             {product.title}
           </h3>
 
-          {/* Rating compacto */}
           {product.rating > 0 && (
             <div className="flex items-center gap-0.5 mb-1">
               {[...Array(5)].map((_, i) => (
@@ -416,7 +403,6 @@ const CategoriaDetalhe = () => {
             </div>
           )}
 
-          {/* Preços */}
           <div className="flex items-baseline gap-1">
             {product.oldPrice && (
               <span className="text-[9px] line-through" style={{ color: "#aaa" }}>
@@ -429,7 +415,6 @@ const CategoriaDetalhe = () => {
           </div>
         </button>
 
-        {/* Botão carrinho */}
         <div className="flex justify-end mt-1.5">
           <button
             onClick={(e) => { e.stopPropagation(); addToCart.mutate({ productId: product.id, quantity: 1 }); }}
@@ -594,7 +579,6 @@ const CategoriaDetalhe = () => {
                   </button>
                 </div>
               ) : (
-                /* Grid 2 colunas mobile, 3 desktop — cards compactos */
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {products.map((p: any) => <ProductCard key={p.id} product={p} />)}
                 </div>
