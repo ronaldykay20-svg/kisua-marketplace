@@ -74,22 +74,12 @@ const categorySubtitles: Record<string, string> = {
   "Animais": "Para os seus companheiros de quatro patas.",
 };
 
-/* ── Mapeamento de cores do formulário para hex (para filtrar) ── */
 const colorNameToHex: Record<string, string> = {
-  "Preto": "#000000",
-  "Branco": "#FFFFFF",
-  "Vermelho": "#EF4444",
-  "Azul": "#3B82F6",
-  "Verde": "#22C55E",
-  "Amarelo": "#EAB308",
-  "Rosa": "#EC4899",
-  "Roxo": "#A855F7",
-  "Laranja": "#F97316",
-  "Cinza": "#6B7280",
-  "Castanho": "#92400E",
-  "Bege": "#D2B48C",
-  "Cáqui": "#92400E",
-  "Marrom": "#78350F",
+  "Preto": "#000000", "Branco": "#FFFFFF", "Vermelho": "#EF4444",
+  "Azul": "#3B82F6", "Verde": "#22C55E", "Amarelo": "#EAB308",
+  "Rosa": "#EC4899", "Roxo": "#A855F7", "Laranja": "#F97316",
+  "Cinza": "#6B7280", "Castanho": "#92400E", "Bege": "#D2B48C",
+  "Cáqui": "#92400E", "Marrom": "#78350F",
 };
 
 const colorOptions = [
@@ -109,15 +99,14 @@ const colorOptions = [
 ];
 
 const priceRanges = [
-  { label: "Até 10.000 Kz",          min: 0,      max: 10000  },
-  { label: "10.000 - 50.000 Kz",     min: 10000,  max: 50000  },
-  { label: "50.000 - 200.000 Kz",    min: 50000,  max: 200000 },
-  { label: "200.000+",               min: 200000, max: Infinity },
+  { label: "Até 10.000 Kz",       min: 0,      max: 10000  },
+  { label: "10.000 - 50.000 Kz",  min: 10000,  max: 50000  },
+  { label: "50.000 - 200.000 Kz", min: 50000,  max: 200000 },
+  { label: "200.000+",            min: 200000, max: Infinity },
 ];
 
 const sortOptions = ["Recomendado", "Menor preço", "Maior preço", "Mais vendidos", "Mais recentes"];
 
-/* ── Utilitário: normaliza hex para comparação tolerante ── */
 const hexClose = (a: string, b: string, tolerance = 60) => {
   const parse = (h: string) => {
     const s = h.replace("#", "");
@@ -147,7 +136,6 @@ const CategoriaDetalhe = () => {
   const category   = (dbCategories || []).find((c: any) => c.name === categoryName);
   const categoryId = category?.id;
 
-  /* ── Busca todos os produtos da categoria (sem filtro server-side de cor/preço) ── */
   const { data: dbProducts, isLoading } = useQuery({
     queryKey: ["category_products", categoryId, sortBy],
     queryFn: async () => {
@@ -156,8 +144,8 @@ const CategoriaDetalhe = () => {
         .select("*, product_media(url, is_cover), product_variants(variant_type, value, name)")
         .eq("is_active", true);
       if (categoryId) query = query.eq("category_id", categoryId);
-      if (sortBy === "Menor preço")   query = query.order("price",      { ascending: true  });
-      else if (sortBy === "Maior preço")  query = query.order("price",  { ascending: false });
+      if (sortBy === "Menor preço")    query = query.order("price",       { ascending: true  });
+      else if (sortBy === "Maior preço")   query = query.order("price",   { ascending: false });
       else if (sortBy === "Mais vendidos") query = query.order("sales_count", { ascending: false });
       else query = query.order("created_at", { ascending: false });
       const { data, error } = await query;
@@ -167,14 +155,12 @@ const CategoriaDetalhe = () => {
     enabled: !!categoryId,
   });
 
-  /* ── Normaliza produtos ── */
   const allProducts = useMemo(() =>
     (dbProducts || []).map((p: any) => {
       const cover = p.product_media?.find((m: any) => m.is_cover)?.url
         || p.image_url
         || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&h=600&fit=crop";
 
-      /* cores registadas nas variantes do produto */
       const productColorHexes: string[] = (p.product_variants || [])
         .filter((v: any) => v.variant_type === "color" && v.value)
         .map((v: any) => v.value as string);
@@ -198,14 +184,9 @@ const CategoriaDetalhe = () => {
     }),
   [dbProducts]);
 
-  /* ── Filtragem client-side ── */
   const products = useMemo(() => {
     let list = allProducts;
-
-    if (selectedSub) {
-      list = list.filter(p => p.subcategory === selectedSub);
-    }
-
+    if (selectedSub) list = list.filter(p => p.subcategory === selectedSub);
     if (selectedColors.length > 0) {
       list = list.filter(p => {
         if (p.colorHexes.length === 0) return false;
@@ -216,12 +197,10 @@ const CategoriaDetalhe = () => {
         });
       });
     }
-
     if (selectedPrice) {
       const range = priceRanges.find(r => r.label === selectedPrice);
       if (range) list = list.filter(p => p.price >= range.min && p.price < range.max);
     }
-
     return list;
   }, [allProducts, selectedSub, selectedColors, selectedPrice]);
 
@@ -232,7 +211,7 @@ const CategoriaDetalhe = () => {
   const activeFiltersCount =
     (selectedSub ? 1 : 0) + selectedColors.length + (selectedPrice ? 1 : 0);
 
-  // ── ALTERAÇÃO: usa cover_image_url em vez de image_url para o hero banner ──
+  // Usa cover_image_url para o hero banner
   const heroImage =
     category?.cover_image_url ||
     categoryHeroImages[categoryName] ||
@@ -243,10 +222,8 @@ const CategoriaDetalhe = () => {
     categorySubtitles[categoryName] ||
     "Os melhores produtos para si.";
 
-  /* ── Painel de filtros ── */
   const FiltersPanel = () => (
     <div className="space-y-5">
-
       {activeFiltersCount > 0 && (
         <button
           onClick={() => { setSelectedSub(null); setSelectedColors([]); setSelectedPrice(null); }}
@@ -256,17 +233,13 @@ const CategoriaDetalhe = () => {
           <X className="w-3 h-3" /> Limpar filtros ({activeFiltersCount})
         </button>
       )}
-
       <div>
         <h3 className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: sandDark }}>Categoria</h3>
         <div className="space-y-0.5">
           {subs.map(sub => (
-            <button
-              key={sub}
-              onClick={() => setSelectedSub(selectedSub === sub ? null : sub)}
+            <button key={sub} onClick={() => setSelectedSub(selectedSub === sub ? null : sub)}
               className="flex items-center justify-between w-full text-left px-2 py-1.5 rounded-lg transition-colors"
-              style={{ background: selectedSub === sub ? brownLight : "transparent" }}
-            >
+              style={{ background: selectedSub === sub ? brownLight : "transparent" }}>
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0"
                   style={{ borderColor: selectedSub === sub ? sandDark : "#ccc" }}>
@@ -279,7 +252,6 @@ const CategoriaDetalhe = () => {
           ))}
         </div>
       </div>
-
       <div>
         <h3 className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: sandDark }}>Cor</h3>
         <div className="grid grid-cols-2 gap-1.5">
@@ -298,137 +270,69 @@ const CategoriaDetalhe = () => {
           ))}
         </div>
       </div>
-
       <div>
         <h3 className="text-xs font-black uppercase tracking-wider mb-2" style={{ color: sandDark }}>Preço</h3>
         <div className="space-y-0.5">
           {priceRanges.map(r => (
-            <button
-              key={r.label}
-              onClick={() => setSelectedPrice(selectedPrice === r.label ? null : r.label)}
+            <button key={r.label} onClick={() => setSelectedPrice(selectedPrice === r.label ? null : r.label)}
               className="flex items-center gap-2 w-full text-left px-2 py-1.5 rounded-lg transition-colors text-xs"
-              style={{
-                background: selectedPrice === r.label ? brownLight : "transparent",
-                color:      selectedPrice === r.label ? brown : "#555",
-              }}
-            >
-              <div
-                className="w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0"
-                style={{ borderColor: selectedPrice === r.label ? sandDark : "#ccc" }}
-              >
-                {selectedPrice === r.label && (
-                  <div className="w-2 h-2 rounded-sm" style={{ background: sandDark }} />
-                )}
+              style={{ background: selectedPrice === r.label ? brownLight : "transparent", color: selectedPrice === r.label ? brown : "#555" }}>
+              <div className="w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0"
+                style={{ borderColor: selectedPrice === r.label ? sandDark : "#ccc" }}>
+                {selectedPrice === r.label && <div className="w-2 h-2 rounded-sm" style={{ background: sandDark }} />}
               </div>
               {r.label}
             </button>
           ))}
         </div>
       </div>
-
     </div>
   );
 
-  /* ── Card de produto ── */
   const ProductCard = ({ product }: { product: any }) => (
-    <div
-      className="w-full overflow-hidden group"
-      style={{
-        background: "#fff",
-        borderRadius: 12,
-        border: `1.5px solid ${brownMid}`,
-        boxShadow: "0 1px 6px rgba(74,46,10,0.07)",
-      }}
-    >
+    <div className="w-full overflow-hidden group"
+      style={{ background: "#fff", borderRadius: 12, border: `1.5px solid ${brownMid}`, boxShadow: "0 1px 6px rgba(74,46,10,0.07)" }}>
       <button className="w-full text-left" onClick={() => navigate(`/produto/${product.id}`)}>
-        <div
-          className="relative w-full overflow-hidden"
-          style={{
-            aspectRatio: "1 / 1",
-            borderRadius: "10px 10px 0 0",
-            background: cream,
-          }}
-        >
-          <img
-            src={product.image}
-            alt={product.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-            loading="lazy"
-          />
+        <div className="relative w-full overflow-hidden"
+          style={{ aspectRatio: "1 / 1", borderRadius: "10px 10px 0 0", background: cream }}>
+          <img src={product.image} alt={product.title}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
           {product.discount && (
-            <span
-              className="absolute top-1.5 left-1.5 text-[9px] font-black px-1.5 py-0.5 rounded-full"
-              style={{ background: "#E53935", color: "#fff" }}
-            >
-              {product.discount}
-            </span>
+            <span className="absolute top-1.5 left-1.5 text-[9px] font-black px-1.5 py-0.5 rounded-full"
+              style={{ background: "#E53935", color: "#fff" }}>{product.discount}</span>
           )}
           {product.freeShipping && (
-            <span
-              className="absolute bottom-1.5 left-1.5 text-[8px] font-bold px-1.5 py-0.5 rounded-full"
-              style={{ background: "rgba(74,46,10,0.70)", color: "#fff" }}
-            >
-              Frete grátis
-            </span>
+            <span className="absolute bottom-1.5 left-1.5 text-[8px] font-bold px-1.5 py-0.5 rounded-full"
+              style={{ background: "rgba(74,46,10,0.70)", color: "#fff" }}>Frete grátis</span>
           )}
         </div>
       </button>
-
       <div className="px-2 pt-1.5 pb-2">
         <button className="w-full text-left" onClick={() => navigate(`/produto/${product.id}`)}>
-          <h3
-            className="text-[11px] font-semibold leading-snug mb-1 truncate"
-            style={{ color: brown }}
-          >
-            {product.title}
-          </h3>
-
+          <h3 className="text-[11px] font-semibold leading-snug mb-1 truncate" style={{ color: brown }}>{product.title}</h3>
           {product.rating > 0 && (
             <div className="flex items-center gap-0.5 mb-1">
               {[...Array(5)].map((_, i) => (
-                <Star
-                  key={i}
-                  className="w-2 h-2"
-                  style={{
-                    fill:  i < product.rating ? sandDark : "transparent",
-                    color: i < product.rating ? sandDark : "#ccc",
-                  }}
-                />
+                <Star key={i} className="w-2 h-2"
+                  style={{ fill: i < product.rating ? sandDark : "transparent", color: i < product.rating ? sandDark : "#ccc" }} />
               ))}
-              {product.reviews > 0 && (
-                <span className="text-[8px] ml-0.5" style={{ color: sandDark }}>
-                  ({product.reviews})
-                </span>
-              )}
+              {product.reviews > 0 && <span className="text-[8px] ml-0.5" style={{ color: sandDark }}>({product.reviews})</span>}
             </div>
           )}
-
           <div className="flex items-baseline gap-1">
-            {product.oldPrice && (
-              <span className="text-[9px] line-through" style={{ color: "#aaa" }}>
-                {product.oldPrice}
-              </span>
-            )}
-            <span className="text-xs font-black" style={{ color: brown }}>
-              {product.priceFormatted}
-            </span>
+            {product.oldPrice && <span className="text-[9px] line-through" style={{ color: "#aaa" }}>{product.oldPrice}</span>}
+            <span className="text-xs font-black" style={{ color: brown }}>{product.priceFormatted}</span>
           </div>
         </button>
-
         <div className="flex justify-end mt-1.5">
           <button
             onClick={(e) => { e.stopPropagation(); addToCart.mutate({ productId: product.id, quantity: 1 }); }}
             disabled={addToCart.isPending}
             className="flex items-center justify-center w-7 h-7 rounded-lg transition-all active:scale-95 disabled:opacity-60"
-            style={{
-              background: `linear-gradient(135deg, ${sandDark}, ${sand})`,
-              boxShadow: "0 2px 6px rgba(74,46,10,0.22)",
-            }}
-          >
+            style={{ background: `linear-gradient(135deg, ${sandDark}, ${sand})`, boxShadow: "0 2px 6px rgba(74,46,10,0.22)" }}>
             {addToCart.isPending
               ? <Loader2 className="w-3 h-3 animate-spin" style={{ color: "#fff" }} />
-              : <ShoppingCart className="w-3 h-3" style={{ color: "#fff" }} />
-            }
+              : <ShoppingCart className="w-3 h-3" style={{ color: "#fff" }} />}
           </button>
         </div>
       </div>
@@ -438,31 +342,68 @@ const CategoriaDetalhe = () => {
   return (
     <div className="relative min-h-screen pb-14 md:pb-0" style={{ backgroundColor: "#F5F5F5" }}>
 
-      {/* ══ HERO BANNER ══ */}
+      {/* ══ HERO BANNER — texto sempre legível ══ */}
       <div className="relative w-full overflow-hidden" style={{ minHeight: 300 }}>
         <img
           src={heroImage}
           alt={categoryName}
           className="absolute inset-0 w-full h-full object-cover"
-          style={{ objectPosition: "center top" }}
+          style={{ objectPosition: "center" }}
         />
+
+        {/* Overlay escuro uniforme para garantir legibilidade */}
+        <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.45)" }} />
+
+        {/* Gradiente extra na zona do texto (parte inferior) */}
         <div
           className="absolute inset-0"
           style={{
-            background:
-              "linear-gradient(to bottom, rgba(242,234,224,0.55) 0%, rgba(242,234,224,0.15) 25%, transparent 45%, rgba(0,0,0,0.15) 70%, rgba(0,0,0,0.45) 100%)",
+            background: "linear-gradient(to top, rgba(0,0,0,0.70) 0%, rgba(0,0,0,0.30) 50%, rgba(0,0,0,0.10) 100%)",
           }}
         />
-        <div className="relative z-10 flex flex-col justify-end px-4 pb-5" style={{ paddingTop: 68 }}>
-          <div className="flex items-center gap-1 text-[11px] mb-2.5" style={{ color: brown }}>
-            <button onClick={() => navigate("/")} className="hover:opacity-70 transition-opacity font-medium" style={{ color: brown }}>Início</button>
-            <span style={{ color: sandDark }}>/</span>
-            <button onClick={() => navigate("/categorias")} className="hover:opacity-70 transition-opacity font-medium" style={{ color: brown }}>Categorias</button>
-            <span style={{ color: sandDark }}>/</span>
-            <span className="font-black" style={{ color: brown }}>{categoryName}</span>
+
+        {/* Conteúdo do hero */}
+        <div className="relative z-10 flex flex-col justify-end px-4 pb-6" style={{ paddingTop: 68, minHeight: 300 }}>
+          {/* Breadcrumb */}
+          <div className="flex items-center gap-1 text-[11px] mb-3">
+            <button onClick={() => navigate("/")}
+              className="hover:opacity-80 transition-opacity font-medium"
+              style={{ color: "rgba(255,255,255,0.80)", textShadow: "0 1px 3px rgba(0,0,0,0.5)" }}>
+              Início
+            </button>
+            <span style={{ color: "rgba(255,255,255,0.50)" }}>/</span>
+            <button onClick={() => navigate("/categorias")}
+              className="hover:opacity-80 transition-opacity font-medium"
+              style={{ color: "rgba(255,255,255,0.80)", textShadow: "0 1px 3px rgba(0,0,0,0.5)" }}>
+              Categorias
+            </button>
+            <span style={{ color: "rgba(255,255,255,0.50)" }}>/</span>
+            <span className="font-black" style={{ color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,0.6)" }}>
+              {categoryName}
+            </span>
           </div>
-          <h1 className="text-3xl font-black leading-tight mb-1" style={{ color: brown }}>{categoryName}</h1>
-          <p className="text-sm font-medium max-w-xs" style={{ color: sandDark }}>{heroSubtitle}</p>
+
+          {/* Título */}
+          <h1
+            className="text-3xl font-black leading-tight mb-2"
+            style={{
+              color: "#fff",
+              textShadow: "0 2px 8px rgba(0,0,0,0.7), 0 1px 3px rgba(0,0,0,0.9)",
+            }}
+          >
+            {categoryName}
+          </h1>
+
+          {/* Subtítulo */}
+          <p
+            className="text-sm font-medium max-w-xs"
+            style={{
+              color: "rgba(255,255,255,0.90)",
+              textShadow: "0 1px 4px rgba(0,0,0,0.7)",
+            }}
+          >
+            {heroSubtitle}
+          </p>
         </div>
       </div>
 
@@ -470,11 +411,8 @@ const CategoriaDetalhe = () => {
       <div className="sticky top-14 z-30 border-b" style={{ backgroundColor: "#fff", borderBottomColor: brownMid }}>
         <div className="container mx-auto px-3 py-2 flex items-center gap-2">
           <div className="relative flex-1">
-            <button
-              onClick={() => setShowSort(!showSort)}
-              className="flex items-center gap-1 text-xs font-medium"
-              style={{ color: brown }}
-            >
+            <button onClick={() => setShowSort(!showSort)}
+              className="flex items-center gap-1 text-xs font-medium" style={{ color: brown }}>
               Ordenar por{" "}
               <span className="font-black" style={{ color: sandDark }}>{sortBy}</span>
               <ChevronDown className="w-3 h-3" style={{ color: sandDark }} />
@@ -497,11 +435,9 @@ const CategoriaDetalhe = () => {
             )}
           </div>
           {isMobile && (
-            <button
-              onClick={() => setShowMobileFilters(true)}
+            <button onClick={() => setShowMobileFilters(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-colors"
-              style={{ background: activeFiltersCount > 0 ? sandDark : brownLight, border: `1.5px solid ${brownMid}`, color: activeFiltersCount > 0 ? "#fff" : brown }}
-            >
+              style={{ background: activeFiltersCount > 0 ? sandDark : brownLight, border: `1.5px solid ${brownMid}`, color: activeFiltersCount > 0 ? "#fff" : brown }}>
               <SlidersHorizontal className="w-3.5 h-3.5" style={{ color: activeFiltersCount > 0 ? "#fff" : sandDark }} />
               Filtro{activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}
             </button>
@@ -512,18 +448,12 @@ const CategoriaDetalhe = () => {
       {/* ══ DRAWER DE FILTROS (mobile) ══ */}
       {isMobile && showMobileFilters && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" onClick={() => setShowMobileFilters(false)}>
-          <div
-            className="absolute left-0 top-0 bottom-0 w-72 overflow-y-auto p-4"
-            style={{ background: cream }}
-            onClick={e => e.stopPropagation()}
-          >
+          <div className="absolute left-0 top-0 bottom-0 w-72 overflow-y-auto p-4"
+            style={{ background: cream }} onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-black" style={{ color: brown }}>Filtros</h2>
-              <button
-                onClick={() => setShowMobileFilters(false)}
-                className="w-7 h-7 rounded-full flex items-center justify-center"
-                style={{ background: brownLight }}
-              >
+              <button onClick={() => setShowMobileFilters(false)}
+                className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: brownLight }}>
                 <X className="w-4 h-4" style={{ color: brown }} />
               </button>
             </div>
@@ -535,10 +465,8 @@ const CategoriaDetalhe = () => {
       {/* ══ LAYOUT PRINCIPAL ══ */}
       <div className="container mx-auto px-3 flex gap-4">
         {!isMobile && (
-          <aside
-            className="w-56 flex-shrink-0 py-4 px-3 mt-4 rounded-2xl self-start sticky top-[88px]"
-            style={{ background: cream, border: `1.5px solid ${brownMid}`, boxShadow: "0 2px 10px rgba(74,46,10,0.07)" }}
-          >
+          <aside className="w-56 flex-shrink-0 py-4 px-3 mt-4 rounded-2xl self-start sticky top-[88px]"
+            style={{ background: cream, border: `1.5px solid ${brownMid}`, boxShadow: "0 2px 10px rgba(74,46,10,0.07)" }}>
             <FiltersPanel />
           </aside>
         )}
@@ -552,11 +480,8 @@ const CategoriaDetalhe = () => {
               <p className="text-xs mb-3 font-medium" style={{ color: sandDark }}>
                 {products.length} resultado{products.length !== 1 ? "s" : ""} em "{categoryName}"
                 {activeFiltersCount > 0 && (
-                  <button
-                    onClick={() => { setSelectedSub(null); setSelectedColors([]); setSelectedPrice(null); }}
-                    className="ml-2 underline"
-                    style={{ color: sandDark }}
-                  >
+                  <button onClick={() => { setSelectedSub(null); setSelectedColors([]); setSelectedPrice(null); }}
+                    className="ml-2 underline" style={{ color: sandDark }}>
                     limpar filtros
                   </button>
                 )}
@@ -570,11 +495,8 @@ const CategoriaDetalhe = () => {
                   <p className="text-xs text-center max-w-[200px]" style={{ color: "#888" }}>
                     Tente ajustar os filtros para encontrar o que procura.
                   </p>
-                  <button
-                    onClick={() => { setSelectedSub(null); setSelectedColors([]); setSelectedPrice(null); }}
-                    className="px-4 py-2 rounded-full text-xs font-bold"
-                    style={{ background: sandDark, color: "#fff" }}
-                  >
+                  <button onClick={() => { setSelectedSub(null); setSelectedColors([]); setSelectedPrice(null); }}
+                    className="px-4 py-2 rounded-full text-xs font-bold" style={{ background: sandDark, color: "#fff" }}>
                     Limpar filtros
                   </button>
                 </div>
