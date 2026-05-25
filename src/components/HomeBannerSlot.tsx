@@ -35,35 +35,13 @@ interface SplitImage {
 
 /* ─── Dots indicadores de slide ─── */
 const SlideDots = ({
-  total, current, paused, onClick, onPauseToggle,
+  total, current, onClick,
 }: {
   total: number;
   current: number;
-  paused: boolean;
   onClick: (i: number) => void;
-  onPauseToggle: () => void;
 }) => (
   <div className="absolute bottom-3 left-0 right-0 flex justify-center items-center gap-1.5 z-10">
-    {/* Botão pausa/play */}
-    <button
-      onClick={e => { e.preventDefault(); onPauseToggle(); }}
-      className="w-5 h-5 rounded-full flex items-center justify-center mr-1"
-      style={{ background: "rgba(0,0,0,0.35)", backdropFilter: "blur(4px)" }}
-      title={paused ? "Retomar slideshow" : "Pausar slideshow"}
-    >
-      {paused ? (
-        /* play ▶ */
-        <svg width="8" height="9" viewBox="0 0 8 9" fill="white">
-          <path d="M1 1l6 3.5L1 8V1z"/>
-        </svg>
-      ) : (
-        /* pause ⏸ */
-        <svg width="8" height="9" viewBox="0 0 8 9" fill="white">
-          <rect x="1" y="1" width="2" height="7" rx="0.5"/>
-          <rect x="5" y="1" width="2" height="7" rx="0.5"/>
-        </svg>
-      )}
-    </button>
     {Array.from({ length: total }).map((_, i) => (
       <button
         key={i}
@@ -261,16 +239,7 @@ const HomeBannerSlot = ({
               <SlideDots
                 total={images.length}
                 current={currentImage}
-                paused={paused}
                 onClick={(i) => { setCurrentImage(i); handleSlideTouch(); }}
-                onPauseToggle={() => {
-                  if (paused) {
-                    setPaused(false);
-                    if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
-                  } else {
-                    handleSlideTouch();
-                  }
-                }}
               />
             )}
           </div>
@@ -299,16 +268,7 @@ const HomeBannerSlot = ({
             <SlideDots
               total={images.length}
               current={currentImage}
-              paused={paused}
               onClick={(i) => { setCurrentImage(i); handleSlideTouch(); }}
-              onPauseToggle={() => {
-                if (paused) {
-                  setPaused(false);
-                  if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
-                } else {
-                  handleSlideTouch();
-                }
-              }}
             />
           )}
         </div>
