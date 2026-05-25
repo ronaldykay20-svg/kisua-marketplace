@@ -1,8 +1,14 @@
+// STORAGE: Cloudflare R2 (uploadToR2)
+// Para reverter para Supabase Storage, trocar uploadToR2() por:
+//   supabase.storage.from("videos").upload(path, file)
+//   supabase.storage.from("videos").getPublicUrl(path)
+
 import { useState, useRef, useEffect } from "react";
 import { Video, Upload, Link2, Trash2, Eye, RefreshCw, Play, CheckCircle, ChevronRight, AlertTriangle, Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { uploadToR2 } from "@/lib/r2";
 
 interface Props {
   sellerId: string;
@@ -12,9 +18,8 @@ type UploadStep = "idle" | "file_selected" | "choosing_product" | "uploading";
 
 const MAX_STORIES = 50;
 const MAX_DURATION_SECONDS = 120;
-const STORY_ACTIVE_HOURS = 24; // story fica activo 24h após publicação
+const STORY_ACTIVE_HOURS = 24;
 
-// Extrai thumbnail do vídeo via canvas
 const VideoThumbnail = ({ src }: { src: string }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -24,7 +29,6 @@ const VideoThumbnail = ({ src }: { src: string }) => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
-
     const capture = () => {
       try {
         const ctx = canvas.getContext("2d");
@@ -35,11 +39,9 @@ const VideoThumbnail = ({ src }: { src: string }) => {
         setThumbReady(true);
       } catch {}
     };
-
     video.addEventListener("loadeddata", capture);
     video.addEventListener("seeked", capture);
     video.currentTime = 0.5;
-
     return () => {
       video.removeEventListener("loadeddata", capture);
       video.removeEventListener("seeked", capture);
@@ -48,24 +50,8 @@ const VideoThumbnail = ({ src }: { src: string }) => {
 
   return (
     <div className="w-full h-full relative bg-muted">
-      {/* Canvas visível quando thumbnail estiver pronto */}
-      <canvas
-        ref={canvasRef}
-        className="w-full h-full object-cover absolute inset-0"
-        style={{ display: thumbReady ? "block" : "none" }}
-      />
-      {/* Vídeo oculto só para capturar o frame */}
-      <video
-        ref={videoRef}
-        src={src}
-        className="absolute inset-0 w-full h-full object-cover"
-        style={{ display: thumbReady ? "none" : "block", opacity: 0.01 }}
-        muted
-        playsInline
-        preload="auto"
-        crossOrigin="anonymous"
-      />
-      {/* Placeholder enquanto carrega */}
+      <canvas ref={canvasRef} className="w-full h-full object-cover absolute inset-0" style={{ display: thumbReady ? "block" : "none" }} />
+      <video ref={videoRef} src={src} className="absolute inset-0 w-full h-full object-cover" style={{ display: thumbReady ? "none" : "block", opacity: 0.01 }} muted playsInline preload="auto" crossOrigin="anonymous" />
       {!thumbReady && (
         <div className="absolute inset-0 flex items-center justify-center bg-muted">
           <Video className="w-8 h-8 text-muted-foreground animate-pulse" />
@@ -75,7 +61,6 @@ const VideoThumbnail = ({ src }: { src: string }) => {
   );
 };
 
-// Verifica se o story ainda está activo (menos de 24h desde created_at)
 const isStoryActive = (createdAt: string) => {
   const created = new Date(createdAt).getTime();
   const now = Date.now();
@@ -164,14 +149,10 @@ const SellerStoriesTab = ({ sellerId }: Props) => {
     setStep("uploading");
     setUploading(true);
     try {
-      const ext = selectedFile.name.split(".").pop();
-      const path = `stories/${sellerId}/${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from("videos").upload(path, selectedFile);
-      if (uploadError) throw uploadError;
-      const { data: urlData } = supabase.storage.from("videos").getPublicUrl(path);
+      const url = await uploadToR2(selectedFile, `stories/${sellerId}`);
       const { error: insertError } = await supabase.from("seller_stories").insert({
         seller_id: sellerId,
-        image_url: urlData.publicUrl,
+        image_url: url,
         product_id: linkedProductId || null,
         is_active: true,
       });
@@ -227,17 +208,13 @@ const SellerStoriesTab = ({ sellerId }: Props) => {
 
   return (
     <div className="space-y-4">
-
       {atLimit && (
         <div className="flex items-start gap-2 bg-destructive/10 border border-destructive/30 rounded-xl px-3 py-2.5">
           <AlertTriangle className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
-          <p className="text-xs text-destructive font-bold">
-            Atingiste o limite de {MAX_STORIES} stories. Apaga stories antigos para poderes publicar novos.
-          </p>
+          <p className="text-xs text-destructive font-bold">Atingiste o limite de {MAX_STORIES} stories. Apaga stories antigos para poderes publicar novos.</p>
         </div>
       )}
 
-      {/* Upload Card */}
       <div className="bg-card rounded-2xl border border-border overflow-hidden">
         <div className="flex items-center gap-2 px-4 pt-4 pb-3 border-b border-border">
           <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
@@ -252,7 +229,6 @@ const SellerStoriesTab = ({ sellerId }: Props) => {
           </span>
         </div>
 
-        {/* Step indicator */}
         <div className="flex items-center px-4 pt-3 pb-1">
           {[{ n: 1, label: "Vídeo" }, { n: 2, label: "Produto" }, { n: 3, label: "Publicar" }].map((s, i) => {
             const done = (s.n === 1 && ["file_selected","choosing_product","uploading"].includes(step)) ||
@@ -340,7 +316,6 @@ const SellerStoriesTab = ({ sellerId }: Props) => {
         </div>
       </div>
 
-      {/* Modal Republicar */}
       {republishStoryData && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 pb-6 px-4">
           <div className="bg-card rounded-2xl border border-border w-full max-w-sm overflow-hidden">
@@ -379,7 +354,6 @@ const SellerStoriesTab = ({ sellerId }: Props) => {
         </div>
       )}
 
-      {/* Stories List */}
       <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
         <Play className="w-4 h-4" /> Meus Stories ({totalStoriesCount})
       </h2>
@@ -392,58 +366,42 @@ const SellerStoriesTab = ({ sellerId }: Props) => {
         <div className="grid grid-cols-2 gap-3">
           {stories.map((s: any) => {
             const active = isStoryActive(s.created_at);
-            // Quantas horas restam
             const hoursLeft = STORY_ACTIVE_HOURS - (Date.now() - new Date(s.created_at).getTime()) / (1000 * 60 * 60);
-
             return (
               <div key={s.id} className={`bg-card rounded-xl border overflow-hidden ${active ? "border-primary/40" : "border-border opacity-80"}`}>
-                {/* Thumbnail */}
                 <div className="aspect-[9/14] relative overflow-hidden">
-                  {s.image_url ? (
-                    <VideoThumbnail src={s.image_url} />
-                  ) : (
+                  {s.image_url ? <VideoThumbnail src={s.image_url} /> : (
                     <div className="w-full h-full bg-muted flex items-center justify-center">
                       <Video className="w-8 h-8 text-muted-foreground" />
                     </div>
                   )}
-                  {/* Badge estado */}
                   <span className={`absolute top-1.5 left-1.5 text-[8px] font-bold px-1.5 py-0.5 rounded-full ${active ? "bg-green-500 text-white" : "bg-zinc-600/90 text-white"}`}>
-                    {active ? `Activo` : "Expirado"}
+                    {active ? "Activo" : "Expirado"}
                   </span>
-                  {/* Tempo restante se activo */}
                   {active && hoursLeft > 0 && (
                     <span className="absolute bottom-1.5 right-1.5 flex items-center gap-0.5 bg-black/60 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full">
                       <Clock className="w-2.5 h-2.5" /> {Math.ceil(hoursLeft)}h
                     </span>
                   )}
                 </div>
-
-                {/* Info */}
                 <div className="p-2 space-y-1.5">
                   <div className="flex items-center justify-between text-[10px] text-muted-foreground">
                     <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {s.views_count ?? 0}</span>
                     <span>{new Date(s.created_at).toLocaleDateString("pt-AO")}</span>
                   </div>
-                  {s.products?.title && (
-                    <p className="text-[9px] text-primary font-bold truncate">🔗 {s.products.title}</p>
-                  )}
+                  {s.products?.title && <p className="text-[9px] text-primary font-bold truncate">🔗 {s.products.title}</p>}
                   <div className="flex gap-1 pt-0.5">
                     <button
                       onClick={() => openRepublish(s)}
                       disabled={active}
                       title={active ? "Ainda activo — aguarda expirar" : "Republicar"}
-                      className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg border text-[10px] font-bold transition-all ${
-                        active ? "border-border text-muted-foreground opacity-40 cursor-not-allowed" : "border-border text-foreground hover:bg-accent"
-                      }`}
+                      className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg border text-[10px] font-bold transition-all ${active ? "border-border text-muted-foreground opacity-40 cursor-not-allowed" : "border-border text-foreground hover:bg-accent"}`}
                     >
                       <RefreshCw className="w-3 h-3" />
                       {active ? "Activo" : "Republicar"}
                     </button>
-                    <button
-                      onClick={() => deleteStory.mutate(s.id)}
-                      disabled={deleteStory.isPending}
-                      className="p-1.5 rounded-lg hover:bg-destructive/10 text-destructive transition-all"
-                    >
+                    <button onClick={() => deleteStory.mutate(s.id)} disabled={deleteStory.isPending}
+                      className="p-1.5 rounded-lg hover:bg-destructive/10 text-destructive transition-all">
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
