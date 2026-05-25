@@ -1,9 +1,14 @@
+// STORAGE: Cloudflare R2 (uploadToR2)
+// Para reverter para Supabase Storage, trocar uploadToR2() por:
+//   supabase.storage.from(STORAGE_BUCKETS.sellers).upload(path, file)
+//   supabase.storage.from(STORAGE_BUCKETS.sellers).getPublicUrl(path)
+
 import { useState } from "react";
 import { Save, Upload, X, User, Image as ImageIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { STORAGE_BUCKETS } from "@/lib/storage";
+import { uploadToR2 } from "@/lib/r2";
 
 interface Props {
   seller: any;
@@ -26,27 +31,19 @@ const SellerProfileEditor = ({ seller }: Props) => {
   });
   const [uploading, setUploading] = useState<string | null>(null);
 
-  // Províncias
   const { data: provinces = [] } = useQuery({
     queryKey: ["provinces"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("provinces")
-        .select("id, name")
-        .order("name");
+      const { data, error } = await supabase.from("provinces").select("id, name").order("name");
       if (error) throw error;
       return data;
     },
   });
 
-  // Municípios
   const { data: municipalities = [] } = useQuery({
     queryKey: ["municipalities"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("municipalities")
-        .select("id, name, province_id")
-        .order("name");
+      const { data, error } = await supabase.from("municipalities").select("id, name, province_id").order("name");
       if (error) throw error;
       return data;
     },
@@ -83,12 +80,9 @@ const SellerProfileEditor = ({ seller }: Props) => {
   const handleUpload = async (field: "logo_url" | "cover_url", file: File) => {
     setUploading(field);
     try {
-      const ext = file.name.split(".").pop();
-      const path = `sellers/${seller.id}/${field.replace("_url", "")}-${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from(STORAGE_BUCKETS.sellers).upload(path, file);
-      if (error) throw error;
-      const { data } = supabase.storage.from(STORAGE_BUCKETS.sellers).getPublicUrl(path);
-      setForm(f => ({ ...f, [field]: data.publicUrl }));
+      const folder = field === "logo_url" ? "vendedores/logos" : "vendedores/capas";
+      const url = await uploadToR2(file, folder);
+      setForm(f => ({ ...f, [field]: url }));
       toast.success(field === "logo_url" ? "Logo carregado!" : "Capa carregada!");
     } catch (err: any) {
       toast.error("Erro no upload: " + err.message);
@@ -107,7 +101,6 @@ const SellerProfileEditor = ({ seller }: Props) => {
       <h2 className="text-sm font-bold text-foreground mb-3">Editar Perfil da Loja</h2>
       <div className="space-y-3">
 
-        {/* ═══ COVER PREVIEW ═══ */}
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Imagem de Capa</label>
           <div className="relative w-full h-32 rounded-xl overflow-hidden bg-muted border border-border">
@@ -132,7 +125,6 @@ const SellerProfileEditor = ({ seller }: Props) => {
           </div>
         </div>
 
-        {/* ═══ LOGO PREVIEW ═══ */}
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Logo / Foto de Perfil</label>
           <div className="flex items-center gap-4">
@@ -161,7 +153,6 @@ const SellerProfileEditor = ({ seller }: Props) => {
           </div>
         </div>
 
-        {/* ═══ DADOS ═══ */}
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Nome da loja</label>
           <input value={form.name} onChange={e => set("name", e.target.value)}
@@ -190,34 +181,22 @@ const SellerProfileEditor = ({ seller }: Props) => {
             className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
         </div>
 
-        {/* ═══ LOCALIZAÇÃO ═══ */}
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Província</label>
-          <select
-            value={form.province_id}
-            onChange={e => {
-              setForm(f => ({ ...f, province_id: e.target.value, municipality_id: "" }));
-            }}
-            className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground appearance-none"
-          >
+          <select value={form.province_id}
+            onChange={e => setForm(f => ({ ...f, province_id: e.target.value, municipality_id: "" }))}
+            className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground appearance-none">
             <option value="">Seleccionar província…</option>
-            {provinces.map((p: any) => (
-              <option key={p.id} value={String(p.id)}>{p.name}</option>
-            ))}
+            {provinces.map((p: any) => <option key={p.id} value={String(p.id)}>{p.name}</option>)}
           </select>
         </div>
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Município</label>
-          <select
-            value={form.municipality_id}
-            disabled={!form.province_id}
+          <select value={form.municipality_id} disabled={!form.province_id}
             onChange={e => set("municipality_id", e.target.value)}
-            className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground appearance-none disabled:opacity-50"
-          >
+            className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground appearance-none disabled:opacity-50">
             <option value="">Seleccionar município…</option>
-            {filteredMunicipalities.map((m: any) => (
-              <option key={m.id} value={String(m.id)}>{m.name}</option>
-            ))}
+            {filteredMunicipalities.map((m: any) => <option key={m.id} value={String(m.id)}>{m.name}</option>)}
           </select>
         </div>
         <div>
@@ -228,7 +207,6 @@ const SellerProfileEditor = ({ seller }: Props) => {
             className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground"
             placeholder="ex: Rua da Missão, nº 42" />
         </div>
-
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Website</label>
           <input value={form.website} onChange={e => set("website", e.target.value)}
