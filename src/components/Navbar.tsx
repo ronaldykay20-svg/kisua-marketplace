@@ -107,7 +107,7 @@ const useImageSearch = (onResult: (base64: string) => void) => {
 };
 
 const LogoSkeleton = () => (
-  <div className="rounded-lg animate-pulse" style={{ height: 80, width: 160, background: "rgba(74,46,10,0.12)" }} />
+  <div className="rounded-lg animate-pulse" style={{ height: 40, width: 130, background: "rgba(74,46,10,0.12)" }} />
 );
 
 const Navbar = () => {
@@ -273,7 +273,7 @@ const Navbar = () => {
           <img
             src={logoUrl}
             alt="Logo"
-            style={{ height: 80, maxWidth: 200, objectFit: "contain", display: logoLoaded ? "block" : "none" }}
+            style={{ height: 40, maxWidth: 160, objectFit: "contain", display: logoLoaded ? "block" : "none" }}
             onLoad={() => setLogoLoaded(true)}
             onError={() => setLogoLoaded(true)}
           />
@@ -292,7 +292,7 @@ const Navbar = () => {
         <div className="px-3">
 
           {/* ── Linha 1: ícones ── */}
-          <div className="flex items-start gap-2 pt-1" style={{ height: 88 }}>
+          <div className="flex items-center gap-2" style={{ height: 52, paddingTop: 6, paddingBottom: 6 }}>
 
             {/* Esquerda: menu ou voltar */}
             {isCategoriaDetalhePage ? (
