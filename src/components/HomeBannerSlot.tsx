@@ -34,8 +34,36 @@ interface SplitImage {
 }
 
 /* ─── Dots indicadores de slide ─── */
-const SlideDots = ({ total, current, onClick }: { total: number; current: number; onClick: (i: number) => void }) => (
-  <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5 z-10">
+const SlideDots = ({
+  total, current, paused, onClick, onPauseToggle,
+}: {
+  total: number;
+  current: number;
+  paused: boolean;
+  onClick: (i: number) => void;
+  onPauseToggle: () => void;
+}) => (
+  <div className="absolute bottom-3 left-0 right-0 flex justify-center items-center gap-1.5 z-10">
+    {/* Botão pausa/play */}
+    <button
+      onClick={e => { e.preventDefault(); onPauseToggle(); }}
+      className="w-5 h-5 rounded-full flex items-center justify-center mr-1"
+      style={{ background: "rgba(0,0,0,0.35)", backdropFilter: "blur(4px)" }}
+      title={paused ? "Retomar slideshow" : "Pausar slideshow"}
+    >
+      {paused ? (
+        /* play ▶ */
+        <svg width="8" height="9" viewBox="0 0 8 9" fill="white">
+          <path d="M1 1l6 3.5L1 8V1z"/>
+        </svg>
+      ) : (
+        /* pause ⏸ */
+        <svg width="8" height="9" viewBox="0 0 8 9" fill="white">
+          <rect x="1" y="1" width="2" height="7" rx="0.5"/>
+          <rect x="5" y="1" width="2" height="7" rx="0.5"/>
+        </svg>
+      )}
+    </button>
     {Array.from({ length: total }).map((_, i) => (
       <button
         key={i}
@@ -153,13 +181,25 @@ const HomeBannerSlot = ({
   );
 
   const [currentImage, setCurrentImage] = useState(0);
-  useEffect(() => { setCurrentImage(0); }, [banner?.id]);
+  const [paused, setPaused] = useState(false);
+  const resumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => { setCurrentImage(0); setPaused(false); }, [banner?.id]);
+
+  // Pausa ao toque — retoma automaticamente após 6 segundos de inatividade
+  const handleSlideTouch = () => {
+    setPaused(true);
+    if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
+    resumeTimerRef.current = setTimeout(() => setPaused(false), 6000);
+  };
+
   useEffect(() => {
     if (!banner) return;
     if (!["hero","hero-full","wide","wide-slim"].includes(banner.format) || images.length <= 1) return;
+    if (paused) return;
     const t = window.setInterval(() => setCurrentImage((v) => (v + 1) % images.length), 5000);
     return () => window.clearInterval(t);
-  }, [banner, images.length]);
+  }, [banner, images.length, paused]);
 
   const sectionCls =
     sidebar || compact ? "w-full"
@@ -209,12 +249,32 @@ const HomeBannerSlot = ({
     const h = banner.format === "hero-full" ? heroFullH : heroH;
     return withCategoryProducts(
       <section className={sectionCls}>
-        <a href={href} className="block rounded-card overflow-hidden border border-border">
-          <div className={`relative ${h}`}>
-            <img src={image} alt="Banner" className="absolute inset-0 h-full w-full object-cover transition-opacity duration-500" />
-            {images.length > 1 && <SlideDots total={images.length} current={currentImage} onClick={setCurrentImage} />}
+        <div className="block rounded-card overflow-hidden border border-border">
+          <div
+            className={`relative ${h}`}
+            onTouchStart={images.length > 1 ? handleSlideTouch : undefined}
+          >
+            <a href={href}>
+              <img src={image} alt="Banner" className="absolute inset-0 h-full w-full object-cover transition-opacity duration-500" />
+            </a>
+            {images.length > 1 && (
+              <SlideDots
+                total={images.length}
+                current={currentImage}
+                paused={paused}
+                onClick={(i) => { setCurrentImage(i); handleSlideTouch(); }}
+                onPauseToggle={() => {
+                  if (paused) {
+                    setPaused(false);
+                    if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
+                  } else {
+                    handleSlideTouch();
+                  }
+                }}
+              />
+            )}
           </div>
-        </a>
+        </div>
       </section>,
     );
   }
@@ -226,13 +286,31 @@ const HomeBannerSlot = ({
       : compact ? "aspect-[3/1]" : "aspect-[21/9] sm:aspect-[16/6] md:aspect-[16/5]";
     return withCategoryProducts(
       <section className={sectionCls}>
-        <div className="relative overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md">
+        <div
+          className="relative overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md"
+          onTouchStart={images.length > 1 ? handleSlideTouch : undefined}
+        >
           <a href={href} className="block">
             <div className={aspectCls}>
               <img src={image} alt="Banner" className="h-full w-full object-cover transition-opacity duration-500" loading="lazy" />
             </div>
           </a>
-          {images.length > 1 && <SlideDots total={images.length} current={currentImage} onClick={setCurrentImage} />}
+          {images.length > 1 && (
+            <SlideDots
+              total={images.length}
+              current={currentImage}
+              paused={paused}
+              onClick={(i) => { setCurrentImage(i); handleSlideTouch(); }}
+              onPauseToggle={() => {
+                if (paused) {
+                  setPaused(false);
+                  if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
+                } else {
+                  handleSlideTouch();
+                }
+              }}
+            />
+          )}
         </div>
       </section>,
     );
