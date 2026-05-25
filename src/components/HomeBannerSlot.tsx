@@ -168,7 +168,7 @@ const HomeBannerSlot = ({
   const handleSlideTouch = () => {
     setPaused(true);
     if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
-    resumeTimerRef.current = setTimeout(() => setPaused(false), 6000);
+    resumeTimerRef.current = setTimeout(() => setPaused(false), 3000);
   };
 
   useEffect(() => {
