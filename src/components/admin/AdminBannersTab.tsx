@@ -117,6 +117,43 @@ async function uploadBannerImage(file: File): Promise<string> {
   return data.publicUrl;
 }
 
+/* ─── CategorySelect ─────────────────────────────────────────────────────── */
+const CategorySelect = ({
+  value,
+  onChange,
+}: {
+  value: string | null;
+  onChange: (v: string | null) => void;
+}) => {
+  const { data: categories = [], isLoading } = useQuery({
+    queryKey: ["categories_for_banner"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("categories")
+        .select("id, name")
+        .order("name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  return (
+    <select
+      value={value || ""}
+      onChange={e => onChange(e.target.value || null)}
+      className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground"
+    >
+      <option value="">— Sem categoria —</option>
+      {isLoading && <option disabled>A carregar...</option>}
+      {categories.map((c: any) => (
+        <option key={c.id} value={c.id}>
+          {c.name}
+        </option>
+      ))}
+    </select>
+  );
+};
+
 /* ─── SplitSideUploader ──────────────────────────────────────────────────── */
 interface SplitSideUploaderProps {
   side: "left" | "right";
@@ -135,7 +172,6 @@ const SplitSideUploader = ({ side, images, layout, onChange, onLayoutChange }: S
   const imgCount = Math.max(images.length, 1);
   const layouts = getLayoutsForCount(imgCount);
 
-  // Se o layout atual não existe para este número de imgs, reseta
   const validLayout = layouts.find(l => l.value === layout) ? layout : layouts[0].value;
 
   const addFiles = (files: FileList) => {
@@ -143,7 +179,6 @@ const SplitSideUploader = ({ side, images, layout, onChange, onLayoutChange }: S
     const newImgs = toAdd.map(f => ({ file: f, preview: URL.createObjectURL(f), link: "" }));
     const next = [...images, ...newImgs];
     onChange(next);
-    // Atualiza layouts disponíveis
     const newLayouts = getLayoutsForCount(next.length);
     if (!newLayouts.find(l => l.value === layout)) onLayoutChange(newLayouts[0].value);
   };
@@ -165,7 +200,6 @@ const SplitSideUploader = ({ side, images, layout, onChange, onLayoutChange }: S
         <span className="text-[10px] text-muted-foreground">{images.length}/4 imagens</span>
       </div>
 
-      {/* Upload */}
       {images.length === 0 ? (
         <button type="button" onClick={() => fileRef.current?.click()}
           className="w-full border-2 border-dashed border-border rounded-xl p-4 flex flex-col items-center gap-1 hover:border-primary/50 hover:bg-primary/5 transition">
@@ -204,7 +238,6 @@ const SplitSideUploader = ({ side, images, layout, onChange, onLayoutChange }: S
       <input ref={fileRef} type="file" accept="image/*" multiple className="hidden"
         onChange={e => { if (e.target.files) addFiles(e.target.files); e.target.value = ""; }} />
 
-      {/* Selector de layout — aparece depois de ter imagens */}
       {images.length > 0 && (
         <div>
           <p className="text-[10px] font-bold text-muted-foreground mb-1.5">
@@ -601,6 +634,17 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
                 className="flex-1 px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
             </div>
           )}
+        </div>
+
+        {/* ─── Categoria vinculada ─────────────────────────────────────────── */}
+        <div>
+          <label className="text-[11px] font-bold text-muted-foreground mb-1 block">
+            Categoria vinculada (opcional)
+          </label>
+          <CategorySelect value={form.category_id} onChange={v => set("category_id", v)} />
+          <p className="text-[10px] text-muted-foreground mt-1">
+            Ao clicar no banner, o utilizador será redirecionado para esta categoria.
+          </p>
         </div>
 
         <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted border border-border">
