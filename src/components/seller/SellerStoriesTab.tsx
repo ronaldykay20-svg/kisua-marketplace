@@ -1,14 +1,8 @@
-// STORAGE: Cloudflare R2 (uploadToR2)
-// Para reverter para Supabase Storage, trocar uploadToR2() por:
-//   supabase.storage.from("videos").upload(path, file)
-//   supabase.storage.from("videos").getPublicUrl(path)
-
 import { useState, useRef, useEffect } from "react";
 import { Video, Upload, Link2, Trash2, Eye, RefreshCw, Play, CheckCircle, ChevronRight, AlertTriangle, Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { uploadToR2 } from "@/lib/r2";
 
 interface Props {
   sellerId: string;
@@ -149,7 +143,13 @@ const SellerStoriesTab = ({ sellerId }: Props) => {
     setStep("uploading");
     setUploading(true);
     try {
-      const url = await uploadToR2(selectedFile, `stories/${sellerId}`);
+      const ext = selectedFile.name.split(".").pop();
+      const path = `stories/${sellerId}/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("videos").upload(path, selectedFile);
+      if (upErr) throw upErr;
+      const { data: urlData } = supabase.storage.from("videos").getPublicUrl(path);
+      const url = urlData.publicUrl;
+
       const { error: insertError } = await supabase.from("seller_stories").insert({
         seller_id: sellerId,
         image_url: url,
