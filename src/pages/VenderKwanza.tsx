@@ -286,4 +286,4 @@ const VenderKwanza = () => {
   );
 };
 
-export default VenderKwanza;
+export default VenderemKwanza;
