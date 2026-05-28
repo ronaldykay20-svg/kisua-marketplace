@@ -1,14 +1,10 @@
-// STORAGE: Cloudflare R2 (uploadToR2)
-// Para reverter para Supabase Storage, trocar uploadToR2() por:
-//   supabase.storage.from(STORAGE_BUCKETS.sellers).upload(path, file)
-//   supabase.storage.from(STORAGE_BUCKETS.sellers).getPublicUrl(path)
-
 import { useState } from "react";
 import { Save, Upload, X, User, Image as ImageIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { uploadToR2 } from "@/lib/r2";
+
+const BUCKET = "sellers";
 
 interface Props {
   seller: any;
@@ -81,8 +77,16 @@ const SellerProfileEditor = ({ seller }: Props) => {
     setUploading(field);
     try {
       const folder = field === "logo_url" ? "vendedores/logos" : "vendedores/capas";
-      const url = await uploadToR2(file, folder);
-      setForm(f => ({ ...f, [field]: url }));
+      const ext = file.name.split(".").pop();
+      const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+
+      const { error: upErr } = await supabase.storage
+        .from(BUCKET)
+        .upload(path, file, { upsert: true });
+      if (upErr) throw upErr;
+
+      const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(path);
+      setForm(f => ({ ...f, [field]: urlData.publicUrl }));
       toast.success(field === "logo_url" ? "Logo carregado!" : "Capa carregada!");
     } catch (err: any) {
       toast.error("Erro no upload: " + err.message);
