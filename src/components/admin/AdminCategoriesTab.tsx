@@ -1,14 +1,9 @@
-// STORAGE: Cloudflare R2 (uploadToR2)
-// Para reverter para Supabase Storage, trocar uploadToR2() por:
-//   supabase.storage.from(STORAGE_BUCKETS.categories).upload(path, file)
-//   supabase.storage.from(STORAGE_BUCKETS.categories).getPublicUrl(path)
-
 import { useState } from "react";
 import { Plus, Edit, Trash2, ChevronRight, Upload, X, Save, FolderTree } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { uploadToR2 } from "@/lib/r2";
+import { STORAGE_BUCKETS } from "@/lib/storage";
 
 interface CategoryForm {
   name: string;
@@ -47,8 +42,12 @@ const AdminCategoriesTab = () => {
   const handleUpload = async (file: File) => {
     setUploading(true);
     try {
-      const url = await uploadToR2(file, "categorias/imagens");
-      setForm(f => ({ ...f, image_url: url }));
+      const ext = file.name.split(".").pop();
+      const path = `categories/${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from(STORAGE_BUCKETS.categories).upload(path, file);
+      if (error) throw error;
+      const { data } = supabase.storage.from(STORAGE_BUCKETS.categories).getPublicUrl(path);
+      setForm(f => ({ ...f, image_url: data.publicUrl }));
     } catch (err: any) {
       toast.error("Erro no upload: " + err.message);
     }
@@ -58,8 +57,12 @@ const AdminCategoriesTab = () => {
   const handleCoverUpload = async (file: File) => {
     setUploadingCover(true);
     try {
-      const url = await uploadToR2(file, "categorias/capas");
-      setForm(f => ({ ...f, cover_image_url: url }));
+      const ext = file.name.split(".").pop();
+      const path = `categories/covers/${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from(STORAGE_BUCKETS.categories).upload(path, file);
+      if (error) throw error;
+      const { data } = supabase.storage.from(STORAGE_BUCKETS.categories).getPublicUrl(path);
+      setForm(f => ({ ...f, cover_image_url: data.publicUrl }));
     } catch (err: any) {
       toast.error("Erro no upload: " + err.message);
     }
@@ -141,8 +144,7 @@ const AdminCategoriesTab = () => {
             <h3 className="text-sm font-bold text-foreground">{editing ? "Editar Categoria" : "Nova Categoria"}</h3>
             <button onClick={() => { setShowForm(false); setEditing(null); }} className="text-muted-foreground"><X className="w-4 h-4" /></button>
           </div>
-          <input placeholder="Nome *" value={form.name}
-            onChange={e => { set("name", e.target.value); if (!editing) set("slug", e.target.value.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")); }}
+          <input placeholder="Nome *" value={form.name} onChange={e => { set("name", e.target.value); if (!editing) set("slug", e.target.value.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")); }}
             className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
           <input placeholder="Slug" value={form.slug} onChange={e => set("slug", e.target.value)}
             className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
@@ -198,6 +200,7 @@ const AdminCategoriesTab = () => {
         </div>
       )}
 
+      {/* Categories tree */}
       <div className="space-y-1">
         {parents.map((cat: any) => {
           const children = getChildren(cat.id);
