@@ -22,7 +22,6 @@ const roleBadge: Record<string, { label: string; color: string; icon: any }> = {
 
 type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos" | "encomendas" | "categorias" | "banners" | "definicoes" | "leiloes" | "publicidade" | "frete";
 
-// ─── Tipos de anúncio ────────────────────────────────────────────────────────
 const AD_TYPES = [
   { value: "banner",           label: "Banner (imagem/vídeo)",   icon: ImageIcon,   desc: "Upload direto de imagem ou vídeo" },
   { value: "empresa",          label: "Empresa patrocinada",      icon: Building2,   desc: "Mostra foto de capa + info da empresa" },
@@ -45,7 +44,6 @@ const TYPE_COLORS: Record<AdType, string> = {
   vendedores_top: "bg-pink-500/10 text-pink-500 border-pink-500/20",
 };
 
-// ─── Formulário de criação ───────────────────────────────────────────────────
 const AdForm = ({ onClose }: { onClose: () => void }) => {
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -215,7 +213,6 @@ const AdForm = ({ onClose }: { onClose: () => void }) => {
   );
 };
 
-// ─── Tab Publicidade ─────────────────────────────────────────────────────────
 const AdminAdsTab = () => {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
@@ -317,7 +314,6 @@ const AdminAdsTab = () => {
   );
 };
 
-// ── Tab Leilões ───────────────────────────────────────────────────────────────
 const AdminLeiloesTab = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -480,8 +476,6 @@ const AdminLeiloesTab = () => {
   );
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-
 const AdminPanel = () => {
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
@@ -494,7 +488,7 @@ const AdminPanel = () => {
   const { data: allRoles = [], isLoading } = useQuery({
     queryKey: ["admin_all_roles"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("user_roles").select("*, profiles(full_name)").order("role");
+      const { data, error } = await (supabase as any).from("user_roles").select("*, profiles(full_name)").order("role");
       if (error) throw error;
       return data;
     },
@@ -504,7 +498,7 @@ const AdminPanel = () => {
   const { data: profiles = [] } = useQuery({
     queryKey: ["admin_profiles", searchTerm],
     queryFn: async () => {
-      let q = supabase.from("profiles").select("id, full_name").limit(20);
+      let q = (supabase as any).from("profiles").select("id, full_name").limit(20);
       if (searchTerm) q = q.ilike("full_name", `%${searchTerm}%`);
       const { data, error } = await q;
       if (error) throw error;
@@ -515,7 +509,7 @@ const AdminPanel = () => {
 
   const addRole = useMutation({
     mutationFn: async ({ userId, role }: { userId: string; role: string }) => {
-      const { error } = await supabase.from("user_roles").insert({ user_id: userId, role: role as any });
+      const { error } = await (supabase as any).from("user_roles").insert({ user_id: userId, role: role as any });
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_all_roles"] }); toast.success("Cargo atribuído"); },
@@ -524,7 +518,7 @@ const AdminPanel = () => {
 
   const removeRole = useMutation({
     mutationFn: async (roleId: string) => {
-      const { error } = await supabase.from("user_roles").delete().eq("id", roleId);
+      const { error } = await (supabase as any).from("user_roles").delete().eq("id", roleId);
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_all_roles"] }); toast.success("Cargo removido"); },
@@ -534,7 +528,7 @@ const AdminPanel = () => {
   const { data: sellers = [] } = useQuery({
     queryKey: ["admin_sellers"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("sellers").select("*").order("created_at", { ascending: false });
+      const { data, error } = await (supabase as any).from("sellers").select("*").order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },
@@ -543,7 +537,7 @@ const AdminPanel = () => {
 
   const toggleVerifySeller = useMutation({
     mutationFn: async ({ id, verified }: { id: string; verified: boolean }) => {
-      const { error } = await supabase.from("sellers").update({ is_verified: verified }).eq("id", id);
+      const { error } = await (supabase as any).from("sellers").update({ is_verified: verified }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_sellers"] }); toast.success("Vendedor atualizado"); },
@@ -551,7 +545,7 @@ const AdminPanel = () => {
 
   const toggleActiveSeller = useMutation({
     mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
-      const { error } = await supabase.from("sellers").update({ is_active: active }).eq("id", id);
+      const { error } = await (supabase as any).from("sellers").update({ is_active: active }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_sellers"] }); toast.success("Estado alterado"); },
@@ -559,7 +553,7 @@ const AdminPanel = () => {
 
   const toggleFeaturedSeller = useMutation({
     mutationFn: async ({ id, featured }: { id: string; featured: boolean }) => {
-      const { error } = await supabase.from("sellers").update({ is_featured: featured } as any).eq("id", id);
+      const { error } = await (supabase as any).from("sellers").update({ is_featured: featured } as any).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_sellers"] }); queryClient.invalidateQueries({ queryKey: ["featured_sellers_home"] }); toast.success("Destaque atualizado"); },
@@ -569,7 +563,7 @@ const AdminPanel = () => {
   const { data: companies = [] } = useQuery({
     queryKey: ["admin_companies"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("companies").select("*").order("created_at", { ascending: false });
+      const { data, error } = await (supabase as any).from("companies").select("*").order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },
@@ -581,7 +575,7 @@ const AdminPanel = () => {
 
   const createCompany = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("companies").insert({ ...companyForm, created_by: user!.id });
+      const { error } = await (supabase as any).from("companies").insert({ ...companyForm, created_by: user!.id });
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_companies"] }); toast.success("Empresa criada"); setCompanyForm({ name: "", slug: "", description: "" }); setShowCompanyForm(false); },
@@ -590,7 +584,7 @@ const AdminPanel = () => {
 
   const toggleVerifyCompany = useMutation({
     mutationFn: async ({ id, verified }: { id: string; verified: boolean }) => {
-      const { error } = await supabase.from("companies").update({ is_verified: verified }).eq("id", id);
+      const { error } = await (supabase as any).from("companies").update({ is_verified: verified }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_companies"] }); toast.success("Empresa atualizada"); },
@@ -599,20 +593,20 @@ const AdminPanel = () => {
   const { data: applications = [] } = useQuery({
     queryKey: ["admin_seller_applications"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("seller_applications").select("*, profiles:user_id(full_name)").order("created_at", { ascending: false });
+      const { data, error } = await (supabase as any).from("seller_applications").select("*, profiles:user_id(full_name)").order("created_at", { ascending: false });
       if (error) throw error;
-      return data;
+      return data || [];
     },
     enabled: isAdmin && tab === "pedidos",
   });
 
   const reviewApplication = useMutation({
     mutationFn: async ({ id, status, userId, name }: { id: string; status: string; userId: string; name: string }) => {
-      const { error } = await supabase.from("seller_applications").update({ status, reviewed_by: user!.id, reviewed_at: new Date().toISOString() }).eq("id", id);
+      const { error } = await (supabase as any).from("seller_applications").update({ status, reviewed_by: user!.id, reviewed_at: new Date().toISOString() }).eq("id", id);
       if (error) throw error;
       if (status === "approved") {
         const slug = name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-        await supabase.from("sellers").insert({ name, slug, user_id: userId, type: "individual" as any, is_active: true });
+        await (supabase as any).from("sellers").insert({ name, slug, user_id: userId, type: "individual", is_active: true });
       }
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_seller_applications"] }); queryClient.invalidateQueries({ queryKey: ["admin_sellers"] }); toast.success("Pedido processado"); },
