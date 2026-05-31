@@ -203,7 +203,7 @@ const VenderKwanza = () => {
             </div>
           </div>
 
-          {/* ── PASSO 1: Tipo ── */}
+          {/* ── PASSO 1 ── */}
           {step === 1 && (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground mb-4">Que tipo de conta quer criar?</p>
@@ -226,7 +226,7 @@ const VenderKwanza = () => {
             </div>
           )}
 
-          {/* ── PASSO 2: Informações básicas ── */}
+          {/* ── PASSO 2 ── */}
           {step === 2 && (
             <div className="space-y-3">
               <div>
@@ -251,22 +251,46 @@ const VenderKwanza = () => {
                     className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:border-primary" />
                 </div>
               </div>
+
+              {/* Província — select HTML nativo com valor capturado antes do setState */}
               <div>
-                <label className="text-xs font-bold text-foreground block mb-1">Província <span className="text-destructive">*</span></label>
-                <select value={form.province_id} onChange={e => setForm(f => ({ ...f, province_id: e.target.value, municipality_id: "" }))}
-                  className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:border-primary">
+                <label className="text-xs font-bold text-foreground block mb-1">
+                  Província <span className="text-destructive">*</span>
+                </label>
+                <select
+                  value={form.province_id}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setForm(f => ({ ...f, province_id: val, municipality_id: "" }));
+                  }}
+                  className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:border-primary"
+                >
                   <option value="">Seleccionar província…</option>
-                  {provinces.map((p: any) => <option key={p.id} value={String(p.id)}>{p.name}</option>)}
+                  {provinces.map((p: any) => (
+                    <option key={p.id} value={String(p.id)}>{p.name}</option>
+                  ))}
                 </select>
               </div>
+
+              {/* Município — select HTML nativo com valor capturado antes do setState */}
               <div>
                 <label className="text-xs font-bold text-foreground block mb-1">Município</label>
-                <select value={form.municipality_id} disabled={!form.province_id} onChange={e => set("municipality_id", e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:border-primary disabled:opacity-50">
+                <select
+                  value={form.municipality_id}
+                  disabled={!form.province_id}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setForm(f => ({ ...f, municipality_id: val }));
+                  }}
+                  className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:border-primary disabled:opacity-50"
+                >
                   <option value="">Seleccionar município…</option>
-                  {filteredMunicipalities.map((m: any) => <option key={m.id} value={String(m.id)}>{m.name}</option>)}
+                  {filteredMunicipalities.map((m: any) => (
+                    <option key={m.id} value={String(m.id)}>{m.name}</option>
+                  ))}
                 </select>
               </div>
+
               <div>
                 <label className="text-xs font-bold text-foreground block mb-1">Endereço <span className="opacity-60">(opcional)</span></label>
                 <input value={form.address} onChange={e => set("address", e.target.value)} placeholder="ex: Rua da Missão, nº 42"
@@ -280,10 +304,9 @@ const VenderKwanza = () => {
             </div>
           )}
 
-          {/* ── PASSO 3: Loja ── */}
+          {/* ── PASSO 3 ── */}
           {step === 3 && (
             <div className="space-y-3">
-              {/* Foto de capa */}
               <div>
                 <label className="text-xs font-bold text-foreground block mb-1">Foto de capa do negócio</label>
                 <div className="relative w-full h-32 rounded-xl overflow-hidden bg-muted border border-border">
@@ -304,8 +327,6 @@ const VenderKwanza = () => {
                   </label>
                 </div>
               </div>
-
-              {/* Logo */}
               <div>
                 <label className="text-xs font-bold text-foreground block mb-1">Logo / Foto de perfil</label>
                 <div className="flex items-center gap-3">
@@ -318,7 +339,6 @@ const VenderKwanza = () => {
                   </label>
                 </div>
               </div>
-
               <div>
                 <label className="text-xs font-bold text-foreground block mb-1">Nome da loja <span className="text-destructive">*</span></label>
                 <input value={form.store_name} onChange={e => set("store_name", e.target.value)} placeholder="Ex: Loja do João"
@@ -326,8 +346,14 @@ const VenderKwanza = () => {
               </div>
               <div>
                 <label className="text-xs font-bold text-foreground block mb-1">Categoria principal <span className="text-destructive">*</span></label>
-                <select value={form.category} onChange={e => set("category", e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:border-primary">
+                <select
+                  value={form.category}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setForm(f => ({ ...f, category: val }));
+                  }}
+                  className="w-full px-3 py-2.5 rounded-xl bg-muted border border-border text-sm text-foreground focus:outline-none focus:border-primary"
+                >
                   <option value="">Seleccionar categoria…</option>
                   {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
@@ -340,12 +366,10 @@ const VenderKwanza = () => {
             </div>
           )}
 
-          {/* ── PASSO 4: Documentos ── */}
+          {/* ── PASSO 4 ── */}
           {step === 4 && (
             <div className="space-y-4">
               <p className="text-xs text-muted-foreground">Carregue fotos ou scans dos seus documentos.</p>
-
-              {/* BI */}
               <div>
                 <label className="text-xs font-bold text-foreground block mb-1">Bilhete de Identidade (BI) <span className="text-destructive">*</span></label>
                 {form.bi_url ? (
@@ -362,8 +386,6 @@ const VenderKwanza = () => {
                   </label>
                 )}
               </div>
-
-              {/* NIF */}
               <div>
                 <label className="text-xs font-bold text-foreground block mb-1">NIF <span className="text-destructive">*</span></label>
                 {form.nif_url ? (
@@ -380,8 +402,6 @@ const VenderKwanza = () => {
                   </label>
                 )}
               </div>
-
-              {/* Negócio legalizado */}
               <div>
                 <button onClick={() => set("is_legalized", !form.is_legalized)}
                   className={`w-full flex items-center gap-3 p-4 rounded-xl border transition text-left ${form.is_legalized ? "border-primary bg-primary/5" : "border-border bg-card"}`}>
@@ -394,8 +414,6 @@ const VenderKwanza = () => {
                   </div>
                 </button>
               </div>
-
-              {/* Alvará (apenas se legalizado) */}
               {form.is_legalized && (
                 <div>
                   <label className="text-xs font-bold text-foreground block mb-1">Alvará / Licença Comercial <span className="text-destructive">*</span></label>
@@ -417,7 +435,7 @@ const VenderKwanza = () => {
             </div>
           )}
 
-          {/* ── PASSO 5: Dados bancários ── */}
+          {/* ── PASSO 5 ── */}
           {step === 5 && (
             <div className="space-y-3">
               <p className="text-xs text-muted-foreground mb-2">Como quer receber os seus pagamentos?</p>
@@ -445,7 +463,7 @@ const VenderKwanza = () => {
             </div>
           )}
 
-          {/* ── PASSO 6: Confirmação ── */}
+          {/* ── PASSO 6 ── */}
           {step === 6 && (
             <div className="space-y-3">
               <p className="text-xs text-muted-foreground mb-2">Reveja os seus dados antes de enviar.</p>
