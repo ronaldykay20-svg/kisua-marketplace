@@ -18,6 +18,8 @@ export const useUserRole = () => {
       return (data || []).map((r: any) => r.role as AppRole);
     },
     enabled: !!user,
+    staleTime: 0,
+    gcTime: 0,
   });
 
   return {
