@@ -40,6 +40,7 @@ import Carrinho from "./pages/Carrinho.tsx";
 import Checkout from "./pages/Checkout.tsx";
 import PedidoDetalhe from "./pages/PedidoDetalhe.tsx";
 import ProtectedRoute from "./components/ProtectedRoute.tsx";
+import SejFornecedor from "./pages/SejFornecedor.tsx";
 
 const queryClient = new QueryClient();
 
@@ -106,6 +107,7 @@ const App = () => (
             <Route path="/painel-moderador" element={<Layout><ProtectedRoute requiredRole="moderator"><ModeratorPanel /></ProtectedRoute></Layout>} />
             <Route path="/carrinho" element={<Layout><Carrinho /></Layout>} />
             <Route path="/checkout" element={<Layout><ProtectedRoute><Checkout /></ProtectedRoute></Layout>} />
+            <Route path="/seja-fornecedor" element={<Layout><ProtectedRoute><SejFornecedor /></ProtectedRoute></Layout>} />
             <Route path="*" element={<Layout><NotFound /></Layout>} />
           </Routes>
         </BrowserRouter>
