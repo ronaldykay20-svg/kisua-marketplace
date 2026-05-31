@@ -6,10 +6,10 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 
 const benefits = [
-  { icon: Users,     title: "Milhões de Clientes",  desc: "Alcance compradores em toda Angola" },
-  { icon: TrendingUp,title: "Aumente Vendas",        desc: "Ferramentas para impulsionar o seu negócio" },
-  { icon: Shield,    title: "Pagamentos Seguros",    desc: "Receba com segurança e rapidez" },
-  { icon: Store,     title: "Loja Personalizada",    desc: "Crie a sua loja com a sua marca" },
+  { icon: Users,      title: "Milhões de Clientes",  desc: "Alcance compradores em toda Angola" },
+  { icon: TrendingUp, title: "Aumente Vendas",        desc: "Ferramentas para impulsionar o seu negócio" },
+  { icon: Shield,     title: "Pagamentos Seguros",    desc: "Receba com segurança e rapidez" },
+  { icon: Store,      title: "Loja Personalizada",    desc: "Crie a sua loja com a sua marca" },
 ];
 
 const steps = [
@@ -34,30 +34,42 @@ type FormState = {
 type ScreenState = "landing" | "form" | "success" | "already_applied";
 
 const VenderKwanza = () => {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [screen, setScreen] = useState<ScreenState>("landing");
-  const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState<FormState>({ name: "", province: "", bio: "", phone: "" });
 
   const handleStart = async () => {
+    if (loading) return;
+
     if (!user) {
       toast.error("Precisa de iniciar sessão primeiro.");
       navigate("/auth");
       return;
     }
-    // Check if user already has a pending/approved application
-    const { data } = await (supabase as any)
-      .from("seller_applications")
-      .select("id, status")
-      .eq("user_id", user.id)
-      .in("status", ["pending", "approved"])
-      .maybeSingle();
 
-    if (data) {
-      setScreen("already_applied");
-    } else {
-      setScreen("form");
+    setChecking(true);
+    try {
+      const { data, error } = await (supabase as any)
+        .from("seller_applications")
+        .select("id, status")
+        .eq("user_id", user.id)
+        .in("status", ["pending", "approved"])
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (data) {
+        setScreen("already_applied");
+      } else {
+        setScreen("form");
+      }
+    } catch (e: any) {
+      toast.error("Erro ao verificar candidatura. Tente novamente.");
+    } finally {
+      setChecking(false);
     }
   };
 
@@ -72,7 +84,7 @@ const VenderKwanza = () => {
       return;
     }
 
-    setLoading(true);
+    setSubmitting(true);
     try {
       const { error } = await (supabase as any).from("seller_applications").insert({
         user_id:  user.id,
@@ -87,7 +99,7 @@ const VenderKwanza = () => {
     } catch (e: any) {
       toast.error(e.message || "Erro ao enviar candidatura.");
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
@@ -214,10 +226,10 @@ const VenderKwanza = () => {
 
             <button
               onClick={handleSubmit}
-              disabled={loading || !form.name.trim() || !form.province}
+              disabled={submitting || !form.name.trim() || !form.province}
               className="w-full py-3 bg-primary text-primary-foreground font-bold text-sm rounded-xl disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              {loading
+              {submitting
                 ? <><Loader2 className="w-4 h-4 animate-spin" /> A enviar...</>
                 : <><SendHorizonal className="w-4 h-4" /> Enviar candidatura</>
               }
@@ -240,9 +252,13 @@ const VenderKwanza = () => {
         </p>
         <button
           onClick={handleStart}
-          className="px-8 py-3 bg-secondary text-secondary-foreground font-bold text-sm rounded-xl shadow-none"
+          disabled={loading || checking}
+          className="px-8 py-3 bg-secondary text-secondary-foreground font-bold text-sm rounded-xl shadow-none disabled:opacity-70 flex items-center justify-center gap-2 mx-auto"
         >
-          Começar agora — é grátis!
+          {checking
+            ? <><Loader2 className="w-4 h-4 animate-spin" /> A verificar...</>
+            : "Começar agora — é grátis!"
+          }
         </button>
       </div>
 
@@ -277,13 +293,17 @@ const VenderKwanza = () => {
 
         <button
           onClick={handleStart}
-          className="w-full py-3 bg-primary text-primary-foreground font-bold text-sm rounded-xl"
+          disabled={loading || checking}
+          className="w-full py-3 bg-primary text-primary-foreground font-bold text-sm rounded-xl disabled:opacity-70 flex items-center justify-center gap-2"
         >
-          Criar conta de vendedor
+          {checking
+            ? <><Loader2 className="w-4 h-4 animate-spin" /> A verificar...</>
+            : "Criar conta de vendedor"
+          }
         </button>
       </div>
     </div>
   );
 };
 
-export default VenderemKwanza;
+export default VenderKwanza;
