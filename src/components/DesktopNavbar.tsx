@@ -151,6 +151,15 @@ const DesktopNavbar = () => {
   const { data: cartCount = 0 } = useCartCount(user?.id);
   const { data: liveCount = 0 } = useLiveCount();
 
+  const { data: isAffiliate } = useQuery({
+    queryKey: ["is_affiliate", user?.id],
+    queryFn: async () => {
+      const { data } = await (supabase as any).from("affiliates").select("id").eq("user_id", user!.id).maybeSingle();
+      return !!data;
+    },
+    enabled: !!user,
+  });
+
   const { data: notifications = [] } = useQuery({
     queryKey: ["navbar_notifications", user?.id],
     queryFn: async () => {
@@ -199,6 +208,7 @@ const DesktopNavbar = () => {
     { label: "Vendedores",      path: "/vendedores" },
     { label: "Ranking",         path: "/ranking" },
     { label: "Seja Fornecedor", path: "/seja-fornecedor" }, // ✅ adicionado
+    ...(!isAffiliate ? [{ label: "Criar Loja", path: "/criar-loja" }] : []),
   ];
 
   const IconBtn = ({ children, onClick, badge }: any) => (
