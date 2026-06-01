@@ -375,7 +375,7 @@ export default function AdminFreightTab() {
         form.pricing_model === "tiers"
           ? form.tiers.map((t) => ({
               measure_type:
-                form.measure_type === "volume" ? "volume" : "weight",
+                (form.measure_type === "volume" ? "volume" : "weight") as "volume" | "weight",
               min_value: Number(t.min_value),
               max_value: t.max_value !== "" ? Number(t.max_value) : null,
               price_kwz: Number(t.price_kwz),
