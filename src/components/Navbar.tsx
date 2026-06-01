@@ -503,22 +503,44 @@ const Navbar = () => {
             </div>
           )}
 
-          {/* ── Traço superior + Localização ── */}
+          {/* ── Barra-pílula: Localização ── */}
           {!isCategoriasPage && !isPesquisaPage && !isCategoriaDetalhePage && (
             <div
               className="overflow-hidden"
               style={{
-                maxHeight: showLocation && !searchBarOpen ? "40px" : "0px",
+                maxHeight: showLocation && !searchBarOpen ? "60px" : "0px",
                 opacity: showLocation && !searchBarOpen ? 1 : 0,
                 transition: "max-height 0.3s ease, opacity 0.25s ease",
+                paddingBottom: showLocation && !searchBarOpen ? 8 : 0,
               }}
             >
-              {/* Traço superior */}
-              <div style={{ height: 1, background: "rgba(74,46,10,0.14)", marginBottom: 5 }} />
-              <div className="flex items-center gap-1.5 pb-1" style={{ color: brown }}>
-                <MapPin className="w-3.5 h-3.5 flex-shrink-0" style={{ color: sandDark }} />
-                <span className="text-xs font-medium">Entregas rápidas</span>
-                <span className="text-xs font-bold ml-auto">Em todo o país</span>
+              <div
+                className="flex items-stretch rounded-2xl"
+                style={{
+                  background: "rgba(255,255,255,0.55)",
+                  border: "1px solid rgba(74,46,10,0.10)",
+                  boxShadow: "0 1px 3px rgba(74,46,10,0.06)",
+                }}
+              >
+                <div className="flex-1 flex items-center gap-2 px-3 py-2.5 min-w-0">
+                  <div
+                    className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{ background: "#FFFFFF", boxShadow: "0 1px 2px rgba(74,46,10,0.12)" }}
+                  >
+                    <MapPin className="w-3.5 h-3.5" style={{ color: brown }} />
+                  </div>
+                  <span className="text-[13px] font-bold truncate" style={{ color: brown }}>Entregas rápidas</span>
+                </div>
+                <div style={{ width: 1, background: "rgba(74,46,10,0.14)", margin: "8px 0" }} />
+                <div className="flex-1 flex items-center justify-end gap-2 px-3 py-2.5 min-w-0">
+                  <div
+                    className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{ background: "rgba(255,255,255,0.7)" }}
+                  >
+                    <span style={{ fontSize: 12 }}>🇦🇴</span>
+                  </div>
+                  <span className="text-[13px] font-bold truncate" style={{ color: brown }}>Em todo o país</span>
+                </div>
               </div>
             </div>
           )}
@@ -526,17 +548,18 @@ const Navbar = () => {
           {/* ── Divisor clicável + Categorias ── */}
           {!isCategoriasPage && !isPesquisaPage && !isCategoriaDetalhePage && (
             <>
-              {/* Traço inferior — clicável para minimizar/expandir */}
+              {/* Pega clicável para minimizar/expandir */}
               <button
                 className="w-full flex items-center justify-center"
-                style={{ height: 16, gap: 6 }}
+                style={{ height: 18, gap: 6 }}
                 onClick={() => setCategoriesExpanded(v => !v)}
                 title={categoriesExpanded ? "Minimizar categorias" : "Expandir categorias"}
               >
                 <div style={{ flex: 1, height: 1, background: "rgba(74,46,10,0.14)" }} />
                 <div style={{
-                  width: 28, height: 4, borderRadius: 2,
-                  background: "rgba(74,46,10,0.22)",
+                  width: 32, height: 5, borderRadius: 3,
+                  background: brown,
+                  opacity: 0.85,
                   transition: "transform 0.3s ease",
                   transform: categoriesExpanded ? "rotate(0deg)" : "rotate(180deg)",
                 }} />
@@ -546,28 +569,33 @@ const Navbar = () => {
               <div
                 className="overflow-hidden"
                 style={{
-                  maxHeight: showCategories && !searchBarOpen && categoriesExpanded ? "80px" : "0px",
+                  maxHeight: showCategories && !searchBarOpen && categoriesExpanded ? "140px" : "0px",
                   opacity: showCategories && !searchBarOpen && categoriesExpanded ? 1 : 0,
                   transition: "max-height 0.4s cubic-bezier(0.4,0,0.2,1), opacity 0.3s ease",
                 }}
               >
                 <div
-                  className="pb-2 overflow-x-auto scrollbar-hide"
-                  style={{ display: "flex", gap: "10px", alignItems: "flex-start", paddingTop: 4 }}
+                  className="pb-3 overflow-x-auto scrollbar-hide"
+                  style={{ display: "flex", gap: "10px", alignItems: "flex-start", paddingTop: 8 }}
                 >
                   {categories.map((cat: any) => (
                     <button
                       key={cat.name}
                       onClick={() => navigate(`/categoria/${encodeURIComponent(cat.name)}`)}
-                      className="flex flex-col items-center gap-1 flex-shrink-0"
+                      className="flex flex-col items-center gap-1.5 flex-shrink-0"
+                      style={{ width: 72 }}
                     >
                       <div
-                        className="w-9 h-9 rounded-xl overflow-hidden"
-                        style={{ border: "2px solid rgba(74,46,10,0.15)", boxShadow: "0 1px 4px rgba(74,46,10,0.10)" }}
+                        className="w-[72px] h-[72px] rounded-2xl overflow-hidden p-1.5"
+                        style={{
+                          background: "rgba(255,255,255,0.65)",
+                          border: "1px solid rgba(74,46,10,0.10)",
+                          boxShadow: "0 2px 6px rgba(74,46,10,0.10)",
+                        }}
                       >
-                        <img src={cat.image} alt={cat.name} className="w-full h-full object-cover" />
+                        <img src={cat.image} alt={cat.name} className="w-full h-full object-cover rounded-xl" />
                       </div>
-                      <span className="text-[8px] font-semibold text-center leading-tight" style={{ color: brown, maxWidth: 36 }}>
+                      <span className="text-[10px] font-bold text-center leading-tight line-clamp-1" style={{ color: brown, maxWidth: 72 }}>
                         {cat.name}
                       </span>
                     </button>
@@ -575,24 +603,30 @@ const Navbar = () => {
 
                   <button
                     onClick={() => navigate("/categorias")}
-                    className="flex flex-col items-center gap-1 flex-shrink-0"
+                    className="flex flex-col items-center gap-1.5 flex-shrink-0"
+                    style={{ width: 72 }}
                   >
                     <div
-                      className="w-9 h-9 rounded-xl flex items-center justify-center"
+                      className="w-[72px] h-[72px] rounded-2xl flex items-center justify-center"
                       style={{
-                        background: "linear-gradient(135deg, #6B3F12, #4A2E0A)",
-                        border: "2px solid rgba(74,46,10,0.35)",
-                        boxShadow: "0 1px 4px rgba(74,46,10,0.18)",
+                        background: `linear-gradient(135deg, #6B3F12, ${brown})`,
+                        boxShadow: "0 2px 6px rgba(74,46,10,0.25)",
                       }}
                     >
-                      <span style={{ fontSize: 16, color: "#FFFFFF", lineHeight: 1 }}>&#8862;</span>
+                      <div className="grid grid-cols-2 gap-1">
+                        <div className="w-3.5 h-3.5 rounded-sm border-2 border-white" />
+                        <div className="w-3.5 h-3.5 rounded-sm border-2 border-white" />
+                        <div className="w-3.5 h-3.5 rounded-sm border-2 border-white" />
+                        <div className="w-3.5 h-3.5 rounded-sm border-2 border-white" />
+                      </div>
                     </div>
-                    <span className="text-[8px] font-semibold text-center" style={{ color: brown }}>Ver todas</span>
+                    <span className="text-[10px] font-bold text-center" style={{ color: brown }}>Ver todas</span>
                   </button>
                 </div>
               </div>
             </>
           )}
+
 
         </div>
       </nav>
