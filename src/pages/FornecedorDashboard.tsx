@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -6,30 +6,500 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Package, TrendingUp, ShoppingBag, DollarSign,
-  Plus, Edit2, Trash2, BarChart3, Bell, Star,
-  AlertCircle, Clock, ArrowLeft, CheckCircle,
+  Plus, Trash2, BarChart3, Star,
+  AlertCircle, Clock, ArrowLeft, Camera,
+  ImageIcon, X, Upload, Save, Weight,
+  Ruler, Package2, Info, AlertTriangle,
 } from "lucide-react";
 
 type Tab = "visao" | "produtos" | "pedidos" | "ganhos";
 
+const CATEGORIES = [
+  "Eletrônicos", "Calçados", "Vestuário", "Acessórios",
+  "Casa e Jardim", "Beleza", "Desporto", "Alimentação", "Outros",
+];
+
+// Paleta âmbar para secção de medidas
+const amber = {
+  bg: "rgba(120, 80, 40, 0.06)",
+  border: "rgba(160, 100, 40, 0.25)",
+  label: "#7C5328",
+  labelLight: "#A0743C",
+  inputBg: "rgba(255, 248, 235, 0.6)",
+  accent: "#92400E",
+  accentBg: "rgba(146, 64, 14, 0.10)",
+  accentBorder: "rgba(146, 64, 14, 0.30)",
+  warningBg: "rgba(146, 64, 14, 0.07)",
+  warningBorder: "rgba(180, 100, 30, 0.35)",
+  warningText: "#7C3D10",
+};
+
+interface ProductFormData {
+  name: string;
+  description: string;
+  category: string;
+  cost_price: string;
+  suggested_price: string;
+  min_price: string;
+  stock_quantity: string;
+  sku: string;
+  weight_kg: string;
+  length_cm: string;
+  width_cm: string;
+  height_cm: string;
+  volume_m3: string;
+}
+
+const emptyForm: ProductFormData = {
+  name: "", description: "", category: "",
+  cost_price: "", suggested_price: "", min_price: "",
+  stock_quantity: "1", sku: "",
+  weight_kg: "", length_cm: "", width_cm: "", height_cm: "", volume_m3: "",
+};
+
+interface MediaItem {
+  url: string;
+  is_cover: boolean;
+}
+
+// ─── Formulário de produto melhorado ─────────────────────
+const SupplierProductForm = ({
+  supplierId,
+  onSuccess,
+  onCancel,
+}: {
+  supplierId: string;
+  onSuccess: () => void;
+  onCancel: () => void;
+}) => {
+  const [form, setForm] = useState<ProductFormData>(emptyForm);
+  const [media, setMedia] = useState<MediaItem[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [photoError, setPhotoError] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const set = (key: keyof ProductFormData, value: string) =>
+    setForm(f => ({ ...f, [key]: value }));
+
+  // Calcular volume automaticamente das dimensões
+  const updateVolume = (l: string, w: string, h: string) => {
+    const lv = parseFloat(l), wv = parseFloat(w), hv = parseFloat(h);
+    if (!isNaN(lv) && !isNaN(wv) && !isNaN(hv) && lv > 0 && wv > 0 && hv > 0) {
+      setForm(f => ({ ...f, volume_m3: ((lv * wv * hv) / 1_000_000).toFixed(4) }));
+    }
+  };
+
+  const hasWeight = !!form.weight_kg && parseFloat(form.weight_kg) > 0;
+  const hasDimensions = !!(form.length_cm || form.width_cm || form.height_cm);
+
+  // Calcular margem sugerida
+  const margin = form.cost_price && form.suggested_price
+    ? Math.round(((parseFloat(form.suggested_price) - parseFloat(form.cost_price)) / parseFloat(form.suggested_price)) * 100)
+    : null;
+
+  // Upload de imagens
+  const handleImagesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    setPhotoError(false);
+    try {
+      for (const file of Array.from(files)) {
+        const ext = file.name.split(".").pop();
+        const path = `supplier_products/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const { error } = await supabase.storage.from("products").upload(path, file);
+        if (error) throw error;
+        const { data } = supabase.storage.from("products").getPublicUrl(path);
+        setMedia(prev => [...prev, { url: data.publicUrl, is_cover: prev.length === 0 }]);
+      }
+    } catch (err: any) {
+      toast.error("Erro ao fazer upload: " + err.message);
+    }
+    setUploading(false);
+    e.target.value = "";
+  };
+
+  const removeImage = (index: number) => {
+    setMedia(prev => {
+      const updated = prev.filter((_, i) => i !== index);
+      if (updated.length > 0 && !updated.some(m => m.is_cover)) updated[0].is_cover = true;
+      return updated;
+    });
+  };
+
+  const setCover = (index: number) =>
+    setMedia(prev => prev.map((m, i) => ({ ...m, is_cover: i === index })));
+
+  const handleSubmit = async () => {
+    if (!form.name || !form.cost_price || !form.stock_quantity) {
+      toast.error("Preenche os campos obrigatórios: nome, preço de custo e stock");
+      return;
+    }
+    if (media.length === 0) {
+      setPhotoError(true);
+      toast.error("Adiciona pelo menos uma imagem do produto");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const imageUrls = media.map(m => m.url);
+
+      const { error } = await supabase.from("supplier_products").insert({
+        supplier_id: supplierId,
+        name: form.name,
+        description: form.description || null,
+        category: form.category || null,
+        cost_price: parseFloat(form.cost_price),
+        suggested_price: form.suggested_price ? parseFloat(form.suggested_price) : null,
+        min_price: form.min_price ? parseFloat(form.min_price) : null,
+        stock_quantity: parseInt(form.stock_quantity),
+        sku: form.sku || null,
+        weight_kg: form.weight_kg ? parseFloat(form.weight_kg) : null,
+        length_cm: form.length_cm ? parseFloat(form.length_cm) : null,
+        width_cm: form.width_cm ? parseFloat(form.width_cm) : null,
+        height_cm: form.height_cm ? parseFloat(form.height_cm) : null,
+        volume_m3: form.volume_m3 ? parseFloat(form.volume_m3) : null,
+        images: imageUrls,
+        status: "active",
+      });
+
+      if (error) throw error;
+      toast.success("Produto adicionado com sucesso!");
+      onSuccess();
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao guardar produto");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="bg-card border-2 border-primary/30 rounded-xl p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="font-bold text-foreground text-sm">Novo Produto</h3>
+        <button onClick={onCancel} className="p-1 text-muted-foreground hover:bg-accent rounded-lg">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Nome */}
+      <div>
+        <label className="text-[11px] font-bold text-muted-foreground block mb-1">Nome do produto *</label>
+        <input
+          value={form.name}
+          onChange={e => set("name", e.target.value)}
+          placeholder="Ex: Smartphone Samsung Galaxy A54"
+          className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+        />
+      </div>
+
+      {/* Descrição */}
+      <div>
+        <label className="text-[11px] font-bold text-muted-foreground block mb-1">Descrição</label>
+        <textarea
+          value={form.description}
+          onChange={e => set("description", e.target.value)}
+          placeholder="Descreve o produto em detalhe: especificações, materiais, uso..."
+          rows={3}
+          className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+        />
+      </div>
+
+      {/* Categoria & SKU */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="text-[11px] font-bold text-muted-foreground block mb-1">Categoria</label>
+          <select
+            value={form.category}
+            onChange={e => set("category", e.target.value)}
+            className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            <option value="">Selecciona...</option>
+            {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="text-[11px] font-bold text-muted-foreground block mb-1">SKU / Referência</label>
+          <input
+            value={form.sku}
+            onChange={e => set("sku", e.target.value)}
+            placeholder="SAM-A54-BLK"
+            className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+        </div>
+      </div>
+
+      {/* Preços */}
+      <div className="rounded-xl border border-border bg-muted/40 p-3 space-y-3">
+        <p className="text-[11px] font-bold text-muted-foreground">Preços (Kz)</p>
+
+        <div>
+          <label className="text-[10px] font-bold text-muted-foreground block mb-1">
+            Preço de custo * <span className="text-muted-foreground font-normal">— o que recebes por venda</span>
+          </label>
+          <input
+            type="number"
+            value={form.cost_price}
+            onChange={e => set("cost_price", e.target.value)}
+            placeholder="Ex: 50 000"
+            className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-foreground font-bold focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[10px] font-bold text-muted-foreground block mb-1">
+              Preço mínimo <span className="text-destructive">*</span>
+            </label>
+            <input
+              type="number"
+              value={form.min_price}
+              onChange={e => set("min_price", e.target.value)}
+              placeholder="Ex: 60 000"
+              className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            <p className="text-[9px] text-muted-foreground mt-0.5">Dropshipper não pode vender abaixo</p>
+          </div>
+          <div>
+            <label className="text-[10px] font-bold text-muted-foreground block mb-1">Preço sugerido</label>
+            <input
+              type="number"
+              value={form.suggested_price}
+              onChange={e => set("suggested_price", e.target.value)}
+              placeholder="Ex: 70 000"
+              className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            <p className="text-[9px] text-muted-foreground mt-0.5">Recomendação para dropshippers</p>
+          </div>
+        </div>
+
+        {/* Margem sugerida */}
+        {margin !== null && margin > 0 && (
+          <div className="flex items-center gap-2 rounded-lg px-3 py-2 bg-green-500/5 border border-green-500/20">
+            <TrendingUp className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
+            <p className="text-xs text-green-600">
+              Margem sugerida para dropshippers: <strong>{margin}%</strong>
+            </p>
+          </div>
+        )}
+
+        <div className="bg-muted rounded-xl p-3 flex gap-2">
+          <AlertCircle className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+          <p className="text-[10px] text-muted-foreground">
+            O <strong className="text-foreground">preço de custo</strong> é o valor que recebes por cada venda.
+            Os dropshippers definem o seu preço de venda acima do preço mínimo.
+          </p>
+        </div>
+      </div>
+
+      {/* Stock */}
+      <div>
+        <label className="text-[11px] font-bold text-muted-foreground block mb-1">Stock disponível *</label>
+        <input
+          type="number"
+          value={form.stock_quantity}
+          onChange={e => set("stock_quantity", e.target.value)}
+          placeholder="Ex: 50"
+          className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+        />
+      </div>
+
+      {/* Medidas */}
+      <div
+        className="rounded-xl p-3.5 space-y-3"
+        style={{ background: amber.bg, border: `1.5px solid ${amber.border}` }}
+      >
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-[11px] font-bold flex items-center gap-1.5" style={{ color: amber.label }}>
+              <Package2 className="w-3.5 h-3.5" />
+              Medidas do produto
+            </p>
+            <p className="text-[10px] mt-0.5" style={{ color: amber.labelLight }}>
+              Usadas para calcular o frete. Preenche o que se aplica.
+            </p>
+          </div>
+          {hasWeight ? (
+            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full"
+              style={{ background: amber.accentBg, color: amber.accent, border: `1px solid ${amber.accentBorder}` }}>
+              ✓ Frete disponível
+            </span>
+          ) : (
+            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full"
+              style={{ background: amber.warningBg, color: amber.warningText, border: `1px solid ${amber.warningBorder}` }}>
+              Sem frete interprovincial
+            </span>
+          )}
+        </div>
+
+        {/* Peso */}
+        <div>
+          <label className="text-[10px] font-bold mb-1 block" style={{ color: amber.label }}>
+            <Weight className="w-3 h-3 inline mr-1" />
+            Peso (kg)
+          </label>
+          <input
+            type="number" min={0} step="0.01"
+            value={form.weight_kg}
+            onChange={e => set("weight_kg", e.target.value)}
+            placeholder="Ex: 1.5"
+            className="w-full px-3 py-2 rounded-lg text-sm"
+            style={{ background: amber.inputBg, border: `1px solid ${form.weight_kg ? amber.accentBorder : amber.border}`, color: "inherit" }}
+          />
+          {!hasWeight && (
+            <p className="text-[9px] mt-1 flex items-center gap-1" style={{ color: amber.warningText }}>
+              <AlertTriangle className="w-3 h-3 shrink-0" />
+              Sem peso — entrega interprovincial não disponível.
+            </p>
+          )}
+        </div>
+
+        {/* Dimensões */}
+        <div>
+          <label className="text-[10px] font-bold mb-1 block" style={{ color: amber.label }}>
+            <Ruler className="w-3 h-3 inline mr-1" />
+            Dimensões (cm) — opcional
+          </label>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { key: "length_cm" as const, label: "Comprimento" },
+              { key: "width_cm" as const, label: "Largura" },
+              { key: "height_cm" as const, label: "Altura" },
+            ].map(({ key, label }) => (
+              <div key={key}>
+                <p className="text-[9px] mb-0.5" style={{ color: amber.labelLight }}>{label}</p>
+                <input
+                  type="number" min={0} step="0.1"
+                  value={form[key]}
+                  onChange={e => {
+                    set(key, e.target.value);
+                    const vals = {
+                      length_cm: form.length_cm,
+                      width_cm: form.width_cm,
+                      height_cm: form.height_cm,
+                      [key]: e.target.value,
+                    };
+                    updateVolume(vals.length_cm, vals.width_cm, vals.height_cm);
+                  }}
+                  placeholder="0"
+                  className="w-full px-2 py-1.5 rounded-lg text-xs"
+                  style={{ background: amber.inputBg, border: `1px solid ${amber.border}`, color: "inherit" }}
+                />
+              </div>
+            ))}
+          </div>
+          {hasDimensions && form.volume_m3 && (
+            <p className="text-[9px] mt-1" style={{ color: amber.labelLight }}>
+              Volume calculado: <strong>{parseFloat(form.volume_m3).toFixed(4)} m³</strong>
+            </p>
+          )}
+        </div>
+
+        {/* Volume manual se não tiver dimensões */}
+        {!hasDimensions && (
+          <div>
+            <label className="text-[10px] font-bold mb-1 block" style={{ color: amber.label }}>
+              Volume (m³) — opcional
+            </label>
+            <input
+              type="number" min={0} step="0.0001"
+              value={form.volume_m3}
+              onChange={e => set("volume_m3", e.target.value)}
+              placeholder="Ex: 0.02"
+              className="w-full px-3 py-2 rounded-lg text-sm"
+              style={{ background: amber.inputBg, border: `1px solid ${amber.border}`, color: "inherit" }}
+            />
+          </div>
+        )}
+
+        <div className="flex items-start gap-2 rounded-lg px-3 py-2"
+          style={{ background: amber.accentBg, border: `1px solid ${amber.accentBorder}` }}>
+          <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: amber.accent }} />
+          <p className="text-[10px] leading-relaxed" style={{ color: amber.label }}>
+            O peso e volume são usados para calcular o custo de frete.
+            {!hasWeight && " Sem peso, apenas entregas locais estarão disponíveis."}
+          </p>
+        </div>
+      </div>
+
+      {/* Imagens */}
+      <div>
+        <label className="text-[11px] font-bold text-muted-foreground mb-1 flex items-center gap-1.5 block">
+          <Camera className="w-3.5 h-3.5" />
+          Imagens do produto *
+          <span className="text-[9px] text-destructive font-bold">(mínimo 1 obrigatória)</span>
+        </label>
+
+        <label className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold cursor-pointer border transition mb-2 w-fit ${uploading ? "opacity-50" : "bg-accent text-foreground border-border hover:bg-accent/80"}`}>
+          <ImageIcon className="w-3.5 h-3.5" />
+          {uploading ? "A enviar..." : "Adicionar Imagens"}
+          <input type="file" accept="image/*" multiple onChange={handleImagesUpload} className="hidden" disabled={uploading} />
+        </label>
+
+        {photoError && media.length === 0 && (
+          <div className="flex items-center gap-2 rounded-lg px-3 py-2 mb-2" style={{ background: "#FFF0F0", border: "1.5px solid #C0392B55" }}>
+            <AlertTriangle className="w-4 h-4 flex-shrink-0" style={{ color: "#C0392B" }} />
+            <p className="text-xs font-bold" style={{ color: "#C0392B" }}>Adiciona pelo menos uma foto antes de publicar.</p>
+          </div>
+        )}
+
+        {media.length > 0 ? (
+          <div className="grid grid-cols-4 gap-2">
+            {media.map((m, i) => (
+              <div key={i} className={`relative rounded-lg border-2 overflow-hidden aspect-square ${m.is_cover ? "border-primary" : "border-border"}`}>
+                <img src={m.url} alt="" className="w-full h-full object-cover" />
+                {m.is_cover && (
+                  <span className="absolute top-0.5 left-0.5 px-1 py-0.5 rounded text-[8px] font-bold bg-primary text-primary-foreground">CAPA</span>
+                )}
+                <div className="absolute bottom-0 inset-x-0 bg-background/80 flex justify-between p-0.5">
+                  {!m.is_cover && (
+                    <button onClick={() => setCover(i)} className="text-[9px] font-bold text-primary px-1">Capa</button>
+                  )}
+                  <button onClick={() => removeImage(i)} className="text-destructive ml-auto p-0.5">
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed py-6 gap-2 ${photoError ? "border-destructive" : "border-border"}`}>
+            <Camera className="w-8 h-8 text-muted-foreground/30" />
+            <p className="text-xs text-muted-foreground">Clique em "Adicionar Imagens" para carregar fotos</p>
+          </div>
+        )}
+      </div>
+
+      {/* Botões */}
+      <div className="flex gap-3 pt-2">
+        <button
+          onClick={onCancel}
+          className="flex-1 py-2.5 border border-border rounded-xl text-sm font-bold text-foreground hover:bg-accent"
+        >
+          Cancelar
+        </button>
+        <button
+          onClick={handleSubmit}
+          disabled={saving || !form.name || !form.cost_price || !form.stock_quantity}
+          className="flex-1 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-bold disabled:opacity-50 flex items-center justify-center gap-2"
+        >
+          <Save className="w-4 h-4" />
+          {saving ? "A guardar..." : "Adicionar Produto"}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ─── Dashboard principal ──────────────────────────────────
 export default function FornecedorDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>("visao");
   const [showAddProduct, setShowAddProduct] = useState(false);
-  const [productForm, setProductForm] = useState({
-    name: "", description: "", category: "",
-    cost_price: "", suggested_price: "", min_price: "",
-    stock_quantity: "", sku: "",
-  });
 
-  const CATEGORIES = [
-    "Eletrônicos", "Calçados", "Vestuário", "Acessórios",
-    "Casa e Jardim", "Beleza", "Desporto", "Alimentação", "Outros",
-  ];
-
-  // Buscar dados do fornecedor
   const { data: supplier, isLoading } = useQuery({
     queryKey: ["my_supplier", user?.id],
     queryFn: async () => {
@@ -44,7 +514,6 @@ export default function FornecedorDashboard() {
     enabled: !!user,
   });
 
-  // Buscar produtos
   const { data: products = [] } = useQuery({
     queryKey: ["supplier_products", supplier?.id],
     queryFn: async () => {
@@ -59,7 +528,6 @@ export default function FornecedorDashboard() {
     enabled: !!supplier?.id,
   });
 
-  // Buscar pedidos
   const { data: orders = [] } = useQuery({
     queryKey: ["supplier_orders_items", supplier?.id],
     queryFn: async () => {
@@ -75,66 +543,47 @@ export default function FornecedorDashboard() {
     enabled: !!supplier?.id,
   });
 
-  const addProduct = useMutation({
-    mutationFn: async () => {
-      if (!supplier) return;
-      const { error } = await supabase.from("supplier_products").insert({
-        supplier_id: supplier.id,
-        name: productForm.name,
-        description: productForm.description || null,
-        category: productForm.category || null,
-        cost_price: parseFloat(productForm.cost_price),
-        suggested_price: productForm.suggested_price ? parseFloat(productForm.suggested_price) : null,
-        min_price: productForm.min_price ? parseFloat(productForm.min_price) : null,
-        stock_quantity: parseInt(productForm.stock_quantity),
-        sku: productForm.sku || null,
-        status: "active",
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["supplier_products"] });
-      toast.success("Produto adicionado!");
-      setShowAddProduct(false);
-      setProductForm({ name: "", description: "", category: "", cost_price: "", suggested_price: "", min_price: "", stock_quantity: "", sku: "" });
-    },
-    onError: (e: any) => toast.error(e.message),
-  });
-
   const deleteProduct = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("supplier_products").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["supplier_products"] }); toast.success("Produto removido"); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["supplier_products"] });
+      toast.success("Produto removido");
+    },
     onError: (e: any) => toast.error(e.message),
   });
 
   const updateOrderStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase.from("supplier_order_items").update({ supplier_status: status }).eq("id", id);
+      const { error } = await supabase
+        .from("supplier_order_items")
+        .update({ supplier_status: status })
+        .eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["supplier_orders_items"] }); toast.success("Estado actualizado!"); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["supplier_orders_items"] });
+      toast.success("Estado actualizado!");
+    },
     onError: (e: any) => toast.error(e.message),
   });
 
   const formatKz = (v: number) => `${(v || 0).toLocaleString("pt-AO")} Kz`;
 
   const statusColor: Record<string, string> = {
-    pending:    "bg-amber-500/10 text-amber-500",
-    approved:   "bg-green-500/10 text-green-500",
-    active:     "bg-green-500/10 text-green-500",
-    confirmed:  "bg-blue-500/10 text-blue-500",
-    shipped:    "bg-purple-500/10 text-purple-500",
-    delivered:  "bg-green-500/10 text-green-500",
-    suspended:  "bg-destructive/10 text-destructive",
+    pending:      "bg-amber-500/10 text-amber-500",
+    active:       "bg-green-500/10 text-green-500",
+    confirmed:    "bg-blue-500/10 text-blue-500",
+    shipped:      "bg-purple-500/10 text-purple-500",
+    delivered:    "bg-green-500/10 text-green-500",
+    suspended:    "bg-destructive/10 text-destructive",
     out_of_stock: "bg-muted text-muted-foreground",
   };
 
   const statusLabel: Record<string, string> = {
     pending:      "Pendente",
-    approved:     "Aprovado",
     active:       "Activo",
     confirmed:    "Confirmado",
     shipped:      "Enviado",
@@ -151,7 +600,6 @@ export default function FornecedorDashboard() {
     );
   }
 
-  // Sem conta de fornecedor
   if (!supplier) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
@@ -160,7 +608,9 @@ export default function FornecedorDashboard() {
             <Package className="w-7 h-7 text-primary" />
           </div>
           <h2 className="text-lg font-bold text-foreground">Ainda não és Fornecedor</h2>
-          <p className="text-sm text-muted-foreground">Regista a tua empresa para começares a fornecer produtos à rede de dropshippers do Zangu.</p>
+          <p className="text-sm text-muted-foreground">
+            Regista a tua empresa para começares a fornecer produtos à rede de dropshippers do Zangu.
+          </p>
           <button
             onClick={() => navigate("/seja-fornecedor")}
             className="w-full py-3 bg-primary text-primary-foreground font-bold rounded-xl text-sm"
@@ -172,7 +622,6 @@ export default function FornecedorDashboard() {
     );
   }
 
-  // Pedido pendente
   if (supplier.status === "pending") {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
@@ -188,7 +637,10 @@ export default function FornecedorDashboard() {
             <p className="text-sm font-bold text-foreground">{supplier.company_name}</p>
             <p className="text-xs text-muted-foreground mt-1">Submetido — aguarda aprovação</p>
           </div>
-          <button onClick={() => navigate("/")} className="w-full py-3 border border-border rounded-xl text-sm font-bold text-foreground">
+          <button
+            onClick={() => navigate("/")}
+            className="w-full py-3 border border-border rounded-xl text-sm font-bold text-foreground"
+          >
             Voltar ao início
           </button>
         </div>
@@ -224,10 +676,10 @@ export default function FornecedorDashboard() {
         {/* Stats rápidos */}
         <div className="grid grid-cols-3 gap-2 mb-4">
           {[
-            { label: "Produtos", value: products.length,  icon: Package,    color: "text-primary" },
-            { label: "Pedidos",  value: orders.length,    icon: ShoppingBag, color: "text-amber-500" },
-            { label: "Receita",  value: formatKz(supplier.total_revenue || 0), icon: TrendingUp, color: "text-green-500" },
-          ].map((s) => (
+            { label: "Produtos", value: products.length,                          icon: Package,    color: "text-primary" },
+            { label: "Pedidos",  value: orders.length,                            icon: ShoppingBag, color: "text-amber-500" },
+            { label: "Receita",  value: formatKz(supplier.total_revenue || 0),    icon: TrendingUp, color: "text-green-500" },
+          ].map(s => (
             <div key={s.label} className="bg-card border border-border rounded-xl p-3 text-center">
               <s.icon className={`w-5 h-5 mx-auto mb-1 ${s.color}`} />
               <p className="text-sm font-bold text-foreground">{s.value}</p>
@@ -238,7 +690,7 @@ export default function FornecedorDashboard() {
 
         {/* Tabs */}
         <div className="flex gap-1 mb-4 overflow-x-auto no-scrollbar">
-          {tabs.map((t) => (
+          {tabs.map(t => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
@@ -270,10 +722,10 @@ export default function FornecedorDashboard() {
             <div className="bg-card border border-border rounded-xl p-4 space-y-2">
               <h3 className="font-bold text-foreground text-sm">Resumo Financeiro</h3>
               {[
-                { label: "Total de Receita",    value: formatKz(supplier.total_revenue || 0), color: "text-green-500" },
-                { label: "Pedidos entregues",   value: orders.filter((o: any) => o.supplier_status === "delivered").length, color: "text-foreground" },
-                { label: "Pedidos pendentes",   value: orders.filter((o: any) => o.supplier_status === "pending").length,   color: "text-amber-500" },
-              ].map((item) => (
+                { label: "Total de Receita",  value: formatKz(supplier.total_revenue || 0), color: "text-green-500" },
+                { label: "Pedidos entregues", value: orders.filter((o: any) => o.supplier_status === "delivered").length, color: "text-foreground" },
+                { label: "Pedidos pendentes", value: orders.filter((o: any) => o.supplier_status === "pending").length,   color: "text-amber-500" },
+              ].map(item => (
                 <div key={item.label} className="flex justify-between items-center py-1.5 border-b border-border last:border-0">
                   <span className="text-xs text-muted-foreground">{item.label}</span>
                   <span className={`text-sm font-bold ${item.color}`}>{item.value}</span>
@@ -285,8 +737,11 @@ export default function FornecedorDashboard() {
               <h3 className="font-bold text-foreground text-sm">Produtos Mais Vendidos</h3>
               {products.slice(0, 3).map((p: any) => (
                 <div key={p.id} className="flex items-center gap-3 py-1.5 border-b border-border last:border-0">
-                  <div className="w-8 h-8 bg-muted rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Package className="w-4 h-4 text-muted-foreground" />
+                  <div className="w-8 h-8 bg-muted rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
+                    {p.images?.[0]
+                      ? <img src={p.images[0]} alt="" className="w-full h-full object-cover rounded-lg" />
+                      : <Package className="w-4 h-4 text-muted-foreground" />
+                    }
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground truncate">{p.name}</p>
@@ -306,138 +761,37 @@ export default function FornecedorDashboard() {
         {tab === "produtos" && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-foreground">Os meus Produtos</h2>
-              <button
-                onClick={() => setShowAddProduct(true)}
-                className="flex items-center gap-1 px-3 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-lg"
-              >
-                <Plus className="w-3.5 h-3.5" /> Adicionar
-              </button>
+              <h2 className="text-sm font-bold text-foreground">Os meus Produtos ({products.length})</h2>
+              {!showAddProduct && (
+                <button
+                  onClick={() => setShowAddProduct(true)}
+                  className="flex items-center gap-1 px-3 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-lg"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Adicionar
+                </button>
+              )}
             </div>
 
-            {/* Formulário */}
             {showAddProduct && (
-              <div className="bg-card border-2 border-primary/30 rounded-xl p-4 space-y-3">
-                <h3 className="font-bold text-foreground text-sm">Novo Produto</h3>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="col-span-2">
-                    <label className="text-[10px] font-bold text-muted-foreground block mb-1">Nome *</label>
-                    <input
-                      value={productForm.name}
-                      onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
-                      placeholder="Ex: Smartphone Samsung A54"
-                      className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-                  </div>
-
-                  <div className="col-span-2">
-                    <label className="text-[10px] font-bold text-muted-foreground block mb-1">Categoria</label>
-                    <select
-                      value={productForm.category}
-                      onChange={(e) => setProductForm({ ...productForm, category: e.target.value })}
-                      className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                    >
-                      <option value="">Selecciona...</option>
-                      {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] font-bold text-muted-foreground block mb-1">Preço Custo * (Kz)</label>
-                    <input
-                      type="number"
-                      value={productForm.cost_price}
-                      onChange={(e) => setProductForm({ ...productForm, cost_price: e.target.value })}
-                      placeholder="50000"
-                      className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] font-bold text-muted-foreground block mb-1">Preço Mínimo (Kz)</label>
-                    <input
-                      type="number"
-                      value={productForm.min_price}
-                      onChange={(e) => setProductForm({ ...productForm, min_price: e.target.value })}
-                      placeholder="60000"
-                      className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] font-bold text-muted-foreground block mb-1">Preço Sugerido (Kz)</label>
-                    <input
-                      type="number"
-                      value={productForm.suggested_price}
-                      onChange={(e) => setProductForm({ ...productForm, suggested_price: e.target.value })}
-                      placeholder="70000"
-                      className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] font-bold text-muted-foreground block mb-1">Stock * (un.)</label>
-                    <input
-                      type="number"
-                      value={productForm.stock_quantity}
-                      onChange={(e) => setProductForm({ ...productForm, stock_quantity: e.target.value })}
-                      placeholder="50"
-                      className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-                  </div>
-
-                  <div className="col-span-2">
-                    <label className="text-[10px] font-bold text-muted-foreground block mb-1">SKU / Referência</label>
-                    <input
-                      value={productForm.sku}
-                      onChange={(e) => setProductForm({ ...productForm, sku: e.target.value })}
-                      placeholder="SAM-A54-BLK"
-                      className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-                  </div>
-
-                  <div className="col-span-2">
-                    <label className="text-[10px] font-bold text-muted-foreground block mb-1">Descrição</label>
-                    <textarea
-                      value={productForm.description}
-                      onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
-                      placeholder="Descreve o produto..."
-                      rows={2}
-                      className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm text-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-                  </div>
-                </div>
-
-                <div className="bg-muted rounded-xl p-3 flex gap-2">
-                  <AlertCircle className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
-                  <p className="text-[10px] text-muted-foreground">
-                    O <strong className="text-foreground">preço de custo</strong> é o valor que recebes por cada venda. Os dropshippers definem o preço de venda acima do preço mínimo.
-                  </p>
-                </div>
-
-                <div className="flex gap-2">
-                  <button onClick={() => setShowAddProduct(false)} className="flex-1 py-2.5 border border-border rounded-xl text-sm font-bold text-foreground">
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={() => addProduct.mutate()}
-                    disabled={!productForm.name || !productForm.cost_price || !productForm.stock_quantity || addProduct.isPending}
-                    className="flex-1 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-bold disabled:opacity-50"
-                  >
-                    {addProduct.isPending ? "A guardar..." : "Guardar"}
-                  </button>
-                </div>
-              </div>
+              <SupplierProductForm
+                supplierId={supplier.id}
+                onSuccess={() => {
+                  setShowAddProduct(false);
+                  queryClient.invalidateQueries({ queryKey: ["supplier_products"] });
+                }}
+                onCancel={() => setShowAddProduct(false)}
+              />
             )}
 
-            {/* Lista */}
             <div className="space-y-2">
               {products.map((p: any) => (
                 <div key={p.id} className="bg-card border border-border rounded-xl p-3">
                   <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 bg-muted rounded-xl flex items-center justify-center flex-shrink-0">
-                      <Package className="w-5 h-5 text-muted-foreground" />
+                    <div className="w-12 h-12 bg-muted rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden">
+                      {p.images?.[0]
+                        ? <img src={p.images[0]} alt="" className="w-full h-full object-cover" />
+                        : <Package className="w-5 h-5 text-muted-foreground" />
+                      }
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
@@ -478,7 +832,10 @@ export default function FornecedorDashboard() {
                 <div className="text-center py-10 text-muted-foreground">
                   <Package className="w-10 h-10 mx-auto mb-2 opacity-20" />
                   <p className="text-sm">Ainda não adicionaste produtos</p>
-                  <button onClick={() => setShowAddProduct(true)} className="text-primary text-sm font-bold mt-1">
+                  <button
+                    onClick={() => setShowAddProduct(true)}
+                    className="text-primary text-sm font-bold mt-1"
+                  >
                     Adicionar primeiro produto →
                   </button>
                 </div>
