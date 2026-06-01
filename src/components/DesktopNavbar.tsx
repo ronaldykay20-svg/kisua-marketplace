@@ -116,7 +116,6 @@ const useImageSearch = (onResult: (base64: string) => void) => {
   return { analyzing, openImagePicker, handleFileChange, fileInputRef };
 };
 
-// Skeleton suave para o logo enquanto carrega
 const LogoSkeleton = () => (
   <div
     className="h-10 w-36 rounded-lg animate-pulse"
@@ -137,7 +136,6 @@ const DesktopNavbar = () => {
   const [notifOpen, setNotifOpen] = useState(false);
   const [logoLoaded, setLogoLoaded] = useState(false);
 
-  // Reset logoLoaded quando logoUrl muda
   useEffect(() => {
     if (!logoUrl) setLogoLoaded(false);
   }, [logoUrl]);
@@ -193,13 +191,14 @@ const DesktopNavbar = () => {
   });
 
   const navItems = [
-    { label: "Início",     path: "/" },
-    { label: "Ofertas",    path: "/promocoes" },
-    { label: "Leilão",     path: "/leilao" },
-    { label: "Live",       path: "/live",    liveBadge: true },
-    { label: "Empresas",   path: "/empresas" },
-    { label: "Vendedores", path: "/vendedores" },
-    { label: "Ranking",    path: "/ranking" },
+    { label: "Início",          path: "/" },
+    { label: "Ofertas",         path: "/promocoes" },
+    { label: "Leilão",          path: "/leilao" },
+    { label: "Live",            path: "/live",    liveBadge: true },
+    { label: "Empresas",        path: "/empresas" },
+    { label: "Vendedores",      path: "/vendedores" },
+    { label: "Ranking",         path: "/ranking" },
+    { label: "Seja Fornecedor", path: "/seja-fornecedor" }, // ✅ adicionado
   ];
 
   const IconBtn = ({ children, onClick, badge }: any) => (
@@ -240,7 +239,6 @@ const DesktopNavbar = () => {
     );
   };
 
-  // Renderiza o logo sem flash de texto
   const renderLogo = () => {
     if (logoLoading) {
       return <LogoSkeleton />;
