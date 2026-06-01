@@ -12,6 +12,7 @@ import AdminOrdersTab from "@/components/admin/AdminOrdersTab";
 import AdminSettingsTab from "@/components/admin/AdminSettingsTab";
 import AdminBannersTab from "@/components/admin/AdminBannersTab";
 import AdminFreightTab from "@/components/admin/AdminFreightTab";
+import AdminSuppliersTab from "@/components/admin/AdminSuppliersTab";
 import { toast } from "sonner";
 
 const roleBadge: Record<string, { label: string; color: string; icon: any }> = {
@@ -20,7 +21,7 @@ const roleBadge: Record<string, { label: string; color: string; icon: any }> = {
   user: { label: "Utilizador", color: "bg-primary/10 text-primary border-primary/20", icon: Users },
 };
 
-type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos" | "encomendas" | "categorias" | "banners" | "definicoes" | "leiloes" | "publicidade" | "frete";
+type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos" | "encomendas" | "categorias" | "banners" | "definicoes" | "leiloes" | "publicidade" | "frete" | "fornecedores";
 
 const AD_TYPES = [
   { value: "banner",           label: "Banner (imagem/vídeo)",   icon: ImageIcon,   desc: "Upload direto de imagem ou vídeo" },
@@ -625,6 +626,7 @@ const AdminPanel = () => {
     { key: "banners",      label: "Banners",       icon: ImageIcon },
     { key: "publicidade",  label: "Publicidade",   icon: Megaphone },
     { key: "frete",        label: "Frete",         icon: Truck },
+    { key: "fornecedores", label: "Fornecedores",  icon: Building2 },
     { key: "pedidos",      label: "Candidaturas",  icon: UserCheck },
     { key: "leiloes",      label: "Leilões",       icon: Gavel },
     { key: "definicoes",   label: "Definições",    icon: Settings },
@@ -654,6 +656,7 @@ const AdminPanel = () => {
         {tab === "definicoes"   && <AdminSettingsTab />}
         {tab === "leiloes"      && <AdminLeiloesTab />}
         {tab === "frete"        && <AdminFreightTab />}
+        {tab === "fornecedores" && <AdminSuppliersTab />}
 
         {tab === "cargos" && (
           <>
