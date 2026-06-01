@@ -5,7 +5,7 @@ import { Zap } from "lucide-react";
 import { allProducts } from "@/data/products";
 
 const PromoSection = () => {
-  const products = allProducts.filter(p => [1,2,3,4,5,6,7,8].includes(p.id));
+  const products = allProducts.filter(p => [1,2,3,4,5,6,7,8].includes(Number(p.id)));
   return (
     <SectionCard
       title="Promoções imperdíveis"

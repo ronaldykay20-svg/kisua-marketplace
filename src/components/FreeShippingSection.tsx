@@ -5,7 +5,7 @@ import { Truck } from "lucide-react";
 import { allProducts } from "@/data/products";
 
 const FreeShippingSection = () => {
-  const products = allProducts.filter(p => [10,11,12,13,14,15,16,17].includes(p.id));
+  const products = allProducts.filter(p => [10,11,12,13,14,15,16,17].includes(Number(p.id)));
   return (
     <SectionCard
       title="Frete grátis"
