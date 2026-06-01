@@ -79,19 +79,20 @@ const Checkout = () => {
       let originMunicipalityCode: string = "";
       let isCompany = false;
 
-      if (prod.sellers) {
-        entityId = prod.sellers.id;
-        entityName = prod.sellers.name;
-        // Sempre do seller, nunca do produto
-        originMunicipalityCode = prod.sellers.municipality_code ?? "";
+      const sellerRel: any = Array.isArray(prod.sellers) ? prod.sellers[0] : prod.sellers;
+      const companyRel: any = Array.isArray(prod.companies) ? prod.companies[0] : prod.companies;
+      if (sellerRel) {
+        entityId = sellerRel.id;
+        entityName = sellerRel.name;
+        originMunicipalityCode = sellerRel.municipality_code ?? "";
         isCompany = false;
-      } else if (prod.companies) {
-        entityId = prod.companies.id;
-        entityName = prod.companies.name;
-        // Sempre da company, nunca do produto
-        originMunicipalityCode = prod.companies.municipality_code ?? "";
+      } else if (companyRel) {
+        entityId = companyRel.id;
+        entityName = companyRel.name;
+        originMunicipalityCode = companyRel.municipality_code ?? "";
         isCompany = true;
       }
+
 
       if (!entityId || !originMunicipalityCode) continue;
 
