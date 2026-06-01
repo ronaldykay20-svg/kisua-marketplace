@@ -294,7 +294,6 @@ const Navbar = () => {
           {/* ── Linha 1: ícones ── */}
           <div className="flex items-center gap-2.5" style={{ height: 64, paddingTop: 10, paddingBottom: 10 }}>
 
-            {/* Esquerda: menu ou voltar — quadrado castanho sólido */}
             {isCategoriaDetalhePage ? (
               <button
                 className="flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center"
@@ -313,7 +312,6 @@ const Navbar = () => {
               </button>
             )}
 
-            {/* Centro: logo centrado absolutamente ou título */}
             {isCategoriaDetalhePage ? (
               <span className="flex-1 text-base font-black text-center" style={{ color: brown }}>
                 {categoryNameFromUrl}
@@ -328,9 +326,6 @@ const Navbar = () => {
               </>
             )}
 
-            {/* Direita: lupa + notif + carrinho */}
-
-            {/* Lupa — castanho sólido */}
             {isCategoriaDetalhePage ? (
               <button
                 className="flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center"
@@ -357,7 +352,6 @@ const Navbar = () => {
               </button>
             )}
 
-            {/* Notificações */}
             {user && (
               <button
                 className="relative flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center"
@@ -374,7 +368,6 @@ const Navbar = () => {
               </button>
             )}
 
-            {/* Carrinho — branco com ícone castanho */}
             <button
               className="relative flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center"
               style={{ background: "#FFFFFF", boxShadow: "0 2px 6px rgba(74,46,10,0.18)", border: `1px solid rgba(74,46,10,0.10)` }}
@@ -389,7 +382,6 @@ const Navbar = () => {
               )}
             </button>
           </div>
-
 
           {/* ── Barra de pesquisa inline (páginas normais) ── */}
           {!isCategoriasPage && !isPesquisaPage && !isCategoriaDetalhePage && (
@@ -503,7 +495,7 @@ const Navbar = () => {
             </div>
           )}
 
-          {/* ── Barra-pílula: Localização (visível quando categorias estão minimizadas) ── */}
+          {/* ── Barra-pílula: Localização ── */}
           {!isCategoriasPage && !isPesquisaPage && !isCategoriaDetalhePage && (
             <div
               className="overflow-hidden"
@@ -548,7 +540,6 @@ const Navbar = () => {
           {/* ── Divisor clicável + Categorias ── */}
           {!isCategoriasPage && !isPesquisaPage && !isCategoriaDetalhePage && (
             <>
-              {/* Pega clicável para alternar entre localização e categorias */}
               <button
                 className="w-full flex items-center justify-center"
                 style={{ height: 18, gap: 6 }}
@@ -626,8 +617,6 @@ const Navbar = () => {
               </div>
             </>
           )}
-
-
 
         </div>
       </nav>
@@ -751,11 +740,12 @@ const Navbar = () => {
             </div>
             <div className="border-t border-border p-3 space-y-0.5">
               {[
-                { label: "Minha conta", path: "/conta" },
-                { label: "Meus pedidos", path: "/pedidos" },
-                { label: "Favoritos", path: "/favoritos" },
-                { label: "Ajuda", path: "/ajuda" },
-                { label: "Vender no AngoExpress", path: "/vender" },
+                { label: "Minha conta",           path: "/conta" },
+                { label: "Meus pedidos",           path: "/pedidos" },
+                { label: "Favoritos",              path: "/favoritos" },
+                { label: "Ajuda",                  path: "/ajuda" },
+                { label: "Vender no AngoExpress",  path: "/vender" },
+                { label: "Seja Fornecedor",        path: "/seja-fornecedor" }, // ✅ adicionado
               ].map(link => (
                 <button key={link.label} onClick={() => { navigate(link.path); setMenuOpen(false); }}
                   className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium text-foreground hover:bg-muted transition-colors">
