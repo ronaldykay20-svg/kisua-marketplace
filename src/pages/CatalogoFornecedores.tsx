@@ -1,242 +1,203 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
-  Search,
-  Package,
-  Plus,
-  Check,
-  Filter,
-  ArrowLeft,
-  Store,
-  TrendingUp,
-  Star,
-  ShoppingBag,
-  ChevronDown,
-  X,
-  DollarSign,
+  Search, Package, Plus, Check, Filter,
+  ArrowLeft, Store, X, AlertCircle,
 } from "lucide-react";
 
-interface SupplierProduct {
-  id: string;
-  name: string;
-  description: string;
-  category: string;
-  cost_price: number;
-  suggested_price: number;
-  min_price: number;
-  stock_quantity: number;
-  total_sold: number;
-  images: string[];
-  suppliers: {
-    company_name: string;
-    province: string;
-    rating: number;
-    is_verified: boolean;
-  };
-}
-
-interface DropshipStore {
-  id: string;
-  store_name: string;
-}
+const CATEGORIES = [
+  "Todos", "Eletrônicos", "Calçados", "Vestuário", "Acessórios",
+  "Casa e Jardim", "Beleza", "Desporto", "Alimentação", "Outros",
+];
 
 export default function CatalogoFornecedores() {
-  const { user } = useAuth();
-  const navigate = useNavigate();
-  const [products, setProducts] = useState<SupplierProduct[]>([]);
-  const [myStore, setMyStore] = useState<DropshipStore | null>(null);
-  const [addedProducts, setAddedProducts] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("");
-  const [showFilters, setShowFilters] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<SupplierProduct | null>(null);
+  const { user }  = useAuth();
+  const navigate  = useNavigate();
+  const queryClient = useQueryClient();
+  const [search, setSearch]             = useState("");
+  const [category, setCategory]         = useState("");
+  const [showFilters, setShowFilters]   = useState(false);
+  const [selected, setSelected]         = useState<any>(null);
   const [sellingPrice, setSellingPrice] = useState("");
-  const [addingProduct, setAddingProduct] = useState(false);
 
-  const CATEGORIES = [
-    "Todos", "Eletrônicos", "Calçados", "Vestuário", "Acessórios",
-    "Casa e Jardim", "Beleza", "Desporto", "Alimentação", "Outros"
-  ];
-
-  useEffect(() => {
-    if (user) fetchData();
-  }, [user]);
-
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      // Buscar loja do dropshipper
-      const { data: storeData } = await supabase
+  // ✅ Buscar loja do dropshipper — dropship_stores
+  const { data: myStore } = useQuery({
+    queryKey: ["my_dropship_store", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
         .from("dropship_stores")
         .select("id, store_name")
-        .eq("user_id", user?.id)
+        .eq("user_id", user!.id)
         .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
 
-      setMyStore(storeData);
+  // ✅ Buscar produtos já adicionados — dropship_store_products
+  const { data: addedIds = [] } = useQuery({
+    queryKey: ["added_supplier_products", myStore?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("dropship_store_products")
+        .select("supplier_product_id")
+        .eq("store_id", myStore!.id);
+      if (error) throw error;
+      return (data || []).map((d: any) => d.supplier_product_id);
+    },
+    enabled: !!myStore?.id,
+  });
 
-      // Se tem loja, buscar produtos já adicionados
-      if (storeData) {
-        const { data: addedData } = await supabase
-          .from("dropship_store_products")
-          .select("supplier_product_id")
-          .eq("store_id", storeData.id);
+  const addedSet = new Set(addedIds);
 
-        if (addedData) {
-          setAddedProducts(new Set(addedData.map(d => d.supplier_product_id)));
-        }
-      }
-
-      // Buscar catálogo de fornecedores aprovados
-      const { data: productsData } = await supabase
+  // ✅ Buscar catálogo — supplier_products com join em suppliers (approved)
+  const { data: products = [], isLoading } = useQuery({
+    queryKey: ["supplier_catalogue"],
+    queryFn: async () => {
+      const { data, error } = await supabase
         .from("supplier_products")
-        .select(`
-          *,
-          suppliers!inner(company_name, province, rating, is_verified, status)
-        `)
+        .select("*, suppliers!inner(company_name, province, rating, is_verified, status)")
         .eq("status", "active")
         .eq("suppliers.status", "approved")
         .gt("stock_quantity", 0)
         .order("total_sold", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+  });
 
-      setProducts(productsData || []);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleAddToStore = async () => {
-    if (!myStore || !selectedProduct) return;
-
-    const price = parseFloat(sellingPrice);
-    if (!price || price < (selectedProduct.min_price || selectedProduct.cost_price)) {
-      toast.error(`Preço mínimo de venda: ${formatKz(selectedProduct.min_price || selectedProduct.cost_price)}`);
-      return;
-    }
-
-    setAddingProduct(true);
-    try {
+  // ✅ Adicionar produto à loja — insere em dropship_store_products
+  const addProduct = useMutation({
+    mutationFn: async () => {
+      if (!myStore || !selected) return;
+      const price = parseFloat(sellingPrice);
+      const minP  = selected.min_price || selected.cost_price;
+      if (!price || price < minP) {
+        throw new Error(`Preço mínimo de venda: ${fmt(minP)}`);
+      }
       const { error } = await supabase.from("dropship_store_products").insert({
         store_id: myStore.id,
-        supplier_product_id: selectedProduct.id,
+        supplier_product_id: selected.id,
         selling_price: price,
         is_active: true,
       });
-
       if (error) throw error;
-
-      setAddedProducts(prev => new Set([...prev, selectedProduct.id]));
-      toast.success(`"${selectedProduct.name}" adicionado à tua loja!`);
-      setSelectedProduct(null);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["added_supplier_products"] });
+      queryClient.invalidateQueries({ queryKey: ["dropship_store_products"] });
+      toast.success(`"${selected?.name}" adicionado à tua loja!`);
+      setSelected(null);
       setSellingPrice("");
-    } catch (error: any) {
-      toast.error(error.message);
-    } finally {
-      setAddingProduct(false);
-    }
-  };
-
-  const formatKz = (v: number) => `${v.toLocaleString("pt-AO")} Kz`;
-
-  const calcMargin = (selling: number, cost: number) => {
-    if (!selling || !cost) return 0;
-    return ((selling - cost) / selling * 100).toFixed(0);
-  };
-
-  const filteredProducts = products.filter(p => {
-    const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.suppliers?.company_name?.toLowerCase().includes(search.toLowerCase());
-    const matchCategory = !categoryFilter || categoryFilter === "Todos" || p.category === categoryFilter;
-    return matchSearch && matchCategory;
+    },
+    onError: (e: any) => toast.error(e.message),
   });
 
-  if (loading) {
+  const fmt = (v: number) => `${(v || 0).toLocaleString("pt-AO")} Kz`;
+
+  const calcMargin = (sell: number, cost: number) =>
+    sell && cost ? ((sell - cost) / sell * 100).toFixed(0) : null;
+
+  const filtered = products.filter((p: any) => {
+    const mS = !search ||
+      p.name.toLowerCase().includes(search.toLowerCase()) ||
+      p.suppliers?.company_name?.toLowerCase().includes(search.toLowerCase());
+    const mC = !category || category === "Todos" || p.category === category;
+    return mS && mC;
+  });
+
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-10 h-10 border-4 border-amber-700 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-gray-500 text-sm">A carregar catálogo...</p>
-        </div>
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
-  // Se não tem loja dropshipping
+  // Sem loja criada
   if (!myStore) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
         <div className="text-center space-y-4 max-w-sm">
-          <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto">
-            <Store size={28} className="text-amber-700" />
+          <div className="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
+            <Store className="w-7 h-7 text-primary" />
           </div>
-          <h2 className="text-xl font-bold">Cria a tua Loja Primeiro</h2>
-          <p className="text-gray-500 text-sm">Para acederes ao catálogo de fornecedores, precisas de criar a tua loja dropshipping.</p>
-          <Button
+          <h2 className="text-lg font-bold text-foreground">Cria a tua Loja Primeiro</h2>
+          <p className="text-sm text-muted-foreground">
+            Para acederes ao catálogo precisas de uma loja dropshipping.
+          </p>
+          <button
             onClick={() => navigate("/criar-loja")}
-            className="w-full bg-amber-700 hover:bg-amber-800 text-white rounded-xl h-11"
+            className="w-full py-3 bg-primary text-primary-foreground font-bold rounded-xl text-sm"
           >
             Criar Loja Dropshipping
-          </Button>
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b sticky top-0 z-20">
-        <div className="max-w-2xl mx-auto px-4 py-3">
+    <div className="min-h-screen bg-background pb-14 md:pb-0">
+
+      {/* Header fixo */}
+      <div className="bg-background border-b border-border sticky top-0 z-20">
+        <div className="container mx-auto px-3 py-3 max-w-2xl">
           <div className="flex items-center gap-3 mb-3">
-            <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-full">
-              <ArrowLeft size={18} />
+            <button
+              onClick={() => navigate(-1)}
+              className="p-2 hover:bg-accent rounded-lg text-muted-foreground"
+            >
+              <ArrowLeft className="w-5 h-5" />
             </button>
             <div className="flex-1">
-              <h1 className="font-bold text-base">Catálogo de Fornecedores</h1>
-              <p className="text-xs text-gray-500">Escolhe produtos para a tua loja</p>
+              <h1 className="font-bold text-base text-foreground">Catálogo de Fornecedores</h1>
+              <p className="text-[10px] text-muted-foreground">Escolhe produtos para a tua loja</p>
             </div>
-            <div className="bg-amber-700 text-white text-xs px-3 py-1 rounded-full">
+            <span className="bg-primary text-primary-foreground text-xs px-3 py-1 rounded-full font-bold">
               {myStore.store_name}
-            </div>
+            </span>
           </div>
 
           {/* Search */}
           <div className="flex gap-2">
             <div className="flex-1 relative">
-              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <input
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={e => setSearch(e.target.value)}
                 placeholder="Pesquisar produtos ou fornecedores..."
-                className="w-full pl-9 pr-4 py-2.5 bg-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                className="w-full pl-9 pr-4 py-2.5 bg-muted rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className={`p-2.5 rounded-xl border ${showFilters ? "bg-amber-700 text-white border-amber-700" : "bg-white border-gray-200"}`}
+              className={`p-2.5 rounded-xl border transition-colors ${
+                showFilters
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-card border-border text-foreground"
+              }`}
             >
-              <Filter size={16} />
+              <Filter className="w-4 h-4" />
             </button>
           </div>
 
-          {/* Filtros */}
+          {/* Filtros por categoria */}
           {showFilters && (
-            <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-              {CATEGORIES.map((cat) => (
+            <div className="mt-3 flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+              {CATEGORIES.map(cat => (
                 <button
                   key={cat}
-                  onClick={() => setCategoryFilter(cat === "Todos" ? "" : cat)}
+                  onClick={() => setCategory(cat === "Todos" ? "" : cat)}
                   className={`px-3 py-1.5 rounded-full text-xs whitespace-nowrap border transition-colors ${
-                    (categoryFilter === cat) || (cat === "Todos" && !categoryFilter)
-                      ? "bg-amber-700 text-white border-amber-700"
-                      : "bg-white text-gray-600 border-gray-200"
+                    (category === cat) || (cat === "Todos" && !category)
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-card text-foreground border-border"
                   }`}
                 >
                   {cat}
@@ -247,117 +208,107 @@ export default function CatalogoFornecedores() {
         </div>
       </div>
 
-      {/* Contador */}
-      <div className="max-w-2xl mx-auto px-4 py-3">
-        <p className="text-xs text-gray-500">
-          {filteredProducts.length} produtos disponíveis • {addedProducts.size} na tua loja
+      {/* Conteúdo */}
+      <div className="container mx-auto px-3 py-3 max-w-2xl">
+        <p className="text-[10px] text-muted-foreground mb-3">
+          {filtered.length} produtos disponíveis • {addedSet.size} na tua loja
         </p>
-      </div>
 
-      {/* Grid de produtos */}
-      <div className="max-w-2xl mx-auto px-4 pb-20">
         <div className="grid grid-cols-2 gap-3">
-          {filteredProducts.map((product) => {
-            const isAdded = addedProducts.has(product.id);
-            const margin = product.suggested_price
-              ? calcMargin(product.suggested_price, product.cost_price)
+          {filtered.map((p: any) => {
+            const isAdded = addedSet.has(p.id);
+            const margin  = p.suggested_price
+              ? calcMargin(p.suggested_price, p.cost_price)
               : null;
 
             return (
               <div
-                key={product.id}
-                className={`bg-white border rounded-2xl overflow-hidden transition-all ${
-                  isAdded ? "border-green-300" : "border-gray-100"
+                key={p.id}
+                className={`bg-card border rounded-2xl overflow-hidden ${
+                  isAdded ? "border-green-500/40" : "border-border"
                 }`}
               >
                 {/* Imagem */}
-                <div className="relative h-36 bg-gray-100 flex items-center justify-center">
-                  {product.images?.[0] ? (
-                    <img
-                      src={product.images[0]}
-                      alt={product.name}
-                      className="w-full h-full object-cover"
-                    />
+                <div className="relative h-36 bg-muted flex items-center justify-center">
+                  {p.images?.[0] ? (
+                    <img src={p.images[0]} alt={p.name} className="w-full h-full object-cover" />
                   ) : (
-                    <Package size={32} className="text-gray-300" />
+                    <Package className="w-8 h-8 text-muted-foreground" />
                   )}
 
-                  {/* Badges */}
                   <div className="absolute top-2 left-2 flex flex-col gap-1">
                     {isAdded && (
-                      <span className="bg-green-500 text-white text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
-                        <Check size={10} />
-                        Na loja
+                      <span className="bg-green-500 text-white text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <Check className="w-3 h-3" /> Na loja
                       </span>
                     )}
-                    {product.total_sold > 10 && (
-                      <span className="bg-amber-700 text-white text-xs px-2 py-0.5 rounded-full">
+                    {p.total_sold > 10 && (
+                      <span className="bg-primary text-primary-foreground text-[10px] px-2 py-0.5 rounded-full">
                         🔥 Popular
                       </span>
                     )}
                   </div>
 
                   {margin && (
-                    <div className="absolute top-2 right-2">
-                      <span className="bg-green-500 text-white text-xs px-2 py-0.5 rounded-full">
-                        +{margin}%
-                      </span>
-                    </div>
+                    <span className="absolute top-2 right-2 bg-green-500 text-white text-[10px] px-2 py-0.5 rounded-full">
+                      +{margin}%
+                    </span>
                   )}
                 </div>
 
                 {/* Info */}
                 <div className="p-3">
-                  <p className="text-sm font-semibold text-gray-800 leading-tight line-clamp-2 mb-1">
-                    {product.name}
+                  <p className="text-sm font-bold text-foreground leading-tight line-clamp-2 mb-1">
+                    {p.name}
                   </p>
 
                   <div className="flex items-center gap-1 mb-2">
-                    <Store size={10} className="text-gray-400" />
-                    <p className="text-xs text-gray-400 truncate">{product.suppliers?.company_name}</p>
-                    {product.suppliers?.is_verified && (
-                      <Check size={10} className="text-blue-500 flex-shrink-0" />
+                    <Store className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                    <p className="text-[10px] text-muted-foreground truncate">
+                      {p.suppliers?.company_name}
+                    </p>
+                    {p.suppliers?.is_verified && (
+                      <Check className="w-3 h-3 text-blue-500 flex-shrink-0" />
                     )}
                   </div>
 
-                  <div className="space-y-1 mb-3">
+                  <div className="space-y-0.5 mb-3">
                     <div className="flex justify-between">
-                      <span className="text-xs text-gray-400">Custo</span>
-                      <span className="text-xs font-bold text-amber-700">{formatKz(product.cost_price)}</span>
+                      <span className="text-[10px] text-muted-foreground">Custo</span>
+                      <span className="text-[10px] font-bold text-primary">{fmt(p.cost_price)}</span>
                     </div>
-                    {product.suggested_price && (
+                    {p.suggested_price && (
                       <div className="flex justify-between">
-                        <span className="text-xs text-gray-400">Sugerido</span>
-                        <span className="text-xs text-gray-600">{formatKz(product.suggested_price)}</span>
+                        <span className="text-[10px] text-muted-foreground">Sugerido</span>
+                        <span className="text-[10px] text-foreground">{fmt(p.suggested_price)}</span>
                       </div>
                     )}
                     <div className="flex justify-between">
-                      <span className="text-xs text-gray-400">Stock</span>
-                      <span className={`text-xs font-medium ${product.stock_quantity < 10 ? "text-red-500" : "text-gray-600"}`}>
-                        {product.stock_quantity} un.
+                      <span className="text-[10px] text-muted-foreground">Stock</span>
+                      <span className={`text-[10px] font-bold ${p.stock_quantity < 10 ? "text-destructive" : "text-foreground"}`}>
+                        {p.stock_quantity} un.
                       </span>
                     </div>
                   </div>
 
                   <button
+                    disabled={isAdded}
                     onClick={() => {
                       if (!isAdded) {
-                        setSelectedProduct(product);
-                        setSellingPrice(product.suggested_price?.toString() || "");
+                        setSelected(p);
+                        setSellingPrice(p.suggested_price?.toString() || "");
                       }
                     }}
-                    disabled={isAdded}
-                    className={`w-full py-2 rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-1 ${
+                    className={`w-full py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-colors ${
                       isAdded
-                        ? "bg-green-50 text-green-600 border border-green-200"
-                        : "bg-amber-700 text-white hover:bg-amber-800"
+                        ? "bg-green-500/10 text-green-500 border border-green-500/20"
+                        : "bg-primary text-primary-foreground hover:opacity-90"
                     }`}
                   >
-                    {isAdded ? (
-                      <><Check size={12} /> Na minha loja</>
-                    ) : (
-                      <><Plus size={12} /> Adicionar</>
-                    )}
+                    {isAdded
+                      ? <><Check className="w-3 h-3" /> Na minha loja</>
+                      : <><Plus className="w-3 h-3" /> Adicionar</>
+                    }
                   </button>
                 </div>
               </div>
@@ -365,89 +316,89 @@ export default function CatalogoFornecedores() {
           })}
         </div>
 
-        {filteredProducts.length === 0 && (
-          <div className="text-center py-16 text-gray-400">
-            <Package size={48} className="mx-auto mb-3 opacity-20" />
+        {filtered.length === 0 && (
+          <div className="text-center py-16 text-muted-foreground">
+            <Package className="w-12 h-12 mx-auto mb-3 opacity-20" />
             <p className="text-sm">Nenhum produto encontrado</p>
           </div>
         )}
       </div>
 
       {/* Modal definir preço de venda */}
-      {selectedProduct && (
+      {selected && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end">
-          <div className="bg-white w-full rounded-t-3xl p-6 space-y-4 max-w-2xl mx-auto">
+          <div className="bg-background w-full rounded-t-3xl p-6 space-y-4 max-w-2xl mx-auto">
             <div className="flex items-start justify-between">
               <div className="flex-1 pr-4">
-                <h3 className="font-bold text-gray-800">{selectedProduct.name}</h3>
-                <p className="text-xs text-gray-500 mt-0.5">{selectedProduct.suppliers?.company_name}</p>
+                <h3 className="font-bold text-foreground">{selected.name}</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {selected.suppliers?.company_name}
+                </p>
               </div>
               <button
-                onClick={() => { setSelectedProduct(null); setSellingPrice(""); }}
-                className="p-2 hover:bg-gray-100 rounded-full"
+                onClick={() => { setSelected(null); setSellingPrice(""); }}
+                className="p-2 hover:bg-accent rounded-full"
               >
-                <X size={18} />
+                <X className="w-5 h-5 text-foreground" />
               </button>
             </div>
 
             {/* Preços de referência */}
-            <div className="bg-gray-50 rounded-2xl p-4 space-y-2">
+            <div className="bg-muted rounded-2xl p-4 space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Preço de custo (pagas ao fornecedor)</span>
-                <span className="font-bold text-amber-700">{formatKz(selectedProduct.cost_price)}</span>
+                <span className="text-muted-foreground">Preço de custo</span>
+                <span className="font-bold text-primary">{fmt(selected.cost_price)}</span>
               </div>
-              {selectedProduct.min_price && (
+              {selected.min_price && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Preço mínimo de venda</span>
-                  <span className="font-bold text-red-500">{formatKz(selectedProduct.min_price)}</span>
+                  <span className="text-muted-foreground">Preço mínimo</span>
+                  <span className="font-bold text-destructive">{fmt(selected.min_price)}</span>
                 </div>
               )}
-              {selectedProduct.suggested_price && (
+              {selected.suggested_price && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Preço sugerido pelo fornecedor</span>
-                  <span className="font-bold text-green-600">{formatKz(selectedProduct.suggested_price)}</span>
+                  <span className="text-muted-foreground">Preço sugerido</span>
+                  <span className="font-bold text-green-500">{fmt(selected.suggested_price)}</span>
                 </div>
               )}
             </div>
 
-            {/* Definir preço de venda */}
+            {/* Input preço de venda */}
             <div>
-              <label className="text-sm font-semibold text-gray-700 block mb-2">
+              <label className="text-sm font-bold text-foreground block mb-2">
                 O teu preço de venda (Kz)
               </label>
-              <Input
+              <input
                 type="number"
                 value={sellingPrice}
-                onChange={(e) => setSellingPrice(e.target.value)}
+                onChange={e => setSellingPrice(e.target.value)}
                 placeholder="Ex: 70000"
-                className="rounded-xl text-lg font-bold text-center h-14"
+                className="w-full bg-background border border-border rounded-xl px-4 py-3 text-lg font-bold text-center text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
 
             {/* Margem em tempo real */}
-            {sellingPrice && parseFloat(sellingPrice) > selectedProduct.cost_price && (
-              <div className="bg-green-50 border border-green-200 rounded-xl p-3">
+            {sellingPrice && parseFloat(sellingPrice) > selected.cost_price && (
+              <div className="bg-green-500/5 border border-green-500/20 rounded-xl p-3">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">O teu lucro por venda</span>
-                  <span className="font-bold text-green-600">
-                    {formatKz(parseFloat(sellingPrice) - selectedProduct.cost_price - (parseFloat(sellingPrice) * 0.15))}
+                  <span className="text-muted-foreground">O teu lucro estimado</span>
+                  <span className="font-bold text-green-500">
+                    {fmt(parseFloat(sellingPrice) - selected.cost_price - parseFloat(sellingPrice) * 0.15)}
                   </span>
                 </div>
-                <div className="flex justify-between text-xs text-gray-400 mt-1">
-                  <span>Margem (após comissões)</span>
-                  <span>{calcMargin(parseFloat(sellingPrice) - parseFloat(sellingPrice) * 0.15, selectedProduct.cost_price)}%</span>
-                </div>
-                <p className="text-xs text-gray-400 mt-1">* Deduzidas comissões da plataforma (5%) e afiliados (10%)</p>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  * Após comissões da plataforma (5%) e afiliados (10%)
+                </p>
               </div>
             )}
 
-            <Button
-              onClick={handleAddToStore}
-              disabled={addingProduct || !sellingPrice}
-              className="w-full bg-amber-700 hover:bg-amber-800 text-white h-13 rounded-xl font-semibold text-base"
+            <button
+              onClick={() => addProduct.mutate()}
+              disabled={addProduct.isPending || !sellingPrice}
+              className="w-full py-3 bg-primary text-primary-foreground font-bold rounded-xl text-sm disabled:opacity-60"
             >
-              {addingProduct ? "A adicionar..." : "Adicionar à minha loja"}
-            </Button>
+              {addProduct.isPending ? "A adicionar..." : "Adicionar à minha loja"}
+            </button>
           </div>
         </div>
       )}
