@@ -503,15 +503,15 @@ const Navbar = () => {
             </div>
           )}
 
-          {/* ── Barra-pílula: Localização ── */}
+          {/* ── Barra-pílula: Localização (visível quando categorias estão minimizadas) ── */}
           {!isCategoriasPage && !isPesquisaPage && !isCategoriaDetalhePage && (
             <div
               className="overflow-hidden"
               style={{
-                maxHeight: showLocation && !searchBarOpen ? "60px" : "0px",
-                opacity: showLocation && !searchBarOpen ? 1 : 0,
+                maxHeight: showLocation && !searchBarOpen && !categoriesExpanded ? "60px" : "0px",
+                opacity: showLocation && !searchBarOpen && !categoriesExpanded ? 1 : 0,
                 transition: "max-height 0.3s ease, opacity 0.25s ease",
-                paddingBottom: showLocation && !searchBarOpen ? 8 : 0,
+                paddingBottom: showLocation && !searchBarOpen && !categoriesExpanded ? 8 : 0,
               }}
             >
               <div
@@ -548,12 +548,12 @@ const Navbar = () => {
           {/* ── Divisor clicável + Categorias ── */}
           {!isCategoriasPage && !isPesquisaPage && !isCategoriaDetalhePage && (
             <>
-              {/* Pega clicável para minimizar/expandir */}
+              {/* Pega clicável para alternar entre localização e categorias */}
               <button
                 className="w-full flex items-center justify-center"
                 style={{ height: 18, gap: 6 }}
                 onClick={() => setCategoriesExpanded(v => !v)}
-                title={categoriesExpanded ? "Minimizar categorias" : "Expandir categorias"}
+                title={categoriesExpanded ? "Mostrar entregas" : "Mostrar categorias"}
               >
                 <div style={{ flex: 1, height: 1, background: "rgba(74,46,10,0.14)" }} />
                 <div style={{
@@ -569,33 +569,33 @@ const Navbar = () => {
               <div
                 className="overflow-hidden"
                 style={{
-                  maxHeight: showCategories && !searchBarOpen && categoriesExpanded ? "140px" : "0px",
+                  maxHeight: showCategories && !searchBarOpen && categoriesExpanded ? "120px" : "0px",
                   opacity: showCategories && !searchBarOpen && categoriesExpanded ? 1 : 0,
                   transition: "max-height 0.4s cubic-bezier(0.4,0,0.2,1), opacity 0.3s ease",
                 }}
               >
                 <div
                   className="pb-3 overflow-x-auto scrollbar-hide"
-                  style={{ display: "flex", gap: "10px", alignItems: "flex-start", paddingTop: 8 }}
+                  style={{ display: "flex", gap: "8px", alignItems: "flex-start", paddingTop: 8 }}
                 >
                   {categories.map((cat: any) => (
                     <button
                       key={cat.name}
                       onClick={() => navigate(`/categoria/${encodeURIComponent(cat.name)}`)}
-                      className="flex flex-col items-center gap-1.5 flex-shrink-0"
-                      style={{ width: 72 }}
+                      className="flex flex-col items-center gap-1 flex-shrink-0"
+                      style={{ width: 58 }}
                     >
                       <div
-                        className="w-[72px] h-[72px] rounded-2xl overflow-hidden p-1.5"
+                        className="w-[58px] h-[58px] rounded-xl overflow-hidden p-1"
                         style={{
                           background: "rgba(255,255,255,0.65)",
                           border: "1px solid rgba(74,46,10,0.10)",
                           boxShadow: "0 2px 6px rgba(74,46,10,0.10)",
                         }}
                       >
-                        <img src={cat.image} alt={cat.name} className="w-full h-full object-cover rounded-xl" />
+                        <img src={cat.image} alt={cat.name} className="w-full h-full object-cover rounded-lg" />
                       </div>
-                      <span className="text-[10px] font-bold text-center leading-tight line-clamp-1" style={{ color: brown, maxWidth: 72 }}>
+                      <span className="text-[9px] font-bold text-center leading-tight line-clamp-1" style={{ color: brown, maxWidth: 58 }}>
                         {cat.name}
                       </span>
                     </button>
@@ -603,29 +603,30 @@ const Navbar = () => {
 
                   <button
                     onClick={() => navigate("/categorias")}
-                    className="flex flex-col items-center gap-1.5 flex-shrink-0"
-                    style={{ width: 72 }}
+                    className="flex flex-col items-center gap-1 flex-shrink-0"
+                    style={{ width: 58 }}
                   >
                     <div
-                      className="w-[72px] h-[72px] rounded-2xl flex items-center justify-center"
+                      className="w-[58px] h-[58px] rounded-xl flex items-center justify-center"
                       style={{
                         background: `linear-gradient(135deg, #6B3F12, ${brown})`,
                         boxShadow: "0 2px 6px rgba(74,46,10,0.25)",
                       }}
                     >
                       <div className="grid grid-cols-2 gap-1">
-                        <div className="w-3.5 h-3.5 rounded-sm border-2 border-white" />
-                        <div className="w-3.5 h-3.5 rounded-sm border-2 border-white" />
-                        <div className="w-3.5 h-3.5 rounded-sm border-2 border-white" />
-                        <div className="w-3.5 h-3.5 rounded-sm border-2 border-white" />
+                        <div className="w-3 h-3 rounded-sm border-2 border-white" />
+                        <div className="w-3 h-3 rounded-sm border-2 border-white" />
+                        <div className="w-3 h-3 rounded-sm border-2 border-white" />
+                        <div className="w-3 h-3 rounded-sm border-2 border-white" />
                       </div>
                     </div>
-                    <span className="text-[10px] font-bold text-center" style={{ color: brown }}>Ver todas</span>
+                    <span className="text-[9px] font-bold text-center" style={{ color: brown }}>Ver todas</span>
                   </button>
                 </div>
               </div>
             </>
           )}
+
 
 
         </div>
