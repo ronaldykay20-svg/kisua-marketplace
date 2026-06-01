@@ -274,6 +274,7 @@ export default function AdminFreightTab() {
               : "",
           }))
         : [],
+      expand_all_dest_municipalities: zone.expand_all_dest_municipalities ?? false,
     });
     setModalOpen(true);
   };
