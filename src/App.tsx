@@ -41,6 +41,10 @@ import Checkout from "./pages/Checkout.tsx";
 import PedidoDetalhe from "./pages/PedidoDetalhe.tsx";
 import ProtectedRoute from "./components/ProtectedRoute.tsx";
 import SejFornecedor from "./pages/SejFornecedor.tsx";
+import FornecedorDashboard from "./pages/FornecedorDashboard.tsx";
+import CriarLoja from "./pages/CriarLoja.tsx";
+import DropshipDashboard from "./pages/DropshipDashboard.tsx";
+import CatalogoFornecedores from "./pages/CatalogoFornecedores.tsx";
 
 const queryClient = new QueryClient();
 
@@ -108,6 +112,10 @@ const App = () => (
             <Route path="/carrinho" element={<Layout><Carrinho /></Layout>} />
             <Route path="/checkout" element={<Layout><ProtectedRoute><Checkout /></ProtectedRoute></Layout>} />
             <Route path="/seja-fornecedor" element={<Layout><ProtectedRoute><SejFornecedor /></ProtectedRoute></Layout>} />
+            <Route path="/painel-fornecedor" element={<Layout><ProtectedRoute><FornecedorDashboard /></ProtectedRoute></Layout>} />
+            <Route path="/criar-loja" element={<Layout><ProtectedRoute><CriarLoja /></ProtectedRoute></Layout>} />
+            <Route path="/painel-dropship" element={<Layout><ProtectedRoute><DropshipDashboard /></ProtectedRoute></Layout>} />
+            <Route path="/catalogo-fornecedores" element={<Layout><ProtectedRoute><CatalogoFornecedores /></ProtectedRoute></Layout>} />
             <Route path="*" element={<Layout><NotFound /></Layout>} />
           </Routes>
         </BrowserRouter>
