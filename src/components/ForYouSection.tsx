@@ -5,7 +5,7 @@ import { Sparkles } from "lucide-react";
 import { allProducts } from "@/data/products";
 
 const ForYouSection = () => {
-  const products = allProducts.filter(p => [50,51,52,53,54,55,56,57,58,59].includes(p.id));
+  const products = allProducts.filter(p => [50,51,52,53,54,55,56,57,58,59].includes(Number(p.id)));
   return (
     <SectionCard
       title="Para si"

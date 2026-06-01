@@ -5,7 +5,7 @@ import { TrendingDown } from "lucide-react";
 import { allProducts } from "@/data/products";
 
 const LowPriceSection = () => {
-  const products = allProducts.filter(p => [20,21,22,23,24,25,26,27].includes(p.id));
+  const products = allProducts.filter(p => [20,21,22,23,24,25,26,27].includes(Number(p.id)));
   return (
     <SectionCard
       title="Preços baixos todos os dias"
