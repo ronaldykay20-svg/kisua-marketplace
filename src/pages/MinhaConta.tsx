@@ -1,4 +1,4 @@
-import { User, Package, Heart, HelpCircle, ChevronRight, Settings, MapPin, CreditCard, Bell, Shield, LogOut, Crown, Store, Building2 } from "lucide-react";
+import { User, Package, Heart, HelpCircle, ChevronRight, Settings, MapPin, CreditCard, Bell, Shield, LogOut, Crown, Store, Building2, Truck, ShoppingBag } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -34,6 +34,26 @@ const MinhaConta = () => {
     enabled: !!user,
   });
 
+  // Check if user is a supplier (fornecedor)
+  const { data: isSupplier } = useQuery({
+    queryKey: ["is_supplier", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase.from("suppliers").select("id").eq("user_id", user!.id).maybeSingle();
+      return !!data;
+    },
+    enabled: !!user,
+  });
+
+  // Check if user is a dropshipper (affiliate)
+  const { data: isAffiliate } = useQuery({
+    queryKey: ["is_affiliate", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase.from("affiliates").select("id").eq("user_id", user!.id).maybeSingle();
+      return !!data;
+    },
+    enabled: !!user,
+  });
+
   const menuItems = [
     { icon: Package, label: "Meus Pedidos", desc: "Acompanhe as suas encomendas", path: "/pedidos" },
     { icon: Heart, label: "Favoritos", desc: "Produtos que guardou", path: "/favoritos" },
@@ -45,6 +65,8 @@ const MinhaConta = () => {
     { icon: Settings, label: "Definições", desc: "Configurações da conta", path: "/definicoes" },
     ...(isSeller ? [{ icon: Store, label: "Painel do Vendedor", desc: "Gerir a sua loja e produtos", path: "/painel-vendedor" }] : []),
     ...(isCompanyMember ? [{ icon: Building2, label: "Painel da Empresa", desc: "Gerir empresa e equipa", path: "/painel-empresa" }] : []),
+    ...(isSupplier ? [{ icon: Truck, label: "Painel do Fornecedor", desc: "Gerir produtos e pedidos de fornecedor", path: "/painel-fornecedor" }] : []),
+    ...(isAffiliate ? [{ icon: ShoppingBag, label: "Painel Dropshipping", desc: "Gerir a sua loja dropshipping", path: "/painel-dropship" }] : []),
     ...(isModerator && !isAdmin ? [{ icon: Shield, label: "Painel do Moderador", desc: "Moderar produtos e vendedores", path: "/painel-moderador" }] : []),
     ...(isAdmin ? [
       { icon: Crown, label: "Administração", desc: "Gerir utilizadores e cargos", path: "/admin" },
@@ -80,10 +102,12 @@ const MinhaConta = () => {
             {user ? (
               <>
                 <h2 className="text-sm font-bold text-foreground">Olá, {userDisplayName}</h2>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
                   <p className="text-xs text-muted-foreground">{user.email}</p>
                   {isAdmin && <span className="px-1.5 py-0.5 text-[9px] font-bold bg-red-500/10 text-red-500 rounded">Admin</span>}
                   {isModerator && !isAdmin && <span className="px-1.5 py-0.5 text-[9px] font-bold bg-amber-500/10 text-amber-500 rounded">Mod</span>}
+                  {isSupplier && <span className="px-1.5 py-0.5 text-[9px] font-bold bg-blue-500/10 text-blue-500 rounded">Fornecedor</span>}
+                  {isAffiliate && <span className="px-1.5 py-0.5 text-[9px] font-bold bg-green-500/10 text-green-500 rounded">Dropshipper</span>}
                 </div>
               </>
             ) : (
