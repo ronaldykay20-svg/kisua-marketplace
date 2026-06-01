@@ -292,24 +292,24 @@ const Navbar = () => {
         <div className="px-3">
 
           {/* ── Linha 1: ícones ── */}
-          <div className="flex items-center gap-2" style={{ height: 52, paddingTop: 6, paddingBottom: 6 }}>
+          <div className="flex items-center gap-2.5" style={{ height: 64, paddingTop: 10, paddingBottom: 10 }}>
 
-            {/* Esquerda: menu ou voltar */}
+            {/* Esquerda: menu ou voltar — quadrado castanho sólido */}
             {isCategoriaDetalhePage ? (
               <button
-                className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
-                style={{ background: brownLight, border: iconBorder }}
+                className="flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center"
+                style={{ background: brown, boxShadow: "0 2px 6px rgba(74,46,10,0.25)" }}
                 onClick={() => navigate(-1)}
               >
-                <ArrowLeft className="w-5 h-5" style={{ color: brown }} />
+                <ArrowLeft className="w-5 h-5 text-white" />
               </button>
             ) : (
               <button
-                className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
-                style={{ background: brownLight, border: iconBorder }}
+                className="flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center"
+                style={{ background: brown, boxShadow: "0 2px 6px rgba(74,46,10,0.25)" }}
                 onClick={() => { setMenuOpen(!menuOpen); setNotifOpen(false); }}
               >
-                <Menu className="w-5 h-5" style={{ color: brown }} />
+                <Menu className="w-5 h-5 text-white" />
               </button>
             )}
 
@@ -330,27 +330,27 @@ const Navbar = () => {
 
             {/* Direita: lupa + notif + carrinho */}
 
-            {/* Lupa */}
+            {/* Lupa — castanho sólido */}
             {isCategoriaDetalhePage ? (
               <button
-                className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
-                style={{ background: brownLight, border: iconBorder }}
+                className="flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center"
+                style={{ background: brown, boxShadow: "0 2px 6px rgba(74,46,10,0.25)" }}
                 onClick={() => setCategorySearchVisible(v => !v)}
               >
-                <Search className="w-5 h-5" style={{ color: brown }} />
+                <Search className="w-5 h-5 text-white" />
               </button>
             ) : searchBarOpen ? (
               <button
-                className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
-                style={{ background: "#E53935", border: "none" }}
+                className="flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center"
+                style={{ background: "#E53935", boxShadow: "0 2px 6px rgba(229,57,53,0.25)" }}
                 onClick={() => { setSearchBarOpen(false); setSearchQuery(""); }}
               >
                 <X className="w-5 h-5 text-white" />
               </button>
             ) : (
               <button
-                className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
-                style={{ background: "#1565C0", border: "none" }}
+                className="flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center"
+                style={{ background: brown, boxShadow: "0 2px 6px rgba(74,46,10,0.25)" }}
                 onClick={() => setSearchBarOpen(true)}
               >
                 <Search className="w-5 h-5 text-white" />
@@ -360,11 +360,11 @@ const Navbar = () => {
             {/* Notificações */}
             {user && (
               <button
-                className="relative flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
-                style={{ background: brownLight, border: iconBorder }}
+                className="relative flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center"
+                style={{ background: brown, boxShadow: "0 2px 6px rgba(74,46,10,0.25)" }}
                 onClick={() => { setNotifOpen(!notifOpen); setMenuOpen(false); }}
               >
-                <Bell className="w-5 h-5" style={{ color: brown }} />
+                <Bell className="w-5 h-5 text-white" />
                 {unread > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 rounded-full text-white text-[8px] font-black flex items-center justify-center px-0.5"
                     style={{ background: "#E53935" }}>
@@ -374,10 +374,10 @@ const Navbar = () => {
               </button>
             )}
 
-            {/* Carrinho */}
+            {/* Carrinho — branco com ícone castanho */}
             <button
-              className="relative flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
-              style={{ background: brownLight, border: iconBorder }}
+              className="relative flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center"
+              style={{ background: "#FFFFFF", boxShadow: "0 2px 6px rgba(74,46,10,0.18)", border: `1px solid rgba(74,46,10,0.10)` }}
               onClick={() => navigate("/carrinho")}
             >
               <ShoppingCart className="w-5 h-5" style={{ color: brown }} />
@@ -389,6 +389,7 @@ const Navbar = () => {
               )}
             </button>
           </div>
+
 
           {/* ── Barra de pesquisa inline (páginas normais) ── */}
           {!isCategoriasPage && !isPesquisaPage && !isCategoriaDetalhePage && (
