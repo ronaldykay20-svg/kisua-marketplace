@@ -210,6 +210,15 @@ const Navbar = () => {
 
   const { data: cartCount = 0 } = useCartCount(user?.id);
 
+  const { data: isAffiliate } = useQuery({
+    queryKey: ["is_affiliate", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase.from("affiliates").select("id").eq("user_id", user!.id).maybeSingle();
+      return !!data;
+    },
+    enabled: !!user,
+  });
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const q = searchQuery.trim();
@@ -745,7 +754,8 @@ const Navbar = () => {
                 { label: "Favoritos",              path: "/favoritos" },
                 { label: "Ajuda",                  path: "/ajuda" },
                 { label: "Vender no AngoExpress",  path: "/vender" },
-                { label: "Seja Fornecedor",        path: "/seja-fornecedor" }, // ✅ adicionado
+                ...(!isAffiliate ? [{ label: "Criar Loja Dropshipping", path: "/criar-loja" }] : []),
+                { label: "Seja Fornecedor",        path: "/seja-fornecedor" },
               ].map(link => (
                 <button key={link.label} onClick={() => { navigate(link.path); setMenuOpen(false); }}
                   className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium text-foreground hover:bg-muted transition-colors">
