@@ -9,8 +9,9 @@ import {
   Plus, Trash2, BarChart3, Star,
   AlertCircle, Clock, ArrowLeft, Camera,
   ImageIcon, X, Upload, Save, Weight,
-  Ruler, Package2, Info, AlertTriangle,
+  Ruler, Package2, Info, AlertTriangle, Edit, Eye, EyeOff,
 } from "lucide-react";
+import SellerProductForm from "@/components/seller/SellerProductForm";
 
 type Tab = "visao" | "produtos" | "pedidos" | "ganhos";
 
