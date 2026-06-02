@@ -77,6 +77,39 @@ export default function SejFornecedor() {
         status: "pending",
       });
       if (error) throw error;
+
+      // Garante que existe um perfil de vendedor associado, para que os produtos
+      // do fornecedor/afiliado apareçam nas mesmas listagens dos vendedores normais
+      // (mesmas categorias, página de Vendedores, pesquisa, home).
+      const { data: existingSeller } = await supabase
+        .from("sellers")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (!existingSeller) {
+        const slug = form.company_name
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/(^-|-$)/g, "")
+          .slice(0, 60) + "-" + user.id.slice(0, 6);
+
+        await (supabase as any).from("sellers").insert({
+          user_id: user.id,
+          name: form.company_name,
+          slug,
+          type: "company",
+          description: form.description || null,
+          phone: form.phone || null,
+          email: form.email || null,
+          province: form.province || null,
+          address: form.address || null,
+          is_active: true,
+        });
+      }
+
       setStep(3);
       toast.success("Pedido enviado com sucesso!");
     } catch (error: any) {
