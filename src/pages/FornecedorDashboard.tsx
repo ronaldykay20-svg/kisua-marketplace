@@ -500,6 +500,7 @@ export default function FornecedorDashboard() {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>("visao");
   const [showAddProduct, setShowAddProduct] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<any>(null);
 
   const { data: supplier, isLoading } = useQuery({
     queryKey: ["my_supplier", user?.id],
@@ -515,18 +516,100 @@ export default function FornecedorDashboard() {
     enabled: !!user,
   });
 
+  // Perfil de vendedor unificado — os produtos do fornecedor/afiliado vivem em `products`
+  // e aparecem nas mesmas listagens dos vendedores normais.
+  const { data: seller } = useQuery({
+    queryKey: ["my_seller_for_supplier", user?.id],
+    queryFn: async () => {
+      const { data: existing } = await supabase
+        .from("sellers")
+        .select("*")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      if (existing) return existing;
+
+      // Auto-cria se não existir (fornecedores antigos sem sellers row)
+      const baseName = supplier?.company_name || "Fornecedor";
+      const slug = baseName
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "")
+        .slice(0, 60) + "-" + user!.id.slice(0, 6);
+
+      const { data: created, error } = await (supabase as any)
+        .from("sellers")
+        .insert({
+          user_id: user!.id,
+          name: baseName,
+          slug,
+          type: "company",
+          description: supplier?.description || null,
+          phone: supplier?.phone || null,
+          email: supplier?.email || null,
+          province: supplier?.province || null,
+          address: supplier?.address || null,
+          is_active: true,
+        })
+        .select("*")
+        .single();
+      if (error) throw error;
+      return created;
+    },
+    enabled: !!user && !!supplier,
+  });
+
   const { data: products = [] } = useQuery({
-    queryKey: ["supplier_products", supplier?.id],
+    queryKey: ["supplier_seller_products", seller?.id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("supplier_products")
+        .from("products")
         .select("*")
-        .eq("supplier_id", supplier!.id)
+        .eq("seller_id", seller!.id)
         .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!seller?.id,
+  });
+
+  const { data: productCovers = {} } = useQuery({
+    queryKey: ["supplier_product_covers", seller?.id],
+    queryFn: async () => {
+      const ids = products.map((p: any) => p.id);
+      if (ids.length === 0) return {};
+      const { data, error } = await supabase
+        .from("product_media")
+        .select("product_id, url")
+        .in("product_id", ids)
+        .eq("is_cover", true);
+      if (error) throw error;
+      const map: Record<string, string> = {};
+      (data || []).forEach((m: any) => { map[m.product_id] = m.url; });
+      return map;
+    },
+    enabled: products.length > 0,
+  });
+
+  const { data: editingMedia = [] } = useQuery({
+    queryKey: ["product_media", editingProduct?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("product_media").select("*").eq("product_id", editingProduct!.id).order("sort_order");
       if (error) throw error;
       return data;
     },
-    enabled: !!supplier?.id,
+    enabled: !!editingProduct?.id,
+  });
+
+  const { data: editingVariants = [] } = useQuery({
+    queryKey: ["product_variants_edit", editingProduct?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("product_variants").select("*").eq("product_id", editingProduct!.id).order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!editingProduct?.id,
   });
 
   const { data: orders = [] } = useQuery({
@@ -544,13 +627,85 @@ export default function FornecedorDashboard() {
     enabled: !!supplier?.id,
   });
 
+  const saveProduct = useMutation({
+    mutationFn: async ({ payload, media, variants }: { payload: any; media: any[]; variants?: any[] }) => {
+      if (!seller?.id) throw new Error("Perfil de vendedor indisponível");
+      const fullPayload = { ...payload, seller_id: seller.id, is_active: true };
+      let productId = editingProduct?.id;
+
+      if (editingProduct) {
+        const { error } = await supabase.from("products").update(fullPayload).eq("id", editingProduct.id);
+        if (error) throw error;
+        await supabase.from("product_media").delete().eq("product_id", editingProduct.id);
+        await supabase.from("product_variants").delete().eq("product_id", editingProduct.id);
+      } else {
+        const { data, error } = await supabase.from("products").insert(fullPayload).select("id").single();
+        if (error) throw error;
+        productId = data.id;
+      }
+
+      if (media.length > 0 && productId) {
+        const mediaRows = media.map((m: any, i: number) => ({
+          product_id: productId, url: m.url, type: m.type, is_cover: m.is_cover, sort_order: i,
+        }));
+        const { error } = await supabase.from("product_media").insert(mediaRows);
+        if (error) throw error;
+      }
+
+      if (variants && variants.length > 0 && productId) {
+        const parents = variants.filter((v: any) => v.name && !v.parent_id);
+        const tempIdToDbId: Record<string, string> = {};
+        for (let i = 0; i < parents.length; i++) {
+          const v = parents[i];
+          const { data, error } = await supabase.from("product_variants").insert({
+            product_id: productId, variant_type: v.variant_type, name: v.name,
+            value: v.value || null, price_override: v.price_override ? parseFloat(v.price_override) : null,
+            stock: parseInt(v.stock) || 0, image_url: v.image_url || null,
+            sort_order: i, is_active: true, parent_id: null,
+          }).select("id").single();
+          if (error) throw error;
+          tempIdToDbId[v._tempId] = data.id;
+        }
+        const children = variants.filter((v: any) => v.name && v.parent_id);
+        if (children.length > 0) {
+          const childRows = children.map((v: any, i: number) => ({
+            product_id: productId, variant_type: v.variant_type, name: v.name,
+            value: v.value || null, price_override: v.price_override ? parseFloat(v.price_override) : null,
+            stock: parseInt(v.stock) || 0, image_url: v.image_url || null,
+            sort_order: i, is_active: true,
+            parent_id: tempIdToDbId[v.parent_id] || null,
+          }));
+          const { error } = await supabase.from("product_variants").insert(childRows);
+          if (error) throw error;
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["supplier_seller_products"] });
+      queryClient.invalidateQueries({ queryKey: ["supplier_product_covers"] });
+      queryClient.invalidateQueries({ queryKey: ["product_media"] });
+      toast.success(editingProduct ? "Produto actualizado!" : "Produto adicionado!");
+      setShowAddProduct(false);
+      setEditingProduct(null);
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const toggleActive = useMutation({
+    mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
+      const { error } = await supabase.from("products").update({ is_active: active }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["supplier_seller_products"] }); toast.success("Estado alterado"); },
+  });
+
   const deleteProduct = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("supplier_products").delete().eq("id", id);
+      const { error } = await supabase.from("products").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["supplier_products"] });
+      queryClient.invalidateQueries({ queryKey: ["supplier_seller_products"] });
       toast.success("Produto removido");
     },
     onError: (e: any) => toast.error(e.message),
