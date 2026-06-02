@@ -890,22 +890,25 @@ export default function FornecedorDashboard() {
             </div>
 
             <div className="bg-card border border-border rounded-xl p-4 space-y-2">
-              <h3 className="font-bold text-foreground text-sm">Produtos Mais Vendidos</h3>
-              {products.slice(0, 3).map((p: any) => (
-                <div key={p.id} className="flex items-center gap-3 py-1.5 border-b border-border last:border-0">
-                  <div className="w-8 h-8 bg-muted rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
-                    {p.images?.[0]
-                      ? <img src={p.images[0]} alt="" className="w-full h-full object-cover rounded-lg" />
-                      : <Package className="w-4 h-4 text-muted-foreground" />
-                    }
+              <h3 className="font-bold text-foreground text-sm">Produtos Recentes</h3>
+              {products.slice(0, 3).map((p: any) => {
+                const cover = (productCovers as any)[p.id];
+                return (
+                  <div key={p.id} className="flex items-center gap-3 py-1.5 border-b border-border last:border-0">
+                    <div className="w-8 h-8 bg-muted rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
+                      {cover
+                        ? <img src={cover} alt="" className="w-full h-full object-cover rounded-lg" />
+                        : <Package className="w-4 h-4 text-muted-foreground" />
+                      }
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{p.title}</p>
+                      <p className="text-[10px] text-muted-foreground">{p.sales_count || 0} vendas</p>
+                    </div>
+                    <p className="text-sm font-bold text-primary">{formatKz(p.price)}</p>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{p.name}</p>
-                    <p className="text-[10px] text-muted-foreground">{p.total_sold} vendas</p>
-                  </div>
-                  <p className="text-sm font-bold text-primary">{formatKz(p.cost_price)}</p>
-                </div>
-              ))}
+                );
+              })}
               {products.length === 0 && (
                 <p className="text-xs text-muted-foreground text-center py-3">Adiciona o primeiro produto!</p>
               )}
@@ -920,7 +923,7 @@ export default function FornecedorDashboard() {
               <h2 className="text-sm font-bold text-foreground">Os meus Produtos ({products.length})</h2>
               {!showAddProduct && (
                 <button
-                  onClick={() => setShowAddProduct(true)}
+                  onClick={() => { setEditingProduct(null); setShowAddProduct(true); }}
                   className="flex items-center gap-1 px-3 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-lg"
                 >
                   <Plus className="w-3.5 h-3.5" /> Adicionar
@@ -928,61 +931,55 @@ export default function FornecedorDashboard() {
               )}
             </div>
 
-            {showAddProduct && (
-              <SupplierProductForm
-                supplierId={supplier.id}
-                onSuccess={() => {
-                  setShowAddProduct(false);
-                  queryClient.invalidateQueries({ queryKey: ["supplier_products"] });
-                }}
-                onCancel={() => setShowAddProduct(false)}
+            {!seller && (
+              <div className="bg-card border border-border rounded-xl p-4 text-center text-xs text-muted-foreground">
+                A preparar perfil de vendedor…
+              </div>
+            )}
+
+            {showAddProduct && seller && (
+              <SellerProductForm
+                editingProduct={editingProduct}
+                existingMedia={editingProduct ? editingMedia : []}
+                existingVariants={editingProduct ? editingVariants : []}
+                onSave={(data, media, variants) => saveProduct.mutate({ payload: data, media, variants })}
+                onCancel={() => { setShowAddProduct(false); setEditingProduct(null); }}
+                saving={saveProduct.isPending}
               />
             )}
 
             <div className="space-y-2">
-              {products.map((p: any) => (
-                <div key={p.id} className="bg-card border border-border rounded-xl p-3">
-                  <div className="flex items-start gap-3">
-                    <div className="w-12 h-12 bg-muted rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden">
-                      {p.images?.[0]
-                        ? <img src={p.images[0]} alt="" className="w-full h-full object-cover" />
-                        : <Package className="w-5 h-5 text-muted-foreground" />
-                      }
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <p className="font-bold text-sm text-foreground truncate">{p.name}</p>
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold flex-shrink-0 ${statusColor[p.status]}`}>
-                          {statusLabel[p.status]}
-                        </span>
+              {products.map((p: any) => {
+                const cover = (productCovers as any)[p.id];
+                return (
+                  <div key={p.id} className={`bg-card border border-border rounded-xl p-3 ${!p.is_active ? "opacity-60" : ""}`}>
+                    <div className="flex items-start gap-3">
+                      <div className="w-12 h-12 bg-muted rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden">
+                        {cover
+                          ? <img src={cover} alt="" className="w-full h-full object-cover" />
+                          : <Package className="w-5 h-5 text-muted-foreground" />
+                        }
                       </div>
-                      <p className="text-[10px] text-muted-foreground">{p.category}</p>
-                      <div className="flex gap-4 mt-1.5">
-                        <div>
-                          <p className="text-[10px] text-muted-foreground">Custo</p>
-                          <p className="text-sm font-bold text-primary">{formatKz(p.cost_price)}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] text-muted-foreground">Stock</p>
-                          <p className={`text-sm font-bold ${p.stock_quantity < 5 ? "text-destructive" : "text-foreground"}`}>
-                            {p.stock_quantity} un.
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] text-muted-foreground">Vendas</p>
-                          <p className="text-sm font-bold text-green-500">{p.total_sold}</p>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-sm text-foreground truncate">{p.title}</p>
+                        <p className="text-sm font-bold text-primary mt-0.5">{formatKz(p.price)}</p>
+                        <div className="flex gap-3 mt-1 text-[10px] text-muted-foreground">
+                          <span>{p.is_active ? "Activo" : "Inactivo"}</span>
+                          {p.stock != null && <span>• Stock: {p.stock}</span>}
+                          {p.badge && <span className="text-primary font-bold">• {p.badge}</span>}
                         </div>
                       </div>
+                      <div className="flex flex-col gap-1 flex-shrink-0">
+                        <button onClick={() => { setEditingProduct(p); setShowAddProduct(true); }} className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground"><Edit className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => toggleActive.mutate({ id: p.id, active: !p.is_active })} className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground">
+                          {p.is_active ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                        <button onClick={() => deleteProduct.mutate(p.id)} className="p-1.5 rounded-lg hover:bg-destructive/10 text-destructive"><Trash2 className="w-3.5 h-3.5" /></button>
+                      </div>
                     </div>
-                    <button
-                      onClick={() => deleteProduct.mutate(p.id)}
-                      className="p-2 hover:bg-destructive/10 rounded-lg text-destructive flex-shrink-0"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
                   </div>
-                </div>
-              ))}
+                );
+              })}
 
               {products.length === 0 && !showAddProduct && (
                 <div className="text-center py-10 text-muted-foreground">
