@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Building2, Store, CheckCircle, XCircle, Clock,
-  Ban, Search, TrendingUp, DollarSign, Eye,
+  Ban, Search, Phone, Mail, MapPin, FileText,
 } from "lucide-react";
 
 type SubTab = "visao" | "fornecedores" | "dropshippers";
@@ -15,12 +15,13 @@ export default function AdminSuppliersTab() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
 
+  // ✅ FIX 1: join com profiles para obter o nome do utilizador que submeteu
   const { data: suppliers = [], isLoading } = useQuery({
     queryKey: ["admin_suppliers"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("suppliers")
-        .select("*")
+        .select("*, profile:user_id(full_name)")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
@@ -47,35 +48,50 @@ export default function AdminSuppliersTab() {
         .eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_suppliers"] }); toast.success("Fornecedor aprovado!"); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin_suppliers"] });
+      toast.success("Fornecedor aprovado!");
+    },
     onError: (e: any) => toast.error(e.message),
   });
 
   const rejectSupplier = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("suppliers").update({ status: "rejected" }).eq("id", id);
+      const { error } = await supabase
+        .from("suppliers")
+        .update({ status: "rejected" })
+        .eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_suppliers"] }); toast.success("Fornecedor rejeitado"); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin_suppliers"] });
+      toast.success("Fornecedor rejeitado");
+    },
     onError: (e: any) => toast.error(e.message),
   });
 
   const suspendSupplier = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("suppliers").update({ status: "suspended" }).eq("id", id);
+      const { error } = await supabase
+        .from("suppliers")
+        .update({ status: "suspended" })
+        .eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_suppliers"] }); toast.success("Fornecedor suspenso"); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin_suppliers"] });
+      toast.success("Fornecedor suspenso");
+    },
     onError: (e: any) => toast.error(e.message),
   });
 
   const formatKz = (v: number) => `${(v || 0).toLocaleString("pt-AO")} Kz`;
 
   const statusConfig: Record<string, { color: string; label: string }> = {
-    pending:   { color: "bg-amber-500/10 text-amber-500",      label: "Pendente"  },
-    approved:  { color: "bg-green-500/10 text-green-500",      label: "Aprovado"  },
-    rejected:  { color: "bg-destructive/10 text-destructive",  label: "Rejeitado" },
-    suspended: { color: "bg-muted text-muted-foreground",      label: "Suspenso"  },
+    pending:   { color: "bg-amber-500/10 text-amber-500",     label: "Pendente"  },
+    approved:  { color: "bg-green-500/10 text-green-500",     label: "Aprovado"  },
+    rejected:  { color: "bg-destructive/10 text-destructive", label: "Rejeitado" },
+    suspended: { color: "bg-muted text-muted-foreground",     label: "Suspenso"  },
   };
 
   const stats = {
@@ -86,18 +102,21 @@ export default function AdminSuppliersTab() {
   };
 
   const filtered = suppliers.filter((s: any) => {
-    const matchSearch = !search ||
+    const matchSearch =
+      !search ||
       s.company_name?.toLowerCase().includes(search.toLowerCase()) ||
       s.contact_name?.toLowerCase().includes(search.toLowerCase()) ||
-      s.email?.toLowerCase().includes(search.toLowerCase());
+      s.email?.toLowerCase().includes(search.toLowerCase()) ||
+      // ✅ FIX 2: pesquisa também pelo nome do perfil do utilizador
+      s.profile?.full_name?.toLowerCase().includes(search.toLowerCase());
     const matchStatus = !statusFilter || s.status === statusFilter;
     return matchSearch && matchStatus;
   });
 
   const subTabs: { key: SubTab; label: string }[] = [
-    { key: "visao",         label: "Visão Geral" },
-    { key: "fornecedores",  label: `Fornecedores${stats.pending > 0 ? ` (${stats.pending})` : ""}` },
-    { key: "dropshippers",  label: "Dropshippers" },
+    { key: "visao",        label: "Visão Geral" },
+    { key: "fornecedores", label: `Fornecedores${stats.pending > 0 ? ` (${stats.pending})` : ""}` },
+    { key: "dropshippers", label: "Dropshippers" },
   ];
 
   return (
@@ -125,10 +144,10 @@ export default function AdminSuppliersTab() {
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-2">
             {[
-              { label: "Fornecedores",  value: stats.total,    icon: Building2,  color: "text-primary" },
-              { label: "Pendentes",     value: stats.pending,  icon: Clock,      color: "text-amber-500" },
-              { label: "Aprovados",     value: stats.approved, icon: CheckCircle, color: "text-green-500" },
-              { label: "Dropshippers",  value: stats.drops,    icon: Store,      color: "text-blue-500" },
+              { label: "Fornecedores", value: stats.total,    icon: Building2,   color: "text-primary"     },
+              { label: "Pendentes",    value: stats.pending,  icon: Clock,       color: "text-amber-500"   },
+              { label: "Aprovados",    value: stats.approved, icon: CheckCircle, color: "text-green-500"   },
+              { label: "Dropshippers", value: stats.drops,    icon: Store,       color: "text-blue-500"    },
             ].map((s) => (
               <div key={s.label} className="bg-card border border-border rounded-xl p-3">
                 <s.icon className={`w-5 h-5 ${s.color} mb-1`} />
@@ -151,13 +170,20 @@ export default function AdminSuppliersTab() {
                   .slice(0, 3)
                   .map((s: any) => (
                     <div key={s.id} className="flex items-center justify-between bg-card rounded-xl p-3 border border-border">
-                      <div>
-                        <p className="text-sm font-bold text-foreground">{s.company_name}</p>
+                      <div className="min-w-0 flex-1 pr-2">
+                        <p className="text-sm font-bold text-foreground truncate">{s.company_name}</p>
+                        {/* ✅ FIX 3: mostra contact_name E o nome do perfil do utilizador */}
+                        <p className="text-[10px] text-muted-foreground truncate">
+                          {s.contact_name}
+                          {s.profile?.full_name && s.profile.full_name !== s.contact_name && (
+                            <span className="opacity-60"> · conta: {s.profile.full_name}</span>
+                          )}
+                        </p>
                         <p className="text-[10px] text-muted-foreground">
-                          {s.province} • {new Date(s.created_at).toLocaleDateString("pt-AO")}
+                          {s.province} · {new Date(s.created_at).toLocaleDateString("pt-AO")}
                         </p>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-shrink-0">
                         <button
                           onClick={() => rejectSupplier.mutate(s.id)}
                           className="p-1.5 bg-destructive/10 text-destructive rounded-lg"
@@ -175,7 +201,10 @@ export default function AdminSuppliersTab() {
                   ))}
               </div>
               {stats.pending > 3 && (
-                <button onClick={() => setSubTab("fornecedores")} className="text-xs text-primary font-bold mt-2">
+                <button
+                  onClick={() => setSubTab("fornecedores")}
+                  className="text-xs text-primary font-bold mt-2"
+                >
                   Ver todos →
                 </button>
               )}
@@ -236,6 +265,12 @@ export default function AdminSuppliersTab() {
             </select>
           </div>
 
+          {isLoading && (
+            <div className="flex justify-center py-8">
+              <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
+
           <div className="space-y-3">
             {filtered.map((s: any) => {
               const sc = statusConfig[s.status] || statusConfig.pending;
@@ -249,18 +284,55 @@ export default function AdminSuppliersTab() {
                           <span className="text-[10px] bg-blue-500/10 text-blue-500 px-1.5 py-0.5 rounded-full flex-shrink-0">✓</span>
                         )}
                       </div>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">{s.contact_name} • {s.province}</p>
-                      <p className="text-[10px] text-muted-foreground">{s.email} • {s.phone}</p>
+                      {/* ✅ FIX 4: mostra quem submeteu (conta registada) */}
+                      {s.profile?.full_name && (
+                        <p className="text-[10px] text-primary/70 mt-0.5">
+                          Conta: {s.profile.full_name}
+                        </p>
+                      )}
                     </div>
                     <span className={`text-[10px] px-2 py-1 rounded-full font-bold flex-shrink-0 ${sc.color}`}>
                       {sc.label}
                     </span>
                   </div>
 
+                  {/* Detalhes de contacto */}
+                  <div className="space-y-1 mb-3">
+                    {s.contact_name && (
+                      <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                        <FileText className="w-3 h-3 flex-shrink-0" />
+                        {s.contact_name}
+                        {s.company_nif && <span className="opacity-60">· NIF: {s.company_nif}</span>}
+                      </p>
+                    )}
+                    {s.phone && (
+                      <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                        <Phone className="w-3 h-3 flex-shrink-0" /> {s.phone}
+                      </p>
+                    )}
+                    {s.email && (
+                      <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                        <Mail className="w-3 h-3 flex-shrink-0" /> {s.email}
+                      </p>
+                    )}
+                    {(s.province || s.address) && (
+                      <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                        <MapPin className="w-3 h-3 flex-shrink-0" />
+                        {[s.province, s.address].filter(Boolean).join(" · ")}
+                      </p>
+                    )}
+                    {s.description && (
+                      <p className="text-[11px] text-muted-foreground italic mt-1 leading-relaxed">
+                        "{s.description}"
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Métricas */}
                   <div className="flex gap-2 text-center bg-muted rounded-xl p-2 mb-3">
                     {[
                       { label: "Produtos", value: s.total_products || 0 },
-                      { label: "Pedidos",  value: s.total_orders || 0 },
+                      { label: "Pedidos",  value: s.total_orders   || 0 },
                       { label: "Receita",  value: formatKz(s.total_revenue || 0) },
                     ].map((item) => (
                       <div key={item.label} className="flex-1">
@@ -270,6 +342,7 @@ export default function AdminSuppliersTab() {
                     ))}
                   </div>
 
+                  {/* Ações */}
                   <div className="flex gap-2">
                     {s.status === "pending" && (
                       <>
@@ -312,7 +385,7 @@ export default function AdminSuppliersTab() {
               );
             })}
 
-            {filtered.length === 0 && (
+            {!isLoading && filtered.length === 0 && (
               <div className="text-center py-10 text-muted-foreground">
                 <Building2 className="w-10 h-10 mx-auto mb-2 opacity-20" />
                 <p className="text-sm">Nenhum fornecedor encontrado</p>
@@ -336,7 +409,9 @@ export default function AdminSuppliersTab() {
           </div>
 
           {dropshippers
-            .filter((d: any) => !search || d.store_name?.toLowerCase().includes(search.toLowerCase()))
+            .filter((d: any) =>
+              !search || d.store_name?.toLowerCase().includes(search.toLowerCase())
+            )
             .map((store: any) => (
               <div key={store.id} className="bg-card border border-border rounded-xl p-4">
                 <div className="flex items-start justify-between mb-3">
@@ -355,7 +430,7 @@ export default function AdminSuppliersTab() {
                 <div className="flex gap-2 text-center bg-muted rounded-xl p-2">
                   {[
                     { label: "Produtos", value: store.total_products || 0 },
-                    { label: "Pedidos",  value: store.total_orders || 0 },
+                    { label: "Pedidos",  value: store.total_orders   || 0 },
                     { label: "Receita",  value: formatKz(store.total_revenue || 0) },
                   ].map((item) => (
                     <div key={item.label} className="flex-1">
