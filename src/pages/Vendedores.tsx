@@ -12,7 +12,8 @@ const Vendedores = () => {
   const navigate = useNavigate();
   const [activeFilter, setActiveFilter] = useState("Todos");
   const [search, setSearch] = useState("");
-  const { data: dbSellers, isLoading } = useSellers({ type: "individual" });
+  // Sem filtro de tipo: mostra vendedores individuais, lojas e fornecedores/afiliados no mesmo sítio
+  const { data: dbSellers, isLoading } = useSellers();
 
   // ✅ Estabiliza o array para não quebrar a query key do useBulkSellerSales
   const sellerIds = useMemo(

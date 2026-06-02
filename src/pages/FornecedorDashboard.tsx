@@ -9,8 +9,9 @@ import {
   Plus, Trash2, BarChart3, Star,
   AlertCircle, Clock, ArrowLeft, Camera,
   ImageIcon, X, Upload, Save, Weight,
-  Ruler, Package2, Info, AlertTriangle,
+  Ruler, Package2, Info, AlertTriangle, Edit, Eye, EyeOff,
 } from "lucide-react";
+import SellerProductForm from "@/components/seller/SellerProductForm";
 
 type Tab = "visao" | "produtos" | "pedidos" | "ganhos";
 
@@ -499,6 +500,7 @@ export default function FornecedorDashboard() {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>("visao");
   const [showAddProduct, setShowAddProduct] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<any>(null);
 
   const { data: supplier, isLoading } = useQuery({
     queryKey: ["my_supplier", user?.id],
@@ -514,18 +516,100 @@ export default function FornecedorDashboard() {
     enabled: !!user,
   });
 
+  // Perfil de vendedor unificado — os produtos do fornecedor/afiliado vivem em `products`
+  // e aparecem nas mesmas listagens dos vendedores normais.
+  const { data: seller } = useQuery({
+    queryKey: ["my_seller_for_supplier", user?.id],
+    queryFn: async () => {
+      const { data: existing } = await supabase
+        .from("sellers")
+        .select("*")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      if (existing) return existing;
+
+      // Auto-cria se não existir (fornecedores antigos sem sellers row)
+      const baseName = supplier?.company_name || "Fornecedor";
+      const slug = baseName
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "")
+        .slice(0, 60) + "-" + user!.id.slice(0, 6);
+
+      const { data: created, error } = await (supabase as any)
+        .from("sellers")
+        .insert({
+          user_id: user!.id,
+          name: baseName,
+          slug,
+          type: "company",
+          description: supplier?.description || null,
+          phone: supplier?.phone || null,
+          email: supplier?.email || null,
+          province: supplier?.province || null,
+          address: supplier?.address || null,
+          is_active: true,
+        })
+        .select("*")
+        .single();
+      if (error) throw error;
+      return created;
+    },
+    enabled: !!user && !!supplier,
+  });
+
   const { data: products = [] } = useQuery({
-    queryKey: ["supplier_products", supplier?.id],
+    queryKey: ["supplier_seller_products", seller?.id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("supplier_products")
+        .from("products")
         .select("*")
-        .eq("supplier_id", supplier!.id)
+        .eq("seller_id", seller!.id)
         .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!seller?.id,
+  });
+
+  const { data: productCovers = {} } = useQuery({
+    queryKey: ["supplier_product_covers", seller?.id],
+    queryFn: async () => {
+      const ids = products.map((p: any) => p.id);
+      if (ids.length === 0) return {};
+      const { data, error } = await supabase
+        .from("product_media")
+        .select("product_id, url")
+        .in("product_id", ids)
+        .eq("is_cover", true);
+      if (error) throw error;
+      const map: Record<string, string> = {};
+      (data || []).forEach((m: any) => { map[m.product_id] = m.url; });
+      return map;
+    },
+    enabled: products.length > 0,
+  });
+
+  const { data: editingMedia = [] } = useQuery({
+    queryKey: ["product_media", editingProduct?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("product_media").select("*").eq("product_id", editingProduct!.id).order("sort_order");
       if (error) throw error;
       return data;
     },
-    enabled: !!supplier?.id,
+    enabled: !!editingProduct?.id,
+  });
+
+  const { data: editingVariants = [] } = useQuery({
+    queryKey: ["product_variants_edit", editingProduct?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("product_variants").select("*").eq("product_id", editingProduct!.id).order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!editingProduct?.id,
   });
 
   const { data: orders = [] } = useQuery({
@@ -543,13 +627,85 @@ export default function FornecedorDashboard() {
     enabled: !!supplier?.id,
   });
 
+  const saveProduct = useMutation({
+    mutationFn: async ({ payload, media, variants }: { payload: any; media: any[]; variants?: any[] }) => {
+      if (!seller?.id) throw new Error("Perfil de vendedor indisponível");
+      const fullPayload = { ...payload, seller_id: seller.id, is_active: true };
+      let productId = editingProduct?.id;
+
+      if (editingProduct) {
+        const { error } = await supabase.from("products").update(fullPayload).eq("id", editingProduct.id);
+        if (error) throw error;
+        await supabase.from("product_media").delete().eq("product_id", editingProduct.id);
+        await supabase.from("product_variants").delete().eq("product_id", editingProduct.id);
+      } else {
+        const { data, error } = await supabase.from("products").insert(fullPayload).select("id").single();
+        if (error) throw error;
+        productId = data.id;
+      }
+
+      if (media.length > 0 && productId) {
+        const mediaRows = media.map((m: any, i: number) => ({
+          product_id: productId, url: m.url, type: m.type, is_cover: m.is_cover, sort_order: i,
+        }));
+        const { error } = await supabase.from("product_media").insert(mediaRows);
+        if (error) throw error;
+      }
+
+      if (variants && variants.length > 0 && productId) {
+        const parents = variants.filter((v: any) => v.name && !v.parent_id);
+        const tempIdToDbId: Record<string, string> = {};
+        for (let i = 0; i < parents.length; i++) {
+          const v = parents[i];
+          const { data, error } = await supabase.from("product_variants").insert({
+            product_id: productId, variant_type: v.variant_type, name: v.name,
+            value: v.value || null, price_override: v.price_override ? parseFloat(v.price_override) : null,
+            stock: parseInt(v.stock) || 0, image_url: v.image_url || null,
+            sort_order: i, is_active: true, parent_id: null,
+          }).select("id").single();
+          if (error) throw error;
+          tempIdToDbId[v._tempId] = data.id;
+        }
+        const children = variants.filter((v: any) => v.name && v.parent_id);
+        if (children.length > 0) {
+          const childRows = children.map((v: any, i: number) => ({
+            product_id: productId, variant_type: v.variant_type, name: v.name,
+            value: v.value || null, price_override: v.price_override ? parseFloat(v.price_override) : null,
+            stock: parseInt(v.stock) || 0, image_url: v.image_url || null,
+            sort_order: i, is_active: true,
+            parent_id: tempIdToDbId[v.parent_id] || null,
+          }));
+          const { error } = await supabase.from("product_variants").insert(childRows);
+          if (error) throw error;
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["supplier_seller_products"] });
+      queryClient.invalidateQueries({ queryKey: ["supplier_product_covers"] });
+      queryClient.invalidateQueries({ queryKey: ["product_media"] });
+      toast.success(editingProduct ? "Produto actualizado!" : "Produto adicionado!");
+      setShowAddProduct(false);
+      setEditingProduct(null);
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const toggleActive = useMutation({
+    mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
+      const { error } = await supabase.from("products").update({ is_active: active }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["supplier_seller_products"] }); toast.success("Estado alterado"); },
+  });
+
   const deleteProduct = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("supplier_products").delete().eq("id", id);
+      const { error } = await supabase.from("products").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["supplier_products"] });
+      queryClient.invalidateQueries({ queryKey: ["supplier_seller_products"] });
       toast.success("Produto removido");
     },
     onError: (e: any) => toast.error(e.message),
@@ -734,22 +890,25 @@ export default function FornecedorDashboard() {
             </div>
 
             <div className="bg-card border border-border rounded-xl p-4 space-y-2">
-              <h3 className="font-bold text-foreground text-sm">Produtos Mais Vendidos</h3>
-              {products.slice(0, 3).map((p: any) => (
-                <div key={p.id} className="flex items-center gap-3 py-1.5 border-b border-border last:border-0">
-                  <div className="w-8 h-8 bg-muted rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
-                    {p.images?.[0]
-                      ? <img src={p.images[0]} alt="" className="w-full h-full object-cover rounded-lg" />
-                      : <Package className="w-4 h-4 text-muted-foreground" />
-                    }
+              <h3 className="font-bold text-foreground text-sm">Produtos Recentes</h3>
+              {products.slice(0, 3).map((p: any) => {
+                const cover = (productCovers as any)[p.id];
+                return (
+                  <div key={p.id} className="flex items-center gap-3 py-1.5 border-b border-border last:border-0">
+                    <div className="w-8 h-8 bg-muted rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
+                      {cover
+                        ? <img src={cover} alt="" className="w-full h-full object-cover rounded-lg" />
+                        : <Package className="w-4 h-4 text-muted-foreground" />
+                      }
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{p.title}</p>
+                      <p className="text-[10px] text-muted-foreground">{p.sales_count || 0} vendas</p>
+                    </div>
+                    <p className="text-sm font-bold text-primary">{formatKz(p.price)}</p>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{p.name}</p>
-                    <p className="text-[10px] text-muted-foreground">{p.total_sold} vendas</p>
-                  </div>
-                  <p className="text-sm font-bold text-primary">{formatKz(p.cost_price)}</p>
-                </div>
-              ))}
+                );
+              })}
               {products.length === 0 && (
                 <p className="text-xs text-muted-foreground text-center py-3">Adiciona o primeiro produto!</p>
               )}
@@ -764,7 +923,7 @@ export default function FornecedorDashboard() {
               <h2 className="text-sm font-bold text-foreground">Os meus Produtos ({products.length})</h2>
               {!showAddProduct && (
                 <button
-                  onClick={() => setShowAddProduct(true)}
+                  onClick={() => { setEditingProduct(null); setShowAddProduct(true); }}
                   className="flex items-center gap-1 px-3 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-lg"
                 >
                   <Plus className="w-3.5 h-3.5" /> Adicionar
@@ -772,61 +931,55 @@ export default function FornecedorDashboard() {
               )}
             </div>
 
-            {showAddProduct && (
-              <SupplierProductForm
-                supplierId={supplier.id}
-                onSuccess={() => {
-                  setShowAddProduct(false);
-                  queryClient.invalidateQueries({ queryKey: ["supplier_products"] });
-                }}
-                onCancel={() => setShowAddProduct(false)}
+            {!seller && (
+              <div className="bg-card border border-border rounded-xl p-4 text-center text-xs text-muted-foreground">
+                A preparar perfil de vendedor…
+              </div>
+            )}
+
+            {showAddProduct && seller && (
+              <SellerProductForm
+                editingProduct={editingProduct}
+                existingMedia={editingProduct ? editingMedia : []}
+                existingVariants={editingProduct ? editingVariants : []}
+                onSave={(data, media, variants) => saveProduct.mutate({ payload: data, media, variants })}
+                onCancel={() => { setShowAddProduct(false); setEditingProduct(null); }}
+                saving={saveProduct.isPending}
               />
             )}
 
             <div className="space-y-2">
-              {products.map((p: any) => (
-                <div key={p.id} className="bg-card border border-border rounded-xl p-3">
-                  <div className="flex items-start gap-3">
-                    <div className="w-12 h-12 bg-muted rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden">
-                      {p.images?.[0]
-                        ? <img src={p.images[0]} alt="" className="w-full h-full object-cover" />
-                        : <Package className="w-5 h-5 text-muted-foreground" />
-                      }
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <p className="font-bold text-sm text-foreground truncate">{p.name}</p>
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold flex-shrink-0 ${statusColor[p.status]}`}>
-                          {statusLabel[p.status]}
-                        </span>
+              {products.map((p: any) => {
+                const cover = (productCovers as any)[p.id];
+                return (
+                  <div key={p.id} className={`bg-card border border-border rounded-xl p-3 ${!p.is_active ? "opacity-60" : ""}`}>
+                    <div className="flex items-start gap-3">
+                      <div className="w-12 h-12 bg-muted rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden">
+                        {cover
+                          ? <img src={cover} alt="" className="w-full h-full object-cover" />
+                          : <Package className="w-5 h-5 text-muted-foreground" />
+                        }
                       </div>
-                      <p className="text-[10px] text-muted-foreground">{p.category}</p>
-                      <div className="flex gap-4 mt-1.5">
-                        <div>
-                          <p className="text-[10px] text-muted-foreground">Custo</p>
-                          <p className="text-sm font-bold text-primary">{formatKz(p.cost_price)}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] text-muted-foreground">Stock</p>
-                          <p className={`text-sm font-bold ${p.stock_quantity < 5 ? "text-destructive" : "text-foreground"}`}>
-                            {p.stock_quantity} un.
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] text-muted-foreground">Vendas</p>
-                          <p className="text-sm font-bold text-green-500">{p.total_sold}</p>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-sm text-foreground truncate">{p.title}</p>
+                        <p className="text-sm font-bold text-primary mt-0.5">{formatKz(p.price)}</p>
+                        <div className="flex gap-3 mt-1 text-[10px] text-muted-foreground">
+                          <span>{p.is_active ? "Activo" : "Inactivo"}</span>
+                          {p.stock != null && <span>• Stock: {p.stock}</span>}
+                          {p.badge && <span className="text-primary font-bold">• {p.badge}</span>}
                         </div>
                       </div>
+                      <div className="flex flex-col gap-1 flex-shrink-0">
+                        <button onClick={() => { setEditingProduct(p); setShowAddProduct(true); }} className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground"><Edit className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => toggleActive.mutate({ id: p.id, active: !p.is_active })} className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground">
+                          {p.is_active ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                        <button onClick={() => deleteProduct.mutate(p.id)} className="p-1.5 rounded-lg hover:bg-destructive/10 text-destructive"><Trash2 className="w-3.5 h-3.5" /></button>
+                      </div>
                     </div>
-                    <button
-                      onClick={() => deleteProduct.mutate(p.id)}
-                      className="p-2 hover:bg-destructive/10 rounded-lg text-destructive flex-shrink-0"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
                   </div>
-                </div>
-              ))}
+                );
+              })}
 
               {products.length === 0 && !showAddProduct && (
                 <div className="text-center py-10 text-muted-foreground">
