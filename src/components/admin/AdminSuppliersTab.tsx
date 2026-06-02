@@ -19,9 +19,9 @@ export default function AdminSuppliersTab() {
   const { data: suppliers = [], isLoading } = useQuery({
     queryKey: ["admin_suppliers"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("suppliers")
-        .select("*, profile:user_id(full_name)")
+        .select("*, profiles:user_id(full_name)")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
@@ -31,7 +31,7 @@ export default function AdminSuppliersTab() {
   const { data: dropshippers = [] } = useQuery({
     queryKey: ["admin_dropship_stores"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("dropship_stores")
         .select("*")
         .order("created_at", { ascending: false });
@@ -42,7 +42,7 @@ export default function AdminSuppliersTab() {
 
   const approveSupplier = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("suppliers")
         .update({ status: "approved", is_verified: true })
         .eq("id", id);
@@ -57,7 +57,7 @@ export default function AdminSuppliersTab() {
 
   const rejectSupplier = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("suppliers")
         .update({ status: "rejected" })
         .eq("id", id);
@@ -72,7 +72,7 @@ export default function AdminSuppliersTab() {
 
   const suspendSupplier = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("suppliers")
         .update({ status: "suspended" })
         .eq("id", id);
