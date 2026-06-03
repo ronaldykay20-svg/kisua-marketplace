@@ -165,7 +165,7 @@ const amber = {
 // ─── Componente principal ─────────────────────────────────
 const SellerProductForm = ({
   editingProduct, existingMedia = [], existingVariants = [],
-  onSave, onCancel, saving,
+  onSave, onCancel, saving, supplierMode = false,
 }: Props) => {
   const { isAdmin } = useUserRole();
 
@@ -176,6 +176,7 @@ const SellerProductForm = ({
         title: editingProduct.title || "",
         description: editingProduct.description || "",
         price: String(editingProduct.price || ""),
+        min_price: editingProduct.min_price ? String(editingProduct.min_price) : "",
         old_price: editingProduct.old_price ? String(editingProduct.old_price) : "",
         discount_percent: editingProduct.discount_percent ? String(editingProduct.discount_percent) : "",
         stock: String(editingProduct.stock ?? 1),
@@ -420,6 +421,7 @@ const SellerProductForm = ({
       title: form.title,
       description: form.description || null,
       price: parseFloat(form.price),
+      min_price: form.min_price ? parseFloat(form.min_price) : null,
       old_price: form.old_price ? parseFloat(form.old_price) : null,
       discount_percent: form.discount_percent ? parseInt(form.discount_percent) : null,
       stock: parseInt(form.stock) || 1,
