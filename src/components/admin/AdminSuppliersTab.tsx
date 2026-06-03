@@ -42,11 +42,50 @@ export default function AdminSuppliersTab() {
 
   const approveSupplier = useMutation({
     mutationFn: async (id: string) => {
+      const { data: supplier, error: fetchError } = await (supabase as any)
+        .from("suppliers")
+        .select("*")
+        .eq("id", id)
+        .single();
+      if (fetchError) throw fetchError;
+
       const { error } = await (supabase as any)
         .from("suppliers")
         .update({ status: "approved", is_verified: true })
         .eq("id", id);
       if (error) throw error;
+
+      const slug = `${supplier.company_name || "fornecedor"}`
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "")
+        .slice(0, 60) + "-" + supplier.user_id.slice(0, 6);
+
+      const { data: existingSeller } = await (supabase as any)
+        .from("sellers")
+        .select("id")
+        .eq("user_id", supplier.user_id)
+        .maybeSingle();
+
+      const sellerPayload = {
+        name: supplier.company_name,
+        slug,
+        type: "company",
+        description: supplier.description || null,
+        phone: supplier.phone || null,
+        email: supplier.email || null,
+        province: supplier.province || null,
+        address: supplier.address || null,
+        is_active: true,
+        is_verified: true,
+      };
+
+      const sellerResult = existingSeller
+        ? await (supabase as any).from("sellers").update(sellerPayload).eq("id", existingSeller.id)
+        : await (supabase as any).from("sellers").insert({ ...sellerPayload, user_id: supplier.user_id });
+      if (sellerResult.error) throw sellerResult.error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin_suppliers"] });
@@ -57,11 +96,13 @@ export default function AdminSuppliersTab() {
 
   const rejectSupplier = useMutation({
     mutationFn: async (id: string) => {
+      const { data: supplier } = await (supabase as any).from("suppliers").select("user_id").eq("id", id).single();
       const { error } = await (supabase as any)
         .from("suppliers")
         .update({ status: "rejected" })
         .eq("id", id);
       if (error) throw error;
+      if (supplier?.user_id) await (supabase as any).from("sellers").update({ is_active: false, is_verified: false }).eq("user_id", supplier.user_id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin_suppliers"] });
@@ -72,11 +113,13 @@ export default function AdminSuppliersTab() {
 
   const suspendSupplier = useMutation({
     mutationFn: async (id: string) => {
+      const { data: supplier } = await (supabase as any).from("suppliers").select("user_id").eq("id", id).single();
       const { error } = await (supabase as any)
         .from("suppliers")
         .update({ status: "suspended" })
         .eq("id", id);
       if (error) throw error;
+      if (supplier?.user_id) await (supabase as any).from("sellers").update({ is_active: false }).eq("user_id", supplier.user_id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin_suppliers"] });
