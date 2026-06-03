@@ -722,6 +722,7 @@ export default function FornecedorDashboard() {
       toast.success(editingProduct ? "Produto actualizado!" : "Produto adicionado!");
       setShowAddProduct(false);
       setEditingProduct(null);
+      setSupplierMinPrice("");
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -958,7 +959,7 @@ export default function FornecedorDashboard() {
               <h2 className="text-sm font-bold text-foreground">Os meus Produtos ({products.length})</h2>
               {!showAddProduct && (
                 <button
-                  onClick={() => { setEditingProduct(null); setShowAddProduct(true); }}
+                  onClick={() => { setEditingProduct(null); setSupplierMinPrice(""); setShowAddProduct(true); }}
                   className="flex items-center gap-1 px-3 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-lg"
                 >
                   <Plus className="w-3.5 h-3.5" /> Adicionar
@@ -973,14 +974,30 @@ export default function FornecedorDashboard() {
             )}
 
             {showAddProduct && seller && (
-              <SellerProductForm
-                editingProduct={editingProduct}
-                existingMedia={editingProduct ? editingMedia : []}
-                existingVariants={editingProduct ? editingVariants : []}
-                onSave={(data, media, variants) => saveProduct.mutate({ payload: data, media, variants })}
-                onCancel={() => { setShowAddProduct(false); setEditingProduct(null); }}
-                saving={saveProduct.isPending}
-              />
+              <div className="space-y-3">
+                {!editingProduct && (
+                  <div className="bg-card border border-primary/20 rounded-xl p-3">
+                    <label className="text-[11px] font-bold text-foreground block mb-1">Preço mínimo para afiliados (Kz)</label>
+                    <input
+                      type="number"
+                      value={supplierMinPrice}
+                      onChange={(e) => setSupplierMinPrice(e.target.value)}
+                      placeholder="Se vazio, usa o preço actual do produto"
+                      className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground"
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">Ao importar, o afiliado vê uma sugestão automática de +10% sobre este mínimo.</p>
+                  </div>
+                )}
+                <SellerProductForm
+                  editingProduct={editingProduct}
+                  existingMedia={editingProduct ? editingMedia : []}
+                  existingVariants={editingProduct ? editingVariants : []}
+                  onSave={(data, media, variants) => saveProduct.mutate({ payload: data, media, variants })}
+                  onCancel={() => { setShowAddProduct(false); setEditingProduct(null); setSupplierMinPrice(""); }}
+                  saving={saveProduct.isPending}
+                  supplierMode
+                />
+              </div>
             )}
 
             <div className="space-y-2">
