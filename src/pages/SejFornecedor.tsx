@@ -106,7 +106,7 @@ export default function SejFornecedor() {
           email: form.email || null,
           province: form.province || null,
           address: form.address || null,
-          is_active: true,
+          is_active: false,
         });
       }
 
