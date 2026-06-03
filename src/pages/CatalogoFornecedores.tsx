@@ -30,7 +30,7 @@ export default function CatalogoFornecedores() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("dropship_stores")
-        .select("id, store_name, status")
+        .select("id, store_name, store_slug, description, phone, province, status")
         .eq("user_id", user!.id)
         .single();
       if (error) throw error;
@@ -96,10 +96,25 @@ export default function CatalogoFornecedores() {
       if (error) throw error;
 
       const { data: seller } = await (supabase as any).from("sellers").select("id").eq("user_id", user!.id).maybeSingle();
-      if (seller?.id) {
+      let sellerId = seller?.id;
+      if (!sellerId) {
+        const { data: createdSeller, error: sellerError } = await (supabase as any).from("sellers").insert({
+          user_id: user!.id,
+          name: store.store_name,
+          slug: `${store.store_slug || store.store_name}-${user!.id.slice(0, 6)}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""),
+          type: "individual",
+          description: store.description || null,
+          phone: store.phone || null,
+          province: store.province || null,
+          is_active: true,
+        }).select("id").single();
+        if (sellerError) throw sellerError;
+        sellerId = createdSeller.id;
+      }
+      if (sellerId) {
         const { data: cat } = await supabase.from("categories").select("id").ilike("name", selected.category || "").limit(1).maybeSingle();
         const { data: product, error: productError } = await (supabase as any).from("products").insert({
-          seller_id: seller.id,
+          seller_id: sellerId,
           title: selected.name,
           description: selected.description || null,
           category_id: cat?.id || null,
