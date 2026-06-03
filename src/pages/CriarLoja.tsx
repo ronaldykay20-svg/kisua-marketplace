@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -35,6 +35,7 @@ const BENEFITS = [
 export default function CriarLoja() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [loading, setLoading] = useState(false);
 
@@ -117,7 +118,27 @@ export default function CriarLoja() {
 
       if (error) throw error;
 
+      const { data: existingSeller } = await (supabase as any)
+        .from("sellers")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (!existingSeller) {
+        await (supabase as any).from("sellers").insert({
+          user_id: user.id,
+          name: form.store_name,
+          slug: `${form.store_slug}-${user.id.slice(0, 6)}`,
+          type: "individual",
+          description: form.description || null,
+          phone: form.phone || null,
+          province: form.province || null,
+          is_active: false,
+        });
+      }
+
       setStep(3);
+      queryClient.invalidateQueries({ queryKey: ["my_dropship_store"] });
       toast.success("Candidatura enviada para aprovação do Admin!");
     } catch (error: any) {
       toast.error(error.message || "Erro ao criar loja");
