@@ -603,15 +603,6 @@ const SellerProductForm = ({
                 className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground font-bold" />
               <p className="text-[9px] text-muted-foreground mt-0.5">{supplierMode ? "Preço base do fornecedor que aparece na loja" : "Preenche → calcula % automaticamente"}</p>
             </div>
-            {supplierMode && (
-              <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
-                <label className="text-[10px] font-bold text-foreground mb-0.5 block">Preço mínimo para afiliados (Kz)</label>
-                <input type="number" value={form.min_price} onChange={e => set("min_price", e.target.value)}
-                  placeholder="Ex: 45 000"
-                  className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground font-bold" />
-                <p className="text-[9px] text-muted-foreground mt-1">Ao importar, o sistema sugere automaticamente +10% sobre este mínimo como comissão da plataforma.</p>
-              </div>
-            )}
             {savingsSummary && (
               <div className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ background: "#FFF5F5" }}>
                 <span className="text-xs font-black px-2 py-0.5 rounded" style={{ background: "#C0392B", color: "#fff" }}>
