@@ -170,6 +170,23 @@ export default function CatalogoFornecedores() {
     );
   }
 
+  if ((myStore as any).status !== "active") {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <div className="text-center space-y-4 max-w-sm">
+          <div className="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
+            <Store className="w-7 h-7 text-primary" />
+          </div>
+          <h2 className="text-lg font-bold text-foreground">Candidatura em análise</h2>
+          <p className="text-sm text-muted-foreground">O Admin precisa aprovar a tua loja de afiliado antes de importares produtos.</p>
+          <button onClick={() => navigate("/painel-dropship")} className="w-full py-3 bg-primary text-primary-foreground font-bold rounded-xl text-sm">
+            Ver painel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background pb-14 md:pb-0">
 
