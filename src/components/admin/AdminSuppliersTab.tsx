@@ -128,6 +128,39 @@ export default function AdminSuppliersTab() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  const approveDropshipper = useMutation({
+    mutationFn: async (store: any) => {
+      const { error } = await (supabase as any).from("dropship_stores").update({ status: "active" }).eq("id", store.id);
+      if (error) throw error;
+
+      const slug = `${store.store_slug || store.store_name || "afiliado"}`
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "")
+        .slice(0, 60) + "-" + store.user_id.slice(0, 6);
+      const { data: existingSeller } = await (supabase as any).from("sellers").select("id").eq("user_id", store.user_id).maybeSingle();
+      const payload = { name: store.store_name, slug, type: "individual", description: store.description || null, phone: store.phone || null, province: store.province || null, is_active: true };
+      const sellerResult = existingSeller
+        ? await (supabase as any).from("sellers").update(payload).eq("id", existingSeller.id)
+        : await (supabase as any).from("sellers").insert({ ...payload, user_id: store.user_id });
+      if (sellerResult.error) throw sellerResult.error;
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_dropship_stores"] }); toast.success("Afiliado aprovado!"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const suspendDropshipper = useMutation({
+    mutationFn: async (store: any) => {
+      const { error } = await (supabase as any).from("dropship_stores").update({ status: "suspended" }).eq("id", store.id);
+      if (error) throw error;
+      await (supabase as any).from("sellers").update({ is_active: false }).eq("user_id", store.user_id);
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_dropship_stores"] }); toast.success("Afiliado suspenso"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   const formatKz = (v: number) => `${(v || 0).toLocaleString("pt-AO")} Kz`;
 
   const statusConfig: Record<string, { color: string; label: string }> = {
