@@ -14,6 +14,7 @@ interface ProductFormData {
   title: string;
   description: string;
   price: string;
+  min_price: string;
   old_price: string;
   discount_percent: string;
   stock: string;
@@ -64,6 +65,7 @@ interface Props {
   onSave: (data: any, media: MediaItem[], variants: VariantItem[]) => void;
   onCancel: () => void;
   saving?: boolean;
+  supplierMode?: boolean;
 }
 
 // ─── Constantes ───────────────────────────────────────────
@@ -77,7 +79,7 @@ const createEmptyVariant = (parentId?: string | null): VariantItem => ({
 });
 
 const emptyForm: ProductFormData = {
-  title: "", description: "", price: "", old_price: "", discount_percent: "",
+  title: "", description: "", price: "", min_price: "", old_price: "", discount_percent: "",
   stock: "1", sku: "", condition: "new",
   category_id: "", free_shipping: false, badge: "", is_sponsored: false,
   promotion_ends_at: "",
