@@ -551,7 +551,7 @@ export default function FornecedorDashboard() {
           email: supplier?.email || null,
           province: supplier?.province || null,
           address: supplier?.address || null,
-          is_active: true,
+          is_active: supplier?.status === "approved",
         })
         .select("*")
         .single();
