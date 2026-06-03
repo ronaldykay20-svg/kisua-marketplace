@@ -498,9 +498,11 @@ export default function AdminSuppliersTab() {
                   <span className={`text-[10px] px-2 py-1 rounded-full font-bold ${
                     store.status === "active"
                       ? "bg-green-500/10 text-green-500"
+                      : store.status === "pending"
+                      ? "bg-amber-500/10 text-amber-500"
                       : "bg-muted text-muted-foreground"
                   }`}>
-                    {store.status === "active" ? "Activa" : "Suspensa"}
+                    {store.status === "active" ? "Activa" : store.status === "pending" ? "Pendente" : "Suspensa"}
                   </span>
                 </div>
                 <div className="flex gap-2 text-center bg-muted rounded-xl p-2">
@@ -514,6 +516,18 @@ export default function AdminSuppliersTab() {
                       <p className="text-[10px] text-muted-foreground">{item.label}</p>
                     </div>
                   ))}
+                </div>
+                <div className="flex gap-2 mt-3">
+                  {store.status !== "active" && (
+                    <button onClick={() => approveDropshipper.mutate(store)} className="flex-1 py-2 bg-green-500/10 text-green-500 text-xs font-bold rounded-xl flex items-center justify-center gap-1">
+                      <CheckCircle className="w-3.5 h-3.5" /> Aprovar afiliado
+                    </button>
+                  )}
+                  {store.status === "active" && (
+                    <button onClick={() => suspendDropshipper.mutate(store)} className="flex-1 py-2 bg-destructive/10 text-destructive text-xs font-bold rounded-xl flex items-center justify-center gap-1">
+                      <Ban className="w-3.5 h-3.5" /> Suspender
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
