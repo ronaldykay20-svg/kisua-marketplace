@@ -501,6 +501,7 @@ export default function FornecedorDashboard() {
   const [tab, setTab] = useState<Tab>("visao");
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
+  const [supplierMinPrice, setSupplierMinPrice] = useState("");
 
   const { data: supplier, isLoading } = useQuery({
     queryKey: ["my_supplier", user?.id],
@@ -557,7 +558,16 @@ export default function FornecedorDashboard() {
       if (error) throw error;
       return created;
     },
-    enabled: !!user && !!supplier,
+    enabled: !!user && supplier?.status === "approved",
+  });
+
+  const { data: categories = [] } = useQuery({
+    queryKey: ["supplier_categories_for_mirror"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("categories").select("id, name").eq("is_active", true);
+      if (error) throw error;
+      return data || [];
+    },
   });
 
   const { data: products = [] } = useQuery({
@@ -650,6 +660,31 @@ export default function FornecedorDashboard() {
         }));
         const { error } = await supabase.from("product_media").insert(mediaRows);
         if (error) throw error;
+      }
+
+      if (!editingProduct && supplier?.id) {
+        const supplierPrice = Number(payload.price) || 0;
+        const minimumPrice = Math.max(Number(supplierMinPrice) || supplierPrice, supplierPrice);
+        const categoryName = (categories as any[]).find((c: any) => c.id === payload.category_id)?.name || null;
+        const { error: mirrorError } = await (supabase as any).from("supplier_products").insert({
+          supplier_id: supplier.id,
+          name: payload.title,
+          description: payload.description || null,
+          category: categoryName,
+          cost_price: supplierPrice,
+          suggested_price: Math.ceil(minimumPrice * 1.1),
+          min_price: minimumPrice,
+          stock_quantity: payload.stock || 1,
+          sku: payload.sku || null,
+          weight_kg: payload.weight_kg || null,
+          length_cm: payload.length_cm || null,
+          width_cm: payload.width_cm || null,
+          height_cm: payload.height_cm || null,
+          volume_m3: payload.volume_m3 || null,
+          images: media.map((m: any) => m.url),
+          status: "active",
+        });
+        if (mirrorError) throw mirrorError;
       }
 
       if (variants && variants.length > 0 && productId) {
