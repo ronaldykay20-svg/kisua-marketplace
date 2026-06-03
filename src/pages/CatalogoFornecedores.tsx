@@ -30,7 +30,7 @@ export default function CatalogoFornecedores() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("dropship_stores")
-        .select("id, store_name")
+        .select("id, store_name, status")
         .eq("user_id", user!.id)
         .single();
       if (error) throw error;
@@ -324,7 +324,7 @@ export default function CatalogoFornecedores() {
                     onClick={() => {
                       if (!isAdded) {
                         setSelected(p);
-                        setSellingPrice(String(p.suggested_price || Math.ceil((p.min_price || p.cost_price) * 1.1)));
+                        setSellingPrice(String(Math.ceil((p.min_price || p.cost_price) * 1.1)));
                       }
                     }}
                     className={`w-full py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-colors ${
