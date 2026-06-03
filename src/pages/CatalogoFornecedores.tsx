@@ -428,11 +428,11 @@ export default function CatalogoFornecedores() {
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">O teu lucro estimado</span>
                   <span className="font-bold text-green-500">
-                    {fmt(parseFloat(sellingPrice) - selected.cost_price - parseFloat(sellingPrice) * 0.15)}
+                    {fmt(parseFloat(sellingPrice) - selected.cost_price - parseFloat(sellingPrice) * 0.1)}
                   </span>
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-1">
-                  * Após comissões da plataforma (5%) e afiliados (10%)
+                  * Após comissão da plataforma (10%)
                 </p>
               </div>
             )}
