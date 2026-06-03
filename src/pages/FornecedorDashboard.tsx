@@ -501,6 +501,7 @@ export default function FornecedorDashboard() {
   const [tab, setTab] = useState<Tab>("visao");
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
+  const [supplierMinPrice, setSupplierMinPrice] = useState("");
 
   const { data: supplier, isLoading } = useQuery({
     queryKey: ["my_supplier", user?.id],
@@ -550,14 +551,23 @@ export default function FornecedorDashboard() {
           email: supplier?.email || null,
           province: supplier?.province || null,
           address: supplier?.address || null,
-          is_active: true,
+          is_active: supplier?.status === "approved",
         })
         .select("*")
         .single();
       if (error) throw error;
       return created;
     },
-    enabled: !!user && !!supplier,
+    enabled: !!user && supplier?.status === "approved",
+  });
+
+  const { data: categories = [] } = useQuery({
+    queryKey: ["supplier_categories_for_mirror"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("categories").select("id, name").eq("is_active", true);
+      if (error) throw error;
+      return data || [];
+    },
   });
 
   const { data: products = [] } = useQuery({
@@ -652,6 +662,31 @@ export default function FornecedorDashboard() {
         if (error) throw error;
       }
 
+      if (!editingProduct && supplier?.id) {
+        const supplierPrice = Number(payload.price) || 0;
+        const minimumPrice = Math.max(Number(supplierMinPrice) || supplierPrice, supplierPrice);
+        const categoryName = (categories as any[]).find((c: any) => c.id === payload.category_id)?.name || null;
+        const { error: mirrorError } = await (supabase as any).from("supplier_products").insert({
+          supplier_id: supplier.id,
+          name: payload.title,
+          description: payload.description || null,
+          category: categoryName,
+          cost_price: supplierPrice,
+          suggested_price: Math.ceil(minimumPrice * 1.1),
+          min_price: minimumPrice,
+          stock_quantity: payload.stock || 1,
+          sku: payload.sku || null,
+          weight_kg: payload.weight_kg || null,
+          length_cm: payload.length_cm || null,
+          width_cm: payload.width_cm || null,
+          height_cm: payload.height_cm || null,
+          volume_m3: payload.volume_m3 || null,
+          images: media.map((m: any) => m.url),
+          status: "active",
+        });
+        if (mirrorError) throw mirrorError;
+      }
+
       if (variants && variants.length > 0 && productId) {
         const parents = variants.filter((v: any) => v.name && !v.parent_id);
         const tempIdToDbId: Record<string, string> = {};
@@ -687,6 +722,7 @@ export default function FornecedorDashboard() {
       toast.success(editingProduct ? "Produto actualizado!" : "Produto adicionado!");
       setShowAddProduct(false);
       setEditingProduct(null);
+      setSupplierMinPrice("");
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -923,7 +959,7 @@ export default function FornecedorDashboard() {
               <h2 className="text-sm font-bold text-foreground">Os meus Produtos ({products.length})</h2>
               {!showAddProduct && (
                 <button
-                  onClick={() => { setEditingProduct(null); setShowAddProduct(true); }}
+                  onClick={() => { setEditingProduct(null); setSupplierMinPrice(""); setShowAddProduct(true); }}
                   className="flex items-center gap-1 px-3 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-lg"
                 >
                   <Plus className="w-3.5 h-3.5" /> Adicionar
@@ -938,14 +974,30 @@ export default function FornecedorDashboard() {
             )}
 
             {showAddProduct && seller && (
-              <SellerProductForm
-                editingProduct={editingProduct}
-                existingMedia={editingProduct ? editingMedia : []}
-                existingVariants={editingProduct ? editingVariants : []}
-                onSave={(data, media, variants) => saveProduct.mutate({ payload: data, media, variants })}
-                onCancel={() => { setShowAddProduct(false); setEditingProduct(null); }}
-                saving={saveProduct.isPending}
-              />
+              <div className="space-y-3">
+                {!editingProduct && (
+                  <div className="bg-card border border-primary/20 rounded-xl p-3">
+                    <label className="text-[11px] font-bold text-foreground block mb-1">Preço mínimo para afiliados (Kz)</label>
+                    <input
+                      type="number"
+                      value={supplierMinPrice}
+                      onChange={(e) => setSupplierMinPrice(e.target.value)}
+                      placeholder="Se vazio, usa o preço actual do produto"
+                      className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground"
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">Ao importar, o afiliado vê uma sugestão automática de +10% sobre este mínimo.</p>
+                  </div>
+                )}
+                <SellerProductForm
+                  editingProduct={editingProduct}
+                  existingMedia={editingProduct ? editingMedia : []}
+                  existingVariants={editingProduct ? editingVariants : []}
+                  onSave={(data, media, variants) => saveProduct.mutate({ payload: data, media, variants })}
+                  onCancel={() => { setShowAddProduct(false); setEditingProduct(null); setSupplierMinPrice(""); }}
+                  saving={saveProduct.isPending}
+                  supplierMode
+                />
+              </div>
             )}
 
             <div className="space-y-2">

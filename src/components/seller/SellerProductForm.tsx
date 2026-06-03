@@ -64,6 +64,7 @@ interface Props {
   onSave: (data: any, media: MediaItem[], variants: VariantItem[]) => void;
   onCancel: () => void;
   saving?: boolean;
+  supplierMode?: boolean;
 }
 
 // ─── Constantes ───────────────────────────────────────────
@@ -163,7 +164,7 @@ const amber = {
 // ─── Componente principal ─────────────────────────────────
 const SellerProductForm = ({
   editingProduct, existingMedia = [], existingVariants = [],
-  onSave, onCancel, saving,
+  onSave, onCancel, saving, supplierMode = false,
 }: Props) => {
   const { isAdmin } = useUserRole();
 
@@ -600,7 +601,7 @@ const SellerProductForm = ({
               <input type="number" value={form.price} onChange={e => handlePriceChange(e.target.value)}
                 placeholder="Ex: 40 000"
                 className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground font-bold" />
-              <p className="text-[9px] text-muted-foreground mt-0.5">Preenche → calcula % automaticamente</p>
+              <p className="text-[9px] text-muted-foreground mt-0.5">{supplierMode ? "Preço base do fornecedor que aparece na loja" : "Preenche → calcula % automaticamente"}</p>
             </div>
             {savingsSummary && (
               <div className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ background: "#FFF5F5" }}>

@@ -30,7 +30,7 @@ export default function CatalogoFornecedores() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("dropship_stores")
-        .select("id, store_name")
+        .select("id, store_name, store_slug, description, phone, province, status")
         .eq("user_id", user!.id)
         .single();
       if (error) throw error;
@@ -80,6 +80,13 @@ export default function CatalogoFornecedores() {
       if (!price || price < minP) {
         throw new Error(`Preço mínimo de venda: ${fmt(minP)}`);
       }
+      const { data: store } = await (supabase as any)
+        .from("dropship_stores")
+        .select("*")
+        .eq("id", myStore.id)
+        .single();
+      if (store?.status !== "active") throw new Error("A tua candidatura de afiliado ainda precisa de aprovação do Admin.");
+
       const { error } = await supabase.from("dropship_store_products").insert({
         store_id: myStore.id,
         supplier_product_id: selected.id,
@@ -87,11 +94,47 @@ export default function CatalogoFornecedores() {
         is_active: true,
       });
       if (error) throw error;
+
+      const { data: seller } = await (supabase as any).from("sellers").select("id").eq("user_id", user!.id).maybeSingle();
+      let sellerId = seller?.id;
+      if (!sellerId) {
+        const { data: createdSeller, error: sellerError } = await (supabase as any).from("sellers").insert({
+          user_id: user!.id,
+          name: store.store_name,
+          slug: `${store.store_slug || store.store_name}-${user!.id.slice(0, 6)}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""),
+          type: "individual",
+          description: store.description || null,
+          phone: store.phone || null,
+          province: store.province || null,
+          is_active: true,
+        }).select("id").single();
+        if (sellerError) throw sellerError;
+        sellerId = createdSeller.id;
+      }
+      if (sellerId) {
+        const { data: cat } = await supabase.from("categories").select("id").ilike("name", selected.category || "").limit(1).maybeSingle();
+        const { data: product, error: productError } = await (supabase as any).from("products").insert({
+          seller_id: sellerId,
+          title: selected.name,
+          description: selected.description || null,
+          category_id: cat?.id || null,
+          price,
+          stock: selected.stock_quantity || 1,
+          condition: "new",
+          is_active: true,
+        }).select("id").single();
+        if (productError) throw productError;
+        if (selected.images?.length && product?.id) {
+          const mediaRows = selected.images.map((url: string, i: number) => ({ product_id: product.id, url, type: "image", is_cover: i === 0, sort_order: i }));
+          const { error: mediaError } = await supabase.from("product_media").insert(mediaRows);
+          if (mediaError) throw mediaError;
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["added_supplier_products"] });
       queryClient.invalidateQueries({ queryKey: ["dropship_store_products"] });
-      toast.success(`"${selected?.name}" adicionado à tua loja!`);
+      toast.success(`"${selected?.name}" adicionado à tua loja e à montra principal!`);
       setSelected(null);
       setSellingPrice("");
     },
@@ -136,6 +179,23 @@ export default function CatalogoFornecedores() {
             className="w-full py-3 bg-primary text-primary-foreground font-bold rounded-xl text-sm"
           >
             Criar Loja Dropshipping
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if ((myStore as any).status !== "active") {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <div className="text-center space-y-4 max-w-sm">
+          <div className="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
+            <Store className="w-7 h-7 text-primary" />
+          </div>
+          <h2 className="text-lg font-bold text-foreground">Candidatura em análise</h2>
+          <p className="text-sm text-muted-foreground">O Admin precisa aprovar a tua loja de afiliado antes de importares produtos.</p>
+          <button onClick={() => navigate("/painel-dropship")} className="w-full py-3 bg-primary text-primary-foreground font-bold rounded-xl text-sm">
+            Ver painel
           </button>
         </div>
       </div>
@@ -296,7 +356,7 @@ export default function CatalogoFornecedores() {
                     onClick={() => {
                       if (!isAdded) {
                         setSelected(p);
-                        setSellingPrice(p.suggested_price?.toString() || "");
+                        setSellingPrice(String(Math.ceil((p.min_price || p.cost_price) * 1.1)));
                       }
                     }}
                     className={`w-full py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-colors ${
@@ -383,11 +443,11 @@ export default function CatalogoFornecedores() {
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">O teu lucro estimado</span>
                   <span className="font-bold text-green-500">
-                    {fmt(parseFloat(sellingPrice) - selected.cost_price - parseFloat(sellingPrice) * 0.15)}
+                    {fmt(parseFloat(sellingPrice) - selected.cost_price - parseFloat(sellingPrice) * 0.1)}
                   </span>
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-1">
-                  * Após comissões da plataforma (5%) e afiliados (10%)
+                  * Após comissão da plataforma (10%)
                 </p>
               </div>
             )}

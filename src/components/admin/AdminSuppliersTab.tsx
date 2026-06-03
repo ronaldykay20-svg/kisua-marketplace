@@ -42,11 +42,50 @@ export default function AdminSuppliersTab() {
 
   const approveSupplier = useMutation({
     mutationFn: async (id: string) => {
+      const { data: supplier, error: fetchError } = await (supabase as any)
+        .from("suppliers")
+        .select("*")
+        .eq("id", id)
+        .single();
+      if (fetchError) throw fetchError;
+
       const { error } = await (supabase as any)
         .from("suppliers")
         .update({ status: "approved", is_verified: true })
         .eq("id", id);
       if (error) throw error;
+
+      const slug = `${supplier.company_name || "fornecedor"}`
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "")
+        .slice(0, 60) + "-" + supplier.user_id.slice(0, 6);
+
+      const { data: existingSeller } = await (supabase as any)
+        .from("sellers")
+        .select("id")
+        .eq("user_id", supplier.user_id)
+        .maybeSingle();
+
+      const sellerPayload = {
+        name: supplier.company_name,
+        slug,
+        type: "company",
+        description: supplier.description || null,
+        phone: supplier.phone || null,
+        email: supplier.email || null,
+        province: supplier.province || null,
+        address: supplier.address || null,
+        is_active: true,
+        is_verified: true,
+      };
+
+      const sellerResult = existingSeller
+        ? await (supabase as any).from("sellers").update(sellerPayload).eq("id", existingSeller.id)
+        : await (supabase as any).from("sellers").insert({ ...sellerPayload, user_id: supplier.user_id });
+      if (sellerResult.error) throw sellerResult.error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin_suppliers"] });
@@ -57,11 +96,13 @@ export default function AdminSuppliersTab() {
 
   const rejectSupplier = useMutation({
     mutationFn: async (id: string) => {
+      const { data: supplier } = await (supabase as any).from("suppliers").select("user_id").eq("id", id).single();
       const { error } = await (supabase as any)
         .from("suppliers")
         .update({ status: "rejected" })
         .eq("id", id);
       if (error) throw error;
+      if (supplier?.user_id) await (supabase as any).from("sellers").update({ is_active: false, is_verified: false }).eq("user_id", supplier.user_id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin_suppliers"] });
@@ -72,16 +113,51 @@ export default function AdminSuppliersTab() {
 
   const suspendSupplier = useMutation({
     mutationFn: async (id: string) => {
+      const { data: supplier } = await (supabase as any).from("suppliers").select("user_id").eq("id", id).single();
       const { error } = await (supabase as any)
         .from("suppliers")
         .update({ status: "suspended" })
         .eq("id", id);
       if (error) throw error;
+      if (supplier?.user_id) await (supabase as any).from("sellers").update({ is_active: false }).eq("user_id", supplier.user_id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin_suppliers"] });
       toast.success("Fornecedor suspenso");
     },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const approveDropshipper = useMutation({
+    mutationFn: async (store: any) => {
+      const { error } = await (supabase as any).from("dropship_stores").update({ status: "active" }).eq("id", store.id);
+      if (error) throw error;
+
+      const slug = `${store.store_slug || store.store_name || "afiliado"}`
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "")
+        .slice(0, 60) + "-" + store.user_id.slice(0, 6);
+      const { data: existingSeller } = await (supabase as any).from("sellers").select("id").eq("user_id", store.user_id).maybeSingle();
+      const payload = { name: store.store_name, slug, type: "individual", description: store.description || null, phone: store.phone || null, province: store.province || null, is_active: true };
+      const sellerResult = existingSeller
+        ? await (supabase as any).from("sellers").update(payload).eq("id", existingSeller.id)
+        : await (supabase as any).from("sellers").insert({ ...payload, user_id: store.user_id });
+      if (sellerResult.error) throw sellerResult.error;
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_dropship_stores"] }); toast.success("Afiliado aprovado!"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const suspendDropshipper = useMutation({
+    mutationFn: async (store: any) => {
+      const { error } = await (supabase as any).from("dropship_stores").update({ status: "suspended" }).eq("id", store.id);
+      if (error) throw error;
+      await (supabase as any).from("sellers").update({ is_active: false }).eq("user_id", store.user_id);
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_dropship_stores"] }); toast.success("Afiliado suspenso"); },
     onError: (e: any) => toast.error(e.message),
   });
 
@@ -422,9 +498,11 @@ export default function AdminSuppliersTab() {
                   <span className={`text-[10px] px-2 py-1 rounded-full font-bold ${
                     store.status === "active"
                       ? "bg-green-500/10 text-green-500"
+                      : store.status === "pending"
+                      ? "bg-amber-500/10 text-amber-500"
                       : "bg-muted text-muted-foreground"
                   }`}>
-                    {store.status === "active" ? "Activa" : "Suspensa"}
+                    {store.status === "active" ? "Activa" : store.status === "pending" ? "Pendente" : "Suspensa"}
                   </span>
                 </div>
                 <div className="flex gap-2 text-center bg-muted rounded-xl p-2">
@@ -438,6 +516,18 @@ export default function AdminSuppliersTab() {
                       <p className="text-[10px] text-muted-foreground">{item.label}</p>
                     </div>
                   ))}
+                </div>
+                <div className="flex gap-2 mt-3">
+                  {store.status !== "active" && (
+                    <button onClick={() => approveDropshipper.mutate(store)} className="flex-1 py-2 bg-green-500/10 text-green-500 text-xs font-bold rounded-xl flex items-center justify-center gap-1">
+                      <CheckCircle className="w-3.5 h-3.5" /> Aprovar afiliado
+                    </button>
+                  )}
+                  {store.status === "active" && (
+                    <button onClick={() => suspendDropshipper.mutate(store)} className="flex-1 py-2 bg-destructive/10 text-destructive text-xs font-bold rounded-xl flex items-center justify-center gap-1">
+                      <Ban className="w-3.5 h-3.5" /> Suspender
+                    </button>
+                  )}
                 </div>
               </div>
             ))}

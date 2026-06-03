@@ -180,11 +180,18 @@ export default function DropshipDashboard() {
             <h1 className="text-lg font-bold text-foreground leading-tight truncate">{store.store_name}</h1>
           </div>
           <span className={`text-xs px-2 py-1 rounded-full font-bold flex-shrink-0 ${
-            store.status === "active" ? "bg-green-500/10 text-green-500" : "bg-destructive/10 text-destructive"
+            store.status === "active" ? "bg-green-500/10 text-green-500" : store.status === "pending" ? "bg-amber-500/10 text-amber-500" : "bg-destructive/10 text-destructive"
           }`}>
-            {store.status === "active" ? "Activa" : "Suspensa"}
+            {store.status === "active" ? "Activa" : store.status === "pending" ? "Pendente" : "Suspensa"}
           </span>
         </div>
+
+        {store.status !== "active" && (
+          <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-3 mb-4 flex gap-2">
+            <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-muted-foreground">O Admin precisa aprovar esta candidatura antes da loja importar produtos e aparecer como vendedor normal.</p>
+          </div>
+        )}
 
         {/* Stats rápidos */}
         <div className="grid grid-cols-3 gap-2 mb-4">
@@ -225,7 +232,7 @@ export default function DropshipDashboard() {
 
             {/* Acesso rápido ao catálogo */}
             <button
-              onClick={() => navigate("/catalogo-fornecedores")}
+              onClick={() => store.status === "active" ? navigate("/catalogo-fornecedores") : toast.error("A tua candidatura ainda está pendente de aprovação do Admin.")}
               className="w-full flex items-center justify-between bg-primary/5 border border-primary/20 rounded-xl p-4"
             >
               <div className="flex items-center gap-3">
@@ -280,7 +287,7 @@ export default function DropshipDashboard() {
                 <div className="text-center py-4">
                   <p className="text-xs text-muted-foreground">Ainda sem produtos na loja</p>
                   <button
-                    onClick={() => navigate("/catalogo-fornecedores")}
+                    onClick={() => store.status === "active" ? navigate("/catalogo-fornecedores") : toast.error("A tua candidatura ainda está pendente de aprovação do Admin.")}
                     className="text-primary text-xs font-bold mt-1"
                   >
                     Ver catálogo →
@@ -312,7 +319,7 @@ export default function DropshipDashboard() {
                 Produtos da Loja ({products.length})
               </h2>
               <button
-                onClick={() => navigate("/catalogo-fornecedores")}
+                onClick={() => store.status === "active" ? navigate("/catalogo-fornecedores") : toast.error("A tua candidatura ainda está pendente de aprovação do Admin.")}
                 className="flex items-center gap-1 px-3 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-lg"
               >
                 <Plus className="w-3.5 h-3.5" /> Adicionar
@@ -324,7 +331,7 @@ export default function DropshipDashboard() {
                 <Package className="w-10 h-10 mx-auto mb-2 opacity-20" />
                 <p className="text-sm">Ainda não adicionaste produtos</p>
                 <button
-                  onClick={() => navigate("/catalogo-fornecedores")}
+                  onClick={() => store.status === "active" ? navigate("/catalogo-fornecedores") : toast.error("A tua candidatura ainda está pendente de aprovação do Admin.")}
                   className="text-primary text-sm font-bold mt-1"
                 >
                   Ver catálogo de fornecedores →

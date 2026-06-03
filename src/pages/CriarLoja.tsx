@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -35,6 +35,7 @@ const BENEFITS = [
 export default function CriarLoja() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [loading, setLoading] = useState(false);
 
@@ -112,13 +113,33 @@ export default function CriarLoja() {
         description: form.description || null,
         phone: form.phone || null,
         province: form.province,
-        status: "active",
+        status: "pending",
       });
 
       if (error) throw error;
 
+      const { data: existingSeller } = await (supabase as any)
+        .from("sellers")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (!existingSeller) {
+        await (supabase as any).from("sellers").insert({
+          user_id: user.id,
+          name: form.store_name,
+          slug: `${form.store_slug}-${user.id.slice(0, 6)}`,
+          type: "individual",
+          description: form.description || null,
+          phone: form.phone || null,
+          province: form.province || null,
+          is_active: false,
+        });
+      }
+
       setStep(3);
-      toast.success("Loja criada com sucesso!");
+      queryClient.invalidateQueries({ queryKey: ["my_dropship_store"] });
+      toast.success("Candidatura enviada para aprovação do Admin!");
     } catch (error: any) {
       toast.error(error.message || "Erro ao criar loja");
     } finally {
@@ -366,17 +387,17 @@ export default function CriarLoja() {
               <CheckCircle2 className="w-10 h-10 text-green-600" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-foreground">Loja Criada!</h2>
+              <h2 className="text-xl font-bold text-foreground">Candidatura enviada!</h2>
               <p className="text-muted-foreground mt-2 text-sm leading-relaxed max-w-xs mx-auto">
-                A tua loja <strong className="text-foreground">{form.store_name}</strong> está activa. Agora é só adicionar produtos e começar a vender!
+                A tua loja <strong className="text-foreground">{form.store_name}</strong> será activada depois da aprovação do Admin.
               </p>
             </div>
 
             <div className="bg-card border border-border rounded-2xl p-5 text-left space-y-3">
               <p className="font-semibold text-foreground text-sm">Próximos passos:</p>
               {[
-                "Aceder ao catálogo de fornecedores",
-                "Escolher produtos para a tua loja",
+                "Aguardar aprovação do Admin",
+                "Aceder ao catálogo de fornecedores após aprovação",
                 "Definir os teus preços de venda",
                 "Partilhar a tua loja com clientes",
                 "Receber as primeiras vendas!",
@@ -392,10 +413,10 @@ export default function CriarLoja() {
 
             <div className="flex flex-col gap-2">
               <button
-                onClick={() => navigate("/catalogo-fornecedores")}
+                onClick={() => navigate("/painel-dropship")}
                 className="w-full py-3 bg-primary text-primary-foreground font-bold rounded-xl text-sm"
               >
-                Ver Catálogo de Produtos
+                Ver estado no Painel
               </button>
               <button
                 onClick={() => navigate("/painel-dropship")}
