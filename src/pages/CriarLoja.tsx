@@ -387,17 +387,17 @@ export default function CriarLoja() {
               <CheckCircle2 className="w-10 h-10 text-green-600" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-foreground">Loja Criada!</h2>
+              <h2 className="text-xl font-bold text-foreground">Candidatura enviada!</h2>
               <p className="text-muted-foreground mt-2 text-sm leading-relaxed max-w-xs mx-auto">
-                A tua loja <strong className="text-foreground">{form.store_name}</strong> está activa. Agora é só adicionar produtos e começar a vender!
+                A tua loja <strong className="text-foreground">{form.store_name}</strong> será activada depois da aprovação do Admin.
               </p>
             </div>
 
             <div className="bg-card border border-border rounded-2xl p-5 text-left space-y-3">
               <p className="font-semibold text-foreground text-sm">Próximos passos:</p>
               {[
-                "Aceder ao catálogo de fornecedores",
-                "Escolher produtos para a tua loja",
+                "Aguardar aprovação do Admin",
+                "Aceder ao catálogo de fornecedores após aprovação",
                 "Definir os teus preços de venda",
                 "Partilhar a tua loja com clientes",
                 "Receber as primeiras vendas!",
@@ -413,10 +413,10 @@ export default function CriarLoja() {
 
             <div className="flex flex-col gap-2">
               <button
-                onClick={() => navigate("/catalogo-fornecedores")}
+                onClick={() => navigate("/painel-dropship")}
                 className="w-full py-3 bg-primary text-primary-foreground font-bold rounded-xl text-sm"
               >
-                Ver Catálogo de Produtos
+                Ver estado no Painel
               </button>
               <button
                 onClick={() => navigate("/painel-dropship")}
