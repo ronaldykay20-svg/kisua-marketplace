@@ -80,6 +80,13 @@ export default function CatalogoFornecedores() {
       if (!price || price < minP) {
         throw new Error(`Preço mínimo de venda: ${fmt(minP)}`);
       }
+      const { data: store } = await (supabase as any)
+        .from("dropship_stores")
+        .select("*")
+        .eq("id", myStore.id)
+        .single();
+      if (store?.status !== "active") throw new Error("A tua candidatura de afiliado ainda precisa de aprovação do Admin.");
+
       const { error } = await supabase.from("dropship_store_products").insert({
         store_id: myStore.id,
         supplier_product_id: selected.id,
@@ -87,11 +94,32 @@ export default function CatalogoFornecedores() {
         is_active: true,
       });
       if (error) throw error;
+
+      const { data: seller } = await (supabase as any).from("sellers").select("id").eq("user_id", user!.id).maybeSingle();
+      if (seller?.id) {
+        const { data: cat } = await supabase.from("categories").select("id").ilike("name", selected.category || "").limit(1).maybeSingle();
+        const { data: product, error: productError } = await (supabase as any).from("products").insert({
+          seller_id: seller.id,
+          title: selected.name,
+          description: selected.description || null,
+          category_id: cat?.id || null,
+          price,
+          stock: selected.stock_quantity || 1,
+          condition: "new",
+          is_active: true,
+        }).select("id").single();
+        if (productError) throw productError;
+        if (selected.images?.length && product?.id) {
+          const mediaRows = selected.images.map((url: string, i: number) => ({ product_id: product.id, url, type: "image", is_cover: i === 0, sort_order: i }));
+          const { error: mediaError } = await supabase.from("product_media").insert(mediaRows);
+          if (mediaError) throw mediaError;
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["added_supplier_products"] });
       queryClient.invalidateQueries({ queryKey: ["dropship_store_products"] });
-      toast.success(`"${selected?.name}" adicionado à tua loja!`);
+      toast.success(`"${selected?.name}" adicionado à tua loja e à montra principal!`);
       setSelected(null);
       setSellingPrice("");
     },
@@ -296,7 +324,7 @@ export default function CatalogoFornecedores() {
                     onClick={() => {
                       if (!isAdded) {
                         setSelected(p);
-                        setSellingPrice(p.suggested_price?.toString() || "");
+                        setSellingPrice(String(p.suggested_price || Math.ceil((p.min_price || p.cost_price) * 1.1)));
                       }
                     }}
                     className={`w-full py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-colors ${
