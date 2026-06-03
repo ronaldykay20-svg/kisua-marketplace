@@ -14,7 +14,6 @@ interface ProductFormData {
   title: string;
   description: string;
   price: string;
-  min_price: string;
   old_price: string;
   discount_percent: string;
   stock: string;
@@ -79,7 +78,7 @@ const createEmptyVariant = (parentId?: string | null): VariantItem => ({
 });
 
 const emptyForm: ProductFormData = {
-  title: "", description: "", price: "", min_price: "", old_price: "", discount_percent: "",
+  title: "", description: "", price: "", old_price: "", discount_percent: "",
   stock: "1", sku: "", condition: "new",
   category_id: "", free_shipping: false, badge: "", is_sponsored: false,
   promotion_ends_at: "",
@@ -176,7 +175,6 @@ const SellerProductForm = ({
         title: editingProduct.title || "",
         description: editingProduct.description || "",
         price: String(editingProduct.price || ""),
-        min_price: editingProduct.min_price ? String(editingProduct.min_price) : "",
         old_price: editingProduct.old_price ? String(editingProduct.old_price) : "",
         discount_percent: editingProduct.discount_percent ? String(editingProduct.discount_percent) : "",
         stock: String(editingProduct.stock ?? 1),
@@ -421,7 +419,6 @@ const SellerProductForm = ({
       title: form.title,
       description: form.description || null,
       price: parseFloat(form.price),
-      min_price: form.min_price ? parseFloat(form.min_price) : null,
       old_price: form.old_price ? parseFloat(form.old_price) : null,
       discount_percent: form.discount_percent ? parseInt(form.discount_percent) : null,
       stock: parseInt(form.stock) || 1,
