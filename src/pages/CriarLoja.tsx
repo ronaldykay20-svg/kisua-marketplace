@@ -112,13 +112,13 @@ export default function CriarLoja() {
         description: form.description || null,
         phone: form.phone || null,
         province: form.province,
-        status: "active",
+        status: "pending",
       });
 
       if (error) throw error;
 
       setStep(3);
-      toast.success("Loja criada com sucesso!");
+      toast.success("Candidatura enviada para aprovação do Admin!");
     } catch (error: any) {
       toast.error(error.message || "Erro ao criar loja");
     } finally {
