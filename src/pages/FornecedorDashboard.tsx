@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import SellerProductForm from "@/components/seller/SellerProductForm";
 
-type Tab = "visao" | "produtos" | "pedidos" | "ganhos";
+type Tab = "visao" | "produtos" | "pedidos" | "ganhos" | "perfil";
 
 const CATEGORIES = [
   "Eletrônicos", "Calçados", "Vestuário", "Acessórios",
