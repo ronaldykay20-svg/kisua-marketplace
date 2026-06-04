@@ -10,6 +10,7 @@ import {
   EyeOff, TrendingUp, Star, AlertCircle,
   ExternalLink, Settings,
 } from "lucide-react";
+import SellerProfileEditor from "@/components/seller/SellerProfileEditor";
 
 type Tab = "visao" | "produtos" | "pedidos" | "ganhos" | "perfil";
 
