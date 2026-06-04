@@ -12,6 +12,8 @@ import {
   Ruler, Package2, Info, AlertTriangle, Edit, Eye, EyeOff,
 } from "lucide-react";
 import SellerProductForm from "@/components/seller/SellerProductForm";
+import SellerProfileEditor from "@/components/seller/SellerProfileEditor";
+import { User as UserIcon } from "lucide-react";
 
 type Tab = "visao" | "produtos" | "pedidos" | "ganhos" | "perfil";
 
