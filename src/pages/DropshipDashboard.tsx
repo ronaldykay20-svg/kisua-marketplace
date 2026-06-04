@@ -66,6 +66,21 @@ export default function DropshipDashboard() {
     enabled: !!store?.id,
   });
 
+  // Perfil de vendedor (mesma tabela que aparece em /vendedores)
+  const { data: sellerProfile, refetch: refetchSeller } = useQuery({
+    queryKey: ["my_seller", user?.id],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("sellers")
+        .select("*")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
   const toggleProduct = useMutation({
     mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
       const { error } = await supabase
