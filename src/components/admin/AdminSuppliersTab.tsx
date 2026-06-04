@@ -33,10 +33,19 @@ export default function AdminSuppliersTab() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("dropship_stores")
-        .select("*")
+        .select("*, profiles:user_id(full_name)")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data || [];
+      const userIds = (data || []).map((d: any) => d.user_id);
+      let sellerByUser: Record<string, any> = {};
+      if (userIds.length) {
+        const { data: sellersData } = await (supabase as any)
+          .from("sellers")
+          .select("id, user_id, name, logo_url, cover_url, is_active, is_verified, rating, total_reviews")
+          .in("user_id", userIds);
+        (sellersData || []).forEach((s: any) => { sellerByUser[s.user_id] = s; });
+      }
+      return (data || []).map((d: any) => ({ ...d, seller: sellerByUser[d.user_id] || null }));
     },
   });
 
