@@ -12,8 +12,10 @@ import {
   Ruler, Package2, Info, AlertTriangle, Edit, Eye, EyeOff,
 } from "lucide-react";
 import SellerProductForm from "@/components/seller/SellerProductForm";
+import SellerProfileEditor from "@/components/seller/SellerProfileEditor";
+import { User as UserIcon } from "lucide-react";
 
-type Tab = "visao" | "produtos" | "pedidos" | "ganhos";
+type Tab = "visao" | "produtos" | "pedidos" | "ganhos" | "perfil";
 
 const CATEGORIES = [
   "Eletrônicos", "Calçados", "Vestuário", "Acessórios",
@@ -558,7 +560,7 @@ export default function FornecedorDashboard() {
       if (error) throw error;
       return created;
     },
-    enabled: !!user && supplier?.status === "approved",
+    enabled: !!user && !!supplier,
   });
 
   const { data: categories = [] } = useQuery({
@@ -842,6 +844,7 @@ export default function FornecedorDashboard() {
 
   const tabs: { key: Tab; label: string; icon: any }[] = [
     { key: "visao",    label: "Visão Geral", icon: BarChart3 },
+    { key: "perfil",   label: "Perfil",      icon: UserIcon },
     { key: "produtos", label: "Produtos",    icon: Package },
     { key: "pedidos",  label: "Pedidos",     icon: ShoppingBag },
     { key: "ganhos",   label: "Ganhos",      icon: DollarSign },
@@ -949,6 +952,22 @@ export default function FornecedorDashboard() {
                 <p className="text-xs text-muted-foreground text-center py-3">Adiciona o primeiro produto!</p>
               )}
             </div>
+          </div>
+        )}
+
+        {/* ── PERFIL (logo + capa + dados públicos) ── */}
+        {tab === "perfil" && (
+          <div className="space-y-3">
+            <div className="bg-primary/5 border border-primary/20 rounded-xl p-3 text-xs text-foreground">
+              Estas imagens e dados aparecem na página <strong>Vendedores</strong> e em todos os sítios onde os vendedores são mostrados.
+            </div>
+            {seller ? (
+              <SellerProfileEditor seller={seller} />
+            ) : (
+              <div className="bg-card border border-border rounded-xl p-4 text-center text-xs text-muted-foreground">
+                A preparar perfil de vendedor…
+              </div>
+            )}
           </div>
         )}
 
