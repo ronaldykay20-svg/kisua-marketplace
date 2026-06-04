@@ -192,7 +192,7 @@ export default function DropshipDashboard() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="flex-1 min-w-0">
-            <p className="text-[10px] text-muted-foreground">Painel Dropshipping</p>
+            <p className="text-[10px] text-muted-foreground">Painel do Afiliado</p>
             <h1 className="text-lg font-bold text-foreground leading-tight truncate">{store.store_name}</h1>
           </div>
           <span className={`text-xs px-2 py-1 rounded-full font-bold flex-shrink-0 ${
