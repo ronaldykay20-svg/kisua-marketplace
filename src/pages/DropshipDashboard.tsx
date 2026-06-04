@@ -10,6 +10,7 @@ import {
   EyeOff, TrendingUp, Star, AlertCircle,
   ExternalLink, Settings,
 } from "lucide-react";
+import SellerProfileEditor from "@/components/seller/SellerProfileEditor";
 
 type Tab = "visao" | "produtos" | "pedidos" | "ganhos" | "perfil";
 
@@ -63,6 +64,21 @@ export default function DropshipDashboard() {
       return data || [];
     },
     enabled: !!store?.id,
+  });
+
+  // Perfil de vendedor (mesma tabela que aparece em /vendedores)
+  const { data: sellerProfile } = useQuery({
+    queryKey: ["my_seller", user?.id],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("sellers")
+        .select("*")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
   });
 
   const toggleProduct = useMutation({
@@ -176,7 +192,7 @@ export default function DropshipDashboard() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="flex-1 min-w-0">
-            <p className="text-[10px] text-muted-foreground">Painel Dropshipping</p>
+            <p className="text-[10px] text-muted-foreground">Painel do Afiliado</p>
             <h1 className="text-lg font-bold text-foreground leading-tight truncate">{store.store_name}</h1>
           </div>
           <span className={`text-xs px-2 py-1 rounded-full font-bold flex-shrink-0 ${
@@ -508,26 +524,20 @@ export default function DropshipDashboard() {
         {/* ── PERFIL ── */}
         {tab === "perfil" && (
           <div className="space-y-3">
-            <h2 className="text-sm font-bold text-foreground">Perfil da Loja</h2>
+            <h2 className="text-sm font-bold text-foreground">Perfil de Vendedor (Afiliado)</h2>
+            <p className="text-xs text-muted-foreground">
+              Estes dados aparecem na página pública de Vendedores, tal como qualquer outro vendedor.
+              Inclui foto de perfil, capa, descrição e contactos.
+            </p>
 
-            <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-              {[
-                { label: "Nome da Loja",  value: store.store_name  },
-                { label: "Slug / URL",    value: store.store_slug  },
-                { label: "Província",     value: store.province    },
-                { label: "Telefone",      value: store.phone || "—" },
-              ].map((item) => (
-                <div key={item.label} className="flex justify-between py-1.5 border-b border-border last:border-0">
-                  <span className="text-xs text-muted-foreground">{item.label}</span>
-                  <span className="text-xs font-bold text-foreground">{item.value}</span>
-                </div>
-              ))}
-            </div>
-
-            {store.description && (
-              <div className="bg-card border border-border rounded-xl p-4">
-                <p className="text-[10px] font-bold text-muted-foreground mb-1">Descrição</p>
-                <p className="text-sm text-foreground">{store.description}</p>
+            {sellerProfile ? (
+              <SellerProfileEditor seller={sellerProfile} />
+            ) : (
+              <div className="bg-muted border border-border rounded-xl p-4 flex gap-2">
+                <AlertCircle className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-muted-foreground">
+                  Ainda não tens perfil de vendedor associado. Contacta o suporte.
+                </p>
               </div>
             )}
 
@@ -541,13 +551,6 @@ export default function DropshipDashboard() {
                 </p>
                 <p className="text-[10px] text-muted-foreground">Avaliação da loja</p>
               </div>
-            </div>
-
-            <div className="bg-muted border border-border rounded-xl p-4 flex gap-2">
-              <AlertCircle className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-              <p className="text-xs text-muted-foreground">
-                Para editar os dados da loja, contacta o suporte Zangu.
-              </p>
             </div>
           </div>
         )}

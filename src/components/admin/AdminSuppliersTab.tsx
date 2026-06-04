@@ -33,10 +33,19 @@ export default function AdminSuppliersTab() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("dropship_stores")
-        .select("*")
+        .select("*, profiles:user_id(full_name)")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data || [];
+      const userIds = (data || []).map((d: any) => d.user_id);
+      let sellerByUser: Record<string, any> = {};
+      if (userIds.length) {
+        const { data: sellersData } = await (supabase as any)
+          .from("sellers")
+          .select("id, user_id, name, logo_url, cover_url, is_active, is_verified, rating, total_reviews")
+          .in("user_id", userIds);
+        (sellersData || []).forEach((s: any) => { sellerByUser[s.user_id] = s; });
+      }
+      return (data || []).map((d: any) => ({ ...d, seller: sellerByUser[d.user_id] || null }));
     },
   });
 
@@ -192,7 +201,7 @@ export default function AdminSuppliersTab() {
   const subTabs: { key: SubTab; label: string }[] = [
     { key: "visao",        label: "Visão Geral" },
     { key: "fornecedores", label: `Fornecedores${stats.pending > 0 ? ` (${stats.pending})` : ""}` },
-    { key: "dropshippers", label: "Dropshippers" },
+    { key: "dropshippers", label: "Afiliados" },
   ];
 
   return (
@@ -223,7 +232,7 @@ export default function AdminSuppliersTab() {
               { label: "Fornecedores", value: stats.total,    icon: Building2,   color: "text-primary"     },
               { label: "Pendentes",    value: stats.pending,  icon: Clock,       color: "text-amber-500"   },
               { label: "Aprovados",    value: stats.approved, icon: CheckCircle, color: "text-green-500"   },
-              { label: "Dropshippers", value: stats.drops,    icon: Store,       color: "text-blue-500"    },
+              { label: "Afiliados",    value: stats.drops,    icon: Store,       color: "text-blue-500"    },
             ].map((s) => (
               <div key={s.label} className="bg-card border border-border rounded-xl p-3">
                 <s.icon className={`w-5 h-5 ${s.color} mb-1`} />
@@ -479,30 +488,56 @@ export default function AdminSuppliersTab() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Pesquisar dropshippers..."
+              placeholder="Pesquisar afiliados..."
               className="w-full pl-8 pr-3 py-2 bg-muted border border-border rounded-xl text-sm text-foreground focus:outline-none"
             />
           </div>
 
+          <p className="text-[11px] text-muted-foreground">
+            Estes afiliados aparecem na página pública de <strong>Vendedores</strong> (não em Empresas) assim que forem aprovados.
+          </p>
+
           {dropshippers
             .filter((d: any) =>
-              !search || d.store_name?.toLowerCase().includes(search.toLowerCase())
+              !search ||
+              d.store_name?.toLowerCase().includes(search.toLowerCase()) ||
+              d.seller?.name?.toLowerCase().includes(search.toLowerCase()) ||
+              d.profiles?.full_name?.toLowerCase().includes(search.toLowerCase())
             )
             .map((store: any) => (
               <div key={store.id} className="bg-card border border-border rounded-xl p-4">
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <p className="font-bold text-sm text-foreground">{store.store_name}</p>
-                    <p className="text-[10px] text-muted-foreground">{store.province}</p>
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="w-12 h-12 rounded-full bg-muted overflow-hidden flex-shrink-0 border border-border">
+                    {store.seller?.logo_url ? (
+                      <img src={store.seller.logo_url} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <Store className="w-5 h-5 m-3.5 text-muted-foreground" />
+                    )}
                   </div>
-                  <span className={`text-[10px] px-2 py-1 rounded-full font-bold ${
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-sm text-foreground truncate">
+                      {store.seller?.name || store.store_name}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground truncate">
+                      {store.province}
+                      {store.profiles?.full_name && (
+                        <span className="opacity-60"> · conta: {store.profiles.full_name}</span>
+                      )}
+                    </p>
+                    {store.seller && (
+                      <p className="text-[10px] text-primary mt-0.5">
+                        ↪ Visível em /vendedores como “{store.seller.name}”
+                      </p>
+                    )}
+                  </div>
+                  <span className={`text-[10px] px-2 py-1 rounded-full font-bold flex-shrink-0 ${
                     store.status === "active"
                       ? "bg-green-500/10 text-green-500"
                       : store.status === "pending"
                       ? "bg-amber-500/10 text-amber-500"
                       : "bg-muted text-muted-foreground"
                   }`}>
-                    {store.status === "active" ? "Activa" : store.status === "pending" ? "Pendente" : "Suspensa"}
+                    {store.status === "active" ? "Activo" : store.status === "pending" ? "Pendente" : "Suspenso"}
                   </span>
                 </div>
                 <div className="flex gap-2 text-center bg-muted rounded-xl p-2">
@@ -535,7 +570,7 @@ export default function AdminSuppliersTab() {
           {dropshippers.length === 0 && (
             <div className="text-center py-10 text-muted-foreground">
               <Store className="w-10 h-10 mx-auto mb-2 opacity-20" />
-              <p className="text-sm">Ainda não há dropshippers registados</p>
+              <p className="text-sm">Ainda não há afiliados registados</p>
             </div>
           )}
         </div>
