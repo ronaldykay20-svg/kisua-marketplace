@@ -66,8 +66,8 @@ const MinhaConta = () => {
     ...(isSeller ? [{ icon: Store, label: "Painel do Vendedor", desc: "Gerir a sua loja e produtos", path: "/painel-vendedor" }] : []),
     ...(isCompanyMember ? [{ icon: Building2, label: "Painel da Empresa", desc: "Gerir empresa e equipa", path: "/painel-empresa" }] : []),
     ...(isSupplier ? [{ icon: Truck, label: "Painel do Fornecedor", desc: "Gerir produtos e pedidos de fornecedor", path: "/painel-fornecedor" }] : []),
-    ...(!isAffiliate ? [{ icon: ShoppingBag, label: "Criar Loja Dropshipping", desc: "Torna-te afiliado e vende sem stock", path: "/criar-loja" }] : []),
-    ...(isAffiliate ? [{ icon: ShoppingBag, label: "Painel Dropshipping", desc: "Gerir a sua loja dropshipping", path: "/painel-dropship" }] : []),
+    ...(!isAffiliate ? [{ icon: ShoppingBag, label: "Tornar-me Afiliado", desc: "Vende produtos de fornecedores sem stock", path: "/criar-loja" }] : []),
+    ...(isAffiliate ? [{ icon: ShoppingBag, label: "Painel do Afiliado", desc: "Gerir a sua loja de afiliado", path: "/painel-dropship" }] : []),
     ...(isModerator && !isAdmin ? [{ icon: Shield, label: "Painel do Moderador", desc: "Moderar produtos e vendedores", path: "/painel-moderador" }] : []),
     ...(isAdmin ? [
       { icon: Crown, label: "Administração", desc: "Gerir utilizadores e cargos", path: "/admin" },
