@@ -201,7 +201,7 @@ export default function AdminSuppliersTab() {
   const subTabs: { key: SubTab; label: string }[] = [
     { key: "visao",        label: "Visão Geral" },
     { key: "fornecedores", label: `Fornecedores${stats.pending > 0 ? ` (${stats.pending})` : ""}` },
-    { key: "dropshippers", label: "Dropshippers" },
+    { key: "dropshippers", label: "Afiliados" },
   ];
 
   return (
