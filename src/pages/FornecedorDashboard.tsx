@@ -560,7 +560,7 @@ export default function FornecedorDashboard() {
       if (error) throw error;
       return created;
     },
-    enabled: !!user && supplier?.status === "approved",
+    enabled: !!user && !!supplier,
   });
 
   const { data: categories = [] } = useQuery({
