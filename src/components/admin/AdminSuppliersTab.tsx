@@ -232,7 +232,7 @@ export default function AdminSuppliersTab() {
               { label: "Fornecedores", value: stats.total,    icon: Building2,   color: "text-primary"     },
               { label: "Pendentes",    value: stats.pending,  icon: Clock,       color: "text-amber-500"   },
               { label: "Aprovados",    value: stats.approved, icon: CheckCircle, color: "text-green-500"   },
-              { label: "Dropshippers", value: stats.drops,    icon: Store,       color: "text-blue-500"    },
+              { label: "Afiliados",    value: stats.drops,    icon: Store,       color: "text-blue-500"    },
             ].map((s) => (
               <div key={s.label} className="bg-card border border-border rounded-xl p-3">
                 <s.icon className={`w-5 h-5 ${s.color} mb-1`} />
