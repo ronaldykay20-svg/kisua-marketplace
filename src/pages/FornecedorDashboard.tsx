@@ -955,6 +955,22 @@ export default function FornecedorDashboard() {
           </div>
         )}
 
+        {/* ── PERFIL (logo + capa + dados públicos) ── */}
+        {tab === "perfil" && (
+          <div className="space-y-3">
+            <div className="bg-primary/5 border border-primary/20 rounded-xl p-3 text-xs text-foreground">
+              Estas imagens e dados aparecem na página <strong>Vendedores</strong> e em todos os sítios onde os vendedores são mostrados.
+            </div>
+            {seller ? (
+              <SellerProfileEditor seller={seller} />
+            ) : (
+              <div className="bg-card border border-border rounded-xl p-4 text-center text-xs text-muted-foreground">
+                A preparar perfil de vendedor…
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── PRODUTOS ── */}
         {tab === "produtos" && (
           <div className="space-y-3">
