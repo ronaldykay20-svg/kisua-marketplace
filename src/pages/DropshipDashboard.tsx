@@ -67,7 +67,7 @@ export default function DropshipDashboard() {
   });
 
   // Perfil de vendedor (mesma tabela que aparece em /vendedores)
-  const { data: sellerProfile, refetch: refetchSeller } = useQuery({
+  const { data: sellerProfile } = useQuery({
     queryKey: ["my_seller", user?.id],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
