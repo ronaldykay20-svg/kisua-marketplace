@@ -844,6 +844,7 @@ export default function FornecedorDashboard() {
 
   const tabs: { key: Tab; label: string; icon: any }[] = [
     { key: "visao",    label: "Visão Geral", icon: BarChart3 },
+    { key: "perfil",   label: "Perfil",      icon: UserIcon },
     { key: "produtos", label: "Produtos",    icon: Package },
     { key: "pedidos",  label: "Pedidos",     icon: ShoppingBag },
     { key: "ganhos",   label: "Ganhos",      icon: DollarSign },
