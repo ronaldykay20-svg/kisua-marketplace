@@ -9,22 +9,42 @@ import {
 
 type SubTab = "visao" | "fornecedores" | "dropshippers";
 
+const attachUserProfiles = async (rows: any[]) => {
+  const userIds = [...new Set(rows.map((row) => row.user_id).filter(Boolean))];
+  if (userIds.length === 0) return rows;
+
+  const { data: profiles } = await (supabase as any)
+    .from("profiles")
+    .select("id, full_name")
+    .in("id", userIds);
+
+  const profileByUser = (profiles || []).reduce((acc: Record<string, any>, profile: any) => {
+    acc[profile.id] = profile;
+    return acc;
+  }, {});
+
+  return rows.map((row) => ({
+    ...row,
+    profile: profileByUser[row.user_id] || null,
+    profiles: profileByUser[row.user_id] || null,
+  }));
+};
+
 export default function AdminSuppliersTab() {
   const queryClient = useQueryClient();
   const [subTab, setSubTab] = useState<SubTab>("visao");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
 
-  // ✅ FIX 1: join com profiles para obter o nome do utilizador que submeteu
   const { data: suppliers = [], isLoading } = useQuery({
     queryKey: ["admin_suppliers"],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("suppliers")
-        .select("*, profiles:user_id(full_name)")
+        .select("*")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data || [];
+      return attachUserProfiles(data || []);
     },
   });
 
@@ -33,10 +53,11 @@ export default function AdminSuppliersTab() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("dropship_stores")
-        .select("*, profiles:user_id(full_name)")
+        .select("*")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      const userIds = (data || []).map((d: any) => d.user_id);
+      const stores = await attachUserProfiles(data || []);
+      const userIds = stores.map((d: any) => d.user_id).filter(Boolean);
       let sellerByUser: Record<string, any> = {};
       if (userIds.length) {
         const { data: sellersData } = await (supabase as any)
@@ -45,7 +66,7 @@ export default function AdminSuppliersTab() {
           .in("user_id", userIds);
         (sellersData || []).forEach((s: any) => { sellerByUser[s.user_id] = s; });
       }
-      return (data || []).map((d: any) => ({ ...d, seller: sellerByUser[d.user_id] || null }));
+      return stores.map((d: any) => ({ ...d, seller: sellerByUser[d.user_id] || null }));
     },
   });
 
