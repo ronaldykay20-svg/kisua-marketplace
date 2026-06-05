@@ -202,10 +202,12 @@ export default function AdminSuppliersTab() {
 
   const stats = {
     total:    suppliers.length,
-    pending:  suppliers.filter((s: any) => s.status === "pending").length,
+    supplierPending: suppliers.filter((s: any) => s.status === "pending").length,
+    affiliatePending: dropshippers.filter((d: any) => d.status === "pending").length,
     approved: suppliers.filter((s: any) => s.status === "approved").length,
     drops:    dropshippers.length,
   };
+  const totalPending = stats.supplierPending + stats.affiliatePending;
 
   const filtered = suppliers.filter((s: any) => {
     const matchSearch =
@@ -221,8 +223,8 @@ export default function AdminSuppliersTab() {
 
   const subTabs: { key: SubTab; label: string }[] = [
     { key: "visao",        label: "Visão Geral" },
-    { key: "fornecedores", label: `Fornecedores${stats.pending > 0 ? ` (${stats.pending})` : ""}` },
-    { key: "dropshippers", label: "Afiliados" },
+    { key: "fornecedores", label: `Fornecedores${stats.supplierPending > 0 ? ` (${stats.supplierPending})` : ""}` },
+    { key: "dropshippers", label: `Afiliados${stats.affiliatePending > 0 ? ` (${stats.affiliatePending})` : ""}` },
   ];
 
   return (
@@ -251,7 +253,7 @@ export default function AdminSuppliersTab() {
           <div className="grid grid-cols-2 gap-2">
             {[
               { label: "Fornecedores", value: stats.total,    icon: Building2,   color: "text-primary"     },
-              { label: "Pendentes",    value: stats.pending,  icon: Clock,       color: "text-amber-500"   },
+              { label: "Pendentes",    value: totalPending,   icon: Clock,       color: "text-amber-500"   },
               { label: "Aprovados",    value: stats.approved, icon: CheckCircle, color: "text-green-500"   },
               { label: "Afiliados",    value: stats.drops,    icon: Store,       color: "text-blue-500"    },
             ].map((s) => (
@@ -264,11 +266,11 @@ export default function AdminSuppliersTab() {
           </div>
 
           {/* Pendentes de aprovação */}
-          {stats.pending > 0 && (
+          {stats.supplierPending > 0 && (
             <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-4">
               <p className="text-sm font-bold text-amber-500 mb-3 flex items-center gap-2">
                 <Clock className="w-4 h-4" />
-                {stats.pending} fornecedor(es) aguardam aprovação
+                {stats.supplierPending} fornecedor(es) aguardam aprovação
               </p>
               <div className="space-y-2">
                 {suppliers
@@ -306,7 +308,7 @@ export default function AdminSuppliersTab() {
                     </div>
                   ))}
               </div>
-              {stats.pending > 3 && (
+              {stats.supplierPending > 3 && (
                 <button
                   onClick={() => setSubTab("fornecedores")}
                   className="text-xs text-primary font-bold mt-2"
