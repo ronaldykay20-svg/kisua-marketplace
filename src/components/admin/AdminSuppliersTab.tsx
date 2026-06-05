@@ -9,22 +9,42 @@ import {
 
 type SubTab = "visao" | "fornecedores" | "dropshippers";
 
+const attachUserProfiles = async (rows: any[]) => {
+  const userIds = [...new Set(rows.map((row) => row.user_id).filter(Boolean))];
+  if (userIds.length === 0) return rows;
+
+  const { data: profiles } = await (supabase as any)
+    .from("profiles")
+    .select("id, full_name")
+    .in("id", userIds);
+
+  const profileByUser = (profiles || []).reduce((acc: Record<string, any>, profile: any) => {
+    acc[profile.id] = profile;
+    return acc;
+  }, {});
+
+  return rows.map((row) => ({
+    ...row,
+    profile: profileByUser[row.user_id] || null,
+    profiles: profileByUser[row.user_id] || null,
+  }));
+};
+
 export default function AdminSuppliersTab() {
   const queryClient = useQueryClient();
   const [subTab, setSubTab] = useState<SubTab>("visao");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
 
-  // ✅ FIX 1: join com profiles para obter o nome do utilizador que submeteu
   const { data: suppliers = [], isLoading } = useQuery({
     queryKey: ["admin_suppliers"],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("suppliers")
-        .select("*, profiles:user_id(full_name)")
+        .select("*")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data || [];
+      return attachUserProfiles(data || []);
     },
   });
 
@@ -33,10 +53,11 @@ export default function AdminSuppliersTab() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("dropship_stores")
-        .select("*, profiles:user_id(full_name)")
+        .select("*")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      const userIds = (data || []).map((d: any) => d.user_id);
+      const stores = await attachUserProfiles(data || []);
+      const userIds = stores.map((d: any) => d.user_id).filter(Boolean);
       let sellerByUser: Record<string, any> = {};
       if (userIds.length) {
         const { data: sellersData } = await (supabase as any)
@@ -45,7 +66,7 @@ export default function AdminSuppliersTab() {
           .in("user_id", userIds);
         (sellersData || []).forEach((s: any) => { sellerByUser[s.user_id] = s; });
       }
-      return (data || []).map((d: any) => ({ ...d, seller: sellerByUser[d.user_id] || null }));
+      return stores.map((d: any) => ({ ...d, seller: sellerByUser[d.user_id] || null }));
     },
   });
 
@@ -181,10 +202,12 @@ export default function AdminSuppliersTab() {
 
   const stats = {
     total:    suppliers.length,
-    pending:  suppliers.filter((s: any) => s.status === "pending").length,
+    supplierPending: suppliers.filter((s: any) => s.status === "pending").length,
+    affiliatePending: dropshippers.filter((d: any) => d.status === "pending").length,
     approved: suppliers.filter((s: any) => s.status === "approved").length,
     drops:    dropshippers.length,
   };
+  const totalPending = stats.supplierPending + stats.affiliatePending;
 
   const filtered = suppliers.filter((s: any) => {
     const matchSearch =
@@ -200,8 +223,8 @@ export default function AdminSuppliersTab() {
 
   const subTabs: { key: SubTab; label: string }[] = [
     { key: "visao",        label: "Visão Geral" },
-    { key: "fornecedores", label: `Fornecedores${stats.pending > 0 ? ` (${stats.pending})` : ""}` },
-    { key: "dropshippers", label: "Afiliados" },
+    { key: "fornecedores", label: `Fornecedores${stats.supplierPending > 0 ? ` (${stats.supplierPending})` : ""}` },
+    { key: "dropshippers", label: `Afiliados${stats.affiliatePending > 0 ? ` (${stats.affiliatePending})` : ""}` },
   ];
 
   return (
@@ -230,7 +253,7 @@ export default function AdminSuppliersTab() {
           <div className="grid grid-cols-2 gap-2">
             {[
               { label: "Fornecedores", value: stats.total,    icon: Building2,   color: "text-primary"     },
-              { label: "Pendentes",    value: stats.pending,  icon: Clock,       color: "text-amber-500"   },
+              { label: "Pendentes",    value: totalPending,   icon: Clock,       color: "text-amber-500"   },
               { label: "Aprovados",    value: stats.approved, icon: CheckCircle, color: "text-green-500"   },
               { label: "Afiliados",    value: stats.drops,    icon: Store,       color: "text-blue-500"    },
             ].map((s) => (
@@ -243,11 +266,11 @@ export default function AdminSuppliersTab() {
           </div>
 
           {/* Pendentes de aprovação */}
-          {stats.pending > 0 && (
+          {stats.supplierPending > 0 && (
             <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-4">
               <p className="text-sm font-bold text-amber-500 mb-3 flex items-center gap-2">
                 <Clock className="w-4 h-4" />
-                {stats.pending} fornecedor(es) aguardam aprovação
+                {stats.supplierPending} fornecedor(es) aguardam aprovação
               </p>
               <div className="space-y-2">
                 {suppliers
@@ -285,7 +308,7 @@ export default function AdminSuppliersTab() {
                     </div>
                   ))}
               </div>
-              {stats.pending > 3 && (
+              {stats.supplierPending > 3 && (
                 <button
                   onClick={() => setSubTab("fornecedores")}
                   className="text-xs text-primary font-bold mt-2"
