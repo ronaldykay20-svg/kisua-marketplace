@@ -151,6 +151,21 @@ const AdminSettingsTab = () => {
           </button>
         )}
       </div>
+
+      {/* Social links */}
+      <div className="bg-card rounded-xl border border-border p-4">
+        <h3 className="text-sm font-bold text-foreground mb-1 flex items-center gap-2">
+          <Share2 className="w-4 h-4 text-primary" /> Redes Sociais
+        </h3>
+        <p className="text-xs text-muted-foreground mb-3">
+          Cole o link de cada rede. Apenas as redes com link preenchido aparecem no rodapé.
+        </p>
+        <div className="space-y-2">
+          {SOCIALS.map((s) => (
+            <SocialRow key={s.key} keyName={s.key} label={s.label} Icon={s.Icon} placeholder={s.placeholder} />
+          ))}
+        </div>
+      </div>
     </div>
   );
 };
