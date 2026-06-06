@@ -213,6 +213,19 @@ const SearchResults = () => {
     },
   });
 
+  const { data: dbCompanies = [], isLoading: loadingCompanies } = useQuery({
+    queryKey: ["search_companies", effectiveQuery],
+    enabled: !modoImagem,
+    queryFn: async () => {
+      let q = supabase.from("companies").select("*").eq("is_active", true);
+      if (effectiveQuery) q = q.or(`name.ilike.%${effectiveQuery}%,description.ilike.%${effectiveQuery}%`);
+      q = q.limit(50);
+      const { data, error } = await q;
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   const produtosParaExibir = modoImagem ? imagemResultados : dbProducts;
 
   const products: Product[] = useMemo(
@@ -233,8 +246,10 @@ const SearchResults = () => {
     [produtosParaExibir]
   );
 
-  const vendedores = dbSellers.filter((s: any) => s.type === "individual");
-  const empresas   = dbSellers.filter((s: any) => s.type === "company");
+  // Vendedores tab: individuais + afiliados/fornecedores (tudo o que não for "company")
+  const vendedores = dbSellers.filter((s: any) => s.type !== "company");
+  // Empresas tab: vem da tabela `companies` (criadas pelo Adm)
+  const empresas   = dbCompanies;
   const totalPages = Math.max(1, Math.ceil(products.length / ITEMS_PER_PAGE));
   const paginatedProducts = products.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
   const totalCount = activeTab === "Produtos" ? products.length : activeTab === "Vendedores" ? vendedores.length : empresas.length;
@@ -428,9 +443,24 @@ const SearchResults = () => {
 
         {!modoImagem && activeTab === "Empresas" && (
           <div className="px-4 sm:px-0 pb-6">
-            {loadingSellers ? <p className="text-center text-sm text-muted-foreground py-8">A carregar...</p>
+            {loadingCompanies ? <p className="text-center text-sm text-muted-foreground py-8">A carregar...</p>
               : empresas.length === 0 ? <div className="text-center py-12"><p className="text-sm text-muted-foreground">Nenhuma empresa encontrada.</p></div>
-              : <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{empresas.map(renderSellerCard)}</div>}
+              : <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{empresas.map((c: any) => (
+                  <div key={c.id} onClick={() => navigate(`/empresa/${c.id}`)}
+                    className="bg-card rounded-card border border-border p-3 flex items-center gap-3 cursor-pointer hover:shadow-md transition">
+                    {c.logo_url
+                      ? <img src={c.logo_url} alt={c.name} className="w-16 h-16 rounded-card object-cover flex-shrink-0" />
+                      : <div className="w-16 h-16 rounded-card bg-primary/10 flex items-center justify-center text-lg font-bold text-primary flex-shrink-0">{c.name.charAt(0)}</div>}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <h3 className="text-sm font-bold text-foreground truncate">{c.name}</h3>
+                        {c.is_verified && <CheckCircle className="w-3.5 h-3.5 text-primary flex-shrink-0" />}
+                      </div>
+                      {c.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{c.description}</p>}
+                      <button className="mt-1.5 px-3 py-1 rounded-card bg-primary text-primary-foreground text-[10px] font-bold hover:brightness-110 transition">Visitar</button>
+                    </div>
+                  </div>
+                ))}</div>}
           </div>
         )}
 
