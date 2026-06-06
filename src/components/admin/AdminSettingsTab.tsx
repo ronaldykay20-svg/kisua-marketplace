@@ -1,9 +1,58 @@
-import { useRef, useState } from "react";
-import { Upload, Image, Star, Trash2, Loader2 } from "lucide-react";
+import { useRef, useState, useEffect } from "react";
+import { Upload, Image, Star, Trash2, Loader2, Share2, Facebook, Instagram, Youtube, Twitter, Linkedin, MessageCircle, Music2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSiteSetting, useUpdateSiteSetting } from "@/hooks/useSiteSettings";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
+
+const SOCIALS = [
+  { key: "social_facebook_url", label: "Facebook", Icon: Facebook, placeholder: "https://facebook.com/..." },
+  { key: "social_instagram_url", label: "Instagram", Icon: Instagram, placeholder: "https://instagram.com/..." },
+  { key: "social_whatsapp_url", label: "WhatsApp", Icon: MessageCircle, placeholder: "https://wa.me/244..." },
+  { key: "social_tiktok_url", label: "TikTok", Icon: Music2, placeholder: "https://tiktok.com/@..." },
+  { key: "social_youtube_url", label: "YouTube", Icon: Youtube, placeholder: "https://youtube.com/@..." },
+  { key: "social_twitter_url", label: "X / Twitter", Icon: Twitter, placeholder: "https://x.com/..." },
+  { key: "social_linkedin_url", label: "LinkedIn", Icon: Linkedin, placeholder: "https://linkedin.com/company/..." },
+] as const;
+
+const SocialRow = ({ keyName, label, Icon, placeholder }: { keyName: string; label: string; Icon: any; placeholder: string }) => {
+  const { data: value } = useSiteSetting(keyName);
+  const update = useUpdateSiteSetting();
+  const [draft, setDraft] = useState("");
+  useEffect(() => { setDraft(value || ""); }, [value]);
+  const active = !!(value && value.trim());
+  return (
+    <div className="flex items-center gap-2">
+      <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+        <Icon className="w-4 h-4" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[11px] font-bold text-foreground">{label} {active && <span className="text-accent">• ativo</span>}</p>
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder={placeholder}
+          className="w-full mt-0.5 px-2 py-1.5 rounded-md bg-background border border-border text-xs text-foreground"
+        />
+      </div>
+      <button
+        onClick={() => update.mutate({ key: keyName, value: draft.trim() })}
+        className="text-[11px] font-bold px-2.5 py-1.5 rounded-md bg-primary text-primary-foreground"
+      >
+        Salvar
+      </button>
+      {active && (
+        <button
+          onClick={() => { setDraft(""); update.mutate({ key: keyName, value: "" }); }}
+          className="text-[11px] font-bold px-2 py-1.5 rounded-md text-destructive hover:bg-destructive/10"
+          title="Desativar"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      )}
+    </div>
+  );
+};
 
 const AdminSettingsTab = () => {
   const { data: logoUrl } = useSiteSetting("site_logo_url");
@@ -101,6 +150,21 @@ const AdminSettingsTab = () => {
             <Trash2 className="w-3 h-3" /> Remover destaque manual
           </button>
         )}
+      </div>
+
+      {/* Social links */}
+      <div className="bg-card rounded-xl border border-border p-4">
+        <h3 className="text-sm font-bold text-foreground mb-1 flex items-center gap-2">
+          <Share2 className="w-4 h-4 text-primary" /> Redes Sociais
+        </h3>
+        <p className="text-xs text-muted-foreground mb-3">
+          Cole o link de cada rede. Apenas as redes com link preenchido aparecem no rodapé.
+        </p>
+        <div className="space-y-2">
+          {SOCIALS.map((s) => (
+            <SocialRow key={s.key} keyName={s.key} label={s.label} Icon={s.Icon} placeholder={s.placeholder} />
+          ))}
+        </div>
       </div>
     </div>
   );
