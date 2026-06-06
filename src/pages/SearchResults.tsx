@@ -213,6 +213,19 @@ const SearchResults = () => {
     },
   });
 
+  const { data: dbCompanies = [], isLoading: loadingCompanies } = useQuery({
+    queryKey: ["search_companies", effectiveQuery],
+    enabled: !modoImagem,
+    queryFn: async () => {
+      let q = supabase.from("companies").select("*").eq("is_active", true);
+      if (effectiveQuery) q = q.or(`name.ilike.%${effectiveQuery}%,description.ilike.%${effectiveQuery}%`);
+      q = q.limit(50);
+      const { data, error } = await q;
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   const produtosParaExibir = modoImagem ? imagemResultados : dbProducts;
 
   const products: Product[] = useMemo(
