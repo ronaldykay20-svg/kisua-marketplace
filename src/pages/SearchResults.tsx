@@ -246,8 +246,10 @@ const SearchResults = () => {
     [produtosParaExibir]
   );
 
-  const vendedores = dbSellers.filter((s: any) => s.type === "individual");
-  const empresas   = dbSellers.filter((s: any) => s.type === "company");
+  // Vendedores tab: individuais + afiliados/fornecedores (tudo o que não for "company")
+  const vendedores = dbSellers.filter((s: any) => s.type !== "company");
+  // Empresas tab: vem da tabela `companies` (criadas pelo Adm)
+  const empresas   = dbCompanies;
   const totalPages = Math.max(1, Math.ceil(products.length / ITEMS_PER_PAGE));
   const paginatedProducts = products.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
   const totalCount = activeTab === "Produtos" ? products.length : activeTab === "Vendedores" ? vendedores.length : empresas.length;
