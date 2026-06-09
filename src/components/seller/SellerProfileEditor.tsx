@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Save, Upload, X, User, Image as ImageIcon } from "lucide-react";
+import { Save, Upload, X, User, Image as ImageIcon, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -20,6 +20,7 @@ const SellerProfileEditor = ({ seller }: Props) => {
     email: seller.email || "",
     province_id: seller.province_id ? String(seller.province_id) : "",
     municipality_id: seller.municipality_id ? String(seller.municipality_id) : "",
+    municipality_code: seller.municipality_code || "",
     address: seller.address || "",
     website: seller.website || "",
     logo_url: seller.logo_url || "",
@@ -39,7 +40,10 @@ const SellerProfileEditor = ({ seller }: Props) => {
   const { data: municipalities = [] } = useQuery({
     queryKey: ["municipalities"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("municipalities").select("id, name, province_id").order("name");
+      const { data, error } = await supabase
+        .from("municipalities")
+        .select("id, name, province_id, code")
+        .order("name");
       if (error) throw error;
       return data;
     },
@@ -49,21 +53,27 @@ const SellerProfileEditor = ({ seller }: Props) => {
     (m: any) => String(m.province_id) === form.province_id
   );
 
+  const hasMunicipalityCode = !!form.municipality_code;
+
   const updateProfile = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("sellers").update({
-        name: form.name,
-        description: form.description || null,
-        phone: form.phone || null,
-        whatsapp: form.whatsapp || null,
-        email: form.email || null,
-        province_id: form.province_id ? Number(form.province_id) : null,
-        municipality_id: form.municipality_id ? Number(form.municipality_id) : null,
-        address: form.address || null,
-        website: form.website || null,
-        logo_url: form.logo_url || null,
-        cover_url: form.cover_url || null,
-      }).eq("id", seller.id);
+      const { error } = await supabase
+        .from("sellers")
+        .update({
+          name: form.name,
+          description: form.description || null,
+          phone: form.phone || null,
+          whatsapp: form.whatsapp || null,
+          email: form.email || null,
+          province_id: form.province_id ? Number(form.province_id) : null,
+          municipality_id: form.municipality_id ? Number(form.municipality_id) : null,
+          municipality_code: form.municipality_code || null,
+          address: form.address || null,
+          website: form.website || null,
+          logo_url: form.logo_url || null,
+          cover_url: form.cover_url || null,
+        })
+        .eq("id", seller.id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -105,6 +115,23 @@ const SellerProfileEditor = ({ seller }: Props) => {
       <h2 className="text-sm font-bold text-foreground mb-3">Editar Perfil da Loja</h2>
       <div className="space-y-3">
 
+        {/* Aviso município em falta */}
+        {!hasMunicipalityCode && (
+          <div className="flex items-start gap-2 rounded-lg px-3 py-2.5 border"
+            style={{ background: "rgba(146,64,14,0.07)", borderColor: "rgba(180,100,30,0.35)" }}>
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: "#92400E" }} />
+            <div>
+              <p className="text-xs font-bold" style={{ color: "#7C3D10" }}>
+                Município de origem obrigatório
+              </p>
+              <p className="text-[11px] mt-0.5" style={{ color: "#92400E" }}>
+                Sem o município definido, o cálculo de frete não funciona e os compradores
+                não conseguem ver o valor de entrega dos seus produtos.
+              </p>
+            </div>
+          </div>
+        )}
+
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Imagem de Capa</label>
           <div className="relative w-full h-32 rounded-xl overflow-hidden bg-muted border border-border">
@@ -124,7 +151,9 @@ const SellerProfileEditor = ({ seller }: Props) => {
             )}
             <label className={`absolute bottom-2 right-2 flex items-center gap-1 px-3 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer bg-background/90 text-foreground border border-border backdrop-blur-sm hover:bg-background ${uploading === "cover_url" ? "opacity-50 pointer-events-none" : ""}`}>
               <Upload className="w-3 h-3" /> {uploading === "cover_url" ? "A enviar..." : "Alterar capa"}
-              <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && handleUpload("cover_url", e.target.files[0])} className="hidden" disabled={uploading === "cover_url"} />
+              <input type="file" accept="image/*"
+                onChange={e => e.target.files?.[0] && handleUpload("cover_url", e.target.files[0])}
+                className="hidden" disabled={uploading === "cover_url"} />
             </label>
           </div>
         </div>
@@ -148,10 +177,14 @@ const SellerProfileEditor = ({ seller }: Props) => {
               )}
             </div>
             <div className="flex-1">
-              <p className="text-xs text-muted-foreground mb-2">Imagem quadrada, mínimo 200×200px. Formatos: JPG, PNG.</p>
+              <p className="text-xs text-muted-foreground mb-2">
+                Imagem quadrada, mínimo 200×200px. Formatos: JPG, PNG.
+              </p>
               <label className={`inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-bold cursor-pointer bg-accent text-foreground border border-border hover:bg-accent/80 ${uploading === "logo_url" ? "opacity-50 pointer-events-none" : ""}`}>
                 <Upload className="w-3.5 h-3.5" /> {uploading === "logo_url" ? "A enviar..." : "Carregar logo"}
-                <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && handleUpload("logo_url", e.target.files[0])} className="hidden" disabled={uploading === "logo_url"} />
+                <input type="file" accept="image/*"
+                  onChange={e => e.target.files?.[0] && handleUpload("logo_url", e.target.files[0])}
+                  className="hidden" disabled={uploading === "logo_url"} />
               </label>
             </div>
           </div>
@@ -162,11 +195,13 @@ const SellerProfileEditor = ({ seller }: Props) => {
           <input value={form.name} onChange={e => set("name", e.target.value)}
             className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
         </div>
+
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Descrição</label>
           <textarea value={form.description} onChange={e => set("description", e.target.value)}
             className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground h-16 resize-none" />
         </div>
+
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Telefone</label>
@@ -179,30 +214,76 @@ const SellerProfileEditor = ({ seller }: Props) => {
               className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
           </div>
         </div>
+
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Email</label>
           <input value={form.email} onChange={e => set("email", e.target.value)}
             className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
         </div>
 
+        {/* Província */}
         <div>
-          <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Província</label>
-          <select value={form.province_id}
-            onChange={e => setForm(f => ({ ...f, province_id: e.target.value, municipality_id: "" }))}
+          <label className="text-[11px] font-bold text-muted-foreground mb-1 block">
+            Província <span className="text-destructive">*</span>
+          </label>
+          <select
+            value={form.province_id}
+            onChange={e => setForm(f => ({
+              ...f,
+              province_id: e.target.value,
+              municipality_id: "",
+              municipality_code: "",
+            }))}
             className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground appearance-none">
             <option value="">Seleccionar província…</option>
-            {provinces.map((p: any) => <option key={p.id} value={String(p.id)}>{p.name}</option>)}
+            {provinces.map((p: any) => (
+              <option key={p.id} value={String(p.id)}>{p.name}</option>
+            ))}
           </select>
         </div>
+
+        {/* Município — obrigatório para o frete */}
         <div>
-          <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Município</label>
-          <select value={form.municipality_id} disabled={!form.province_id}
-            onChange={e => set("municipality_id", e.target.value)}
-            className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground appearance-none disabled:opacity-50">
+          <label className="text-[11px] font-bold mb-1 block flex items-center gap-1"
+            style={{ color: !hasMunicipalityCode ? "#92400E" : undefined }}>
+            {!hasMunicipalityCode
+              ? <AlertTriangle className="w-3 h-3" style={{ color: "#92400E" }} />
+              : null}
+            Município <span className="text-destructive">*</span>
+            <span className="text-[10px] font-normal text-muted-foreground ml-1">
+              (necessário para calcular frete)
+            </span>
+          </label>
+          <select
+            value={form.municipality_id}
+            disabled={!form.province_id}
+            onChange={e => {
+              const selected = filteredMunicipalities.find(
+                (m: any) => String(m.id) === e.target.value
+              ) as any;
+              setForm(f => ({
+                ...f,
+                municipality_id: e.target.value,
+                municipality_code: selected?.code || "",
+              }));
+            }}
+            className={`w-full px-3 py-2 rounded-lg bg-muted text-sm text-foreground appearance-none disabled:opacity-50 border ${
+              !hasMunicipalityCode && form.province_id
+                ? "border-orange-400"
+                : "border-border"
+            }`}>
             <option value="">Seleccionar município…</option>
-            {filteredMunicipalities.map((m: any) => <option key={m.id} value={String(m.id)}>{m.name}</option>)}
+            {filteredMunicipalities.map((m: any) => (
+              <option key={m.id} value={String(m.id)}>{m.name}</option>
+            ))}
           </select>
+          {form.municipality_code && (
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Código: <span className="font-mono font-bold">{form.municipality_code}</span>
+            </p>
+          )}
         </div>
+
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">
             Endereço <span className="opacity-60">(rua/detalhe, opcional)</span>
@@ -211,16 +292,28 @@ const SellerProfileEditor = ({ seller }: Props) => {
             className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground"
             placeholder="ex: Rua da Missão, nº 42" />
         </div>
+
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Website</label>
           <input value={form.website} onChange={e => set("website", e.target.value)}
             className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
         </div>
 
-        <button onClick={() => updateProfile.mutate()} disabled={!form.name || updateProfile.isPending}
+        {/* Aviso abaixo do botão se município não preenchido */}
+        {!hasMunicipalityCode && (
+          <p className="text-[11px] text-center font-semibold" style={{ color: "#92400E" }}>
+            ⚠ Selecciona o município para activar o cálculo de frete
+          </p>
+        )}
+
+        <button
+          onClick={() => updateProfile.mutate()}
+          disabled={!form.name || !form.municipality_code || updateProfile.isPending}
           className="w-full py-2.5 bg-primary text-primary-foreground text-sm font-bold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2">
-          <Save className="w-4 h-4" /> {updateProfile.isPending ? "A guardar..." : "Guardar Perfil"}
+          <Save className="w-4 h-4" />
+          {updateProfile.isPending ? "A guardar..." : "Guardar Perfil"}
         </button>
+
       </div>
     </div>
   );
