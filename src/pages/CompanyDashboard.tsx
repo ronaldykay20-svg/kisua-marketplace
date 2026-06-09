@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Building2, Package, Plus, Edit, Trash2, Eye, EyeOff, Users, UserPlus, Save, X, Crown, ShieldCheck, Image as ImageIcon, Camera, Search, ShoppingCart } from "lucide-react";
+import { Building2, Package, Plus, Edit, Trash2, Eye, EyeOff, Users, UserPlus, Save, X, Crown, ShieldCheck, Image as ImageIcon, Camera, Search, ShoppingCart, AlertTriangle } from "lucide-react";
 import SellerProductForm from "@/components/seller/SellerProductForm";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,7 +16,6 @@ const CompanyDashboard = () => {
   const logoRef = useRef<HTMLInputElement>(null);
   const bannerRef = useRef<HTMLInputElement>(null);
 
-  // Get my company membership
   const { data: membership } = useQuery({
     queryKey: ["my_company_membership", user?.id],
     queryFn: async () => {
@@ -47,7 +46,6 @@ const CompanyDashboard = () => {
 
   const [profileForm, setProfileForm] = useState<any>(null);
 
-  // Sincroniza profileForm sempre que os dados da empresa mudam
   useEffect(() => {
     if (company) {
       setProfileForm({
@@ -58,11 +56,11 @@ const CompanyDashboard = () => {
         address: company.address || "",
         province_id: company.province_id ? String(company.province_id) : "",
         municipality_id: company.municipality_id ? String(company.municipality_id) : "",
+        municipality_code: company.municipality_code || "",
       });
     }
   }, [company]);
 
-  // Províncias
   const { data: provinces = [] } = useQuery({
     queryKey: ["provinces"],
     queryFn: async () => {
@@ -75,13 +73,12 @@ const CompanyDashboard = () => {
     },
   });
 
-  // Municípios
   const { data: municipalities = [] } = useQuery({
     queryKey: ["municipalities"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("municipalities")
-        .select("id, name, province_id")
+        .select("id, name, province_id, code")
         .order("name");
       if (error) throw error;
       return data;
@@ -92,7 +89,6 @@ const CompanyDashboard = () => {
     (m: any) => profileForm && String(m.province_id) === String(profileForm.province_id)
   );
 
-  // Company products
   const { data: products = [], isLoading } = useQuery({
     queryKey: ["company_products", company?.id],
     queryFn: async () => {
@@ -107,7 +103,6 @@ const CompanyDashboard = () => {
     enabled: !!company,
   });
 
-  // Company members
   const { data: members = [] } = useQuery({
     queryKey: ["company_members", company?.id],
     queryFn: async () => {
@@ -129,7 +124,6 @@ const CompanyDashboard = () => {
     enabled: !!company,
   });
 
-  // Search users to add as member
   const { data: searchResults = [] } = useQuery({
     queryKey: ["search_users_for_company", memberSearch],
     queryFn: async () => {
@@ -145,7 +139,6 @@ const CompanyDashboard = () => {
     enabled: memberSearch.length >= 2,
   });
 
-  // Load media for editing product
   const { data: editingMedia = [] } = useQuery({
     queryKey: ["company_product_media", editingProduct?.id],
     queryFn: async () => {
@@ -160,7 +153,6 @@ const CompanyDashboard = () => {
     enabled: !!editingProduct?.id,
   });
 
-  // Load variants for editing product
   const { data: editingVariants = [] } = useQuery({
     queryKey: ["company_product_variants_edit", editingProduct?.id],
     queryFn: async () => {
@@ -368,6 +360,7 @@ const CompanyDashboard = () => {
         address: profileForm.address,
         province_id: profileForm.province_id ? Number(profileForm.province_id) : null,
         municipality_id: profileForm.municipality_id ? Number(profileForm.municipality_id) : null,
+        municipality_code: profileForm.municipality_code || null,
       }).eq("id", company.id);
       if (error) throw error;
     },
@@ -380,6 +373,7 @@ const CompanyDashboard = () => {
 
   const totalProducts = products.length;
   const activeProducts = products.filter((p: any) => p.is_active).length;
+  const hasMunicipalityCode = !!profileForm?.municipality_code;
 
   const roleLabel: Record<string, string> = {
     owner: "Dono", manager: "Gestor", editor: "Editor", viewer: "Visualizador",
@@ -458,6 +452,26 @@ const CompanyDashboard = () => {
           </div>
         </div>
 
+        {/* Aviso global se município não configurado */}
+        {isOwner && !company.municipality_code && (
+          <div
+            className="flex items-start gap-2 rounded-xl px-3 py-2.5 border mb-4 cursor-pointer"
+            style={{ background: "rgba(146,64,14,0.07)", borderColor: "rgba(180,100,30,0.35)" }}
+            onClick={() => setTab("perfil")}
+          >
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: "#92400E" }} />
+            <div>
+              <p className="text-xs font-bold" style={{ color: "#7C3D10" }}>
+                Município de origem não configurado
+              </p>
+              <p className="text-[11px] mt-0.5" style={{ color: "#92400E" }}>
+                Sem o município, o frete não é calculado para os compradores.
+                Toca aqui para configurar no Perfil.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Tabs */}
         <div className="flex gap-2 mb-4">
           <button
@@ -478,6 +492,9 @@ const CompanyDashboard = () => {
               className={`flex-1 py-2 text-xs font-bold rounded-lg border ${tab === "perfil" ? "bg-primary text-primary-foreground border-primary" : "bg-card text-foreground border-border"}`}
             >
               <Edit className="w-4 h-4 inline mr-1" /> Perfil
+              {!company.municipality_code && (
+                <span className="ml-1 w-2 h-2 rounded-full bg-orange-400 inline-block" />
+              )}
             </button>
           )}
         </div>
@@ -494,7 +511,6 @@ const CompanyDashboard = () => {
               </button>
             )}
 
-            {/* Stats */}
             <div className="grid grid-cols-3 gap-2 mb-4">
               <div className="bg-card rounded-xl border border-border p-3 text-center">
                 <Package className="w-5 h-5 mx-auto mb-1 text-primary" />
@@ -668,6 +684,26 @@ const CompanyDashboard = () => {
         {tab === "perfil" && isOwner && profileForm && (
           <div className="bg-card rounded-xl border border-border p-4 space-y-3">
             <h3 className="text-sm font-bold text-foreground">Editar Perfil da Empresa</h3>
+
+            {/* Aviso município em falta */}
+            {!hasMunicipalityCode && (
+              <div
+                className="flex items-start gap-2 rounded-lg px-3 py-2.5 border"
+                style={{ background: "rgba(146,64,14,0.07)", borderColor: "rgba(180,100,30,0.35)" }}
+              >
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: "#92400E" }} />
+                <div>
+                  <p className="text-xs font-bold" style={{ color: "#7C3D10" }}>
+                    Município de origem obrigatório
+                  </p>
+                  <p className="text-[11px] mt-0.5" style={{ color: "#92400E" }}>
+                    Sem o município definido, o cálculo de frete não funciona e os compradores
+                    não conseguem ver o valor de entrega dos produtos desta empresa.
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Sobre Nós</label>
               <textarea
@@ -677,6 +713,7 @@ const CompanyDashboard = () => {
                 placeholder="Descrição da empresa..."
               />
             </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Telefone</label>
@@ -697,6 +734,7 @@ const CompanyDashboard = () => {
                 />
               </div>
             </div>
+
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Website</label>
               <input
@@ -707,12 +745,19 @@ const CompanyDashboard = () => {
               />
             </div>
 
-            {/* ═══ LOCALIZAÇÃO ═══ */}
+            {/* Província */}
             <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Província</label>
+              <label className="text-xs font-bold mb-1 block text-muted-foreground">
+                Província <span className="text-destructive">*</span>
+              </label>
               <select
                 value={profileForm.province_id}
-                onChange={e => setProfileForm({ ...profileForm, province_id: e.target.value, municipality_id: "" })}
+                onChange={e => setProfileForm({
+                  ...profileForm,
+                  province_id: e.target.value,
+                  municipality_id: "",
+                  municipality_code: "",
+                })}
                 className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground appearance-none"
               >
                 <option value="">Seleccionar província…</option>
@@ -721,20 +766,52 @@ const CompanyDashboard = () => {
                 ))}
               </select>
             </div>
+
+            {/* Município — obrigatório para frete */}
             <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Município</label>
+              <label
+                className="text-xs font-bold mb-1 block flex items-center gap-1"
+                style={{ color: !hasMunicipalityCode ? "#92400E" : undefined }}
+              >
+                {!hasMunicipalityCode && (
+                  <AlertTriangle className="w-3 h-3" style={{ color: "#92400E" }} />
+                )}
+                Município <span className="text-destructive">*</span>
+                <span className="text-[10px] font-normal text-muted-foreground ml-1">
+                  (necessário para calcular frete)
+                </span>
+              </label>
               <select
                 value={profileForm.municipality_id}
                 disabled={!profileForm.province_id}
-                onChange={e => setProfileForm({ ...profileForm, municipality_id: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground appearance-none disabled:opacity-50"
+                onChange={e => {
+                  const selected = filteredMunicipalities.find(
+                    (m: any) => String(m.id) === e.target.value
+                  ) as any;
+                  setProfileForm({
+                    ...profileForm,
+                    municipality_id: e.target.value,
+                    municipality_code: selected?.code || "",
+                  });
+                }}
+                className={`w-full px-3 py-2 rounded-lg bg-muted text-sm text-foreground appearance-none disabled:opacity-50 border ${
+                  !hasMunicipalityCode && profileForm.province_id
+                    ? "border-orange-400"
+                    : "border-border"
+                }`}
               >
                 <option value="">Seleccionar município…</option>
                 {filteredMunicipalities.map((m: any) => (
                   <option key={m.id} value={String(m.id)}>{m.name}</option>
                 ))}
               </select>
+              {profileForm.municipality_code && (
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Código: <span className="font-mono font-bold">{profileForm.municipality_code}</span>
+                </p>
+              )}
             </div>
+
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">
                 Endereço <span className="opacity-60">(rua/detalhe, opcional)</span>
@@ -747,9 +824,15 @@ const CompanyDashboard = () => {
               />
             </div>
 
+            {!hasMunicipalityCode && (
+              <p className="text-[11px] text-center font-semibold" style={{ color: "#92400E" }}>
+                ⚠ Selecciona o município para activar o cálculo de frete
+              </p>
+            )}
+
             <button
               onClick={() => saveProfile.mutate()}
-              disabled={saveProfile.isPending}
+              disabled={!profileForm.municipality_code || saveProfile.isPending}
               className="w-full py-2 bg-primary text-primary-foreground text-sm font-bold rounded-lg disabled:opacity-60"
             >
               <Save className="w-4 h-4 inline mr-1" />
