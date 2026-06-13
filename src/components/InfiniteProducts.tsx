@@ -32,9 +32,15 @@ const InfoPill = ({ type, children }: { type: string; children: React.ReactNode 
   );
 };
 
-// ─── Build rotating slides: each slide = { price JSX, pill JSX } ─────────────
-const buildSlides = (p: any, isTrending: boolean) => {
-  const base = (
+// ─── Build rotating frames: nome → preço → nome → info → nome → info → ... ───
+const buildFrames = (p: any, isTrending: boolean, titleClass: string) => {
+  const nome = (
+    <h3 className={titleClass}>
+      {p.title}
+    </h3>
+  );
+
+  const preco = (
     <div className="flex items-baseline gap-1.5">
       <span className="text-[14px] font-black text-[#1a0f07] tracking-tight leading-none">
         {Number(p.price).toLocaleString("pt-AO")} Kz
@@ -46,65 +52,105 @@ const buildSlides = (p: any, isTrending: boolean) => {
       )}
     </div>
   );
-  const promo = p.discount_percent > 0 ? (
-    <div className="flex items-baseline gap-1.5">
-      <span className="text-[14px] font-black text-[#c0522a] tracking-tight leading-none">
-        {Number(p.price).toLocaleString("pt-AO")} Kz
-      </span>
-      <span className="text-[9px] font-bold text-[#c0522a] bg-[#fff0ed] px-1 rounded">-{p.discount_percent}%</span>
-    </div>
-  ) : null;
 
-  const slides: { price: JSX.Element; pill: JSX.Element }[] = [];
+  const pills: JSX.Element[] = [];
 
-  slides.push({ price: base, pill: <InfoPill type="secure"><ShieldCheck className="w-2.5 h-2.5" /> Compra segura</InfoPill> });
-
-  if (promo) {
-    slides.push({ price: promo, pill: <InfoPill type="promo"><Flame className="w-2.5 h-2.5" /> Promoção</InfoPill> });
+  if (p.discount_percent > 0) {
+    pills.push(
+      <InfoPill key="promo" type="promo">
+        <Flame className="w-2.5 h-2.5" /> -{p.discount_percent}% Promoção
+      </InfoPill>
+    );
   } else if (p.rating >= 4) {
-    slides.push({ price: base, pill: <InfoPill type="rated"><Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" /> {Number(p.rating).toFixed(1)} ({p.total_reviews || 0})</InfoPill> });
+    pills.push(
+      <InfoPill key="rated" type="rated">
+        <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" /> {Number(p.rating).toFixed(1)} ({p.total_reviews || 0})
+      </InfoPill>
+    );
   }
 
   if (p.free_shipping) {
-    slides.push({ price: base, pill: <InfoPill type="shipping"><Truck className="w-2.5 h-2.5" /> Frete grátis</InfoPill> });
+    pills.push(
+      <InfoPill key="shipping" type="shipping">
+        <Truck className="w-2.5 h-2.5" /> Frete grátis
+      </InfoPill>
+    );
   } else if (p.stock > 0) {
-    slides.push({ price: base, pill: <InfoPill type="stock"><Package className="w-2.5 h-2.5" /> {p.stock} em stock</InfoPill> });
+    pills.push(
+      <InfoPill key="stock" type="stock">
+        <Package className="w-2.5 h-2.5" /> {p.stock} em stock
+      </InfoPill>
+    );
   }
 
   if (isTrending) {
-    slides.push({ price: base, pill: <InfoPill type="trending"><Flame className="w-2.5 h-2.5" /> Tendência</InfoPill> });
+    pills.push(
+      <InfoPill key="trending" type="trending">
+        <Flame className="w-2.5 h-2.5" /> Tendência
+      </InfoPill>
+    );
   } else if (p.sales_count > 0) {
-    slides.push({ price: base, pill: <InfoPill type="sales"><Users className="w-2.5 h-2.5" /> {p.sales_count}+ vendidos</InfoPill> });
+    pills.push(
+      <InfoPill key="sales" type="sales">
+        <Users className="w-2.5 h-2.5" /> {p.sales_count}+ vendidos
+      </InfoPill>
+    );
   }
 
   if (p.province || p.city) {
-    slides.push({ price: base, pill: <InfoPill type="location"><MapPin className="w-2.5 h-2.5" /> {p.city || p.province}</InfoPill> });
+    pills.push(
+      <InfoPill key="location" type="location">
+        <MapPin className="w-2.5 h-2.5" /> {p.city || p.province}
+      </InfoPill>
+    );
   }
 
-  return slides;
+  if (pills.length === 0) {
+    pills.push(
+      <InfoPill key="secure" type="secure">
+        <ShieldCheck className="w-2.5 h-2.5" /> Compra segura
+      </InfoPill>
+    );
+  }
+
+  // sequência: Nome, Preço, Nome, Info1, Nome, Info2, ...
+  const frames: JSX.Element[] = [nome, preco];
+  pills.forEach((pill, i) => {
+    frames.push(<span key={`nome-${i}`}>{nome}</span>, pill);
+  });
+
+  return frames;
 };
 
-// ─── Rotating Block ───────────────────────────────────────────────────────────
-const RotatingBlock = ({ p, isTrending, seed }: { p: any; isTrending: boolean; seed: number }) => {
-  const slides = useMemo(() => buildSlides(p, isTrending), [p.id, isTrending]);
-  const [idx, setIdx] = useState(seed % slides.length);
+// ─── Rotating Display ─────────────────────────────────────────────────────────
+const RotatingDisplay = ({
+  p, isTrending, seed, titleClass,
+}: { p: any; isTrending: boolean; seed: number; titleClass: string }) => {
+  const frames = useMemo(() => buildFrames(p, isTrending, titleClass), [p.id, isTrending, titleClass]);
+  const [idx, setIdx] = useState(seed % frames.length);
   const [vis, setVis] = useState(true);
-  const interval = useMemo(() => 4000 + (seed % 6) * 800, [seed]);
+  const interval = useMemo(() => 2600 + (seed % 5) * 500, [seed]);
 
   useEffect(() => {
-    if (slides.length <= 1) return;
+    if (frames.length <= 1) return;
     const t = setInterval(() => {
       setVis(false);
-      setTimeout(() => { setIdx(i => (i + 1) % slides.length); setVis(true); }, 260);
+      setTimeout(() => { setIdx(i => (i + 1) % frames.length); setVis(true); }, 220);
     }, interval);
     return () => clearInterval(t);
-  }, [slides.length, interval]);
+  }, [frames.length, interval]);
 
-  const s = slides[idx];
   return (
-    <div style={{ opacity: vis ? 1 : 0, transform: vis ? "translateY(0)" : "translateY(5px)", transition: "opacity 0.26s ease, transform 0.26s ease" }} className="flex flex-col gap-0.5">
-      {s?.price}
-      {s?.pill}
+    <div
+      className="flex flex-col justify-center"
+      style={{
+        minHeight: "30px",
+        opacity: vis ? 1 : 0,
+        transform: vis ? "translateY(4px)" : "translateY(0)",
+        transition: "opacity 0.22s ease, transform 0.22s ease",
+      }}
+    >
+      {frames[idx]}
     </div>
   );
 };
@@ -258,13 +304,13 @@ const InfiniteProducts = () => {
 
         {/* Rodapé */}
         <div className="flex flex-col px-2 pt-1.5 pb-0" style={{ background: "#fdf8f4" }}>
-          {/* Título — castanho, fixo */}
-          <h3 className="text-[11px] font-semibold text-[#6b3a1f] line-clamp-2 leading-snug mb-1.5">
-            {p.title}
-          </h3>
-
-          {/* Bloco rotativo: preço + pill */}
-          <RotatingBlock p={p} isTrending={isTrending} seed={globalIndex} />
+          {/* Bloco rotativo: nome ↔ preço ↔ nome ↔ outras infos */}
+          <RotatingDisplay
+            p={p}
+            isTrending={isTrending}
+            seed={globalIndex}
+            titleClass="text-[11px] font-semibold text-[#6b3a1f] line-clamp-2 leading-snug"
+          />
 
           {/* Risco + botão carrinho */}
           <div className="flex items-center justify-end pt-1.5 pb-2 mt-1.5" style={{ borderTop: "1px solid #e8d5c4" }}>
@@ -355,11 +401,13 @@ const InfiniteProducts = () => {
         </div>
 
         <div className="flex flex-col px-1.5 pt-1.5 pb-0 flex-1" style={{ background: "#fdf8f4" }}>
-          <p className="text-[10px] font-semibold text-[#6b3a1f] line-clamp-2 leading-tight mb-1.5">
-            {p.title}
-          </p>
-
-          <RotatingBlock p={p} isTrending={isTrending} seed={globalIndex} />
+          {/* Bloco rotativo: nome ↔ preço ↔ nome ↔ outras infos */}
+          <RotatingDisplay
+            p={p}
+            isTrending={isTrending}
+            seed={globalIndex}
+            titleClass="text-[10px] font-semibold text-[#6b3a1f] line-clamp-2 leading-tight"
+          />
 
           <div className="mt-1.5 pt-1.5 pb-2" style={{ borderTop: "1px solid #e8d5c4" }}>
             <button
