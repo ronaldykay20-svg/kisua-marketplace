@@ -8,7 +8,6 @@ import {
 } from "lucide-react";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useAuth } from "@/contexts/AuthContext";
-import { useCart } from "@/hooks/useCart";
 
 const PAGE_SIZE = 20;
 
@@ -168,7 +167,6 @@ const InfiniteProducts = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { isFavorite, toggleFavorite } = useFavorites();
-  const { addToCart } = useCart();
   const observerRef = useRef<HTMLDivElement>(null);
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
@@ -239,19 +237,11 @@ const InfiniteProducts = () => {
     const isTrending = trendingIds.has(p.id);
     const fav = isFavorite(p.id);
     const [pressed, setPressed] = useState(false);
-    const [cartPop, setCartPop] = useState(false);
 
     const onHeart = (e: React.MouseEvent) => {
       e.stopPropagation();
       if (!user) { navigate("/auth"); return; }
       toggleFavorite(p.id);
-    };
-    const onCart = (e: React.MouseEvent) => {
-      e.stopPropagation();
-      if (!user) { navigate("/auth"); return; }
-      addToCart(p.id);
-      setCartPop(true);
-      setTimeout(() => setCartPop(false), 700);
     };
 
     return (
@@ -303,7 +293,7 @@ const InfiniteProducts = () => {
         </div>
 
         {/* Rodapé */}
-        <div className="flex flex-col px-2 pt-1.5 pb-0" style={{ background: "#fdf8f4" }}>
+        <div className="flex flex-col px-2 py-1.5" style={{ background: "#fdf8f4" }}>
           {/* Bloco rotativo: nome ↔ preço ↔ nome ↔ outras infos */}
           <RotatingDisplay
             p={p}
@@ -311,25 +301,6 @@ const InfiniteProducts = () => {
             seed={globalIndex}
             titleClass="text-[11px] font-semibold text-[#6b3a1f] line-clamp-2 leading-snug"
           />
-
-          {/* Risco + botão carrinho */}
-          <div className="flex items-center justify-end pt-1.5 pb-2 mt-1.5" style={{ borderTop: "1px solid #e8d5c4" }}>
-            <button
-              onClick={onCart}
-              className="w-7 h-7 rounded-full flex items-center justify-center"
-              style={{
-                background: cartPop ? "#1a7a44" : "#c0522a",
-                boxShadow: "0 1px 4px rgba(0,0,0,0.14)",
-                transition: "background 0.22s ease, transform 0.13s ease",
-                transform: cartPop ? "scale(1.13)" : "scale(1)",
-              }}
-              aria-label="Adicionar ao carrinho"
-            >
-              {cartPop
-                ? <ShieldCheck className="w-3.5 h-3.5 text-white" />
-                : <ShoppingCart className="w-3.5 h-3.5 text-white" />}
-            </button>
-          </div>
         </div>
       </div>
     );
@@ -341,19 +312,11 @@ const InfiniteProducts = () => {
     const isTrending = trendingIds.has(p.id);
     const fav = isFavorite(p.id);
     const [pressed, setPressed] = useState(false);
-    const [cartPop, setCartPop] = useState(false);
 
     const onHeart = (e: React.MouseEvent) => {
       e.stopPropagation();
       if (!user) { navigate("/auth"); return; }
       toggleFavorite(p.id);
-    };
-    const onCart = (e: React.MouseEvent) => {
-      e.stopPropagation();
-      if (!user) { navigate("/auth"); return; }
-      addToCart(p.id);
-      setCartPop(true);
-      setTimeout(() => setCartPop(false), 700);
     };
 
     return (
@@ -400,7 +363,7 @@ const InfiniteProducts = () => {
           </button>
         </div>
 
-        <div className="flex flex-col px-1.5 pt-1.5 pb-0 flex-1" style={{ background: "#fdf8f4" }}>
+        <div className="flex flex-col px-1.5 py-1.5 flex-1" style={{ background: "#fdf8f4" }}>
           {/* Bloco rotativo: nome ↔ preço ↔ nome ↔ outras infos */}
           <RotatingDisplay
             p={p}
@@ -408,23 +371,6 @@ const InfiniteProducts = () => {
             seed={globalIndex}
             titleClass="text-[10px] font-semibold text-[#6b3a1f] line-clamp-2 leading-tight"
           />
-
-          <div className="mt-1.5 pt-1.5 pb-2" style={{ borderTop: "1px solid #e8d5c4" }}>
-            <button
-              onClick={onCart}
-              className="w-full py-1 text-[10px] font-bold text-white flex items-center justify-center gap-1"
-              style={{
-                background: cartPop ? "#1a7a44" : "#c0522a",
-                borderRadius: "4px",
-                transition: "background 0.22s ease",
-              }}
-              aria-label="Carrinho"
-            >
-              {cartPop
-                ? <><ShieldCheck className="w-3 h-3" /> Adicionado!</>
-                : <><ShoppingCart className="w-3 h-3" /> Carrinho</>}
-            </button>
-          </div>
         </div>
       </div>
     );
