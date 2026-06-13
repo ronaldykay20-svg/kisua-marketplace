@@ -40,12 +40,12 @@ const buildFrames = (p: any, isTrending: boolean, titleClass: string) => {
   );
 
   const preco = (
-    <div className="flex items-baseline gap-1.5">
-      <span className="text-[14px] font-black text-[#1a0f07] tracking-tight leading-none">
+    <div className="flex items-baseline justify-center gap-1.5">
+      <span className="text-[17px] font-black text-[#1a0f07] tracking-tight leading-none">
         {Number(p.price).toLocaleString("pt-AO")} Kz
       </span>
       {p.old_price && (
-        <span className="text-[9px] text-[#b09080] line-through">
+        <span className="text-[10px] text-[#b09080] line-through">
           {Number(p.old_price).toLocaleString("pt-AO")} Kz
         </span>
       )}
@@ -141,9 +141,9 @@ const RotatingDisplay = ({
 
   return (
     <div
-      className="flex flex-col justify-center"
+      className="flex flex-col items-center justify-center text-center"
       style={{
-        minHeight: "30px",
+        minHeight: "34px",
         opacity: vis ? 1 : 0,
         transform: vis ? "translateY(4px)" : "translateY(0)",
         transition: "opacity 0.22s ease, transform 0.22s ease",
@@ -250,11 +250,10 @@ const InfiniteProducts = () => {
         onPointerDown={() => setPressed(true)}
         onPointerUp={() => setPressed(false)}
         onPointerLeave={() => setPressed(false)}
-        className="overflow-hidden cursor-pointer flex flex-col mb-2.5 select-none"
+        className="overflow-hidden cursor-pointer flex flex-col mb-1.5 select-none"
         style={{
           background: "#fdf8f4",
-          borderRadius: "5px",
-          border: "1px solid #ede0d4",
+          borderRadius: "8px",
           boxShadow: pressed ? "0 1px 3px rgba(100,50,15,0.10)" : "0 2px 8px rgba(100,50,15,0.09)",
           transform: pressed ? "scale(0.975)" : "scale(1)",
           transition: "transform 0.13s ease, box-shadow 0.13s ease",
@@ -293,13 +292,13 @@ const InfiniteProducts = () => {
         </div>
 
         {/* Rodapé */}
-        <div className="flex flex-col px-2 py-1.5" style={{ background: "#fdf8f4" }}>
+        <div className="flex flex-col px-2 py-2" style={{ background: "#fdf8f4" }}>
           {/* Bloco rotativo: nome ↔ preço ↔ nome ↔ outras infos */}
           <RotatingDisplay
             p={p}
             isTrending={isTrending}
             seed={globalIndex}
-            titleClass="text-[11px] font-semibold text-[#6b3a1f] line-clamp-2 leading-snug"
+            titleClass="text-[13px] font-semibold text-[#6b3a1f] line-clamp-2 leading-snug text-center"
           />
         </div>
       </div>
@@ -328,8 +327,7 @@ const InfiniteProducts = () => {
         className="overflow-hidden cursor-pointer flex flex-col h-full select-none"
         style={{
           background: "#fdf8f4",
-          borderRadius: "5px",
-          border: "1px solid #ede0d4",
+          borderRadius: "8px",
           boxShadow: pressed ? "0 1px 3px rgba(100,50,15,0.08)" : "0 2px 6px rgba(100,50,15,0.08)",
           transform: pressed ? "scale(0.97)" : "scale(1)",
           transition: "transform 0.13s ease, box-shadow 0.13s ease",
@@ -363,13 +361,13 @@ const InfiniteProducts = () => {
           </button>
         </div>
 
-        <div className="flex flex-col px-1.5 py-1.5 flex-1" style={{ background: "#fdf8f4" }}>
+        <div className="flex flex-col px-1.5 py-2 flex-1" style={{ background: "#fdf8f4" }}>
           {/* Bloco rotativo: nome ↔ preço ↔ nome ↔ outras infos */}
           <RotatingDisplay
             p={p}
             isTrending={isTrending}
             seed={globalIndex}
-            titleClass="text-[10px] font-semibold text-[#6b3a1f] line-clamp-2 leading-tight"
+            titleClass="text-[12px] font-semibold text-[#6b3a1f] line-clamp-2 leading-tight text-center"
           />
         </div>
       </div>
@@ -387,12 +385,12 @@ const InfiniteProducts = () => {
       </div>
 
       {/* TABLET — 5 colunas */}
-      <div className="hidden sm:grid" style={{ gridTemplateColumns: "repeat(5, 1fr)", gap: "8px", gridAutoRows: "1fr" }}>
+      <div className="hidden sm:grid" style={{ gridTemplateColumns: "repeat(5, 1fr)", gap: "10px", gridAutoRows: "1fr" }}>
         {allProducts.map((p: any, i: number) => <TabletCard key={p.id} p={p} globalIndex={i} />)}
       </div>
 
       {/* MOBILE — 2 colunas */}
-      <div className="flex gap-2.5 sm:hidden">
+      <div className="flex gap-1.5 sm:hidden">
         <div className="flex-1">
           {col1.map((p: any, colI: number) => <MobileCard key={p.id} p={p} globalIndex={colI * 2} />)}
         </div>
