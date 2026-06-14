@@ -61,7 +61,7 @@ const Footer = () => {
             <h4 className="text-[11px] font-bold text-secondary uppercase tracking-wider mb-3">Comprar</h4>
             <ul className="space-y-2 text-[13px]">
               <li><a href="/como-comprar" className="text-[#d9bfa5] hover:text-white transition-colors">Como comprar</a></li>
-              <li><a href="#" className="text-[#d9bfa5] hover:text-white transition-colors">Formas de pagamento</a></li>
+              <li><a href="/formas-pagamento" className="text-[#d9bfa5] hover:text-white transition-colors">Formas de pagamento</a></li>
               <li><a href="#" className="text-[#d9bfa5] hover:text-white transition-colors">Entrega e frete</a></li>
               <li><a href="#" className="text-[#d9bfa5] hover:text-white transition-colors">Devoluções</a></li>
             </ul>
