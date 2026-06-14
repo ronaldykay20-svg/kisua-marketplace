@@ -26,6 +26,7 @@ import Pedidos from "./pages/Pedidos.tsx";
 import Favoritos from "./pages/Favoritos.tsx";
 import Ajuda from "./pages/Ajuda.tsx";
 import ComoComprar from "./pages/ComoComprar.tsx";
+import FormasPagamento from "./pages/FormasPagamento.tsx";
 import VenderKwanza from "./pages/VenderKwanza.tsx";
 import Auth from "./pages/Auth.tsx";
 import AdminPanel from "./pages/AdminPanel.tsx";
@@ -100,6 +101,7 @@ const App = () => (
             <Route path="/favoritos" element={<Layout><ProtectedRoute><Favoritos /></ProtectedRoute></Layout>} />
             <Route path="/ajuda" element={<Layout><Ajuda /></Layout>} />
             <Route path="/como-comprar" element={<Layout><ComoComprar /></Layout>} />
+            <Route path="/formas-pagamento" element={<Layout><FormasPagamento /></Layout>} />
             <Route path="/vender" element={<Layout><ProtectedRoute><VenderKwanza /></ProtectedRoute></Layout>} />
             <Route path="/enderecos" element={<Layout><ProtectedRoute><Enderecos /></ProtectedRoute></Layout>} />
             <Route path="/pagamentos" element={<Layout><ProtectedRoute><Pagamentos /></ProtectedRoute></Layout>} />
