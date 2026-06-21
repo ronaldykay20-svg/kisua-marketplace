@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Facebook, Instagram, Youtube, Twitter, Linkedin, MessageCircle, Music2, MapPin, Mail, ShieldCheck } from "lucide-react";
+import { Facebook, Instagram, Youtube, Twitter, Linkedin, MessageCircle, Music2, MapPin, ShieldCheck } from "lucide-react";
 
 const SOCIAL_DEFS = [
   { key: "social_facebook_url", label: "Facebook", Icon: Facebook },
@@ -82,7 +82,7 @@ const Footer = () => {
               {socials.social_whatsapp_url && (
                 <li><a href={socials.social_whatsapp_url} target="_blank" rel="noopener noreferrer" className="text-[#d9bfa5] hover:text-white transition-colors">WhatsApp</a></li>
               )}
-              <li><a href="#" className="text-[#d9bfa5] hover:text-white transition-colors">Reportar problema</a></li>
+              <li><a href="/reportar-problema" className="text-[#d9bfa5] hover:text-white transition-colors">Reportar problema</a></li>
             </ul>
           </div>
           <div>
