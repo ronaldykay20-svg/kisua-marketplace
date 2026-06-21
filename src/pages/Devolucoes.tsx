@@ -94,7 +94,7 @@ const Devolucoes = () => {
           <ol className="space-y-4">
             {[
               { n: "1", title: "Aceda aos seus pedidos", desc: 'Vá a "Minha Conta → Pedidos" e seleccione o pedido com o problema.' },
-              { n: "2", title: "Clique em "Solicitar devolução"", desc: "Descreva o motivo e anexe fotos do produto (obrigatório para defeitos e danos)." },
+              { n: "2", title: 'Clique em "Solicitar devolução"', desc: "Descreva o motivo e anexe fotos do produto (obrigatório para defeitos e danos)." },
               { n: "3", title: "Aguarde a aprovação", desc: "O vendedor e a equipa AngoExpress analisam o pedido em até 48 horas úteis." },
               { n: "4", title: "Devolva o produto", desc: "Se aprovado, receberá instruções para enviar o produto de volta. O custo do envio é coberto pelo vendedor nos casos aceites." },
               { n: "5", title: "Receba o reembolso", desc: "Após a recepção e validação, o reembolso é processado em 3 a 5 dias úteis para o seu método de pagamento original." },
