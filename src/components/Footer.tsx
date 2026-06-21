@@ -89,8 +89,8 @@ const Footer = () => {
             <h4 className="text-[11px] font-bold text-secondary uppercase tracking-wider mb-3">Empresa</h4>
             <ul className="space-y-2 text-[13px]">
               <li><a href="/sobre-nos" className="text-[#d9bfa5] hover:text-white transition-colors">Sobre nós</a></li>
-              <li><a href="#" className="text-[#d9bfa5] hover:text-white transition-colors">Termos de uso</a></li>
-              <li><a href="#" className="text-[#d9bfa5] hover:text-white transition-colors">Privacidade</a></li>
+              <li><a href="/termos-uso" className="text-[#d9bfa5] hover:text-white transition-colors">Termos de uso</a></li>
+              <li><a href="/privacidade" className="text-[#d9bfa5] hover:text-white transition-colors">Privacidade</a></li>
               <li><a href="#" className="text-[#d9bfa5] hover:text-white transition-colors">Blog</a></li>
             </ul>
           </div>
