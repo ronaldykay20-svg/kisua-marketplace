@@ -29,6 +29,7 @@ import ComoComprar from "./pages/ComoComprar.tsx";
 import FormasPagamento from "./pages/FormasPagamento.tsx";
 import EntregaFrete from "./pages/EntregaFrete.tsx";
 import Devolucoes from "./pages/Devolucoes.tsx";
+import ReportarProblema from "./pages/ReportarProblema.tsx";
 import VenderKwanza from "./pages/VenderKwanza.tsx";
 import Auth from "./pages/Auth.tsx";
 import AdminPanel from "./pages/AdminPanel.tsx";
@@ -52,10 +53,8 @@ import CatalogoFornecedores from "./pages/CatalogoFornecedores.tsx";
 
 const queryClient = new QueryClient();
 
-// Rotas onde o BottomNav não deve aparecer
 const HIDE_BOTTOM_NAV_PATHS = [/^\/produto\/.+/];
 
-// Layout global — navbar mobile + navbar tablet/desktop + conteúdo + bottom nav
 const Layout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
   const hideBottomNav = HIDE_BOTTOM_NAV_PATHS.some((pattern) =>
@@ -64,11 +63,9 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <div className={`min-h-screen bg-background ${hideBottomNav ? "" : "pb-14 md:pb-0"}`}>
-      {/* Mobile: NewNavbar (visível só em ecrãs < md) */}
       <div className="md:hidden">
         <NewNavbar />
       </div>
-      {/* Tablet + Desktop: DesktopNavbar (visível só em ecrãs ≥ md) */}
       <DesktopNavbar />
       {children}
       {!hideBottomNav && <BottomNav />}
@@ -106,6 +103,7 @@ const App = () => (
             <Route path="/formas-pagamento" element={<Layout><FormasPagamento /></Layout>} />
             <Route path="/entrega-frete" element={<Layout><EntregaFrete /></Layout>} />
             <Route path="/devolucoes" element={<Layout><Devolucoes /></Layout>} />
+            <Route path="/reportar-problema" element={<Layout><ReportarProblema /></Layout>} />
             <Route path="/vender" element={<Layout><ProtectedRoute><VenderKwanza /></ProtectedRoute></Layout>} />
             <Route path="/enderecos" element={<Layout><ProtectedRoute><Enderecos /></ProtectedRoute></Layout>} />
             <Route path="/pagamentos" element={<Layout><ProtectedRoute><Pagamentos /></ProtectedRoute></Layout>} />
