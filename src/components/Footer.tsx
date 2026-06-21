@@ -62,8 +62,8 @@ const Footer = () => {
             <ul className="space-y-2 text-[13px]">
               <li><a href="/como-comprar" className="text-[#d9bfa5] hover:text-white transition-colors">Como comprar</a></li>
               <li><a href="/formas-pagamento" className="text-[#d9bfa5] hover:text-white transition-colors">Formas de pagamento</a></li>
-              <li><a href="#" className="text-[#d9bfa5] hover:text-white transition-colors">Entrega e frete</a></li>
-              <li><a href="#" className="text-[#d9bfa5] hover:text-white transition-colors">Devoluções</a></li>
+              <li><a href="/entrega-frete" className="text-[#d9bfa5] hover:text-white transition-colors">Entrega e frete</a></li>
+              <li><a href="/devolucoes" className="text-[#d9bfa5] hover:text-white transition-colors">Devoluções</a></li>
             </ul>
           </div>
           <div>
