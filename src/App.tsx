@@ -33,6 +33,8 @@ import ReportarProblema from "./pages/ReportarProblema.tsx";
 import SobreNos from "./pages/SobreNos.tsx";
 import TermosUso from "./pages/TermosUso.tsx";
 import Privacidade from "./pages/Privacidade.tsx";
+import Comissoes from "./pages/Comissoes.tsx";
+import LojasVerificadas from "./pages/LojasVerificadas.tsx";
 import VenderKwanza from "./pages/VenderKwanza.tsx";
 import Auth from "./pages/Auth.tsx";
 import AdminPanel from "./pages/AdminPanel.tsx";
@@ -63,12 +65,9 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
   const hideBottomNav = HIDE_BOTTOM_NAV_PATHS.some((pattern) =>
     pattern.test(location.pathname)
   );
-
   return (
     <div className={`min-h-screen bg-background ${hideBottomNav ? "" : "pb-14 md:pb-0"}`}>
-      <div className="md:hidden">
-        <NewNavbar />
-      </div>
+      <div className="md:hidden"><NewNavbar /></div>
       <DesktopNavbar />
       {children}
       {!hideBottomNav && <BottomNav />}
@@ -110,6 +109,8 @@ const App = () => (
             <Route path="/sobre-nos" element={<Layout><SobreNos /></Layout>} />
             <Route path="/termos-uso" element={<Layout><TermosUso /></Layout>} />
             <Route path="/privacidade" element={<Layout><Privacidade /></Layout>} />
+            <Route path="/comissoes" element={<Layout><Comissoes /></Layout>} />
+            <Route path="/lojas-verificadas" element={<Layout><LojasVerificadas /></Layout>} />
             <Route path="/vender" element={<Layout><ProtectedRoute><VenderKwanza /></ProtectedRoute></Layout>} />
             <Route path="/enderecos" element={<Layout><ProtectedRoute><Enderecos /></ProtectedRoute></Layout>} />
             <Route path="/pagamentos" element={<Layout><ProtectedRoute><Pagamentos /></ProtectedRoute></Layout>} />
