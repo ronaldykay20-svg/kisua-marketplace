@@ -37,7 +37,6 @@ const Footer = () => {
     <footer className="mt-8 bg-gradient-to-b from-[#5C3A1E] to-[#3a2412] text-[#f5e6d3]">
       <div className="container mx-auto px-4 py-10">
 
-        {/* Brand */}
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
           <div>
             <div className="text-2xl font-extrabold tracking-tight text-white">
@@ -55,7 +54,6 @@ const Footer = () => {
           </div>
         </div>
 
-        {/* Links */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
           <div>
             <h4 className="text-[11px] font-bold text-secondary uppercase tracking-wider mb-3">Comprar</h4>
@@ -70,8 +68,8 @@ const Footer = () => {
             <h4 className="text-[11px] font-bold text-secondary uppercase tracking-wider mb-3">Vender</h4>
             <ul className="space-y-2 text-[13px]">
               <li><a href="/seja-fornecedor" className="text-[#d9bfa5] hover:text-white transition-colors">Como vender</a></li>
-              <li><a href="#" className="text-[#d9bfa5] hover:text-white transition-colors">Comissões</a></li>
-              <li><a href="#" className="text-[#d9bfa5] hover:text-white transition-colors">Loja verificada</a></li>
+              <li><a href="/comissoes" className="text-[#d9bfa5] hover:text-white transition-colors">Comissões</a></li>
+              <li><a href="/lojas-verificadas" className="text-[#d9bfa5] hover:text-white transition-colors">Loja verificada</a></li>
               <li><a href="#" className="text-[#d9bfa5] hover:text-white transition-colors">Painel do vendedor</a></li>
             </ul>
           </div>
@@ -96,20 +94,13 @@ const Footer = () => {
           </div>
         </div>
 
-        {/* Socials */}
         {active.length > 0 && (
           <div className="border-t border-white/10 pt-6 mb-6">
             <p className="text-[11px] font-bold text-secondary uppercase tracking-wider mb-3">Siga-nos</p>
             <div className="flex flex-wrap gap-2">
               {active.map(({ key, label, Icon }) => (
-                <a
-                  key={key}
-                  href={socials[key]}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={label}
-                  className="group w-10 h-10 rounded-xl bg-white/10 hover:bg-secondary hover:text-[#3a2412] flex items-center justify-center transition-all hover:-translate-y-0.5"
-                >
+                <a key={key} href={socials[key]} target="_blank" rel="noopener noreferrer" aria-label={label}
+                  className="group w-10 h-10 rounded-xl bg-white/10 hover:bg-secondary hover:text-[#3a2412] flex items-center justify-center transition-all hover:-translate-y-0.5">
                   <Icon className="w-4 h-4" />
                 </a>
               ))}
