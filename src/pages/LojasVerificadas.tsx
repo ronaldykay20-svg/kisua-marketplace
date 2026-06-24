@@ -2,71 +2,78 @@ import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ShieldCheck, Search, Star, Users, Eye, Package,
-  Store, BadgeCheck, ChevronRight, MapPin
+  Store, BadgeCheck, ChevronRight, MapPin, CheckCircle
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useSellers } from "@/hooks/useSupabaseData";
 
 type TipoFiltro = "todos" | "vendedores" | "empresas";
 
-const useVerifiedSellers = () =>
-  useQuery({
-    queryKey: ["verified_sellers"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("sellers")
-        .select("id, name, description, province, rating, total_reviews, visits_count, followers_count, products_count, logo_url, cover_url")
-        .eq("is_verified", true)
-        .eq("is_active", true)
-        .order("rating", { ascending: false });
-      if (error) throw error;
-      return (data || []).map((s: any) => ({
-        id: s.id,
-        tipo: "vendedor" as const,
-        name: s.name,
-        specialty: s.description || "Vendedor verificado",
-        location: s.province || "",
-        rating: s.rating ?? 0,
-        reviews: s.total_reviews ?? 0,
-        visits: s.visits_count ?? 0,
-        followers: s.followers_count ?? 0,
-        products: s.products_count ?? 0,
-        logo: s.logo_url || null,
-        cover: s.cover_url || "https://images.unsplash.com/photo-1556761175-b413da4baf72?w=600&h=200&fit=crop",
-      }));
-    },
-    staleTime: 5 * 60 * 1000,
-  });
-
+// ── Empresas verificadas (igual a Empresas.tsx) ───────────────────────────────
 const useVerifiedCompanies = () =>
   useQuery({
     queryKey: ["verified_companies"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("companies")
-        .select("id, name, description, rating, total_reviews, visits_count, followers_count, logo_url, banner_url")
+        .select("*")
         .eq("is_verified", true)
         .eq("is_active", true)
         .order("rating", { ascending: false });
       if (error) throw error;
+
+      const companyIds = (data || []).map((c: any) => c.id);
+      let ratingsMap: Record<string, { avg: number; count: number }> = {};
+      let followersMap: Record<string, number> = {};
+
+      if (companyIds.length > 0) {
+        const { data: reviews } = await supabase
+          .from("company_reviews")
+          .select("company_id, rating")
+          .in("company_id", companyIds);
+        if (reviews) {
+          const grouped: Record<string, number[]> = {};
+          reviews.forEach((r: any) => {
+            if (!grouped[r.company_id]) grouped[r.company_id] = [];
+            grouped[r.company_id].push(r.rating);
+          });
+          Object.entries(grouped).forEach(([cid, ratings]) => {
+            const avg = ratings.reduce((a, b) => a + b, 0) / ratings.length;
+            ratingsMap[cid] = { avg: Math.round(avg * 10) / 10, count: ratings.length };
+          });
+        }
+        const { data: follows } = await supabase
+          .from("company_follows")
+          .select("company_id")
+          .in("company_id", companyIds);
+        if (follows) {
+          follows.forEach((f: any) => {
+            followersMap[f.company_id] = (followersMap[f.company_id] || 0) + 1;
+          });
+        }
+      }
+
       return (data || []).map((c: any) => ({
         id: c.id,
         tipo: "empresa" as const,
         name: c.name,
         specialty: c.description || "Empresa verificada",
         location: "",
-        rating: c.rating ?? 0,
-        reviews: c.total_reviews ?? 0,
+        rating: ratingsMap[c.id]?.avg ?? c.rating ?? 0,
+        reviews: ratingsMap[c.id]?.count ?? 0,
         visits: c.visits_count ?? 0,
-        followers: c.followers_count ?? 0,
+        followers: followersMap[c.id] ?? c.followers_count ?? 0,
         products: 0,
         logo: c.logo_url || null,
         cover: c.banner_url || "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=600&h=300&fit=crop",
+        verified: true,
       }));
     },
     staleTime: 5 * 60 * 1000,
   });
 
+// ── Card ──────────────────────────────────────────────────────────────────────
 const LojaCard = ({ item, onClick }: { item: any; onClick: () => void }) => {
   const fmt = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n);
   const isEmpresa = item.tipo === "empresa";
@@ -76,51 +83,50 @@ const LojaCard = ({ item, onClick }: { item: any; onClick: () => void }) => {
       onClick={onClick}
       className="bg-card rounded-card border border-border overflow-hidden cursor-pointer hover:shadow-lg transition-shadow group"
     >
-      <div className="h-28 overflow-hidden relative">
+      {/* Cover */}
+      <div className="h-24 overflow-hidden relative">
         <img
           src={item.cover}
           alt={item.name}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           loading="lazy"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-foreground/30 to-transparent" />
         <div className={`absolute top-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
           isEmpresa ? "bg-secondary text-[#3a2412]" : "bg-primary text-primary-foreground"
         }`}>
           {isEmpresa ? <Store className="w-3 h-3" /> : <Users className="w-3 h-3" />}
           {isEmpresa ? "Empresa" : "Vendedor"}
         </div>
-        <div className="absolute top-2 right-2 flex items-center gap-1 bg-white/95 text-primary rounded-full px-2 py-0.5">
-          <BadgeCheck className="w-3.5 h-3.5" />
-          <span className="text-[10px] font-bold">Verificado</span>
-        </div>
       </div>
 
-      <div className="p-3 pt-0 relative">
-        <div className="w-14 h-14 rounded-card border-2 border-border -mt-7 relative z-10 shadow-sm overflow-hidden flex items-center justify-center bg-card">
-          {item.logo ? (
-            <img src={item.logo} alt={item.name} className="w-full h-full object-cover" />
-          ) : (
-            <div className={`w-full h-full flex items-center justify-center ${isEmpresa ? "bg-secondary/20" : "bg-primary/10"}`}>
-              {isEmpresa ? <Store className="w-6 h-6 text-secondary" /> : <Users className="w-6 h-6 text-primary" />}
-            </div>
-          )}
-        </div>
-
-        <div className="mt-1.5">
-          <div className="flex items-center gap-1.5">
-            <h3 className="text-sm font-bold text-foreground truncate">{item.name}</h3>
-            <ShieldCheck className="w-3.5 h-3.5 text-primary shrink-0" />
+      {/* Corpo — igual ao padrão Vendedores.tsx */}
+      <div className="p-3 -mt-6 relative">
+        <div className="flex items-end gap-3">
+          <div className="w-14 h-14 rounded-card border-2 border-card overflow-hidden flex items-center justify-center bg-card shrink-0">
+            {item.logo ? (
+              <img src={item.logo} alt={item.name} className="w-full h-full object-cover" />
+            ) : (
+              <div className={`w-full h-full flex items-center justify-center ${isEmpresa ? "bg-secondary/20" : "bg-primary/10"}`}>
+                {isEmpresa ? <Store className="w-6 h-6 text-secondary" /> : <Users className="w-6 h-6 text-primary" />}
+              </div>
+            )}
           </div>
-          <p className="text-[11px] text-muted-foreground truncate">{item.specialty}</p>
-          {item.location && (
-            <p className="text-[10px] text-muted-foreground flex items-center gap-0.5 mt-0.5">
-              <MapPin className="w-3 h-3" /> {item.location}
-            </p>
-          )}
+          <div className="flex-1 min-w-0 pb-1">
+            <div className="flex items-center gap-1">
+              <h3 className="text-sm font-bold text-foreground truncate">{item.name}</h3>
+              <CheckCircle className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+            </div>
+            <p className="text-[10px] text-muted-foreground truncate">{item.specialty}</p>
+            {item.location && (
+              <p className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                <MapPin className="w-3 h-3" /> {item.location}
+              </p>
+            )}
+          </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-1 mt-2.5 text-[10px] text-muted-foreground">
+        <div className="grid grid-cols-2 gap-1.5 mt-3 text-[10px] text-muted-foreground">
           <div className="flex items-center gap-1">
             <Star className="w-3 h-3 text-secondary fill-secondary" />
             <span className="font-bold text-foreground">{item.rating}</span>
@@ -145,13 +151,18 @@ const LojaCard = ({ item, onClick }: { item: any; onClick: () => void }) => {
   );
 };
 
+// ── Skeleton ──────────────────────────────────────────────────────────────────
 const SkeletonCard = () => (
   <div className="bg-card rounded-card border border-border overflow-hidden animate-pulse">
-    <div className="h-28 bg-muted" />
-    <div className="p-3 pt-0">
-      <div className="w-14 h-14 rounded-card bg-muted -mt-7 mb-2" />
-      <div className="h-3 bg-muted rounded w-3/4 mb-1" />
-      <div className="h-2 bg-muted rounded w-1/2 mb-3" />
+    <div className="h-24 bg-muted" />
+    <div className="p-3 -mt-6">
+      <div className="flex items-end gap-3 mb-3">
+        <div className="w-14 h-14 rounded-card bg-muted shrink-0" />
+        <div className="flex-1 pb-1 space-y-1">
+          <div className="h-3 bg-muted rounded w-3/4" />
+          <div className="h-2 bg-muted rounded w-1/2" />
+        </div>
+      </div>
       <div className="grid grid-cols-2 gap-1 mb-3">
         {[...Array(4)].map((_, i) => <div key={i} className="h-2 bg-muted rounded" />)}
       </div>
@@ -160,15 +171,37 @@ const SkeletonCard = () => (
   </div>
 );
 
+// ── Página ────────────────────────────────────────────────────────────────────
 const LojasVerificadas = () => {
   const navigate = useNavigate();
   const [tipo, setTipo] = useState<TipoFiltro>("todos");
   const [search, setSearch] = useState("");
 
-  const { data: sellers = [], isLoading: loadingSellers } = useVerifiedSellers();
+  // Vendedores verificados — usa o mesmo hook que Vendedores.tsx
+  const { data: dbSellers = [], isLoading: loadingSellers } = useSellers({ verified: true });
   const { data: companies = [], isLoading: loadingCompanies } = useVerifiedCompanies();
 
   const isLoading = loadingSellers || loadingCompanies;
+
+  // Mapeia vendedores para o formato do card
+  const sellers = useMemo(() =>
+    (dbSellers as any[]).map((s: any) => ({
+      id: s.id,
+      tipo: "vendedor" as const,
+      name: s.name,
+      specialty: s.description || "Vendedor verificado",
+      location: s.province || "",
+      rating: s.rating ?? 0,
+      reviews: s.total_reviews ?? 0,
+      visits: s.visits_count ?? 0,
+      followers: s.followers_count ?? 0,
+      products: s.products_count ?? 0,
+      logo: s.logo_url || null,
+      cover: s.cover_url || "https://images.unsplash.com/photo-1556761175-b413da4baf72?w=600&h=200&fit=crop",
+      verified: true,
+    })),
+    [dbSellers]
+  );
 
   const items = useMemo(() => {
     let list: any[] = [];
@@ -186,7 +219,7 @@ const LojasVerificadas = () => {
   return (
     <div className="min-h-screen bg-background">
 
-      {/* Cabeçalho compacto */}
+      {/* Cabeçalho */}
       <div className="container mx-auto max-w-2xl px-3 pt-4 pb-3 flex items-center gap-2">
         <BadgeCheck className="w-5 h-5 text-primary" />
         <h1 className="text-lg font-black text-foreground">Parceiros Verificados</h1>
@@ -242,7 +275,7 @@ const LojasVerificadas = () => {
       {/* Grid */}
       <div className="container mx-auto max-w-2xl px-3 pb-6">
         {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {[...Array(4)].map((_, i) => <SkeletonCard key={i} />)}
           </div>
         ) : items.length === 0 ? (
@@ -251,7 +284,7 @@ const LojasVerificadas = () => {
             <p className="text-sm text-muted-foreground">Nenhum parceiro verificado encontrado.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {items.map((item) => (
               <LojaCard
                 key={`${item.tipo}-${item.id}`}
