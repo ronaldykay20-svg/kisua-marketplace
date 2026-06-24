@@ -1,15 +1,14 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  ShieldCheck, Search, Star, Users, ShoppingBag, Eye, Package,
-  Store, BadgeCheck, Sparkles, ChevronRight, MapPin
+  ShieldCheck, Search, Star, Users, Eye, Package,
+  Store, BadgeCheck, ChevronRight, MapPin
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 type TipoFiltro = "todos" | "vendedores" | "empresas";
 
-// ── Queries ───────────────────────────────────────────────────────────────────
 const useVerifiedSellers = () =>
   useQuery({
     queryKey: ["verified_sellers"],
@@ -68,7 +67,6 @@ const useVerifiedCompanies = () =>
     staleTime: 5 * 60 * 1000,
   });
 
-// ── Card ──────────────────────────────────────────────────────────────────────
 const LojaCard = ({ item, onClick }: { item: any; onClick: () => void }) => {
   const fmt = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n);
   const isEmpresa = item.tipo === "empresa";
@@ -78,7 +76,6 @@ const LojaCard = ({ item, onClick }: { item: any; onClick: () => void }) => {
       onClick={onClick}
       className="bg-card rounded-card border border-border overflow-hidden cursor-pointer hover:shadow-lg transition-shadow group"
     >
-      {/* Cover */}
       <div className="h-28 overflow-hidden relative">
         <img
           src={item.cover}
@@ -87,23 +84,19 @@ const LojaCard = ({ item, onClick }: { item: any; onClick: () => void }) => {
           loading="lazy"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-        {/* Badge tipo */}
         <div className={`absolute top-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
           isEmpresa ? "bg-secondary text-[#3a2412]" : "bg-primary text-primary-foreground"
         }`}>
           {isEmpresa ? <Store className="w-3 h-3" /> : <Users className="w-3 h-3" />}
           {isEmpresa ? "Empresa" : "Vendedor"}
         </div>
-        {/* Badge verificado */}
         <div className="absolute top-2 right-2 flex items-center gap-1 bg-white/95 text-primary rounded-full px-2 py-0.5">
           <BadgeCheck className="w-3.5 h-3.5" />
           <span className="text-[10px] font-bold">Verificado</span>
         </div>
       </div>
 
-      {/* Corpo */}
       <div className="p-3 pt-0 relative">
-        {/* Avatar */}
         <div className="w-14 h-14 rounded-card border-2 border-border -mt-7 relative z-10 shadow-sm overflow-hidden flex items-center justify-center bg-card">
           {item.logo ? (
             <img src={item.logo} alt={item.name} className="w-full h-full object-cover" />
@@ -152,7 +145,6 @@ const LojaCard = ({ item, onClick }: { item: any; onClick: () => void }) => {
   );
 };
 
-// ── Skeleton ──────────────────────────────────────────────────────────────────
 const SkeletonCard = () => (
   <div className="bg-card rounded-card border border-border overflow-hidden animate-pulse">
     <div className="h-28 bg-muted" />
@@ -168,7 +160,6 @@ const SkeletonCard = () => (
   </div>
 );
 
-// ── Página ────────────────────────────────────────────────────────────────────
 const LojasVerificadas = () => {
   const navigate = useNavigate();
   const [tipo, setTipo] = useState<TipoFiltro>("todos");
@@ -195,72 +186,49 @@ const LojasVerificadas = () => {
   return (
     <div className="min-h-screen bg-background">
 
-      {/* Hero */}
-      <div className="bg-gradient-to-br from-[#5C3A1E] via-[#4a2e16] to-[#3a2412] pt-8 pb-16 px-4 text-center relative overflow-hidden">
-        <div className="absolute inset-0 opacity-5 pointer-events-none">
-          {[...Array(16)].map((_, i) => (
-            <div key={i} className="absolute w-1.5 h-1.5 bg-secondary rounded-full animate-pulse"
-              style={{ left: `${(i * 41) % 100}%`, top: `${(i * 57) % 100}%`, animationDelay: `${i * 0.25}s` }} />
-          ))}
-        </div>
-        <div className="relative z-10">
-          <div className="w-16 h-16 bg-secondary/20 border border-secondary/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <BadgeCheck className="w-8 h-8 text-secondary" />
-          </div>
-          <h1 className="text-2xl font-extrabold text-white mb-1">Parceiros Verificados</h1>
-          <p className="text-[#d9bfa5] text-sm max-w-xs mx-auto mb-4">
-            Vendedores e empresas com identidade confirmada e qualidade garantida.
-          </p>
-          <div className="flex justify-center gap-2 flex-wrap">
-            <span className="inline-flex items-center gap-1.5 bg-white/10 rounded-full px-3 py-1.5 text-[11px] text-[#f0d6b8]">
-              <ShieldCheck className="w-3.5 h-3.5 text-secondary" /> Identidade confirmada
-            </span>
-            <span className="inline-flex items-center gap-1.5 bg-white/10 rounded-full px-3 py-1.5 text-[11px] text-[#f0d6b8]">
-              <Sparkles className="w-3.5 h-3.5 text-secondary" /> Qualidade garantida
-            </span>
-          </div>
-        </div>
+      {/* Cabeçalho compacto */}
+      <div className="container mx-auto max-w-2xl px-3 pt-4 pb-3 flex items-center gap-2">
+        <BadgeCheck className="w-5 h-5 text-primary" />
+        <h1 className="text-lg font-black text-foreground">Parceiros Verificados</h1>
       </div>
 
-      {/* Search + Filtros sobrepostos ao hero */}
-      <div className="container mx-auto max-w-2xl px-3 -mt-8 relative z-10">
-        <div className="bg-card rounded-card border border-border shadow-xl p-4 space-y-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Pesquisar parceiros verificados..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2.5 rounded-card bg-muted text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-            />
-          </div>
-          <div className="flex gap-2">
-            {([
-              { key: "todos", label: "Todos", icon: BadgeCheck },
-              { key: "vendedores", label: "Vendedores", icon: Users },
-              { key: "empresas", label: "Empresas", icon: Store },
-            ] as const).map(({ key, label, icon: Icon }) => (
-              <button
-                key={key}
-                onClick={() => setTipo(key)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-card text-xs font-bold border transition ${
-                  tipo === key
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-muted text-muted-foreground border-border hover:border-primary/30"
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                {label}
-              </button>
-            ))}
-          </div>
+      {/* Search + Filtros */}
+      <div className="container mx-auto max-w-2xl px-3 space-y-2 mb-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Pesquisar parceiros verificados..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-9 pr-4 py-2.5 rounded-card bg-card border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+        </div>
+        <div className="flex gap-2">
+          {([
+            { key: "todos", label: "Todos", icon: BadgeCheck },
+            { key: "vendedores", label: "Vendedores", icon: Users },
+            { key: "empresas", label: "Empresas", icon: Store },
+          ] as const).map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              onClick={() => setTipo(key)}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-card text-xs font-bold border transition ${
+                tipo === key
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-card text-foreground border-border hover:bg-muted"
+              }`}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              {label}
+            </button>
+          ))}
         </div>
       </div>
 
       {/* Contagem */}
       {!isLoading && items.length > 0 && (
-        <div className="container mx-auto max-w-2xl px-3 mt-4 mb-2 flex items-center justify-between">
+        <div className="container mx-auto max-w-2xl px-3 mb-2 flex items-center justify-between">
           <p className="text-xs text-muted-foreground">
             <span className="font-bold text-foreground">{items.length}</span> parceiros encontrados
           </p>
@@ -272,7 +240,7 @@ const LojasVerificadas = () => {
       )}
 
       {/* Grid */}
-      <div className="container mx-auto max-w-2xl px-3 mt-2 pb-6">
+      <div className="container mx-auto max-w-2xl px-3 pb-6">
         {isLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {[...Array(4)].map((_, i) => <SkeletonCard key={i} />)}
