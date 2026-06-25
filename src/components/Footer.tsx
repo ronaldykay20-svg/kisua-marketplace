@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Facebook, Instagram, Youtube, Twitter, Linkedin, MessageCircle, Music2, MapPin, ShieldCheck } from "lucide-react";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 
 const SOCIAL_DEFS = [
   { key: "social_facebook_url", label: "Facebook", Icon: Facebook },
@@ -32,6 +33,7 @@ const useSocials = () => {
 const Footer = () => {
   const { data: socials = {} } = useSocials();
   const active = SOCIAL_DEFS.filter((s) => socials[s.key]);
+  const { hasAccess: hasLeiloesAccess } = useFeatureAccess("leiloes");
 
   return (
     <footer className="mt-8 bg-gradient-to-b from-[#5C3A1E] to-[#3a2412] text-[#f5e6d3]">
@@ -40,7 +42,7 @@ const Footer = () => {
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
           <div>
             <div className="text-2xl font-extrabold tracking-tight text-white">
-              Ango<span className="text-secondary">Express</span>
+              ZANGU
             </div>
             <p className="text-xs text-[#d9bfa5] mt-1">O marketplace de Angola.</p>
           </div>
@@ -62,6 +64,9 @@ const Footer = () => {
               <li><a href="/formas-pagamento" className="text-[#d9bfa5] hover:text-white transition-colors">Formas de pagamento</a></li>
               <li><a href="/entrega-frete" className="text-[#d9bfa5] hover:text-white transition-colors">Entrega e frete</a></li>
               <li><a href="/devolucoes" className="text-[#d9bfa5] hover:text-white transition-colors">Devoluções</a></li>
+              {hasLeiloesAccess && (
+                <li><a href="/leilao" className="text-[#d9bfa5] hover:text-white transition-colors">Leilão</a></li>
+              )}
             </ul>
           </div>
           <div>
@@ -109,7 +114,7 @@ const Footer = () => {
         )}
 
         <div className="border-t border-white/10 pt-5 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between text-[11px] text-[#a07855]">
-          <p>© 2026 AngoExpress · Todos os direitos reservados</p>
+          <p>© 2026 ZANGU · Todos os direitos reservados</p>
           <p className="flex items-center gap-1">🇦🇴 Feito em Angola com orgulho</p>
         </div>
 
