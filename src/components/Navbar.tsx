@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSiteSetting } from "@/hooks/useSiteSettings";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCategories } from "@/hooks/useSupabaseData";
@@ -34,14 +35,6 @@ export const categoryAccentColors: Record<string, string> = {
   "Alimentação": "#33691E", "Empregos": "#37474F", "Educação": "#004D40",
   "Animais": "#BF360C",
 };
-
-const quickLinks = [
-  { label: "Leilão", path: "/leilao", icon: Gavel },
-  { label: "Live", path: "/live", icon: Radio },
-  { label: "Promoções", path: "/promocoes", icon: Zap },
-  { label: "Empresas", path: "/empresas", icon: Store },
-  { label: "Vendedores", path: "/vendedores", icon: Users },
-];
 
 const useCartCount = (userId?: string) =>
   useQuery({
@@ -128,6 +121,7 @@ const Navbar = () => {
   const location  = useLocation();
   const { user, userDisplayName, signOut } = useAuth();
   const { data: logoUrl, isLoading: logoLoading } = useSiteSetting("site_logo_url");
+  const { hasAccess: hasLeiloesAccess } = useFeatureAccess("leiloes");
   const qc = useQueryClient();
 
   const { data: dbCategories } = useCategories();
@@ -137,6 +131,14 @@ const Navbar = () => {
         image: c.image_url || staticCategories.find((s) => s.name === c.name)?.image || "",
       }))
     : staticCategories;
+
+  const quickLinks = [
+    ...(hasLeiloesAccess ? [{ label: "Leilão", path: "/leilao", icon: Gavel }] : []),
+    { label: "Live", path: "/live", icon: Radio },
+    { label: "Promoções", path: "/promocoes", icon: Zap },
+    { label: "Empresas", path: "/empresas", icon: Store },
+    { label: "Vendedores", path: "/vendedores", icon: Users },
+  ];
 
   const isCategoriasPage       = location.pathname === "/categorias";
   const isPesquisaPage         = location.pathname === "/pesquisa";
@@ -289,7 +291,7 @@ const Navbar = () => {
         </>
       );
     }
-    return <span className="text-2xl font-black" style={{ color: brown }}>AngoExpress</span>;
+    return <span className="text-2xl font-black" style={{ color: brown }}>ZANGU</span>;
   };
 
   return (
@@ -753,7 +755,7 @@ const Navbar = () => {
                 { label: "Meus pedidos",           path: "/pedidos" },
                 { label: "Favoritos",              path: "/favoritos" },
                 { label: "Ajuda",                  path: "/ajuda" },
-                { label: "Vender no AngoExpress",  path: "/vender" },
+                { label: "Vender no ZANGU",        path: "/vender" },
                 ...(!isAffiliate ? [{ label: "Criar Loja Dropshipping", path: "/criar-loja" }] : []),
                 { label: "Seja Fornecedor",        path: "/seja-fornecedor" },
               ].map(link => (
