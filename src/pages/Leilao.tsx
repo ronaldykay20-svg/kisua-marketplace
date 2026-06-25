@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import Footer from "@/components/Footer";
-import { Gavel, Monitor, Home, Car, Watch, Clock, Trophy, CheckCircle2, Users, Shield, Loader2, X, Upload, Copy, ChevronLeft, ChevronRight } from "lucide-react";
+import { Gavel, Monitor, Home, Car, Watch, Clock, Trophy, CheckCircle2, Users, Shield, Loader2, X, Upload, Copy, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { toast } from "sonner";
 
 const useCountdown = (endDate: string | null) => {
@@ -257,10 +258,36 @@ const CardTimerInline = ({ ends_at }: { ends_at: string }) => {
   return <span className="text-[10px] font-bold text-white tabular-nums">{h}:{m}:{s}</span>;
 };
 
+const LeilaoEmBreve = () => {
+  const navigate = useNavigate();
+  return (
+    <div className="min-h-screen bg-background flex flex-col">
+      <div className="flex-1 flex flex-col items-center justify-center text-center px-6 py-16">
+        <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{ background: "rgba(200,169,126,0.15)" }}>
+          <Sparkles className="w-8 h-8" style={{ color: "#a07a4a" }} />
+        </div>
+        <h1 className="text-2xl font-black text-foreground mb-2">Leilões — Em breve</h1>
+        <p className="text-sm text-muted-foreground max-w-sm">
+          Estamos a preparar esta funcionalidade. Volte mais tarde para participar nos leilões da ZANGU.
+        </p>
+        <button
+          onClick={() => navigate("/")}
+          className="mt-6 px-5 py-2.5 rounded-xl text-sm font-bold text-white"
+          style={{ background: "linear-gradient(135deg,#c8a97e,#a07a4a)" }}
+        >
+          Voltar à página inicial
+        </button>
+      </div>
+      <Footer />
+    </div>
+  );
+};
+
 const Leilao = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const qc = useQueryClient();
+  const { hasAccess, isLoading: loadingAccess } = useFeatureAccess("leiloes");
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [selectedAuction, setSelectedAuction] = useState<any>(null);
   const [bidTarget, setBidTarget] = useState<any>(null);
@@ -273,6 +300,7 @@ const Leilao = () => {
       if (error) throw error;
       return data || [];
     },
+    enabled: hasAccess,
   });
 
   const active = auctions.filter((a: any) => a.status === "active" && new Date(a.ends_at) > new Date());
@@ -293,11 +321,12 @@ const Leilao = () => {
       if (error) console.error("Erro bids:", error);
       return data || [];
     },
-    enabled: !!(selectedAuction?.id || featured?.id),
+    enabled: hasAccess && !!(selectedAuction?.id || featured?.id),
     refetchInterval: 5000,
   });
 
   useEffect(() => {
+    if (!hasAccess) return;
     const id = selectedAuction?.id || featured?.id;
     if (!id) return;
     const channel = (supabase as any).channel(`bids-${id}`)
@@ -306,14 +335,29 @@ const Leilao = () => {
         qc.invalidateQueries({ queryKey: ["public_auctions"] });
       }).subscribe();
     return () => { (supabase as any).removeChannel(channel); };
-  }, [selectedAuction?.id, featured?.id, qc]);
+  }, [selectedAuction?.id, featured?.id, qc, hasAccess]);
 
-  useEffect(() => { (supabase as any).rpc("close_expired_auctions"); }, []);
+  useEffect(() => {
+    if (!hasAccess) return;
+    (supabase as any).rpc("close_expired_auctions");
+  }, [hasAccess]);
 
   const openBidModal = (auction: any) => {
     if (!user) { navigate("/auth"); return; }
     setBidTarget(auction);
   };
+
+  if (loadingAccess) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin" style={{ color: "#c8a97e" }} />
+      </div>
+    );
+  }
+
+  if (!hasAccess) {
+    return <LeilaoEmBreve />;
+  }
 
   return (
     <div className="min-h-screen bg-background">
