@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import SellerProductForm from "@/components/seller/SellerProductForm";
 import SellerProfileEditor from "@/components/seller/SellerProfileEditor";
 import SellerOrdersTab from "@/components/seller/SellerOrdersTab";
@@ -19,6 +20,7 @@ const SellerDashboard = () => {
   const [tab, setTab] = useState<Tab>("produtos");
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
+  const { hasAccess: hasLeiloesAccess } = useFeatureAccess("leiloes");
 
   const { data: seller } = useQuery({
     queryKey: ["my_seller", user?.id],
@@ -175,7 +177,7 @@ const SellerDashboard = () => {
     { key: "produtos",  label: "Produtos",  icon: Package },
     { key: "pedidos",   label: "Pedidos",   icon: ClipboardList },
     { key: "stories",   label: "Stories",   icon: Eye },
-    { key: "leiloes",   label: "Leilões",   icon: Gavel },
+    ...(hasLeiloesAccess ? [{ key: "leiloes" as Tab, label: "Leilões", icon: Gavel }] : []),
     { key: "entregas",  label: "Entregas",  icon: Truck },
     { key: "perfil",    label: "Perfil",    icon: Settings },
   ];
@@ -314,7 +316,7 @@ const SellerDashboard = () => {
 
         {tab === "pedidos"  && <SellerOrdersTab sellerId={seller.id} />}
         {tab === "stories"  && <SellerStoriesTab sellerId={seller.id} />}
-        {tab === "leiloes"  && <SellerAuctionsTab sellerId={seller.id} />}
+        {tab === "leiloes" && hasLeiloesAccess && <SellerAuctionsTab sellerId={seller.id} />}
         {tab === "entregas" && <SellerFreightSettings sellerId={seller.id} />}
         {tab === "perfil"   && <SellerProfileEditor seller={seller} />}
 
