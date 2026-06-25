@@ -1,17 +1,19 @@
 import { Home, Search, Gavel, ShoppingCart, User } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
-
-const tabs = [
-  { icon: Home, label: "Início", path: "/" },
-  { icon: Search, label: "Pesquisar", path: "/pesquisa" },
-  { icon: Gavel, label: "Leilão", path: "/leilao" },
-  { icon: ShoppingCart, label: "Carrinho", path: "/carrinho" },
-  { icon: User, label: "Mim", path: "/conta" },
-];
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 
 const BottomNav = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { hasAccess: hasLeiloesAccess } = useFeatureAccess("leiloes");
+
+  const tabs = [
+    { icon: Home, label: "Início", path: "/" },
+    { icon: Search, label: "Pesquisar", path: "/pesquisa" },
+    ...(hasLeiloesAccess ? [{ icon: Gavel, label: "Leilão", path: "/leilao" }] : []),
+    { icon: ShoppingCart, label: "Carrinho", path: "/carrinho" },
+    { icon: User, label: "Mim", path: "/conta" },
+  ];
 
   return (
     <nav
@@ -44,5 +46,4 @@ const BottomNav = () => {
     </nav>
   );
 };
-
 export default BottomNav;
