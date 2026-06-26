@@ -23,7 +23,7 @@ const methods = [
   {
     icon: Landmark,
     title: "Transferência bancária",
-    desc: "Transferência para a conta da AngoExpress.",
+    desc: "Transferência para a conta da ZANGU.",
     steps: [
       'No checkout, escolhe "Transferência bancária".',
       "Transfere o valor total para o IBAN indicado.",
