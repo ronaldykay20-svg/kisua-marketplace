@@ -1,20 +1,8 @@
 import { Link } from "react-router-dom";
-import { Percent, ChevronRight, CheckCircle, Store, Package, ShieldCheck } from "lucide-react";
-
-const tabela = [
-  { categoria: "Electrónica e Tecnologia", comissao: "5%" },
-  { categoria: "Moda e Vestuário", comissao: "8%" },
-  { categoria: "Casa e Decoração", comissao: "7%" },
-  { categoria: "Alimentação e Bebidas", comissao: "6%" },
-  { categoria: "Beleza e Saúde", comissao: "8%" },
-  { categoria: "Desporto e Lazer", comissao: "7%" },
-  { categoria: "Automóvel e Moto", comissao: "4%" },
-  { categoria: "Construção e Ferramentas", comissao: "5%" },
-  { categoria: "Outras categorias", comissao: "7%" },
-];
+import { Percent, ChevronRight, CheckCircle, Store, Package, ShieldCheck, CalendarClock } from "lucide-react";
 
 const incluido = [
-  "Acesso à plataforma AngoExpress",
+  "Acesso à plataforma ZANGU",
   "Página de loja personalizada",
   "Painel de gestão de vendas",
   "Processamento de pagamentos",
@@ -35,25 +23,14 @@ const Comissoes = () => {
           <h1 className="text-lg font-bold text-foreground">Comissões</h1>
         </div>
         <p className="text-xs text-muted-foreground mb-5">
-          Vender no AngoExpress é gratuito. Só pagamos comissão quando vendes.
+          Vender no ZANGU é gratuito. Só cobramos uma comissão quando a venda se concretiza — para vendedores, empresas e dropshippers.
         </p>
 
         {/* Destaque */}
         <div className="bg-gradient-to-br from-[#5C3A1E] to-[#3a2412] rounded-xl p-5 mb-5 text-center text-white">
-          <p className="text-[11px] text-[#d9bfa5] mb-1">Comissão média</p>
-          <p className="text-4xl font-extrabold text-secondary">4% – 8%</p>
-          <p className="text-[11px] text-[#d9bfa5] mt-1">por venda concluída · sem mensalidade</p>
-        </div>
-
-        {/* Tabela por categoria */}
-        <h2 className="text-sm font-bold text-foreground mb-2">Comissão por categoria</h2>
-        <div className="bg-card rounded-lg border border-border divide-y divide-border mb-5">
-          {tabela.map((t) => (
-            <div key={t.categoria} className="flex items-center justify-between px-4 py-3">
-              <span className="text-xs text-foreground">{t.categoria}</span>
-              <span className="text-xs font-bold text-primary">{t.comissao}</span>
-            </div>
-          ))}
+          <p className="text-[11px] text-[#d9bfa5] mb-1">Comissão da plataforma</p>
+          <p className="text-4xl font-extrabold text-secondary">5% – 15%</p>
+          <p className="text-[11px] text-[#d9bfa5] mt-1">por venda concluída · varia conforme o tipo de produto · sem mensalidade</p>
         </div>
 
         {/* O que está incluído */}
@@ -70,37 +47,38 @@ const Comissoes = () => {
         </div>
 
         {/* Como funciona */}
-        <h2 className="text-sm font-bold text-foreground mb-2">Como é calculada</h2>
+        <h2 className="text-sm font-bold text-foreground mb-2">Como funciona</h2>
         <div className="bg-card rounded-lg border border-border p-4 mb-5 space-y-3">
           <div className="bg-muted/40 rounded-lg p-3">
             <p className="text-[11px] text-muted-foreground">
-              <strong className="text-foreground">Exemplo:</strong> Venda de um telemóvel por <strong className="text-foreground">50 000 Kz</strong> na categoria Electrónica (5%)
+              A comissão é calculada sobre o valor da venda e <strong className="text-foreground">deduzida automaticamente</strong> no momento do pagamento.
+              A percentagem exacta aplicada à sua loja é mostrada no painel do vendedor.
             </p>
-            <div className="mt-2 flex justify-between text-xs">
-              <span className="text-muted-foreground">Valor da venda</span>
-              <span className="font-semibold">50 000 Kz</span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-muted-foreground">Comissão AngoExpress (5%)</span>
-              <span className="font-semibold text-primary">− 2 500 Kz</span>
-            </div>
-            <div className="flex justify-between text-xs border-t border-border mt-2 pt-2">
-              <span className="font-bold text-foreground">Recebe</span>
-              <span className="font-bold text-foreground">47 500 Kz</span>
-            </div>
           </div>
           <p className="text-[10px] text-muted-foreground">
-            * A comissão é deduzida automaticamente no momento do pagamento. O valor é transferido para a sua conta em até 3 dias úteis após a confirmação da entrega.
+            Aplica-se tanto a vendedores e empresas com loja própria, como a dropshippers que revendem produtos de outros vendedores na plataforma.
           </p>
+        </div>
+
+        {/* Prazo de pagamento */}
+        <div className="bg-card rounded-lg border border-border p-4 mb-5 flex gap-3">
+          <CalendarClock className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+          <div>
+            <p className="text-xs font-bold text-foreground mb-0.5">Quando recebo o pagamento?</p>
+            <p className="text-[11px] text-muted-foreground">
+              O valor das suas vendas (já com a comissão deduzida) é transferido para a sua conta em <strong className="text-foreground">no máximo uma semana</strong>.
+              Os fechos de pagamento são feitos normalmente ao sábado, podendo haver casos pontuais processados mais rapidamente.
+            </p>
+          </div>
         </div>
 
         {/* Plano verificado */}
         <div className="bg-primary/10 border border-primary/20 rounded-xl p-4 mb-5 flex gap-3">
           <ShieldCheck className="w-5 h-5 text-primary shrink-0 mt-0.5" />
           <div>
-            <p className="text-xs font-bold text-foreground mb-0.5">Loja Verificada — comissão reduzida</p>
+            <p className="text-xs font-bold text-foreground mb-0.5">Loja Verificada — vantagens</p>
             <p className="text-[11px] text-muted-foreground">
-              Lojas com o selo de verificação têm comissão reduzida em 1% em todas as categorias.
+              Vendedores e empresas com o selo de verificação têm custos reduzidos com a plataforma e algumas facilidades adicionais.
               Solicite a verificação no painel do vendedor.
             </p>
           </div>
