@@ -4,15 +4,15 @@ import { Heart, ShieldCheck, Truck, Users, Store, ChevronRight, MapPin } from "l
 const valores = [
   { icon: ShieldCheck, title: "Confiança", desc: "Verificamos cada vendedor antes de publicar na plataforma." },
   { icon: Heart, title: "Angola primeiro", desc: "Construído em Angola, para angolanos, com orgulho." },
-  { icon: Truck, title: "Entregas reais", desc: "Parceiros logísticos em Luanda e em todas as províncias." },
-  { icon: Users, title: "Comunidade", desc: "Mais de mil vendedores e compradores activos em todo o país." },
+  { icon: Truck, title: "Entregas reais", desc: "Parceiros logísticos em Luanda e nas demais províncias." },
+  { icon: Users, title: "Comunidade", desc: "Centenas de vendedores e compradores activos em todo o país." },
 ];
 
 const numeros = [
-  { valor: "18", label: "Províncias cobertas" },
-  { valor: "1 000+", label: "Vendedores activos" },
-  { valor: "50 000+", label: "Produtos listados" },
-  { valor: "2024", label: "Ano de fundação" },
+  { valor: "16", label: "Províncias cobertas" },
+  { valor: "Centenas", label: "Vendedores activos" },
+  { valor: "Milhares", label: "Produtos listados" },
+  { valor: "2026", label: "Ano de fundação" },
 ];
 
 const SobreNos = () => {
@@ -23,7 +23,7 @@ const SobreNos = () => {
         {/* Cabeçalho */}
         <div className="bg-gradient-to-br from-[#5C3A1E] to-[#3a2412] rounded-2xl p-6 mb-5 text-white text-center">
           <div className="text-2xl font-extrabold mb-1">
-            Ango<span className="text-secondary">Express</span>
+            ZANGU
           </div>
           <p className="text-[#d9bfa5] text-xs mb-3">O marketplace de Angola.</p>
           <span className="inline-flex items-center gap-1.5 bg-white/10 rounded-full px-3 py-1.5 text-[11px] text-[#f0d6b8]">
@@ -35,8 +35,8 @@ const SobreNos = () => {
         <div className="bg-card rounded-lg border border-border p-4 mb-4">
           <h2 className="text-sm font-bold text-foreground mb-2">A nossa missão</h2>
           <p className="text-[12px] text-muted-foreground leading-relaxed">
-            O AngoExpress nasceu com um objectivo claro: tornar o comércio electrónico acessível a todos os angolanos.
-            Queremos que qualquer pessoa — em Luanda ou no Cuando Cubango — possa comprar e vender online de forma
+            O ZANGU nasceu com um objectivo claro: tornar o comércio electrónico acessível a todos os angolanos.
+            Queremos que qualquer pessoa — em Luanda ou nas demais províncias — possa comprar e vender online de forma
             simples, segura e com entregas reais em todo o território nacional.
           </p>
         </div>
@@ -71,9 +71,9 @@ const SobreNos = () => {
         <div className="bg-card rounded-lg border border-border p-4 mb-5">
           <h2 className="text-sm font-bold text-foreground mb-2">A nossa história</h2>
           <p className="text-[12px] text-muted-foreground leading-relaxed">
-            Fundado em 2024 em Luanda, o AngoExpress começou como uma ideia simples: criar um espaço digital
+            Fundado em 2026 em Luanda, o ZANGU começou como uma ideia simples: criar um espaço digital
             onde os angolanos pudessem comprar e vender com confiança. Hoje somos uma plataforma completa com
-            vendedores verificados, sistema de leilões, entregas para todas as províncias e meios de pagamento
+            vendedores verificados, sistema de leilões, entregas para as 16 províncias e meios de pagamento
             adaptados à realidade angolana — incluindo o Multicaixa Express.
           </p>
         </div>
@@ -83,7 +83,7 @@ const SobreNos = () => {
           <Link to="/seja-fornecedor" className="flex items-center justify-between px-4 py-3 hover:bg-muted transition">
             <div className="flex items-center gap-2">
               <Store className="w-4 h-4 text-primary" />
-              <span className="text-xs text-foreground">Vender no AngoExpress</span>
+              <span className="text-xs text-foreground">Vender no ZANGU</span>
             </div>
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
           </Link>
