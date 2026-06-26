@@ -57,7 +57,7 @@ const ComoComprar = () => {
       <div className="container mx-auto px-3 py-4 max-w-2xl">
         <h1 className="text-lg font-bold text-foreground mb-1">Como Comprar</h1>
         <p className="text-xs text-muted-foreground mb-4">
-          Comprar na AngoExpress é simples e seguro. Segue estes passos:
+          Comprar no ZANGU é simples e seguro. Segue estes passos:
         </p>
 
         {/* Passos */}
