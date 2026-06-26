@@ -24,15 +24,15 @@ const secoes = [
   },
   {
     titulo: "6. Os seus direitos",
-    texto: "Tem direito a aceder, corrigir ou eliminar os seus dados pessoais a qualquer momento. Para exercer estes direitos, contacte-nos através da página de suporte. Respondemos em até 5 dias úteis.",
+    texto: "Tem direito a aceder, corrigir ou eliminar os seus dados pessoais a qualquer momento. Para exercer estes direitos, contacte-nos através da página de suporte. Tratamos os pedidos o mais rapidamente possível, em geral dentro de 15 dias úteis.",
   },
   {
     titulo: "7. Retenção de dados",
-    texto: "Conservamos os seus dados enquanto a conta estiver activa ou pelo período necessário para cumprir obrigações legais. Após o encerramento da conta, os dados são eliminados em até 90 dias.",
+    texto: "Conservamos os seus dados enquanto a conta estiver activa ou pelo período necessário para cumprir obrigações legais. Após o encerramento da conta, trabalhamos para eliminar os dados pessoais associados num prazo razoável; se precisar de confirmação da eliminação dos seus dados, pode solicitá-la através da nossa página de suporte.",
   },
   {
     titulo: "8. Menores de idade",
-    texto: "O AngoExpress não é destinado a menores de 18 anos. Não recolhemos intencionalmente dados de menores. Se detectarmos uma conta de menor, iremos encerrá-la imediatamente.",
+    texto: "O ZANGU não é destinado a menores de 18 anos. Não recolhemos intencionalmente dados de menores. Se detectarmos uma conta de menor, iremos encerrá-la imediatamente.",
   },
   {
     titulo: "9. Alterações à política",
@@ -40,7 +40,7 @@ const secoes = [
   },
   {
     titulo: "10. Contacto",
-    texto: "Para questões relacionadas com privacidade ou para exercer os seus direitos, utilize a nossa página de suporte ou envie um email para privacidade@angoexpress.ao.",
+    texto: "Para questões relacionadas com privacidade ou para exercer os seus direitos, utilize a nossa página de suporte ou envie um email para suporte@zangu.com.",
   },
 ];
 
@@ -74,7 +74,7 @@ const Privacidade = () => {
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
           </Link>
           <Link to="/sobre-nos" className="flex items-center justify-between px-4 py-3 hover:bg-muted transition">
-            <span className="text-xs text-foreground">Sobre o AngoExpress</span>
+            <span className="text-xs text-foreground">Sobre o ZANGU</span>
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
           </Link>
           <Link to="/reportar-problema" className="flex items-center justify-between px-4 py-3 hover:bg-muted transition">
