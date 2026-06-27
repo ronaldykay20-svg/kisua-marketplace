@@ -1,6 +1,7 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Facebook, Instagram, Youtube, Twitter, Linkedin, MessageCircle, Music2, MapPin, ShieldCheck } from "lucide-react";
+import { Facebook, Instagram, Youtube, Twitter, Linkedin, MessageCircle, Music2, MapPin, ShieldCheck, ChevronDown } from "lucide-react";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 
 const SOCIAL_DEFS = [
@@ -30,13 +31,94 @@ const useSocials = () => {
   });
 };
 
+type FooterSection = {
+  key: string;
+  title: string;
+  links: { label: string; href: string; external?: boolean }[];
+};
+
+const FooterAccordionItem = ({ section, isOpen, onToggle }: { section: FooterSection; isOpen: boolean; onToggle: () => void }) => (
+  <div className="border-b border-white/10">
+    <button
+      onClick={onToggle}
+      className="w-full flex items-center justify-between py-4 text-left"
+    >
+      <span className="text-sm font-bold text-white">{section.title}</span>
+      <ChevronDown className={`w-4 h-4 text-[#d9bfa5] transition-transform ${isOpen ? "rotate-180" : ""}`} />
+    </button>
+    <div
+      className="overflow-hidden transition-all"
+      style={{ maxHeight: isOpen ? `${section.links.length * 40 + 8}px` : "0px" }}
+    >
+      <ul className="pb-3 space-y-2.5">
+        {section.links.map((l) => (
+          <li key={l.label}>
+            <a
+              href={l.href}
+              target={l.external ? "_blank" : undefined}
+              rel={l.external ? "noopener noreferrer" : undefined}
+              className="text-[13px] text-[#d9bfa5] hover:text-white transition-colors"
+            >
+              {l.label}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </div>
+);
+
 const Footer = () => {
   const { data: socials = {} } = useSocials();
   const active = SOCIAL_DEFS.filter((s) => socials[s.key]);
   const { hasAccess: hasLeiloesAccess } = useFeatureAccess("leiloes");
+  const [openSection, setOpenSection] = useState<string | null>(null);
+
+  const sections: FooterSection[] = [
+    {
+      key: "comprar",
+      title: "Comprar",
+      links: [
+        { label: "Como comprar", href: "/como-comprar" },
+        { label: "Formas de pagamento", href: "/formas-pagamento" },
+        { label: "Entrega e frete", href: "/entrega-frete" },
+        { label: "Devoluções", href: "/devolucoes" },
+        ...(hasLeiloesAccess ? [{ label: "Leilão", href: "/leilao" }] : []),
+      ],
+    },
+    {
+      key: "vender",
+      title: "Vender",
+      links: [
+        { label: "Como vender", href: "/seja-fornecedor" },
+        { label: "Comissões", href: "/comissoes" },
+        { label: "Loja verificada", href: "/lojas-verificadas" },
+        { label: "Painel do vendedor", href: "/painel-vendedor" },
+      ],
+    },
+    {
+      key: "suporte",
+      title: "Suporte",
+      links: [
+        { label: "Central de ajuda", href: "/ajuda" },
+        ...(socials.social_whatsapp_url ? [{ label: "WhatsApp", href: socials.social_whatsapp_url, external: true }] : []),
+        { label: "Reportar problema", href: "/reportar-problema" },
+      ],
+    },
+    {
+      key: "empresa",
+      title: "Empresa",
+      links: [
+        { label: "Sobre nós", href: "/sobre-nos" },
+        { label: "Termos de uso", href: "/termos-uso" },
+        { label: "Privacidade", href: "/privacidade" },
+        { label: "Blog", href: "#" },
+      ],
+    },
+  ];
 
   return (
-    <footer className="mt-8 bg-gradient-to-b from-[#5C3A1E] to-[#3a2412] text-[#f5e6d3]">
+    <footer className="mt-8 bg-[#15110d] text-[#f5e6d3]">
       <div className="container mx-auto px-4 py-10">
 
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
@@ -56,47 +138,39 @@ const Footer = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
-          <div>
-            <h4 className="text-[11px] font-bold text-secondary uppercase tracking-wider mb-3">Comprar</h4>
-            <ul className="space-y-2 text-[13px]">
-              <li><a href="/como-comprar" className="text-[#d9bfa5] hover:text-white transition-colors">Como comprar</a></li>
-              <li><a href="/formas-pagamento" className="text-[#d9bfa5] hover:text-white transition-colors">Formas de pagamento</a></li>
-              <li><a href="/entrega-frete" className="text-[#d9bfa5] hover:text-white transition-colors">Entrega e frete</a></li>
-              <li><a href="/devolucoes" className="text-[#d9bfa5] hover:text-white transition-colors">Devoluções</a></li>
-              {hasLeiloesAccess && (
-                <li><a href="/leilao" className="text-[#d9bfa5] hover:text-white transition-colors">Leilão</a></li>
-              )}
-            </ul>
-          </div>
-          <div>
-            <h4 className="text-[11px] font-bold text-secondary uppercase tracking-wider mb-3">Vender</h4>
-            <ul className="space-y-2 text-[13px]">
-              <li><a href="/seja-fornecedor" className="text-[#d9bfa5] hover:text-white transition-colors">Como vender</a></li>
-              <li><a href="/comissoes" className="text-[#d9bfa5] hover:text-white transition-colors">Comissões</a></li>
-              <li><a href="/lojas-verificadas" className="text-[#d9bfa5] hover:text-white transition-colors">Loja verificada</a></li>
-              <li><a href="#" className="text-[#d9bfa5] hover:text-white transition-colors">Painel do vendedor</a></li>
-            </ul>
-          </div>
-          <div>
-            <h4 className="text-[11px] font-bold text-secondary uppercase tracking-wider mb-3">Suporte</h4>
-            <ul className="space-y-2 text-[13px]">
-              <li><a href="/ajuda" className="text-[#d9bfa5] hover:text-white transition-colors">Central de ajuda</a></li>
-              {socials.social_whatsapp_url && (
-                <li><a href={socials.social_whatsapp_url} target="_blank" rel="noopener noreferrer" className="text-[#d9bfa5] hover:text-white transition-colors">WhatsApp</a></li>
-              )}
-              <li><a href="/reportar-problema" className="text-[#d9bfa5] hover:text-white transition-colors">Reportar problema</a></li>
-            </ul>
-          </div>
-          <div>
-            <h4 className="text-[11px] font-bold text-secondary uppercase tracking-wider mb-3">Empresa</h4>
-            <ul className="space-y-2 text-[13px]">
-              <li><a href="/sobre-nos" className="text-[#d9bfa5] hover:text-white transition-colors">Sobre nós</a></li>
-              <li><a href="/termos-uso" className="text-[#d9bfa5] hover:text-white transition-colors">Termos de uso</a></li>
-              <li><a href="/privacidade" className="text-[#d9bfa5] hover:text-white transition-colors">Privacidade</a></li>
-              <li><a href="#" className="text-[#d9bfa5] hover:text-white transition-colors">Blog</a></li>
-            </ul>
-          </div>
+        {/* Mobile: acordeão */}
+        <div className="md:hidden mb-2 border-t border-white/10">
+          {sections.map((s) => (
+            <FooterAccordionItem
+              key={s.key}
+              section={s}
+              isOpen={openSection === s.key}
+              onToggle={() => setOpenSection(openSection === s.key ? null : s.key)}
+            />
+          ))}
+        </div>
+
+        {/* Desktop: grid sempre visível */}
+        <div className="hidden md:grid grid-cols-4 gap-6 mb-8">
+          {sections.map((s) => (
+            <div key={s.key}>
+              <h4 className="text-[11px] font-bold text-secondary uppercase tracking-wider mb-3">{s.title}</h4>
+              <ul className="space-y-2 text-[13px]">
+                {s.links.map((l) => (
+                  <li key={l.label}>
+                    <a
+                      href={l.href}
+                      target={l.external ? "_blank" : undefined}
+                      rel={l.external ? "noopener noreferrer" : undefined}
+                      className="text-[#d9bfa5] hover:text-white transition-colors"
+                    >
+                      {l.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
 
         {active.length > 0 && (
@@ -105,7 +179,7 @@ const Footer = () => {
             <div className="flex flex-wrap gap-2">
               {active.map(({ key, label, Icon }) => (
                 <a key={key} href={socials[key]} target="_blank" rel="noopener noreferrer" aria-label={label}
-                  className="group w-10 h-10 rounded-xl bg-white/10 hover:bg-secondary hover:text-[#3a2412] flex items-center justify-center transition-all hover:-translate-y-0.5">
+                  className="group w-10 h-10 rounded-xl bg-white/10 hover:bg-secondary hover:text-[#15110d] flex items-center justify-center transition-all hover:-translate-y-0.5">
                   <Icon className="w-4 h-4" />
                 </a>
               ))}
