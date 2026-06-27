@@ -29,7 +29,7 @@ const LazyImg = ({ src, alt }: { src: string | null; alt: string }) => {
   useEffect(() => { setLoaded(false); }, [src]);
 
   return (
-    <div ref={wrapRef} className="relative w-full overflow-hidden" style={{ aspectRatio: "4/5", background: "#f0e6da" }}>
+    <div ref={wrapRef} className="relative w-full overflow-hidden aspect-[17/20] md:aspect-[4/5]" style={{ background: "#f0e6da" }}>
       {(!visible || !loaded) && (
         <div className="absolute inset-0 animate-pulse" style={{ background: "linear-gradient(135deg, #f0e6da 0%, #e8d5c4 100%)" }} />
       )}
@@ -48,6 +48,19 @@ const LazyImg = ({ src, alt }: { src: string | null; alt: string }) => {
   );
 };
 
+// ─── Mapa de cores dos badges do produto (valores reais do formulário do vendedor) ──
+const BADGE_STYLES: Record<string, { label: string; bg: string; icon?: any }> = {
+  HOT: { label: "HOT", bg: "#f57c00", icon: Flame },
+  NOVO: { label: "NOVO", bg: "#1e88e5" },
+  PROMO: { label: "PROMO", bg: "#e53935" },
+  LIMITED: { label: "LIMITADO", bg: "#7b1fa2" },
+};
+
+const getBadgeStyle = (badge: string | null | undefined) => {
+  if (!badge) return null;
+  return BADGE_STYLES[badge] || null;
+};
+
 // ─── Card (estilo da página: bege quente, sem arestas duras) ──────────────────
 const ProductCard = ({
   p, coverOverride, isTrending, isFav, onFav, onClick,
@@ -58,6 +71,10 @@ const ProductCard = ({
 }) => {
   const [pressed, setPressed] = useState(false);
   const cover = coverOverride ?? p.cover_url ?? p.image_url ?? null;
+
+  // Prioridade do badge superior-esquerdo: desconto > badge custom (Promoção/Limitado/etc.) > Hot por trending
+  const customBadge = !p.discount_percent ? getBadgeStyle(p.badge) : null;
+  const showHotFallback = isTrending && !p.discount_percent && !customBadge;
 
   return (
     <div
@@ -80,21 +97,32 @@ const ProductCard = ({
       <div className="relative">
         <LazyImg src={cover} alt={p.title} />
 
-        {/* Desconto */}
+        {/* Desconto (vermelho vivo) */}
         {p.discount_percent > 0 && (
           <span
             className="absolute top-2 left-2 px-1.5 py-0.5 text-[10px] font-black text-white z-10"
-            style={{ background: "#b84c1e", borderRadius: "4px" }}
+            style={{ background: "#e53935", borderRadius: "4px" }}
           >
             -{p.discount_percent}%
           </span>
         )}
 
-        {/* Hot */}
-        {isTrending && !p.discount_percent && (
+        {/* Badge customizado do produto (HOT, NOVO, PROMO, LIMITED) */}
+        {customBadge && (
           <span
             className="absolute top-2 left-2 flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-black text-white z-10"
-            style={{ background: "rgba(26,15,7,0.78)", borderRadius: "4px" }}
+            style={{ background: customBadge.bg, borderRadius: "4px" }}
+          >
+            {customBadge.icon && <customBadge.icon className="w-2.5 h-2.5" />}
+            {customBadge.label}
+          </span>
+        )}
+
+        {/* Hot por trending (fallback apenas quando não há desconto nem badge custom escolhido pelo vendedor) */}
+        {showHotFallback && (
+          <span
+            className="absolute top-2 left-2 flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-black text-white z-10"
+            style={{ background: "#f57c00", borderRadius: "4px" }}
           >
             <Flame className="w-2.5 h-2.5" /> Hot
           </span>
@@ -127,7 +155,7 @@ const ProductCard = ({
       </div>
 
       {/* Info */}
-      <div className="px-2.5 pt-2 pb-2.5">
+      <div className="px-2.5 pt-1.5 pb-2 md:pt-2 md:pb-2.5">
         <p className="text-[12px] font-semibold line-clamp-2 leading-snug mb-1" style={{ color: "#6b3a1f" }}>
           {p.title}
         </p>
