@@ -1,4 +1,4 @@
-import { Search, Menu, ShoppingCart, User, MapPin, X, ChevronRight, Gavel, Radio, Store, Users, Zap, LogOut, Bell, Mic, ArrowLeft, Camera } from "lucide-react";
+import { Search, Menu, ShoppingCart, User, MapPin, X, ChevronRight, Gavel, Radio, Store, Users, Zap, LogOut, Bell, Mic, ArrowLeft } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -72,49 +72,22 @@ const useSpeechRecognition = (onResult: (text: string) => void) => {
   return { listening, startListening, stopListening };
 };
 
-const useImageSearch = (onResult: (base64: string) => void) => {
-  const [analyzing, setAnalyzing] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const analyzeImage = useCallback(async (file: File) => {
-    setAnalyzing(true);
-    try {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = (reader.result as string).split(",")[1];
-        onResult(base64);
-        setAnalyzing(false);
-      };
-      reader.readAsDataURL(file);
-    } catch {
-      alert("Erro ao processar imagem.");
-      setAnalyzing(false);
-    }
-  }, [onResult]);
-  const openImagePicker = useCallback(() => { fileInputRef.current?.click(); }, []);
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) analyzeImage(file);
-    e.target.value = "";
-  }, [analyzeImage]);
-  return { analyzing, openImagePicker, handleFileChange, fileInputRef };
-};
-
 const Navbar = () => {
-  const [menuOpen, setMenuOpen]                             = useState(false);
-  const [notifOpen, setNotifOpen]                           = useState(false);
-  const [searchQuery, setSearchQuery]                       = useState("");
-  const [searchBarOpen, setSearchBarOpen]                   = useState(false);
-  const [categoriesExpanded, setCategoriesExpanded]         = useState(true);
-  const [categorySearchVisible, setCategorySearchVisible]   = useState(false);
-  const [scrollY, setScrollY]                               = useState(0);
-  const [showLocation, setShowLocation]                     = useState(true);
+  const [menuOpen, setMenuOpen]                           = useState(false);
+  const [notifOpen, setNotifOpen]                         = useState(false);
+  const [searchQuery, setSearchQuery]                     = useState("");
+  const [searchBarOpen, setSearchBarOpen]                 = useState(false);
+  const [categoriesExpanded, setCategoriesExpanded]       = useState(true);
+  const [categorySearchVisible, setCategorySearchVisible] = useState(false);
+  const [scrollY, setScrollY]                             = useState(0);
+  const [showLocation, setShowLocation]                   = useState(true);
 
-  const searchInputRef    = useRef<HTMLInputElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
-  const navigate  = useNavigate();
-  const location  = useLocation();
+  const navigate = useNavigate();
+  const location = useLocation();
   const { user, userDisplayName, signOut } = useAuth();
-  const { data: logoUrl, isLoading: logoLoading } = useSiteSetting("site_logo_url");
+  const { data: logoUrl } = useSiteSetting("site_logo_url");
   const { hasAccess: hasLeiloesAccess } = useFeatureAccess("leiloes");
   const qc = useQueryClient();
 
@@ -147,7 +120,7 @@ const Navbar = () => {
       const current = window.scrollY;
       setScrollY(current);
       setShowLocation(current < 30);
-      // NOTE: categories no longer auto-collapse on scroll — only toggle via the handle button
+      // categories só colapsam via clique manual no handle
     };
     window.addEventListener("scroll", handler, { passive: true });
     return () => window.removeEventListener("scroll", handler);
@@ -161,9 +134,7 @@ const Navbar = () => {
   }, [location.pathname]);
 
   useEffect(() => {
-    if (searchBarOpen) {
-      setTimeout(() => searchInputRef.current?.focus(), 80);
-    }
+    if (searchBarOpen) setTimeout(() => searchInputRef.current?.focus(), 80);
   }, [searchBarOpen]);
 
   const { data: notifications = [] } = useQuery({
@@ -223,18 +194,6 @@ const Navbar = () => {
   });
   const handleMicClick = () => { if (listening) stopListening(); else startListening(); };
 
-  const { analyzing: analyzingBar, openImagePicker: openBar, handleFileChange: fileChangeBar, fileInputRef: fileRefBar } =
-    useImageSearch((base64) => {
-      navigate(`/pesquisa?modo=imagem&img=${encodeURIComponent(base64)}`);
-      setSearchBarOpen(false);
-    });
-
-  const { analyzing: analyzingCat, openImagePicker: openCat, handleFileChange: fileChangeCat, fileInputRef: fileRefCat } =
-    useImageSearch((base64) => {
-      navigate(`/pesquisa?modo=imagem&img=${encodeURIComponent(base64)}`);
-      setCategorySearchVisible(false);
-    });
-
   const sand       = "#D4B896";
   const sandDark   = "#B8956A";
   const cream      = "#F7F0E6";
@@ -253,23 +212,25 @@ const Navbar = () => {
     };
   }
 
-  const iconBorder = "1px solid rgba(74,46,10,0.18)";
-
   const navPositionClass = isCategoriaDetalhePage
     ? "absolute top-0 left-0 right-0 w-full z-50"
     : "sticky top-0 z-50";
 
+  // Largura do badge do logo: ocupa o espaço central entre o botão menu e os ícones da direita.
+  // Usamos flex-1 nos dois lados para centrar automaticamente em qualquer visor.
+
   return (
     <>
-      <input ref={fileRefBar} type="file" accept="image/*" capture="environment" className="hidden" onChange={fileChangeBar} />
-      <input ref={fileRefCat} type="file" accept="image/*" capture="environment" className="hidden" onChange={fileChangeCat} />
-
       <nav className={navPositionClass} style={navbarStyle}>
-        <div className="px-3">
+        {/* px-3 garante respiro lateral; os botões crescem com w-11 fixo */}
+        <div style={{ paddingLeft: 12, paddingRight: 12 }}>
 
-          {/* ── Linha 1: ícones ── */}
-          <div className="flex items-center gap-2.5" style={{ height: 64, paddingTop: 10, paddingBottom: 10 }}>
-
+          {/* ══ LINHA 1: barra de ícones ══ */}
+          <div
+            className="flex items-center"
+            style={{ height: 64, gap: 8, paddingTop: 10, paddingBottom: 10 }}
+          >
+            {/* ── Botão esquerdo ── */}
             {isCategoriaDetalhePage ? (
               <button
                 className="flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center"
@@ -288,64 +249,54 @@ const Navbar = () => {
               </button>
             )}
 
+            {/* ── Centro: título ou logo ── */}
             {isCategoriaDetalhePage ? (
               <span className="flex-1 text-base font-black text-center" style={{ color: brown }}>
                 {categoryNameFromUrl}
               </span>
             ) : (
               <>
+                {/* flex-1 empurra o logo para o centro */}
                 <div className="flex-1" />
 
-                {/* ── Logo com moldura badge (estilo Gemini) ── */}
-                <a href="/" className="flex items-center flex-shrink-0">
-                  <div style={{
-                    position: "relative",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    height: 44,           /* igual aos botões w-11 h-11 = 44px */
-                  }}>
-                    {/* Badge border — SVG ocupa exactamente 44px de altura */}
+                {/* ── Logo badge — altura fixa 44px = mesma dos botões ── */}
+                <a href="/" className="flex-shrink-0" style={{ display: "inline-flex", height: 44 }}>
+                  <div style={{ position: "relative", display: "inline-flex", alignItems: "center", justifyContent: "center", height: 44 }}>
+                    {/* Moldura SVG stadium com borda dourada */}
                     <svg
-                      style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none" }}
+                      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
                       viewBox="0 0 170 44"
                       preserveAspectRatio="none"
                       xmlns="http://www.w3.org/2000/svg"
                     >
                       <path
                         d="M 22 0 Q 0 0 0 22 Q 0 44 22 44 L 148 44 Q 170 44 170 22 Q 170 0 148 0 Z"
-                        fill="rgba(255,255,255,0.92)"
+                        fill="rgba(255,255,255,0.93)"
                         stroke="#F9A825"
                         strokeWidth="3.5"
                       />
                       <path
                         d="M 22 0 Q 0 0 0 22 Q 0 44 22 44 L 148 44 Q 170 44 170 22 Q 170 0 148 0 Z"
                         fill="none"
-                        stroke="rgba(249,168,37,0.22)"
-                        strokeWidth="7"
+                        stroke="rgba(249,168,37,0.20)"
+                        strokeWidth="8"
                       />
                     </svg>
-
-                    {/* Logo content — altura fixa 44px, imagem restrita a 36px para respirar */}
+                    {/* Logo — sem fallback de texto, sem skeleton */}
                     <div style={{
-                      position: "relative",
-                      zIndex: 1,
-                      padding: "0 14px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      width: 170,
-                      height: 44,
+                      position: "relative", zIndex: 1,
+                      width: 170, height: 44,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      padding: "0 16px",
                     }}>
-                      {logoUrl
-                        ? <img
-                            src={logoUrl}
-                            alt="Logo"
-                            fetchPriority="high"
-                            style={{ height: 34, maxWidth: 148, objectFit: "contain" }}
-                          />
-                        : <span className="text-2xl font-black" style={{ color: brown }}>ZANGU</span>
-                      }
+                      {logoUrl && (
+                        <img
+                          src={logoUrl}
+                          alt="Logo"
+                          fetchPriority="high"
+                          style={{ height: 34, maxWidth: 140, objectFit: "contain" }}
+                        />
+                      )}
                     </div>
                   </div>
                 </a>
@@ -354,6 +305,7 @@ const Navbar = () => {
               </>
             )}
 
+            {/* ── Botões direita ── */}
             {isCategoriaDetalhePage ? (
               <button
                 className="flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center"
@@ -388,8 +340,10 @@ const Navbar = () => {
               >
                 <Bell className="w-5 h-5 text-white" />
                 {unread > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 rounded-full text-white text-[8px] font-black flex items-center justify-center px-0.5"
-                    style={{ background: "#E53935" }}>
+                  <span
+                    className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 rounded-full text-white text-[8px] font-black flex items-center justify-center px-0.5"
+                    style={{ background: "#E53935" }}
+                  >
                     {unread > 9 ? "9+" : unread}
                   </span>
                 )}
@@ -398,20 +352,22 @@ const Navbar = () => {
 
             <button
               className="relative flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center"
-              style={{ background: "#FFFFFF", boxShadow: "0 2px 6px rgba(74,46,10,0.18)", border: `1px solid rgba(74,46,10,0.10)` }}
+              style={{ background: "#FFFFFF", boxShadow: "0 2px 6px rgba(74,46,10,0.18)", border: "1px solid rgba(74,46,10,0.10)" }}
               onClick={() => navigate("/carrinho")}
             >
               <ShoppingCart className="w-5 h-5" style={{ color: brown }} />
               {cartCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 rounded-full text-white text-[8px] font-black flex items-center justify-center px-0.5"
-                  style={{ background: "#E53935" }}>
+                <span
+                  className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 rounded-full text-white text-[8px] font-black flex items-center justify-center px-0.5"
+                  style={{ background: "#E53935" }}
+                >
                   {cartCount > 9 ? "9+" : cartCount}
                 </span>
               )}
             </button>
           </div>
 
-          {/* ── Barra de pesquisa inline (páginas normais) ── */}
+          {/* ══ BARRA DE PESQUISA inline (páginas normais) ══ */}
           {!isCategoriasPage && !isPesquisaPage && !isCategoriaDetalhePage && (
             <div
               className="overflow-hidden"
@@ -439,19 +395,7 @@ const Navbar = () => {
                   className="flex-1 py-2.5 px-2 bg-transparent focus:outline-none"
                   style={{ color: brown, fontSize: "16px" }}
                 />
-                <button
-                  type="button"
-                  onClick={openBar}
-                  disabled={analyzingBar}
-                  className="w-9 h-9 flex items-center justify-center flex-shrink-0 rounded-xl m-0.5"
-                  style={{ background: analyzingBar ? "#F9A825" : brownLight, border: iconBorder }}
-                  title="Pesquisar por imagem"
-                >
-                  {analyzingBar
-                    ? <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: brown, borderTopColor: "transparent" }} />
-                    : <Camera className="w-4 h-4" style={{ color: brown }} />
-                  }
-                </button>
+                {/* Microfone apenas — câmera removida */}
                 <button
                   type="button"
                   onClick={handleMicClick}
@@ -469,7 +413,7 @@ const Navbar = () => {
             </div>
           )}
 
-          {/* ── Barra de pesquisa: categoria detalhe ── */}
+          {/* ══ BARRA DE PESQUISA categoria detalhe ══ */}
           {isCategoriaDetalhePage && (
             <div
               className="overflow-hidden"
@@ -495,18 +439,7 @@ const Navbar = () => {
                   className="flex-1 py-2.5 px-2.5 bg-transparent focus:outline-none"
                   style={{ color: brown, fontSize: "16px" }}
                 />
-                <button
-                  type="button"
-                  onClick={openCat}
-                  disabled={analyzingCat}
-                  className="w-9 h-9 flex items-center justify-center flex-shrink-0 rounded-xl m-0.5"
-                  style={{ background: analyzingCat ? "#F9A825" : brownLight, border: iconBorder }}
-                >
-                  {analyzingCat
-                    ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    : <Camera className="w-4 h-4" style={{ color: brown }} />
-                  }
-                </button>
+                {/* Microfone apenas — câmera removida */}
                 <button
                   type="button"
                   onClick={handleMicClick}
@@ -523,7 +456,7 @@ const Navbar = () => {
             </div>
           )}
 
-          {/* ── Barra-pílula: Localização ── */}
+          {/* ══ PÍLULA LOCALIZAÇÃO ══ */}
           {!isCategoriasPage && !isPesquisaPage && !isCategoriaDetalhePage && (
             <div
               className="overflow-hidden"
@@ -543,20 +476,16 @@ const Navbar = () => {
                 }}
               >
                 <div className="flex-1 flex items-center gap-2 px-3 py-2.5 min-w-0">
-                  <div
-                    className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
-                    style={{ background: "#FFFFFF", boxShadow: "0 1px 2px rgba(74,46,10,0.12)" }}
-                  >
+                  <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{ background: "#FFFFFF", boxShadow: "0 1px 2px rgba(74,46,10,0.12)" }}>
                     <MapPin className="w-3.5 h-3.5" style={{ color: brown }} />
                   </div>
                   <span className="text-[13px] font-bold truncate" style={{ color: brown }}>Entregas rápidas</span>
                 </div>
                 <div style={{ width: 1, background: "rgba(74,46,10,0.14)", margin: "8px 0" }} />
                 <div className="flex-1 flex items-center justify-end gap-2 px-3 py-2.5 min-w-0">
-                  <div
-                    className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
-                    style={{ background: "rgba(255,255,255,0.7)" }}
-                  >
+                  <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{ background: "rgba(255,255,255,0.7)" }}>
                     <span style={{ fontSize: 12 }}>🇦🇴</span>
                   </div>
                   <span className="text-[13px] font-bold truncate" style={{ color: brown }}>Em todo o país</span>
@@ -565,10 +494,10 @@ const Navbar = () => {
             </div>
           )}
 
-          {/* ── Divisor clicável (manual only) + Categorias ── */}
+          {/* ══ HANDLE + CATEGORIAS ══ */}
           {!isCategoriasPage && !isPesquisaPage && !isCategoriaDetalhePage && (
             <>
-              {/* Toggle handle — only user click changes categoriesExpanded, never scroll */}
+              {/* Handle manual — nunca colapsa automaticamente */}
               <button
                 className="w-full flex items-center justify-center"
                 style={{ height: 18, gap: 6 }}
@@ -578,8 +507,7 @@ const Navbar = () => {
                 <div style={{ flex: 1, height: 1, background: "rgba(74,46,10,0.14)" }} />
                 <div style={{
                   width: 32, height: 5, borderRadius: 3,
-                  background: brown,
-                  opacity: 0.85,
+                  background: brown, opacity: 0.85,
                   transition: "transform 0.3s ease",
                   transform: categoriesExpanded ? "rotate(0deg)" : "rotate(180deg)",
                 }} />
@@ -594,54 +522,111 @@ const Navbar = () => {
                   transition: "max-height 0.4s cubic-bezier(0.4,0,0.2,1), opacity 0.3s ease",
                 }}
               >
-                <div
-                  className="pb-3 overflow-x-auto scrollbar-hide"
-                  style={{ display: "flex", gap: "8px", alignItems: "flex-start", paddingTop: 8 }}
-                >
-                  {categories.map((cat: any) => (
-                    <button
-                      key={cat.name}
-                      onClick={() => navigate(`/categoria/${encodeURIComponent(cat.name)}`)}
-                      className="flex flex-col items-center gap-1 flex-shrink-0"
-                      style={{ width: 58 }}
-                    >
-                      <div
-                        className="w-[58px] h-[58px] rounded-xl overflow-hidden p-1"
+                {/*
+                  Layout de categorias:
+                  - O scroll horizontal mostra todas as categorias + botão "Ver todas"
+                  - O botão de pesquisa fica FIXO na posição da 7ª coluna (à direita, fora do scroll)
+                  - As primeiras 6 categorias cabem no visor; a partir daí arrasta-se
+                  - Cada item tem largura calc(100vw/7 - gap) para caber exactamente 6 + lupa visível
+                */}
+                <div style={{ display: "flex", alignItems: "flex-start", paddingTop: 8, paddingBottom: 12, gap: 0 }}>
+
+                  {/* Área scrollável com as categorias */}
+                  <div
+                    className="overflow-x-auto scrollbar-hide flex-1"
+                    style={{ display: "flex", gap: 6, alignItems: "flex-start" }}
+                  >
+                    {categories.map((cat: any) => (
+                      <button
+                        key={cat.name}
+                        onClick={() => navigate(`/categoria/${encodeURIComponent(cat.name)}`)}
+                        className="flex flex-col items-center gap-1 flex-shrink-0"
                         style={{
-                          background: "rgba(255,255,255,0.65)",
-                          border: "2px solid #F9A825",
-                          boxShadow: "0 2px 8px rgba(249,168,37,0.22)",
+                          // 6 categorias por ecrã + 1 lupa fixa: cada cat = (100vw - 24px padding - 8px gap lupa - 6*6px gaps) / 6
+                          // Simplificado: calc((100vw - 80px) / 6) para qualquer visor
+                          width: "calc((100vw - 80px) / 6)",
+                          maxWidth: 64,
+                          minWidth: 46,
                         }}
                       >
-                        <img src={cat.image} alt={cat.name} className="w-full h-full object-cover rounded-lg" />
-                      </div>
-                      <span className="text-[9px] font-bold text-center leading-tight line-clamp-1" style={{ color: brown, maxWidth: 58 }}>
-                        {cat.name}
-                      </span>
-                    </button>
-                  ))}
+                        <div
+                          style={{
+                            width: "100%",
+                            aspectRatio: "1",
+                            borderRadius: 12,
+                            overflow: "hidden",
+                            padding: 3,
+                            background: "rgba(255,255,255,0.65)",
+                            border: "2px solid #F9A825",
+                            boxShadow: "0 2px 8px rgba(249,168,37,0.22)",
+                            flexShrink: 0,
+                          }}
+                        >
+                          <img src={cat.image} alt={cat.name} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 8 }} />
+                        </div>
+                        <span
+                          className="text-[9px] font-bold text-center leading-tight line-clamp-1"
+                          style={{ color: brown, width: "100%" }}
+                        >
+                          {cat.name}
+                        </span>
+                      </button>
+                    ))}
 
-                  <button
-                    onClick={() => navigate("/categorias")}
-                    className="flex flex-col items-center gap-1 flex-shrink-0"
-                    style={{ width: 58 }}
-                  >
-                    <div
-                      className="w-[58px] h-[58px] rounded-xl flex items-center justify-center"
+                    {/* Botão "Ver todas" dentro do scroll */}
+                    <button
+                      onClick={() => navigate("/categorias")}
+                      className="flex flex-col items-center gap-1 flex-shrink-0"
                       style={{
-                        background: `linear-gradient(135deg, #6B3F12, ${brown})`,
-                        boxShadow: "0 2px 6px rgba(74,46,10,0.25)",
+                        width: "calc((100vw - 80px) / 6)",
+                        maxWidth: 64,
+                        minWidth: 46,
                       }}
                     >
-                      <div className="grid grid-cols-2 gap-1">
-                        <div className="w-3 h-3 rounded-sm border-2 border-white" />
-                        <div className="w-3 h-3 rounded-sm border-2 border-white" />
-                        <div className="w-3 h-3 rounded-sm border-2 border-white" />
-                        <div className="w-3 h-3 rounded-sm border-2 border-white" />
+                      <div
+                        style={{
+                          width: "100%", aspectRatio: "1", borderRadius: 12,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          background: `linear-gradient(135deg, #6B3F12, ${brown})`,
+                          boxShadow: "0 2px 6px rgba(74,46,10,0.25)",
+                        }}
+                      >
+                        <div className="grid grid-cols-2 gap-1">
+                          <div className="w-2.5 h-2.5 rounded-sm border-2 border-white" />
+                          <div className="w-2.5 h-2.5 rounded-sm border-2 border-white" />
+                          <div className="w-2.5 h-2.5 rounded-sm border-2 border-white" />
+                          <div className="w-2.5 h-2.5 rounded-sm border-2 border-white" />
+                        </div>
                       </div>
-                    </div>
-                    <span className="text-[9px] font-bold text-center" style={{ color: brown }}>Ver todas</span>
-                  </button>
+                      <span className="text-[9px] font-bold text-center" style={{ color: brown }}>Ver todas</span>
+                    </button>
+                  </div>
+
+                  {/* ── Botão de pesquisa FIXO na 7ª posição ── */}
+                  <div
+                    className="flex-shrink-0 flex flex-col items-center gap-1"
+                    style={{
+                      width: "calc((100vw - 80px) / 6)",
+                      maxWidth: 64,
+                      minWidth: 46,
+                      marginLeft: 6,
+                    }}
+                  >
+                    <button
+                      onClick={() => setSearchBarOpen(true)}
+                      style={{
+                        width: "100%", aspectRatio: "1", borderRadius: 12,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        background: brown,
+                        boxShadow: "0 2px 8px rgba(74,46,10,0.30)",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Search className="w-5 h-5 text-white" />
+                    </button>
+                    <span className="text-[9px] font-bold text-center" style={{ color: brown }}>Pesquisar</span>
+                  </div>
+
                 </div>
               </div>
             </>
@@ -655,13 +640,15 @@ const Navbar = () => {
           0%, 100% { box-shadow: 0 0 0 0 rgba(229,57,53,0.4); }
           50%       { box-shadow: 0 0 0 8px rgba(229,57,53,0); }
         }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
 
       {/* ══ PAINEL NOTIFICAÇÕES ══ */}
       {notifOpen && user && (
         <div className="fixed inset-0 z-[55]" onClick={() => setNotifOpen(false)}>
           <div
-            className="absolute right-2 top-[118px] w-[92vw] max-w-sm bg-card border border-border rounded-2xl shadow-2xl overflow-hidden"
+            className="absolute right-2 top-[72px] w-[92vw] max-w-sm bg-card border border-border rounded-2xl shadow-2xl overflow-hidden"
             onClick={e => e.stopPropagation()}
           >
             <div
@@ -769,13 +756,13 @@ const Navbar = () => {
             </div>
             <div className="border-t border-border p-3 space-y-0.5">
               {[
-                { label: "Minha conta",           path: "/conta" },
-                { label: "Meus pedidos",           path: "/pedidos" },
-                { label: "Favoritos",              path: "/favoritos" },
-                { label: "Ajuda",                  path: "/ajuda" },
-                { label: "Vender no ZANGU",        path: "/vender" },
+                { label: "Minha conta",              path: "/conta" },
+                { label: "Meus pedidos",              path: "/pedidos" },
+                { label: "Favoritos",                 path: "/favoritos" },
+                { label: "Ajuda",                     path: "/ajuda" },
+                { label: "Vender no ZANGU",           path: "/vender" },
                 ...(!isAffiliate ? [{ label: "Criar Loja Dropshipping", path: "/criar-loja" }] : []),
-                { label: "Seja Fornecedor",        path: "/seja-fornecedor" },
+                { label: "Seja Fornecedor",           path: "/seja-fornecedor" },
               ].map(link => (
                 <button key={link.label} onClick={() => { navigate(link.path); setMenuOpen(false); }}
                   className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium text-foreground hover:bg-muted transition-colors">
