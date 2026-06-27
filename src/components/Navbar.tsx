@@ -99,10 +99,6 @@ const useImageSearch = (onResult: (base64: string) => void) => {
   return { analyzing, openImagePicker, handleFileChange, fileInputRef };
 };
 
-const LogoSkeleton = () => (
-  <div className="rounded-lg animate-pulse" style={{ height: 40, width: 130, background: "rgba(74,46,10,0.12)" }} />
-);
-
 const Navbar = () => {
   const [menuOpen, setMenuOpen]                             = useState(false);
   const [notifOpen, setNotifOpen]                           = useState(false);
@@ -112,7 +108,7 @@ const Navbar = () => {
   const [categorySearchVisible, setCategorySearchVisible]   = useState(false);
   const [scrollY, setScrollY]                               = useState(0);
   const [showLocation, setShowLocation]                     = useState(true);
-  const [logoLoaded, setLogoLoaded]                         = useState(false);
+
   const searchInputRef    = useRef<HTMLInputElement>(null);
 
   const navigate  = useNavigate();
@@ -169,10 +165,6 @@ const Navbar = () => {
       setTimeout(() => searchInputRef.current?.focus(), 80);
     }
   }, [searchBarOpen]);
-
-  useEffect(() => {
-    if (!logoUrl) setLogoLoaded(false);
-  }, [logoUrl]);
 
   const { data: notifications = [] } = useQuery({
     queryKey: ["navbar_notifications", user?.id],
@@ -267,25 +259,6 @@ const Navbar = () => {
     ? "absolute top-0 left-0 right-0 w-full z-50"
     : "sticky top-0 z-50";
 
-  const renderLogo = () => {
-    if (logoLoading) return <LogoSkeleton />;
-    if (logoUrl) {
-      return (
-        <>
-          {!logoLoaded && <LogoSkeleton />}
-          <img
-            src={logoUrl}
-            alt="Logo"
-            style={{ height: 40, maxWidth: 160, objectFit: "contain", display: logoLoaded ? "block" : "none" }}
-            onLoad={() => setLogoLoaded(true)}
-            onError={() => setLogoLoaded(true)}
-          />
-        </>
-      );
-    }
-    return <span className="text-2xl font-black" style={{ color: brown }}>ZANGU</span>;
-  };
-
   return (
     <>
       <input ref={fileRefBar} type="file" accept="image/*" capture="environment" className="hidden" onChange={fileChangeBar} />
@@ -364,20 +337,14 @@ const Navbar = () => {
                       width: 170,
                       height: 44,
                     }}>
-                      {logoLoading
-                        ? <LogoSkeleton />
-                        : logoUrl
-                          ? <>
-                              {!logoLoaded && <LogoSkeleton />}
-                              <img
-                                src={logoUrl}
-                                alt="Logo"
-                                style={{ height: 34, maxWidth: 148, objectFit: "contain", display: logoLoaded ? "block" : "none" }}
-                                onLoad={() => setLogoLoaded(true)}
-                                onError={() => setLogoLoaded(true)}
-                              />
-                            </>
-                          : <span className="text-2xl font-black" style={{ color: brown }}>ZANGU</span>
+                      {logoUrl
+                        ? <img
+                            src={logoUrl}
+                            alt="Logo"
+                            fetchPriority="high"
+                            style={{ height: 34, maxWidth: 148, objectFit: "contain" }}
+                          />
+                        : <span className="text-2xl font-black" style={{ color: brown }}>ZANGU</span>
                       }
                     </div>
                   </div>
