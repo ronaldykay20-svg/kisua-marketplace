@@ -2,7 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Heart, Share2, ShoppingCart, Star, Truck, Shield,
   MapPin, ChevronRight, Minus, Plus, ZoomIn, Store, MessageCircle,
-  Send, Loader2, ShieldCheck, X, Building2, Link2,
+  Send, Loader2, ShieldCheck, X, Building2, Link2, ClipboardList,
 } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { allProducts } from "@/data/products";
@@ -17,6 +17,14 @@ import { toast } from "sonner";
 
 const fmt = (n: number) =>
   Number(n).toLocaleString("pt-AO").replace(/,/g, ".") + " Kz";
+
+const conditionLabels: Record<string, string> = {
+  new: "Novo",
+  like_new: "Como novo",
+  good: "Bom estado",
+  used: "Usado",
+  refurbished: "Recondicionado",
+};
 
 // ─── Minimal Related Product Card ─────────────────────────────────────────────
 const MinimalProductCard = ({ product, onClick }: { product: any; onClick?: () => void }) => {
@@ -99,7 +107,7 @@ const ShareSheet = ({
   const shareText = [
     price ? `💰 ${price}` : "",
     shortDesc,
-    "📦 Kwanza Market — kwanzamarket.ao",
+    "📦 ZANGU — zangu.ao",
   ].filter(Boolean).join("\n");
 
   const fetchImageFile = async (): Promise<File | null> => {
@@ -643,7 +651,22 @@ const ProductDetail = () => {
     category_id: productBase.category_id,
     seller_id: productBase.seller_id,
     company_id: productBase.company_id,
+    sku: productBase.sku || null,
+    condition: productBase.condition || null,
+    weight_kg: productBase.weight_kg || null,
+    length_cm: productBase.length_cm || null,
+    width_cm: productBase.width_cm || null,
+    height_cm: productBase.height_cm || null,
   };
+
+  const { data: categoryName } = useQuery({
+    queryKey: ["category_name_detail", product.category_id],
+    queryFn: async () => {
+      const { data } = await supabase.from("categories").select("name").eq("id", product.category_id!).maybeSingle();
+      return data?.name || null;
+    },
+    enabled: !!product.category_id,
+  });
 
   const parentVariants = (dbVariants as any[]).filter((v: any) => !v.parent_id);
   const childVariants = (dbVariants as any[]).filter((v: any) => v.parent_id);
@@ -681,6 +704,19 @@ const ProductDetail = () => {
     voltage: "Voltagem", pack: "Pacote", other: "Opção",
   };
 
+  // ── Especificações (estilo tabela B2B) ──
+  const dimensionsStr = (product.length_cm && product.width_cm && product.height_cm)
+    ? `${product.length_cm} × ${product.width_cm} × ${product.height_cm} cm`
+    : null;
+
+  const specRows: { label: string; value: string }[] = [
+    categoryName ? { label: "Categoria", value: categoryName } : null,
+    product.condition ? { label: "Condição", value: conditionLabels[product.condition] || product.condition } : null,
+    product.sku ? { label: "SKU", value: product.sku } : null,
+    product.weight_kg ? { label: "Peso", value: `${product.weight_kg} kg` } : null,
+    dimensionsStr ? { label: "Dimensões", value: dimensionsStr } : null,
+  ].filter(Boolean) as { label: string; value: string }[];
+
   return (
     <div className="min-h-screen pb-28 md:pb-0" style={{ background: "#faf5f0" }}>
       {shareOpen && (
@@ -703,8 +739,8 @@ const ProductDetail = () => {
         />
       )}
 
-      {/* ── HEADER ── */}
-      <div className="relative">
+      {/* ── HEADER (mobile) ── */}
+      <div className="relative md:hidden">
 
         <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 pt-safe-or-3 pt-3 pb-2">
           <button
@@ -853,64 +889,101 @@ const ProductDetail = () => {
       <div className="md:container md:mx-auto md:px-4 md:py-6">
         <div className="md:grid md:grid-cols-2 md:gap-6 lg:gap-10">
 
-          {/* LEFT (desktop apenas) */}
+          {/* LEFT (desktop apenas) — estilo galeria B2B: miniaturas em coluna à esquerda */}
           <div className="hidden md:block">
 
-            <div className="rounded-2xl overflow-hidden border" style={{ background: "#f5ede4", borderColor: "#e8d5c0" }}>
-              <div
-                className="relative"
-                style={{ aspectRatio: "1/1", maxHeight: 450 }}
-                onTouchStart={e => { touchStartX.current = e.touches[0].clientX; }}
-                onTouchEnd={e => {
-                  if (touchStartX.current === null) return;
-                  const diff = touchStartX.current - e.changedTouches[0].clientX;
-                  if (Math.abs(diff) > 40) setSelectedImage(i => diff > 0 ? Math.min(i + 1, displayImages.length - 1) : Math.max(i - 1, 0));
-                  touchStartX.current = null;
-                }}
-              >
-                {displayImages[selectedImage]?.type === "video"
-                  ? <video src={displayImages[selectedImage].url} controls className="w-full h-full object-cover" />
-                  : <img src={displayImages[selectedImage]?.url} alt={product.title} className="w-full h-full object-cover" />
-                }
-                <div className="absolute right-3 top-1/3 flex flex-col gap-2">
-                  <button onClick={handleShare} className="w-9 h-9 rounded-full flex items-center justify-center shadow-md" style={{ background: "rgba(253,246,240,0.92)" }}>
-                    <Share2 className="w-4 h-4" style={{ color: "#4a2810" }} />
-                  </button>
-                  <button
-                    onClick={handleFavorite}
-                    className="w-9 h-9 rounded-full flex items-center justify-center shadow-md transition-all duration-200 active:scale-90"
-                    style={{ background: isFavorited ? "#c0522a" : "rgba(253,246,240,0.92)" }}
-                    aria-label={isFavorited ? "Remover dos favoritos" : "Adicionar aos favoritos"}
-                  >
-                    <Heart
-                      className="w-4 h-4 transition-all duration-200"
-                      style={{
-                        color: isFavorited ? "#fff" : "#c0522a",
-                        fill: isFavorited ? "#fff" : "none",
-                        transform: isFavorited ? "scale(1.15)" : "scale(1)",
-                      }}
-                    />
-                  </button>
-                  <button onClick={handleZoom} className="w-9 h-9 rounded-full flex items-center justify-center shadow-md" style={{ background: "rgba(253,246,240,0.92)" }}>
-                    <ZoomIn className="w-4 h-4" style={{ color: "#4a2810" }} />
-                  </button>
+            <div className="rounded-2xl overflow-hidden border p-3" style={{ background: "#f5ede4", borderColor: "#e8d5c0" }}>
+              <div className="flex gap-3">
+                {/* Coluna de miniaturas verticais */}
+                {displayImages.length > 1 && (
+                  <div className="flex flex-col gap-2 overflow-y-auto" style={{ maxHeight: 450 }}>
+                    {displayImages.map((img, i) => (
+                      <button key={i} onClick={() => setSelectedImage(i)}
+                        className="flex-shrink-0 w-14 h-14 rounded-xl overflow-hidden transition-all duration-200"
+                        style={{
+                          border: i === selectedImage ? "2.5px solid #c0522a" : "2px solid #e8d5c0",
+                          opacity: i === selectedImage ? 1 : 0.65,
+                          transform: i === selectedImage ? "scale(1.05)" : "scale(1)",
+                        }}
+                      >
+                        {img.type === "video" ? <video src={img.url} className="w-full h-full object-cover" /> : <img src={img.url} alt="" className="w-full h-full object-cover" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Imagem principal */}
+                <div
+                  className="relative flex-1 rounded-xl overflow-hidden"
+                  style={{ aspectRatio: "1/1", maxHeight: 450, background: "#fffaf6" }}
+                  onTouchStart={e => { touchStartX.current = e.touches[0].clientX; }}
+                  onTouchEnd={e => {
+                    if (touchStartX.current === null) return;
+                    const diff = touchStartX.current - e.changedTouches[0].clientX;
+                    if (Math.abs(diff) > 40) setSelectedImage(i => diff > 0 ? Math.min(i + 1, displayImages.length - 1) : Math.max(i - 1, 0));
+                    touchStartX.current = null;
+                  }}
+                >
+                  {displayImages[selectedImage]?.type === "video"
+                    ? <video src={displayImages[selectedImage].url} controls className="w-full h-full object-cover" />
+                    : <img src={displayImages[selectedImage]?.url} alt={product.title} className="w-full h-full object-cover" />
+                  }
+                  <div className="absolute right-3 top-3 flex flex-col gap-2">
+                    <button onClick={handleShare} className="w-9 h-9 rounded-full flex items-center justify-center shadow-md" style={{ background: "rgba(253,246,240,0.92)" }}>
+                      <Share2 className="w-4 h-4" style={{ color: "#4a2810" }} />
+                    </button>
+                    <button
+                      onClick={handleFavorite}
+                      className="w-9 h-9 rounded-full flex items-center justify-center shadow-md transition-all duration-200 active:scale-90"
+                      style={{ background: isFavorited ? "#c0522a" : "rgba(253,246,240,0.92)" }}
+                      aria-label={isFavorited ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+                    >
+                      <Heart
+                        className="w-4 h-4 transition-all duration-200"
+                        style={{
+                          color: isFavorited ? "#fff" : "#c0522a",
+                          fill: isFavorited ? "#fff" : "none",
+                          transform: isFavorited ? "scale(1.15)" : "scale(1)",
+                        }}
+                      />
+                    </button>
+                    <button onClick={handleZoom} className="w-9 h-9 rounded-full flex items-center justify-center shadow-md" style={{ background: "rgba(253,246,240,0.92)" }}>
+                      <ZoomIn className="w-4 h-4" style={{ color: "#4a2810" }} />
+                    </button>
+                  </div>
+                  {product.discount && (
+                    <div className="absolute top-3 left-3 px-2 py-1 rounded-lg text-xs font-black text-white"
+                      style={{ background: "#c0522a" }}>
+                      {product.discount}
+                    </div>
+                  )}
                 </div>
               </div>
-              <div className="flex gap-2 p-3 overflow-x-auto scrollbar-hide" style={{ background: "#fffaf6" }}>
-                {displayImages.map((img, i) => (
-                  <button key={i} onClick={() => setSelectedImage(i)}
-                    className="flex-shrink-0 w-14 h-14 rounded-xl overflow-hidden transition-all duration-200"
-                    style={{
-                      border: i === selectedImage ? "2.5px solid #c0522a" : "2px solid #e8d5c0",
-                      opacity: i === selectedImage ? 1 : 0.65,
-                      transform: i === selectedImage ? "scale(1.05)" : "scale(1)",
-                    }}
-                  >
-                    {img.type === "video" ? <video src={img.url} className="w-full h-full object-cover" /> : <img src={img.url} alt="" className="w-full h-full object-cover" />}
-                  </button>
-                ))}
-              </div>
             </div>
+
+            {/* Especificações — estilo tabela B2B */}
+            {specRows.length > 0 && (
+              <div className="mt-4 rounded-2xl overflow-hidden border" style={{ borderColor: "#e8d5c0" }}>
+                <div className="flex items-center gap-2 px-4 py-2.5" style={{ background: "#f5ede4" }}>
+                  <ClipboardList className="w-4 h-4" style={{ color: "#7a4f2e" }} />
+                  <h3 className="text-sm font-bold" style={{ color: "#4a2810" }}>Especificações</h3>
+                </div>
+                <table className="w-full text-xs">
+                  <tbody>
+                    {specRows.map((row, i) => (
+                      <tr key={row.label} style={{ background: i % 2 === 0 ? "#fffaf6" : "#fdf6f0" }}>
+                        <td className="px-4 py-2.5 font-semibold w-1/3" style={{ color: "#9a7060", borderTop: i > 0 ? "1px solid #ecdece" : "none" }}>
+                          {row.label}
+                        </td>
+                        <td className="px-4 py-2.5" style={{ color: "#2d1505", borderTop: i > 0 ? "1px solid #ecdece" : "none" }}>
+                          {row.value}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             {productAds.length > 0 && (
               <div className="mt-4 space-y-3">
@@ -1129,11 +1202,35 @@ const ProductDetail = () => {
               </div>
             </div>
 
+            {/* Especificações — versão mobile (a versão desktop já está na coluna esquerda) */}
+            {specRows.length > 0 && (
+              <div className="mt-2 md:hidden rounded-none overflow-hidden border-t border-b" style={{ borderColor: "#ecdece" }}>
+                <div className="flex items-center gap-2 px-4 py-2.5" style={{ background: "#f5ede4" }}>
+                  <ClipboardList className="w-4 h-4" style={{ color: "#7a4f2e" }} />
+                  <h3 className="text-sm font-bold" style={{ color: "#4a2810" }}>Especificações</h3>
+                </div>
+                <table className="w-full text-xs">
+                  <tbody>
+                    {specRows.map((row, i) => (
+                      <tr key={row.label} style={{ background: i % 2 === 0 ? "#fffaf6" : "#fdf6f0" }}>
+                        <td className="px-4 py-2.5 font-semibold w-1/3" style={{ color: "#9a7060", borderTop: i > 0 ? "1px solid #ecdece" : "none" }}>
+                          {row.label}
+                        </td>
+                        <td className="px-4 py-2.5" style={{ color: "#2d1505", borderTop: i > 0 ? "1px solid #ecdece" : "none" }}>
+                          {row.value}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
             {/* Descrição */}
             <div className="mt-2 p-4 md:rounded-2xl" style={{ background: "#fffaf6", border: "1px solid #ecdece" }}>
               <h3 className="text-sm font-bold mb-2" style={{ color: "#2d1505" }}>Descrição</h3>
               <p className="text-xs leading-relaxed whitespace-pre-line" style={{ color: "#7a5840" }}>
-                {product.description || "Produto de alta qualidade disponível no Kwanza Market."}
+                {product.description || "Produto de alta qualidade disponível no ZANGU."}
               </p>
               <ul className="text-xs mt-3 space-y-1.5" style={{ color: "#9a7060" }}>
                 <li className="flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" /> Produto original com garantia</li>
