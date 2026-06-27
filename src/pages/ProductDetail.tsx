@@ -14,7 +14,6 @@ import { useAddToCart } from "@/hooks/useCartActions";
 import { useFavorites } from "@/hooks/useFavorites";
 import { toast } from "sonner";
 
-// ── Navbar design tokens (mesmos do Navbar.tsx) ──────────────────────────────
 const N = {
   brown:     "#4A2E0A",
   sand:      "#D4B896",
@@ -32,7 +31,6 @@ const conditionLabels: Record<string, string> = {
   used: "Usado", refurbished: "Recondicionado",
 };
 
-// ─── Minimal Related Product Card ─────────────────────────────────────────────
 const MinimalProductCard = ({ product, onClick }: { product: any; onClick?: () => void }) => (
   <div onClick={onClick} className="cursor-pointer group flex flex-col flex-shrink-0" style={{ width: 148 }}>
     <div className="w-full aspect-square rounded-xl overflow-hidden" style={{ background: "#f5ede4" }}>
@@ -45,7 +43,6 @@ const MinimalProductCard = ({ product, onClick }: { product: any; onClick?: () =
   </div>
 );
 
-// ─── Tracking Hook ────────────────────────────────────────────────────────────
 const useProductTracking = () => {
   const { user } = useAuth();
   const trackEvent = useCallback(async (
@@ -67,7 +64,6 @@ const useProductTracking = () => {
   return { trackEvent };
 };
 
-// ─── Share Sheet ──────────────────────────────────────────────────────────────
 const ShareSheet = ({ title, imageUrl, url, description, price, onClose }: { title: string; imageUrl: string; url: string; description?: string; price?: string; onClose: () => void }) => {
   const [sharing, setSharing] = useState(false);
   const [copying, setCopying] = useState(false);
@@ -76,7 +72,7 @@ const ShareSheet = ({ title, imageUrl, url, description, price, onClose }: { tit
   const handleNative = async () => {
     setSharing(true);
     try {
-      if (navigator.share) { await navigator.share({ title, text: shareText, url }); onClose(); } 
+      if (navigator.share) { await navigator.share({ title, text: shareText, url }); onClose(); }
       else { await navigator.clipboard.writeText(`${title}\n${shareText}\n${url}`); toast.success("Link copiado!"); onClose(); }
     } catch (err: any) { if (err?.name !== "AbortError") toast.error("Não foi possível partilhar"); }
     setSharing(false);
@@ -122,7 +118,6 @@ const ShareSheet = ({ title, imageUrl, url, description, price, onClose }: { tit
   );
 };
 
-// ─── Zoom Lightbox ─────────────────────────────────────────────────────────────
 const ZoomLightbox = ({ images, index, onClose, onChange, onShare }: { images: { url: string; type: string }[]; index: number; onClose: () => void; onChange: (i: number) => void; onShare: () => void }) => {
   const touchRef = useRef<number | null>(null);
   return (
@@ -146,16 +141,12 @@ const ZoomLightbox = ({ images, index, onClose, onChange, onShare }: { images: {
   );
 };
 
-// ─── Avatar ────────────────────────────────────────────────────────────────────
 const AvatarWithFallback = ({ src, name, isCompany }: { src: string | null; name: string; isCompany: boolean }) => {
   const [ok, setOk] = useState<boolean | null>(src ? null : false);
   if (src && ok !== false) return <img src={src} alt={name} className="w-10 h-10 rounded-full object-cover" style={{ border: `2px solid ${N.sand}` }} onLoad={() => setOk(true)} onError={() => setOk(false)} />;
   return <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: N.brownLight, border: `2px solid ${N.sand}` }}>{isCompany ? <Building2 className="w-4 h-4" style={{ color: N.brown }} /> : <Store className="w-4 h-4" style={{ color: N.brown }} />}</div>;
 };
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// MAIN COMPONENT
-// ═══════════════════════════════════════════════════════════════════════════════
 const ProductDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -176,7 +167,6 @@ const ProductDetail = () => {
   const viewTracked = useRef(false);
   const isUuid = id && id.length > 10;
 
-  // ── Queries ──
   const { data: dbProduct, isLoading: loadingProduct } = useProduct(id || "");
   const { data: dbMedia = [] } = useQuery({ queryKey: ["product_media_detail", id], queryFn: async () => { const { data } = await supabase.from("product_media").select("*").eq("product_id", id!).order("sort_order"); return data || []; }, enabled: !!isUuid });
   const { data: dbVariants = [] } = useQuery({ queryKey: ["product_variants", id], queryFn: async () => { const { data } = await supabase.from("product_variants").select("*").eq("product_id", id!).eq("is_active", true).order("sort_order"); return data || []; }, enabled: !!isUuid });
@@ -257,7 +247,6 @@ const ProductDetail = () => {
   const handleShare    = () => { trackEvent(id!, "share", {}); setShareOpen(true); };
   const handleZoom     = () => { trackEvent(id!, "image_zoom", { image_index: selectedImage }); setZoomOpen(true); };
 
-  // ── Loading / not found ──
   if (!dbProduct && isUuid && loadingProduct)
     return <div className="min-h-screen flex items-center justify-center" style={{ background: N.cream }}><Loader2 className="w-6 h-6 animate-spin" style={{ color: N.brown }} /></div>;
 
@@ -272,7 +261,6 @@ const ProductDetail = () => {
     </div>
   );
 
-  // ── Derived data ──
   const coverUrl = dbMedia.find((m: any) => m.is_cover)?.url || dbMedia[0]?.url || productBase.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&h=600&fit=crop";
   const product = {
     id: productBase.id, title: productBase.title, price: fmt(productBase.price),
@@ -317,7 +305,6 @@ const ProductDetail = () => {
   const popularityBadge   = product.reviews && product.reviews > 200 ? `Em ${Math.floor(product.reviews / 5)}+ carrinhos` : null;
   const province          = publisher?.province ? String(publisher.province).replace(/0+$/, "").trim() : null;
 
-  // ── Shared variant pill renderer ──
   const VariantPill = ({ v, selected, onSelect, type }: { v: any; selected: boolean; onSelect: () => void; type: string }) => {
     if (type === "color" && v.value?.startsWith("#")) {
       return (
@@ -343,42 +330,46 @@ const ProductDetail = () => {
       {zoomOpen  && <ZoomLightbox images={displayImages} index={selectedImage} onClose={() => setZoomOpen(false)} onChange={setSelectedImage} onShare={() => { setZoomOpen(false); setShareOpen(true); }} />}
 
       {/* ══════════════════════════════════════════
-          HEADER — mesmas cores e estilo do Navbar
+          MINI HEADER — só botão voltar + ações
+          (sem barra de pesquisa, sem navbar duplicado)
       ══════════════════════════════════════════ */}
-      <header className="sticky top-0 z-50" style={{ background: `linear-gradient(160deg, ${N.cream} 0%, ${N.sand} 60%, #C9A87C 100%)`, boxShadow: "0 2px 20px rgba(74,46,10,0.18)" }}>
-        <div className="flex items-center gap-2 px-3" style={{ height: 64 }}>
+      <div className="sticky top-0 z-50 flex items-center justify-between px-3 py-2"
+        style={{ background: `linear-gradient(160deg, ${N.cream} 0%, ${N.sand} 100%)`, borderBottom: `1px solid ${N.sand}` }}>
+        <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ background: N.brown, boxShadow: "0 2px 6px rgba(74,46,10,0.25)" }}>
+          <ArrowLeft className="w-5 h-5 text-white" />
+        </button>
 
-          {/* Voltar — mesmo estilo do botão menu do Navbar */}
-          <button onClick={() => navigate(-1)} className="flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: N.brown, boxShadow: "0 2px 6px rgba(74,46,10,0.25)" }}>
-            <ArrowLeft className="w-5 h-5 text-white" />
+        {/* Breadcrumb categoria — visível aqui no mobile, antes era só desktop */}
+        {categoryName && (
+          <button onClick={() => navigate(`/categoria/${encodeURIComponent(categoryName)}`)}
+            className="flex-1 mx-3 text-xs font-bold truncate text-left"
+            style={{ color: N.brown }}>
+            📂 {categoryName}
           </button>
+        )}
 
-          {/* Barra de pesquisa */}
-          <div className="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-2xl cursor-pointer" style={{ background: "#fff", boxShadow: "0 1px 6px rgba(74,46,10,0.14)" }} onClick={() => navigate("/pesquisa")}>
-            <Search className="w-4 h-4 flex-shrink-0" style={{ color: N.sandDark }} />
-            <span className="text-sm flex-1 truncate" style={{ color: N.sandDark }}>Pesquisar produtos...</span>
-          </div>
-
-          {/* Favorito */}
-          <button onClick={handleFavorite} className="flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center active:scale-90 transition-transform" style={{ background: isFavorited ? N.brown : "#FFFFFF", boxShadow: "0 2px 6px rgba(74,46,10,0.18)", border: isFavorited ? "none" : "1px solid rgba(74,46,10,0.10)" }}>
+        <div className="flex items-center gap-2">
+          <button onClick={handleFavorite} className="w-10 h-10 rounded-2xl flex items-center justify-center active:scale-90 transition-transform"
+            style={{ background: isFavorited ? N.brown : "#FFFFFF", boxShadow: "0 2px 6px rgba(74,46,10,0.18)", border: isFavorited ? "none" : `1px solid ${N.sand}` }}>
             <Heart className="w-5 h-5" style={{ color: isFavorited ? "#fff" : N.brown, fill: isFavorited ? "#fff" : "none" }} />
           </button>
-
-          {/* Carrinho */}
-          <button onClick={() => navigate("/carrinho")} className="flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: "#FFFFFF", boxShadow: "0 2px 6px rgba(74,46,10,0.18)", border: "1px solid rgba(74,46,10,0.10)" }}>
+          <button onClick={() => navigate("/carrinho")} className="w-10 h-10 rounded-2xl flex items-center justify-center"
+            style={{ background: "#FFFFFF", boxShadow: "0 2px 6px rgba(74,46,10,0.18)", border: `1px solid ${N.sand}` }}>
             <ShoppingCart className="w-5 h-5" style={{ color: N.brown }} />
           </button>
+          <button onClick={handleShare} className="w-10 h-10 rounded-2xl flex items-center justify-center"
+            style={{ background: "#FFFFFF", boxShadow: "0 2px 6px rgba(74,46,10,0.18)", border: `1px solid ${N.sand}` }}>
+            <Share2 className="w-4 h-4" style={{ color: N.brown }} />
+          </button>
         </div>
-      </header>
+      </div>
 
-      {/* ══════════════════════════════════════════
-          BREADCRUMB (desktop)
-      ══════════════════════════════════════════ */}
+      {/* Breadcrumb desktop */}
       {categoryName && (
         <div className="hidden md:flex items-center gap-1.5 px-4 py-2 max-w-6xl mx-auto text-xs" style={{ color: N.sandDark }}>
           <button onClick={() => navigate("/")} className="hover:underline" style={{ color: N.brown }}>Início</button>
           <ChevronRight className="w-3 h-3" />
-          <span>{categoryName}</span>
+          <button onClick={() => navigate(`/categoria/${encodeURIComponent(categoryName)}`)} className="hover:underline" style={{ color: N.brown }}>{categoryName}</button>
           <ChevronRight className="w-3 h-3" />
           <span className="truncate max-w-xs font-semibold" style={{ color: N.brown }}>{product.title}</span>
         </div>
@@ -390,7 +381,7 @@ const ProductDetail = () => {
       <div className="max-w-6xl mx-auto md:px-4 md:py-4">
         <div className="md:grid md:grid-cols-[64px_1fr_320px] md:gap-6">
 
-          {/* ── Thumbnails desktop ── */}
+          {/* Thumbnails desktop */}
           <div className="hidden md:flex flex-col gap-2 pt-2">
             {displayImages.map((img, i) => (
               <button key={i} onClick={() => setSelectedImage(i)} className="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 transition-all"
@@ -400,13 +391,11 @@ const ProductDetail = () => {
             ))}
           </div>
 
-          {/* ── Imagem principal ── */}
+          {/* Imagem principal */}
           <div>
-            <div className="relative overflow-hidden md:rounded-2xl"
-              style={{ background: "#f0e4d8" }}
+            <div className="relative overflow-hidden md:rounded-2xl" style={{ background: "#f0e4d8" }}
               onTouchStart={e => { touchStartX.current = e.touches[0].clientX; }}
-              onTouchEnd={e => { if (touchStartX.current === null) return; const diff = touchStartX.current - e.changedTouches[0].clientX; if (Math.abs(diff) > 40) setSelectedImage(i => diff > 0 ? Math.min(i + 1, displayImages.length - 1) : Math.max(i - 1, 0)); touchStartX.current = null; }}
-            >
+              onTouchEnd={e => { if (touchStartX.current === null) return; const diff = touchStartX.current - e.changedTouches[0].clientX; if (Math.abs(diff) > 40) setSelectedImage(i => diff > 0 ? Math.min(i + 1, displayImages.length - 1) : Math.max(i - 1, 0)); touchStartX.current = null; }}>
               <div className="w-full" style={{ aspectRatio: "1/1", maxHeight: 500 }}>
                 {displayImages[selectedImage]?.type === "video"
                   ? <video src={displayImages[selectedImage].url} controls className="w-full h-full object-cover" />
@@ -419,14 +408,12 @@ const ProductDetail = () => {
               </button>
             </div>
 
-            {/* Dot indicators */}
             {displayImages.length > 1 && (
               <div className="flex justify-center gap-1.5 mt-2">
                 {displayImages.map((_, i) => <span key={i} className="rounded-full transition-all duration-200" style={{ width: i === selectedImage ? 16 : 6, height: 6, background: i === selectedImage ? N.brown : N.sand }} />)}
               </div>
             )}
 
-            {/* Mobile thumbnails strip */}
             {displayImages.length > 1 && (
               <div className="flex gap-2 px-4 mt-3 overflow-x-auto scrollbar-hide md:hidden">
                 {displayImages.map((img, i) => (
@@ -439,10 +426,9 @@ const ProductDetail = () => {
             )}
           </div>
 
-          {/* ── Coluna direita: info + compra ── */}
+          {/* Coluna direita */}
           <div className="px-4 md:px-0 mt-4 md:mt-0">
 
-            {/* Loja/vendedor */}
             {(publisher || loadingPublisher) && (
               <div className="mb-2">
                 {loadingPublisher
@@ -463,10 +449,8 @@ const ProductDetail = () => {
               </div>
             )}
 
-            {/* Título */}
             <h1 className="text-base font-bold leading-snug" style={{ color: N.brown }}>{product.title}</h1>
 
-            {/* Rating */}
             {product.rating && (
               <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                 <div className="flex items-center gap-0.5">
@@ -480,7 +464,6 @@ const ProductDetail = () => {
 
             <div className="h-px my-3" style={{ background: N.sand }} />
 
-            {/* Preço */}
             <div>
               {product.discount && <p className="text-[11px] font-bold uppercase" style={{ color: "#c0522a" }}>Oferta por tempo limitado</p>}
               <div className="flex items-baseline gap-2 mt-0.5 flex-wrap">
@@ -493,7 +476,6 @@ const ProductDetail = () => {
 
             <div className="h-px my-3" style={{ background: N.sand }} />
 
-            {/* Variantes */}
             {Object.keys(variantGroups).length > 0 && (
               <div className="space-y-3">
                 {Object.entries(variantGroups).map(([type, variants]) => {
@@ -522,7 +504,6 @@ const ProductDetail = () => {
               </div>
             )}
 
-            {/* Quantidade + botões (desktop) */}
             <div className="hidden md:block space-y-3 mt-4">
               <div className="flex items-center gap-3">
                 <span className="text-sm font-semibold" style={{ color: N.brown }}>Quantidade:</span>
@@ -542,7 +523,6 @@ const ProductDetail = () => {
 
             <div className="h-px my-4 hidden md:block" style={{ background: N.sand }} />
 
-            {/* Entrega */}
             <div className="space-y-3 mt-4 md:mt-0">
               {[
                 { icon: <MapPin className="w-3.5 h-3.5 text-blue-600" />, bg: "#e8f0ff", title: "Enviar para Luanda, Angola", sub: "Entrega estimada: 2–5 dias úteis" },
@@ -555,22 +535,12 @@ const ProductDetail = () => {
                 </div>
               ))}
             </div>
-
-            {/* Partilhar (desktop) */}
-            <div className="hidden md:flex items-center gap-3 mt-4">
-              <button onClick={handleShare} className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: N.sandDark }}>
-                <Share2 className="w-4 h-4" /> Partilhar
-              </button>
-            </div>
           </div>
         </div>
 
-        {/* ═════════════════════════════════════════
-            SECÇÕES ABAIXO
-        ═════════════════════════════════════════ */}
+        {/* SECÇÕES ABAIXO */}
         <div className="space-y-2 mt-2 md:mt-6">
 
-          {/* Sobre este produto */}
           <section className="px-4 py-5 md:rounded-2xl" style={{ background: "#fffaf6", border: `1px solid ${N.sand}` }}>
             <h2 className="text-base font-black mb-3" style={{ color: N.brown }}>Sobre este produto</h2>
             <p className={`text-sm leading-relaxed whitespace-pre-line ${!descExpanded ? "line-clamp-5" : ""}`} style={{ color: N.sandDark }}>
@@ -589,7 +559,6 @@ const ProductDetail = () => {
             </ul>
           </section>
 
-          {/* Detalhes / Especificações */}
           {specRows.length > 0 && (
             <section className="px-4 py-5 md:rounded-2xl" style={{ background: "#fffaf6", border: `1px solid ${N.sand}` }}>
               <h2 className="text-base font-black mb-3" style={{ color: N.brown }}>Detalhes do produto</h2>
@@ -606,10 +575,8 @@ const ProductDetail = () => {
             </section>
           )}
 
-          {/* Avaliações */}
           <ProductReviewsSection productId={id || ""} product={product} dbReviews={dbReviews} userOrders={userOrders} trackEvent={trackEvent} />
 
-          {/* Produtos relacionados */}
           {relatedProducts.length > 0 && (
             <section className="px-4 py-5 md:rounded-2xl" style={{ background: "#fffaf6", border: `1px solid ${N.sand}` }}>
               <h2 className="text-base font-black mb-4" style={{ color: N.brown }}>Produtos relacionados</h2>
@@ -621,7 +588,6 @@ const ProductDetail = () => {
             </section>
           )}
 
-          {/* Ads */}
           {productAds.length > 0 && (
             <section className="px-4 py-4 md:rounded-2xl space-y-3" style={{ background: "#fffaf6", border: `1px solid ${N.sand}` }}>
               <p className="text-[10px] text-right" style={{ color: N.sandDark }}>Publicidade</p>
@@ -647,15 +613,11 @@ const ProductDetail = () => {
             </section>
           )}
 
-          {/* Espaço extra no mobile para a barra inferior não tapar o último conteúdo */}
           <div className="h-28 md:hidden" aria-hidden />
         </div>
       </div>
 
-      {/* ══════════════════════════════════════════
-          BARRA INFERIOR MOBILE
-          (usa pb-safe para não tapar conteúdo)
-      ══════════════════════════════════════════ */}
+      {/* BARRA INFERIOR MOBILE */}
       <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden"
         style={{
           background: `linear-gradient(160deg, ${N.cream} 0%, ${N.sand} 100%)`,
@@ -664,13 +626,11 @@ const ProductDetail = () => {
           paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))",
         }}>
         <div className="flex items-center gap-2 px-3 pt-2.5 pb-1">
-          {/* Qty */}
           <div className="flex items-center rounded-xl overflow-hidden flex-shrink-0" style={{ border: `1.5px solid ${N.sandDark}` }}>
             <button onClick={() => setQty(q => Math.max(1, q - 1))} className="w-9 h-9 flex items-center justify-center" style={{ color: N.sandDark }}><Minus className="w-4 h-4" /></button>
             <span className="w-9 text-center text-sm font-bold" style={{ color: N.brown }}>{qty}</span>
             <button onClick={() => setQty(q => q + 1)} className="w-9 h-9 flex items-center justify-center" style={{ color: N.sandDark }}><Plus className="w-4 h-4" /></button>
           </div>
-          {/* Preço */}
           <span className="text-sm font-black ml-auto" style={{ color: N.brown }}>{activePrice}</span>
         </div>
         <div className="flex gap-2 px-3 pt-1">
@@ -745,7 +705,6 @@ const ProductReviewsSection = ({ productId, product, dbReviews, userOrders, trac
     <section className="px-4 py-5 md:rounded-2xl" style={{ background: "#fffaf6", border: `1px solid ${N.sand}` }}>
       <h2 className="text-base font-black mb-4" style={{ color: N.brown }}>Avaliações dos clientes</h2>
 
-      {/* Resumo de rating */}
       <div className="flex items-start gap-6 mb-5 flex-wrap">
         <div className="flex flex-col items-center">
           <span className="text-4xl font-black" style={{ color: N.brown }}>{product.rating || 0}</span>
