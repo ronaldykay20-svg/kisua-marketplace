@@ -59,16 +59,24 @@ import CatalogoFornecedores from "./pages/CatalogoFornecedores.tsx";
 const queryClient = new QueryClient();
 
 const HIDE_BOTTOM_NAV_PATHS = [/^\/produto\/.+/];
+const HIDE_HEADER_PATHS = [/^\/produto\/.+/];
 
 const Layout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
   const hideBottomNav = HIDE_BOTTOM_NAV_PATHS.some((pattern) =>
     pattern.test(location.pathname)
   );
+  const hideHeader = HIDE_HEADER_PATHS.some((pattern) =>
+    pattern.test(location.pathname)
+  );
   return (
     <div className={`min-h-screen bg-background ${hideBottomNav ? "" : "pb-14 md:pb-0"}`}>
-      <div className="md:hidden"><NewNavbar /></div>
-      <DesktopNavbar />
+      {!hideHeader && (
+        <>
+          <div className="md:hidden"><NewNavbar /></div>
+          <DesktopNavbar />
+        </>
+      )}
       {children}
       {!hideBottomNav && <BottomNav />}
     </div>
