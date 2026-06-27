@@ -9,7 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 const PAGE_SIZE = 20;
 
 // ─── Lazy Image ───────────────────────────────────────────────────────────────
-const LazyImg = ({ src, alt, ratio }: { src: string | null; alt: string; ratio: string }) => {
+const LazyImg = ({ src, alt }: { src: string | null; alt: string }) => {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -29,7 +29,7 @@ const LazyImg = ({ src, alt, ratio }: { src: string | null; alt: string; ratio: 
   useEffect(() => { setLoaded(false); }, [src]);
 
   return (
-    <div ref={wrapRef} className="relative w-full overflow-hidden" style={{ aspectRatio: ratio, background: "#f0e6da" }}>
+    <div ref={wrapRef} className="relative w-full overflow-hidden" style={{ aspectRatio: "4/5", background: "#f0e6da" }}>
       {(!visible || !loaded) && (
         <div className="absolute inset-0 animate-pulse" style={{ background: "linear-gradient(135deg, #f0e6da 0%, #e8d5c4 100%)" }} />
       )}
@@ -50,11 +50,11 @@ const LazyImg = ({ src, alt, ratio }: { src: string | null; alt: string; ratio: 
 
 // ─── Card (estilo da página: bege quente, sem arestas duras) ──────────────────
 const ProductCard = ({
-  p, coverOverride, isTrending, isFav, onFav, onClick, tall,
+  p, coverOverride, isTrending, isFav, onFav, onClick,
 }: {
   p: any; coverOverride?: string | null; isTrending: boolean;
   isFav: boolean; onFav: (e: React.MouseEvent) => void;
-  onClick: () => void; tall: boolean;
+  onClick: () => void;
 }) => {
   const [pressed, setPressed] = useState(false);
   const cover = coverOverride ?? p.cover_url ?? p.image_url ?? null;
@@ -65,7 +65,7 @@ const ProductCard = ({
       onPointerDown={() => setPressed(true)}
       onPointerUp={() => setPressed(false)}
       onPointerLeave={() => setPressed(false)}
-      className="w-full mb-2 cursor-pointer select-none overflow-hidden"
+      className="w-full cursor-pointer select-none overflow-hidden"
       style={{
         borderRadius: "10px",
         background: "#fdf8f4",
@@ -78,7 +78,7 @@ const ProductCard = ({
     >
       {/* Imagem */}
       <div className="relative">
-        <LazyImg src={cover} alt={p.title} ratio={tall ? "3/4" : "4/5"} />
+        <LazyImg src={cover} alt={p.title} />
 
         {/* Desconto */}
         {p.discount_percent > 0 && (
@@ -164,9 +164,9 @@ const ProductCard = ({
 };
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
-const Skeleton = ({ tall }: { tall: boolean }) => (
-  <div className="w-full mb-2 overflow-hidden animate-pulse" style={{ borderRadius: "10px", background: "#fdf8f4" }}>
-    <div style={{ aspectRatio: tall ? "3/4" : "4/5", background: "#f0e6da" }} />
+const Skeleton = () => (
+  <div className="w-full overflow-hidden animate-pulse" style={{ borderRadius: "10px", background: "#fdf8f4" }}>
+    <div style={{ aspectRatio: "4/5", background: "#f0e6da" }} />
     <div className="px-2.5 pt-2 pb-2.5 space-y-1.5">
       <div className="h-3 rounded w-4/5" style={{ background: "#f0e6da" }} />
       <div className="h-3 rounded w-3/5" style={{ background: "#f0e6da" }} />
@@ -278,9 +278,6 @@ const InfiniteProducts = () => {
     return () => obs.disconnect();
   }, [handleObserver]);
 
-  const col1 = allProducts.filter((_: any, i: number) => i % 2 === 0);
-  const col2 = allProducts.filter((_: any, i: number) => i % 2 === 1);
-
   const makeFav = (id: string) => (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!user) { navigate("/auth"); return; }
@@ -288,10 +285,9 @@ const InfiniteProducts = () => {
   };
 
   if (isLoading) return (
-    <section className="px-2 pt-3 pb-4">
-      <div className="flex gap-2">
-        <div className="flex-1">{[0,1,2].map(i => <Skeleton key={i} tall={i===0} />)}</div>
-        <div className="flex-1 mt-4">{[0,1,2].map(i => <Skeleton key={i} tall={i===1} />)}</div>
+    <section className="px-2 md:px-4 pt-3 pb-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 md:gap-3">
+        {[0, 1, 2, 3, 4, 5].map(i => <Skeleton key={i} />)}
       </div>
     </section>
   );
@@ -299,48 +295,27 @@ const InfiniteProducts = () => {
   if (allProducts.length === 0) return null;
 
   return (
-    <section className="px-2 pt-3 pb-4">
+    <section className="px-2 md:px-4 pt-3 pb-4">
       {/* Header */}
       <div className="flex items-center justify-between mb-2 px-0.5">
         <h2 className="text-sm font-bold" style={{ color: "#1a0f07" }}>Para si</h2>
         <span className="text-[10px]" style={{ color: "#9a7060" }}>{allProducts.length} produtos</span>
       </div>
 
-      {/* Grelha 2 colunas masonry */}
-      <div className="flex gap-2">
-        {/* Coluna esquerda */}
-        <div className="flex-1">
-          {col1.map((p: any, i: number) => (
-            <ProductCard
-              key={`${p.id}-${loopCycle}`}
-              p={p}
-              coverOverride={loopCycle > 0 ? getLoopCover(i * 2) : null}
-              tall={i % 3 === 0}
-              isTrending={(trendingIds as Set<string>).has(p.id)}
-              isFav={isFavorite(p.id)}
-              onFav={makeFav(p.id)}
-              onClick={() => navigate(`/produto/${p.id}`)}
-            />
-          ))}
-          {isFetchingNextPage && <Skeleton tall={false} />}
-        </div>
-
-        {/* Coluna direita — offset para efeito masonry */}
-        <div className="flex-1 mt-5">
-          {col2.map((p: any, i: number) => (
-            <ProductCard
-              key={`${p.id}-${loopCycle}`}
-              p={p}
-              coverOverride={loopCycle > 0 ? getLoopCover(i * 2 + 1) : null}
-              tall={i % 3 === 1}
-              isTrending={(trendingIds as Set<string>).has(p.id)}
-              isFav={isFavorite(p.id)}
-              onFav={makeFav(p.id)}
-              onClick={() => navigate(`/produto/${p.id}`)}
-            />
-          ))}
-          {isFetchingNextPage && <Skeleton tall={true} />}
-        </div>
+      {/* Grelha responsiva alinhada: 2 mobile, 3 tablet, 5 desktop */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 md:gap-3">
+        {allProducts.map((p: any, i: number) => (
+          <ProductCard
+            key={`${p.id}-${loopCycle}`}
+            p={p}
+            coverOverride={loopCycle > 0 ? getLoopCover(i) : null}
+            isTrending={(trendingIds as Set<string>).has(p.id)}
+            isFav={isFavorite(p.id)}
+            onFav={makeFav(p.id)}
+            onClick={() => navigate(`/produto/${p.id}`)}
+          />
+        ))}
+        {isFetchingNextPage && [0, 1, 2, 3, 4].map(i => <Skeleton key={`skeleton-${i}`} />)}
       </div>
 
       {/* Sentinel invisível */}
