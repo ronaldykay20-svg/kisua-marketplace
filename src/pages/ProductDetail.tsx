@@ -460,6 +460,107 @@ const ProductDetail = () => {
   const loadingPublisher = (!!rawSellerId && loadingSeller) || (!!rawCompanyId && loadingCompany);
   const publisher: any = sellerFull || companyFull || null;
 
+  const categoryId = (dbProduct as any)?.category_id;
+
+  // ── CORRIGIDO: useQuery movido para antes dos returns condicionais ──
+  const { data: categoryName } = useQuery({
+    queryKey: ["category_name_detail", categoryId],
+    queryFn: async () => {
+      const { data } = await supabase.from("categories").select("name").eq("id", categoryId!).maybeSingle();
+      return data?.name || null;
+    },
+    enabled: !!categoryId,
+  });
+
+  const { data: userOrders = [] } = useQuery({
+    queryKey: ["user_delivered_orders_for_product", id, user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("orders").select("id, order_items!inner(product_id)").eq("user_id", user!.id).eq("status", "delivered").eq("order_items.product_id", id!);
+      if (error) return [];
+      return data || [];
+    },
+    enabled: !!user && !!isUuid,
+  });
+
+  const { data: dbReviews = [] } = useQuery({
+    queryKey: ["product_reviews_detail", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("product_reviews").select("*").eq("product_id", id!).order("created_at", { ascending: false });
+      if (error) return [];
+      const uids = [...new Set((data || []).map((r: any) => r.user_id))];
+      let pMap: Record<string, any> = {};
+      if (uids.length > 0) {
+        const { data: profs } = await supabase.from("profiles").select("id, full_name, avatar_url").in("id", uids);
+        pMap = Object.fromEntries((profs || []).map((p: any) => [p.id, p]));
+      }
+      const rids = (data || []).map((r: any) => r.id);
+      let repMap: Record<string, any[]> = {};
+      if (rids.length > 0) {
+        const { data: reps } = await supabase.from("review_replies").select("*").in("review_id", rids).order("created_at");
+        if (reps) {
+          const ruids = [...new Set(reps.map((r: any) => r.user_id))];
+          let rpMap: Record<string, any> = {};
+          if (ruids.length > 0) {
+            const { data: rp } = await supabase.from("profiles").select("id, full_name").in("id", ruids);
+            rpMap = Object.fromEntries((rp || []).map((p: any) => [p.id, p]));
+          }
+          reps.forEach((r: any) => {
+            if (!repMap[r.review_id]) repMap[r.review_id] = [];
+            repMap[r.review_id].push({ ...r, profile: rpMap[r.user_id] || null });
+          });
+        }
+      }
+      return (data || []).map((r: any) => ({ ...r, profile: pMap[r.user_id] || null, replies: repMap[r.id] || [] }));
+    },
+    enabled: !!isUuid,
+  });
+
+  const { data: relatedDb = [] } = useQuery({
+    queryKey: ["related_products", id, categoryId, rawSellerId],
+    queryFn: async () => {
+      const collected: any[] = [];
+      const seen = new Set<string>([id!]);
+      const fetchSet = async (filter: (q: any) => any, limit: number) => {
+        const { data } = await filter(supabase.from("products").select("*").eq("is_active", true).neq("id", id!).limit(limit));
+        (data || []).forEach((p: any) => { if (!seen.has(p.id)) { seen.add(p.id); collected.push(p); } });
+      };
+      if (categoryId) await fetchSet(q => q.eq("category_id", categoryId).order("sales_count", { ascending: false }), 30);
+      if (rawSellerId && collected.length < 30) await fetchSet(q => q.eq("seller_id", rawSellerId).order("sales_count", { ascending: false }), 20);
+      if (collected.length < 30) await fetchSet(q => q.order("sales_count", { ascending: false }), 30);
+      const ids = collected.map((p: any) => p.id);
+      const cMap: Record<string, string> = {};
+      if (ids.length > 0) {
+        const { data: m } = await supabase.from("product_media").select("product_id, url").in("product_id", ids).eq("is_cover", true);
+        (m || []).forEach((x: any) => { cMap[x.product_id] = x.url; });
+      }
+      return collected.map((p: any) => ({
+        id: p.id, title: p.title, price: fmt(p.price),
+        oldPrice: p.old_price ? fmt(p.old_price) : undefined,
+        discount: p.discount_percent ? `-${p.discount_percent}%` : undefined,
+        image: cMap[p.id] || p.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&h=600&fit=crop",
+        rating: p.rating || undefined, reviews: p.total_reviews || undefined,
+        freeShipping: p.free_shipping || false, badge: p.badge || undefined,
+      }));
+    },
+    enabled: !!isUuid && !!dbProduct,
+  });
+
+  const { data: sponsoredProducts = [] } = useQuery({
+    queryKey: ["sponsored_products", id],
+    queryFn: async () => {
+      const { data } = await (supabase as any).from("products").select("id, title, price, old_price, discount_percent, image_url, free_shipping, badge, rating, total_reviews, sellers(id, name, avatar_url, rating, total_sales)").eq("is_active", true).eq("is_sponsored", true).neq("id", id!).limit(6);
+      const list = data || [];
+      const ids = list.map((p: any) => p.id);
+      const cMap: Record<string, string> = {};
+      if (ids.length > 0) {
+        const { data: m } = await supabase.from("product_media").select("product_id, url").in("product_id", ids).eq("is_cover", true);
+        (m || []).forEach((x: any) => { cMap[x.product_id] = x.url; });
+      }
+      return list.map((p: any) => ({ ...p, image: cMap[p.id] || p.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop", priceFormatted: fmt(p.price) }));
+    },
+    enabled: !!isUuid,
+  });
+
   useEffect(() => {
     if (!dbProduct || !isUuid || viewTracked.current) return;
     viewTracked.current = true;
@@ -526,96 +627,6 @@ const ProductDetail = () => {
     setZoomOpen(true);
   };
 
-  const { data: userOrders = [] } = useQuery({
-    queryKey: ["user_delivered_orders_for_product", id, user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("orders").select("id, order_items!inner(product_id)").eq("user_id", user!.id).eq("status", "delivered").eq("order_items.product_id", id!);
-      if (error) return [];
-      return data || [];
-    },
-    enabled: !!user && !!isUuid,
-  });
-
-  const { data: dbReviews = [] } = useQuery({
-    queryKey: ["product_reviews_detail", id],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("product_reviews").select("*").eq("product_id", id!).order("created_at", { ascending: false });
-      if (error) return [];
-      const uids = [...new Set((data || []).map((r: any) => r.user_id))];
-      let pMap: Record<string, any> = {};
-      if (uids.length > 0) {
-        const { data: profs } = await supabase.from("profiles").select("id, full_name, avatar_url").in("id", uids);
-        pMap = Object.fromEntries((profs || []).map((p: any) => [p.id, p]));
-      }
-      const rids = (data || []).map((r: any) => r.id);
-      let repMap: Record<string, any[]> = {};
-      if (rids.length > 0) {
-        const { data: reps } = await supabase.from("review_replies").select("*").in("review_id", rids).order("created_at");
-        if (reps) {
-          const ruids = [...new Set(reps.map((r: any) => r.user_id))];
-          let rpMap: Record<string, any> = {};
-          if (ruids.length > 0) {
-            const { data: rp } = await supabase.from("profiles").select("id, full_name").in("id", ruids);
-            rpMap = Object.fromEntries((rp || []).map((p: any) => [p.id, p]));
-          }
-          reps.forEach((r: any) => {
-            if (!repMap[r.review_id]) repMap[r.review_id] = [];
-            repMap[r.review_id].push({ ...r, profile: rpMap[r.user_id] || null });
-          });
-        }
-      }
-      return (data || []).map((r: any) => ({ ...r, profile: pMap[r.user_id] || null, replies: repMap[r.id] || [] }));
-    },
-    enabled: !!isUuid,
-  });
-
-  const categoryId = (dbProduct as any)?.category_id;
-  const { data: relatedDb = [] } = useQuery({
-    queryKey: ["related_products", id, categoryId, rawSellerId],
-    queryFn: async () => {
-      const collected: any[] = [];
-      const seen = new Set<string>([id!]);
-      const fetchSet = async (filter: (q: any) => any, limit: number) => {
-        const { data } = await filter(supabase.from("products").select("*").eq("is_active", true).neq("id", id!).limit(limit));
-        (data || []).forEach((p: any) => { if (!seen.has(p.id)) { seen.add(p.id); collected.push(p); } });
-      };
-      if (categoryId) await fetchSet(q => q.eq("category_id", categoryId).order("sales_count", { ascending: false }), 30);
-      if (rawSellerId && collected.length < 30) await fetchSet(q => q.eq("seller_id", rawSellerId).order("sales_count", { ascending: false }), 20);
-      if (collected.length < 30) await fetchSet(q => q.order("sales_count", { ascending: false }), 30);
-      const ids = collected.map((p: any) => p.id);
-      const cMap: Record<string, string> = {};
-      if (ids.length > 0) {
-        const { data: m } = await supabase.from("product_media").select("product_id, url").in("product_id", ids).eq("is_cover", true);
-        (m || []).forEach((x: any) => { cMap[x.product_id] = x.url; });
-      }
-      return collected.map((p: any) => ({
-        id: p.id, title: p.title, price: fmt(p.price),
-        oldPrice: p.old_price ? fmt(p.old_price) : undefined,
-        discount: p.discount_percent ? `-${p.discount_percent}%` : undefined,
-        image: cMap[p.id] || p.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&h=600&fit=crop",
-        rating: p.rating || undefined, reviews: p.total_reviews || undefined,
-        freeShipping: p.free_shipping || false, badge: p.badge || undefined,
-      }));
-    },
-    enabled: !!isUuid && !!dbProduct,
-  });
-
-  const { data: sponsoredProducts = [] } = useQuery({
-    queryKey: ["sponsored_products", id],
-    queryFn: async () => {
-      const { data } = await (supabase as any).from("products").select("id, title, price, old_price, discount_percent, image_url, free_shipping, badge, rating, total_reviews, sellers(id, name, avatar_url, rating, total_sales)").eq("is_active", true).eq("is_sponsored", true).neq("id", id!).limit(6);
-      const list = data || [];
-      const ids = list.map((p: any) => p.id);
-      const cMap: Record<string, string> = {};
-      if (ids.length > 0) {
-        const { data: m } = await supabase.from("product_media").select("product_id, url").in("product_id", ids).eq("is_cover", true);
-        (m || []).forEach((x: any) => { cMap[x.product_id] = x.url; });
-      }
-      return list.map((p: any) => ({ ...p, image: cMap[p.id] || p.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop", priceFormatted: fmt(p.price) }));
-    },
-    enabled: !!isUuid,
-  });
-
   if (!dbProduct && isUuid && loadingProduct) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: "#fdf6f0" }}>
@@ -659,15 +670,6 @@ const ProductDetail = () => {
     height_cm: productBase.height_cm || null,
   };
 
-  const { data: categoryName } = useQuery({
-    queryKey: ["category_name_detail", product.category_id],
-    queryFn: async () => {
-      const { data } = await supabase.from("categories").select("name").eq("id", product.category_id!).maybeSingle();
-      return data?.name || null;
-    },
-    enabled: !!product.category_id,
-  });
-
   const parentVariants = (dbVariants as any[]).filter((v: any) => !v.parent_id);
   const childVariants = (dbVariants as any[]).filter((v: any) => v.parent_id);
   const variantGroups: Record<string, any[]> = {};
@@ -704,7 +706,6 @@ const ProductDetail = () => {
     voltage: "Voltagem", pack: "Pacote", other: "Opção",
   };
 
-  // ── Especificações (estilo tabela B2B) ──
   const dimensionsStr = (product.length_cm && product.width_cm && product.height_cm)
     ? `${product.length_cm} × ${product.width_cm} × ${product.height_cm} cm`
     : null;
@@ -889,12 +890,11 @@ const ProductDetail = () => {
       <div className="md:container md:mx-auto md:px-4 md:py-6">
         <div className="md:grid md:grid-cols-2 md:gap-6 lg:gap-10">
 
-          {/* LEFT (desktop apenas) — estilo galeria B2B: miniaturas em coluna à esquerda */}
+          {/* LEFT (desktop apenas) */}
           <div className="hidden md:block">
 
             <div className="rounded-2xl overflow-hidden border p-3" style={{ background: "#f5ede4", borderColor: "#e8d5c0" }}>
               <div className="flex gap-3">
-                {/* Coluna de miniaturas verticais */}
                 {displayImages.length > 1 && (
                   <div className="flex flex-col gap-2 overflow-y-auto" style={{ maxHeight: 450 }}>
                     {displayImages.map((img, i) => (
@@ -912,7 +912,6 @@ const ProductDetail = () => {
                   </div>
                 )}
 
-                {/* Imagem principal */}
                 <div
                   className="relative flex-1 rounded-xl overflow-hidden"
                   style={{ aspectRatio: "1/1", maxHeight: 450, background: "#fffaf6" }}
@@ -961,7 +960,6 @@ const ProductDetail = () => {
               </div>
             </div>
 
-            {/* Especificações — estilo tabela B2B */}
             {specRows.length > 0 && (
               <div className="mt-4 rounded-2xl overflow-hidden border" style={{ borderColor: "#e8d5c0" }}>
                 <div className="flex items-center gap-2 px-4 py-2.5" style={{ background: "#f5ede4" }}>
@@ -1202,7 +1200,7 @@ const ProductDetail = () => {
               </div>
             </div>
 
-            {/* Especificações — versão mobile (a versão desktop já está na coluna esquerda) */}
+            {/* Especificações mobile */}
             {specRows.length > 0 && (
               <div className="mt-2 md:hidden rounded-none overflow-hidden border-t border-b" style={{ borderColor: "#ecdece" }}>
                 <div className="flex items-center gap-2 px-4 py-2.5" style={{ background: "#f5ede4" }}>
