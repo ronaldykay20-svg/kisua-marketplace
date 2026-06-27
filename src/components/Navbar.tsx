@@ -325,68 +325,60 @@ const Navbar = () => {
 
                 {/* ── Logo com moldura badge (estilo Gemini) ── */}
                 <a href="/" className="flex items-center flex-shrink-0">
-                  {/*
-                    Moldura com bordas arredondadas nos lados e ponta curva no centro superior/inferior.
-                    Usamos clip-path para criar o efeito de "stadium com ponta central" + border dourado/amarelo.
-                    A SVG wrapper garante a forma exacta.
-                  */}
-                  <div style={{ position: "relative", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-                    {/* Badge border layer */}
+                  <div style={{
+                    position: "relative",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    height: 44,           /* igual aos botões w-11 h-11 = 44px */
+                  }}>
+                    {/* Badge border — SVG ocupa exactamente 44px de altura */}
                     <svg
                       style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none" }}
-                      viewBox="0 0 170 56"
+                      viewBox="0 0 170 44"
                       preserveAspectRatio="none"
                       xmlns="http://www.w3.org/2000/svg"
                     >
-                      {/*
-                        Shape: fully rounded left and right ends (stadium),
-                        with a gentle upward curve (wave) at top and bottom centre.
-                        Path: start at left centre, arc to top-left corner, curve up to top-centre peak,
-                        curve down to top-right corner, arc to right centre, mirror for bottom.
-                      */}
                       <path
-                        d="
-                          M 22 0
-                          Q 0 0 0 28
-                          Q 0 56 22 56
-                          L 148 56
-                          Q 170 56 170 28
-                          Q 170 0 148 0
-                          Z
-                        "
+                        d="M 22 0 Q 0 0 0 22 Q 0 44 22 44 L 148 44 Q 170 44 170 22 Q 170 0 148 0 Z"
                         fill="rgba(255,255,255,0.92)"
                         stroke="#F9A825"
                         strokeWidth="3.5"
                       />
-                      {/* Inner subtle shadow ring */}
                       <path
-                        d="
-                          M 22 0
-                          Q 0 0 0 28
-                          Q 0 56 22 56
-                          L 148 56
-                          Q 170 56 170 28
-                          Q 170 0 148 0
-                          Z
-                        "
+                        d="M 22 0 Q 0 0 0 22 Q 0 44 22 44 L 148 44 Q 170 44 170 22 Q 170 0 148 0 Z"
                         fill="none"
-                        stroke="rgba(249,168,37,0.25)"
+                        stroke="rgba(249,168,37,0.22)"
                         strokeWidth="7"
                       />
                     </svg>
 
-                    {/* Logo content */}
+                    {/* Logo content — altura fixa 44px, imagem restrita a 36px para respirar */}
                     <div style={{
                       position: "relative",
                       zIndex: 1,
-                      padding: "6px 14px",
+                      padding: "0 14px",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      minWidth: 130,
-                      minHeight: 44,
+                      width: 170,
+                      height: 44,
                     }}>
-                      {renderLogo()}
+                      {logoLoading
+                        ? <LogoSkeleton />
+                        : logoUrl
+                          ? <>
+                              {!logoLoaded && <LogoSkeleton />}
+                              <img
+                                src={logoUrl}
+                                alt="Logo"
+                                style={{ height: 34, maxWidth: 148, objectFit: "contain", display: logoLoaded ? "block" : "none" }}
+                                onLoad={() => setLogoLoaded(true)}
+                                onError={() => setLogoLoaded(true)}
+                              />
+                            </>
+                          : <span className="text-2xl font-black" style={{ color: brown }}>ZANGU</span>
+                      }
                     </div>
                   </div>
                 </a>
@@ -650,8 +642,8 @@ const Navbar = () => {
                         className="w-[58px] h-[58px] rounded-xl overflow-hidden p-1"
                         style={{
                           background: "rgba(255,255,255,0.65)",
-                          border: "1px solid rgba(74,46,10,0.10)",
-                          boxShadow: "0 2px 6px rgba(74,46,10,0.10)",
+                          border: "2px solid #F9A825",
+                          boxShadow: "0 2px 8px rgba(249,168,37,0.22)",
                         }}
                       >
                         <img src={cat.image} alt={cat.name} className="w-full h-full object-cover rounded-lg" />
