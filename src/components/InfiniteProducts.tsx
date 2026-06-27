@@ -84,8 +84,8 @@ const ProductCard = ({
       onPointerLeave={() => setPressed(false)}
       className="w-full cursor-pointer select-none overflow-hidden"
       style={{
-        borderRadius: "10px",
-        background: "#fdf8f4",
+        borderRadius: "3px",
+        background: "#ffffff",
         boxShadow: pressed
           ? "0 1px 4px rgba(107,58,31,0.12)"
           : "0 2px 10px rgba(107,58,31,0.10)",
@@ -193,7 +193,7 @@ const ProductCard = ({
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 const Skeleton = () => (
-  <div className="w-full overflow-hidden animate-pulse" style={{ borderRadius: "10px", background: "#fdf8f4" }}>
+  <div className="w-full overflow-hidden animate-pulse" style={{ borderRadius: "3px", background: "#ffffff" }}>
     <div style={{ aspectRatio: "4/5", background: "#f0e6da" }} />
     <div className="px-2.5 pt-2 pb-2.5 space-y-1.5">
       <div className="h-3 rounded w-4/5" style={{ background: "#f0e6da" }} />
