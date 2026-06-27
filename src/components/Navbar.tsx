@@ -111,10 +111,8 @@ const Navbar = () => {
   const [categoriesExpanded, setCategoriesExpanded]         = useState(true);
   const [categorySearchVisible, setCategorySearchVisible]   = useState(false);
   const [scrollY, setScrollY]                               = useState(0);
-  const [showCategories, setShowCategories]                 = useState(true);
   const [showLocation, setShowLocation]                     = useState(true);
   const [logoLoaded, setLogoLoaded]                         = useState(false);
-  const collapseTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchInputRef    = useRef<HTMLInputElement>(null);
 
   const navigate  = useNavigate();
@@ -153,16 +151,10 @@ const Navbar = () => {
       const current = window.scrollY;
       setScrollY(current);
       setShowLocation(current < 30);
-      if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current);
-      collapseTimerRef.current = setTimeout(() => {
-        setShowCategories(current < 60);
-      }, 80);
+      // NOTE: categories no longer auto-collapse on scroll — only toggle via the handle button
     };
     window.addEventListener("scroll", handler, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", handler);
-      if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current);
-    };
+    return () => window.removeEventListener("scroll", handler);
   }, []);
 
   useEffect(() => {
@@ -330,9 +322,75 @@ const Navbar = () => {
             ) : (
               <>
                 <div className="flex-1" />
+
+                {/* ── Logo com moldura badge (estilo Gemini) ── */}
                 <a href="/" className="flex items-center flex-shrink-0">
-                  {renderLogo()}
+                  {/*
+                    Moldura com bordas arredondadas nos lados e ponta curva no centro superior/inferior.
+                    Usamos clip-path para criar o efeito de "stadium com ponta central" + border dourado/amarelo.
+                    A SVG wrapper garante a forma exacta.
+                  */}
+                  <div style={{ position: "relative", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                    {/* Badge border layer */}
+                    <svg
+                      style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none" }}
+                      viewBox="0 0 170 56"
+                      preserveAspectRatio="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      {/*
+                        Shape: fully rounded left and right ends (stadium),
+                        with a gentle upward curve (wave) at top and bottom centre.
+                        Path: start at left centre, arc to top-left corner, curve up to top-centre peak,
+                        curve down to top-right corner, arc to right centre, mirror for bottom.
+                      */}
+                      <path
+                        d="
+                          M 22 0
+                          Q 0 0 0 28
+                          Q 0 56 22 56
+                          L 148 56
+                          Q 170 56 170 28
+                          Q 170 0 148 0
+                          Z
+                        "
+                        fill="rgba(255,255,255,0.92)"
+                        stroke="#F9A825"
+                        strokeWidth="3.5"
+                      />
+                      {/* Inner subtle shadow ring */}
+                      <path
+                        d="
+                          M 22 0
+                          Q 0 0 0 28
+                          Q 0 56 22 56
+                          L 148 56
+                          Q 170 56 170 28
+                          Q 170 0 148 0
+                          Z
+                        "
+                        fill="none"
+                        stroke="rgba(249,168,37,0.25)"
+                        strokeWidth="7"
+                      />
+                    </svg>
+
+                    {/* Logo content */}
+                    <div style={{
+                      position: "relative",
+                      zIndex: 1,
+                      padding: "6px 14px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      minWidth: 130,
+                      minHeight: 44,
+                    }}>
+                      {renderLogo()}
+                    </div>
+                  </div>
                 </a>
+
                 <div className="flex-1" />
               </>
             )}
@@ -548,14 +606,15 @@ const Navbar = () => {
             </div>
           )}
 
-          {/* ── Divisor clicável + Categorias ── */}
+          {/* ── Divisor clicável (manual only) + Categorias ── */}
           {!isCategoriasPage && !isPesquisaPage && !isCategoriaDetalhePage && (
             <>
+              {/* Toggle handle — only user click changes categoriesExpanded, never scroll */}
               <button
                 className="w-full flex items-center justify-center"
                 style={{ height: 18, gap: 6 }}
                 onClick={() => setCategoriesExpanded(v => !v)}
-                title={categoriesExpanded ? "Mostrar entregas" : "Mostrar categorias"}
+                title={categoriesExpanded ? "Recolher categorias" : "Mostrar categorias"}
               >
                 <div style={{ flex: 1, height: 1, background: "rgba(74,46,10,0.14)" }} />
                 <div style={{
@@ -571,8 +630,8 @@ const Navbar = () => {
               <div
                 className="overflow-hidden"
                 style={{
-                  maxHeight: showCategories && !searchBarOpen && categoriesExpanded ? "120px" : "0px",
-                  opacity: showCategories && !searchBarOpen && categoriesExpanded ? 1 : 0,
+                  maxHeight: !searchBarOpen && categoriesExpanded ? "120px" : "0px",
+                  opacity: !searchBarOpen && categoriesExpanded ? 1 : 0,
                   transition: "max-height 0.4s cubic-bezier(0.4,0,0.2,1), opacity 0.3s ease",
                 }}
               >
