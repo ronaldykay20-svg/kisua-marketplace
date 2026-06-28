@@ -597,7 +597,7 @@ const Navbar = () => {
                     </button>
                   </div>
 
-                  {/* ── Botão de pesquisa FIXO na 7ª posição — fundo azul fraco ── */}
+                  {/* ── Botão de pesquisa FIXO na 7ª posição ── */}
                   <div
                     className="flex-shrink-0 flex flex-col items-center gap-1"
                     style={{
@@ -612,13 +612,13 @@ const Navbar = () => {
                       style={{
                         width: "100%", aspectRatio: "1", borderRadius: 12,
                         display: "flex", alignItems: "center", justifyContent: "center",
-                        background: "rgba(21, 101, 192, 0.12)",
-                        border: "2px solid rgba(21, 101, 192, 0.30)",
-                        boxShadow: "0 2px 8px rgba(21,101,192,0.15)",
+                        background: "rgba(255,255,255,0.65)",
+                        border: "2px solid #F9A825",
+                        boxShadow: "0 2px 8px rgba(249,168,37,0.22)",
                         flexShrink: 0,
                       }}
                     >
-                      <Search className="w-5 h-5" style={{ color: "#1565C0" }} />
+                      <Search className="w-5 h-5" style={{ color: brown }} />
                     </button>
                     <span className="text-[9px] font-bold text-center" style={{ color: brown }}>Pesquisar</span>
                   </div>
