@@ -155,13 +155,13 @@ const ProductCard = ({
 
       {/* Info — compacta: título resumido, descrição até 3 linhas, avaliação/vendidos discretos, preço em destaque */}
       <div className="px-2 pt-1.5 pb-2">
-        <p className="text-[11.5px] font-semibold line-clamp-2 leading-tight mb-0.5" style={{ color: "#6b3a1f" }}>
+        <p className="text-[11.5px] font-semibold line-clamp-2 leading-tight" style={{ color: "#6b3a1f", margin: 0 }}>
           {p.title}
         </p>
 
-        {/* Descrição: cola logo abaixo do título, maior, preta, até 3 linhas */}
+        {/* Descrição: cola logo abaixo do título (sem margem entre eles), bem maior, preto puro, até 3 linhas */}
         {p.description && (
-          <p className="text-[11px] leading-snug line-clamp-3 mb-1" style={{ color: "#1a1a1a" }}>
+          <p className="text-[13px] font-medium leading-snug line-clamp-3" style={{ color: "#000000", margin: "2px 0 6px 0" }}>
             {p.description}
           </p>
         )}
