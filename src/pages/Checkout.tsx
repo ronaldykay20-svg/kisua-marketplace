@@ -66,6 +66,30 @@ const Checkout = () => {
     enabled: productIds.length > 0,
   });
 
+  // A foto REAL do produto vive em product_media (is_cover = true), não na coluna
+  // image_url de products (que ficou obsoleta após a migração R2 → Supabase Storage).
+  // Mesmo padrão usado em SearchResults.tsx para listagens de produtos.
+  const { data: coverMediaMap = {} } = useQuery({
+    queryKey: ["checkout_cover_media", productIds],
+    queryFn: async () => {
+      if (!productIds.length) return {};
+      const { data } = await supabase
+        .from("product_media")
+        .select("product_id, url")
+        .in("product_id", productIds)
+        .eq("is_cover", true);
+      const map: Record<string, string> = {};
+      (data || []).forEach((m: any) => { map[m.product_id] = m.url; });
+      return map;
+    },
+    enabled: productIds.length > 0,
+  });
+
+  // Resolve a imagem correta de um item do carrinho: capa real -> image_url (legado) -> nada
+  const getItemImageUrl = (item: any): string | null => {
+    return coverMediaMap[item.product_id] || item.products?.image_url || null;
+  };
+
   // Agrupa por vendedor OU empresa
   // municipality_code vem SEMPRE do seller ou company em tempo real
   const cartGroups = (() => {
@@ -114,7 +138,7 @@ const Checkout = () => {
         name: prod.title,
         quantity: item.quantity,
         price: prod.price,
-        imageUrl: prod.image_url,
+        imageUrl: coverMediaMap[prod.id] || prod.image_url,
       });
       group.subtotal += prod.price * item.quantity;
     }
@@ -451,7 +475,7 @@ const Checkout = () => {
               </div>
               <div className="space-y-2">
                 {cartItems.map((item: any) => {
-                  const imageUrl = item.products?.image_url;
+                  const imageUrl = getItemImageUrl(item);
                   return (
                     <div key={item.id} className="flex items-center gap-3">
                       {imageUrl ? (
