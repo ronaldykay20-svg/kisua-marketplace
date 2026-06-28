@@ -213,7 +213,7 @@ const Navbar = () => {
     };
   } else {
     navbarStyle = {
-      background: `linear-gradient(160deg, ${cream} 0%, ${sand} 60%, #C9A87C 100%)`,
+      background: "#F7F0E6",
       boxShadow: scrolled ? "0 2px 20px rgba(74,46,10,0.18)" : "0 1px 0 rgba(74,46,10,0.08)",
       transition: "box-shadow 0.3s ease",
       paddingTop: safeAreaTop,
