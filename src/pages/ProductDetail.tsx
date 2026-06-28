@@ -2,7 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Heart, Share2, ShoppingCart, Star, Truck, Shield,
   MapPin, ChevronRight, Minus, Plus, ZoomIn, Store, MessageCircle,
-  Send, Loader2, ShieldCheck, X, Building2, Check,
+  Send, Loader2, ShieldCheck, X, Building2, Check, Zap,
 } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { allProducts } from "@/data/products";
@@ -12,6 +12,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAddToCart } from "@/hooks/useCartActions";
 import { useFavorites } from "@/hooks/useFavorites";
+import { useCart } from "@/hooks/useSupabaseData";
 import { toast } from "sonner";
 
 const N = {
@@ -95,6 +96,82 @@ const AvatarWithFallback = ({ src, name, isCompany }: { src: string | null; name
   return <div className="w-9 h-9 rounded-full flex items-center justify-center bg-gray-100 border border-gray-200">{isCompany ? <Building2 className="w-4 h-4 text-gray-500" /> : <Store className="w-4 h-4 text-gray-500" />}</div>;
 };
 
+// ─── FIX 1: Buy Now Modal ──────────────────────────────────────────────────────
+const BuyNowModal = ({
+  onBuyOnly,
+  onBuyWithCart,
+  onClose,
+  cartCount,
+}: {
+  onBuyOnly: () => void;
+  onBuyWithCart: () => void;
+  onClose: () => void;
+  cartCount: number;
+}) => (
+  <div className="fixed inset-0 z-[200] flex items-end justify-center" onClick={onClose}>
+    {/* Backdrop */}
+    <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+
+    {/* Sheet */}
+    <div
+      className="relative w-full max-w-md rounded-t-2xl overflow-hidden"
+      style={{ background: "#fff" }}
+      onClick={e => e.stopPropagation()}
+    >
+      {/* Handle */}
+      <div className="flex justify-center pt-3 pb-1">
+        <div className="w-10 h-1 rounded-full bg-gray-200" />
+      </div>
+
+      <div className="px-5 pt-3 pb-2">
+        <div className="flex items-center justify-between mb-1">
+          <p className="text-base font-black text-gray-900">Como quer continuar?</p>
+          <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-100">
+            <X className="w-4 h-4 text-gray-500" />
+          </button>
+        </div>
+        <p className="text-xs text-gray-500 mb-4">
+          Tem {cartCount} {cartCount === 1 ? "produto" : "produtos"} no carrinho.
+        </p>
+      </div>
+
+      <div className="px-5 pb-6 space-y-3">
+        {/* Option A: só este produto */}
+        <button
+          onClick={onBuyOnly}
+          className="w-full flex items-center gap-3 rounded-xl p-4 text-left transition active:scale-[0.98]"
+          style={{ background: N.brown, boxShadow: "0 4px 14px rgba(74,46,10,0.25)" }}
+        >
+          <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+            style={{ background: "rgba(255,255,255,0.18)" }}>
+            <Zap className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <p className="text-sm font-black text-white">Comprar só este</p>
+            <p className="text-[11px] text-white/70 mt-0.5">Checkout apenas com este produto</p>
+          </div>
+        </button>
+
+        {/* Option B: este + carrinho */}
+        <button
+          onClick={onBuyWithCart}
+          className="w-full flex items-center gap-3 rounded-xl p-4 text-left border transition active:scale-[0.98]"
+          style={{ borderColor: N.brown, background: "#fff" }}
+        >
+          <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+            style={{ background: N.brownLight }}>
+            <ShoppingCart className="w-5 h-5" style={{ color: N.brown }} />
+          </div>
+          <div>
+            <p className="text-sm font-black" style={{ color: N.brown }}>Levar também o carrinho</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">{cartCount} {cartCount === 1 ? "produto" : "produtos"} adicionados ao pedido</p>
+          </div>
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -106,6 +183,7 @@ const ProductDetail = () => {
   const addToCart = useAddToCart();
   const { trackEvent } = useProductTracking();
   const { isFavorite, toggleFavorite } = useFavorites();
+  const { data: cartItems = [] } = useCart();
 
   const [qty, setQty] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
@@ -113,6 +191,8 @@ const ProductDetail = () => {
   const [selectedSubVariants, setSelectedSubVariants] = useState<Record<string, string>>({});
   const [zoomOpen, setZoomOpen] = useState(false);
   const [descExpanded, setDescExpanded] = useState(false);
+  // FIX 1: Buy Now modal state
+  const [buyNowModal, setBuyNowModal] = useState(false);
   const touchStartX = useRef<number | null>(null);
   const viewTracked = useRef(false);
   const isUuid = id && id.length > 10;
@@ -208,7 +288,6 @@ const ProductDetail = () => {
     toggleFavorite(id!);
   };
 
-  // ── Partilha: apenas nativo ────────────────────────────────────────────────
   const handleShare = async () => {
     trackEvent(id!, "share", {});
     try {
@@ -228,9 +307,57 @@ const ProductDetail = () => {
   };
 
   const getVariantId = () => Object.values(selectedSubVariants).find(Boolean) || Object.values(selectedVariants).find(Boolean) || undefined;
-  const handleAddToCart = () => { if (!user) { navigate("/auth"); return; } if (!isUuid) { toast.info("Produto de demonstração"); return; } trackEvent(id!, "add_to_cart", { quantity: qty }); addToCart.mutate({ productId: id!, quantity: qty, variantId: getVariantId() }); };
-  const handleBuyNow   = () => { if (!user) { navigate("/auth"); return; } if (!isUuid) { toast.info("Produto de demonstração"); return; } trackEvent(id!, "buy_now", { quantity: qty }); addToCart.mutate({ productId: id!, quantity: qty, variantId: getVariantId() }, { onSuccess: () => navigate("/checkout") }); };
-  const handleZoom     = () => { trackEvent(id!, "image_zoom", { image_index: selectedImage }); setZoomOpen(true); };
+
+  const handleAddToCart = () => {
+    if (!user) { navigate("/auth"); return; }
+    if (!isUuid) { toast.info("Produto de demonstração"); return; }
+    trackEvent(id!, "add_to_cart", { quantity: qty });
+    addToCart.mutate({ productId: id!, quantity: qty, variantId: getVariantId() });
+  };
+
+  // FIX 1: handleBuyNow checks cart
+  const cartCount = (cartItems as any[]).length;
+
+  const executeBuyNow = (includeCart: boolean) => {
+    setBuyNowModal(false);
+    trackEvent(id!, "buy_now", { quantity: qty, mode: includeCart ? "with_cart" : "only_this" });
+
+    if (includeCart) {
+      // Add this product then go to checkout (cart already has others)
+      addToCart.mutate(
+        { productId: id!, quantity: qty, variantId: getVariantId() },
+        { onSuccess: () => navigate("/checkout") }
+      );
+    } else {
+      // Navigate to checkout with a "solo" flag so Checkout only uses this product.
+      // We pass state via navigate so Checkout can detect it.
+      navigate("/checkout", {
+        state: {
+          soloProduct: {
+            productId: id!,
+            quantity: qty,
+            variantId: getVariantId() || null,
+          },
+        },
+      });
+    }
+  };
+
+  const handleBuyNow = () => {
+    if (!user) { navigate("/auth"); return; }
+    if (!isUuid) { toast.info("Produto de demonstração"); return; }
+    if (cartCount > 0) {
+      setBuyNowModal(true);
+    } else {
+      // No cart items — go directly
+      addToCart.mutate(
+        { productId: id!, quantity: qty, variantId: getVariantId() },
+        { onSuccess: () => navigate("/checkout") }
+      );
+    }
+  };
+
+  const handleZoom = () => { trackEvent(id!, "image_zoom", { image_index: selectedImage }); setZoomOpen(true); };
 
   if (!dbProduct && isUuid && loadingProduct)
     return <div className="min-h-screen flex items-center justify-center bg-white"><Loader2 className="w-6 h-6 animate-spin" style={{ color: N.brown }} /></div>;
@@ -259,14 +386,31 @@ const ProductDetail = () => {
     width_cm: productBase.width_cm || null, height_cm: productBase.height_cm || null,
   };
 
+  // ── FIX 2: Variants — show ALL groups (parent + active children) ──────────
   const parentVariants = (dbVariants as any[]).filter((v: any) => !v.parent_id);
   const childVariants  = (dbVariants as any[]).filter((v: any) =>  v.parent_id);
   const variantGroups: Record<string, any[]> = {};
-  parentVariants.forEach((v: any) => { if (!variantGroups[v.variant_type]) variantGroups[v.variant_type] = []; variantGroups[v.variant_type].push(v); });
+  parentVariants.forEach((v: any) => {
+    if (!variantGroups[v.variant_type]) variantGroups[v.variant_type] = [];
+    variantGroups[v.variant_type].push(v);
+  });
+
+  // Children: always show all child groups that exist, regardless of parent selection
+  // (so customer sees all available options upfront). Filter to selected parents when
+  // a parent IS selected.
   const selectedParentIds = Object.values(selectedVariants).filter(Boolean);
-  const activeChildren    = childVariants.filter((c: any) => selectedParentIds.includes(c.parent_id));
+  const activeChildren = childVariants.filter((c: any) =>
+    selectedParentIds.length > 0 ? selectedParentIds.includes(c.parent_id) : true
+  );
   const childGroups: Record<string, any[]> = {};
-  activeChildren.forEach((v: any) => { if (!childGroups[v.variant_type]) childGroups[v.variant_type] = []; childGroups[v.variant_type].push(v); });
+  activeChildren.forEach((v: any) => {
+    if (!childGroups[v.variant_type]) childGroups[v.variant_type] = [];
+    // Deduplicate by name to avoid repetition when no parent selected
+    if (!childGroups[v.variant_type].some((x: any) => x.name === v.name)) {
+      childGroups[v.variant_type].push(v);
+    }
+  });
+
   const allSelIds     = [...Object.values(selectedVariants), ...Object.values(selectedSubVariants)].filter(Boolean);
   const activeVariant = (dbVariants as any[]).find((v: any) => allSelIds.includes(v.id) && v.price_override);
   const activePrice   = activeVariant?.price_override ? fmt(activeVariant.price_override) : product.price;
@@ -296,6 +440,7 @@ const ProductDetail = () => {
   const relatedProducts = relatedDb.slice(0, 20);
   const popularityBadge = product.reviews && product.reviews > 200 ? `Em ${Math.floor(product.reviews / 5)}+ carrinhos` : null;
 
+  // ── FIX 2: VariantPill (unchanged, handles color + generic) ──────────────
   const VariantPill = ({ v, selected, onSelect, type }: { v: any; selected: boolean; onSelect: () => void; type: string }) => {
     if (type === "color" && v.value?.startsWith("#")) {
       return (
@@ -317,9 +462,22 @@ const ProductDetail = () => {
     );
   };
 
+  // Compute how many variant groups are visible total
+  const totalVariantGroupCount = Object.keys(variantGroups).length + Object.keys(childGroups).length;
+
   return (
     <div className="min-h-screen bg-white">
       {zoomOpen && <ZoomLightbox images={displayImages} index={selectedImage} onClose={() => setZoomOpen(false)} onChange={setSelectedImage} onShare={handleShare} />}
+
+      {/* FIX 1: Buy Now Modal */}
+      {buyNowModal && (
+        <BuyNowModal
+          cartCount={cartCount}
+          onBuyOnly={() => executeBuyNow(false)}
+          onBuyWithCart={() => executeBuyNow(true)}
+          onClose={() => setBuyNowModal(false)}
+        />
+      )}
 
       {/* ── MINI HEADER ── */}
       <div className="sticky top-0 z-50 flex items-center gap-2 px-3 h-12 bg-white border-b border-gray-200">
@@ -346,8 +504,8 @@ const ProductDetail = () => {
         </div>
       </div>
 
-      {/* ── BLOCO TOPO: vendedor + título + preço (esq) | banner ad (dir) ── */}
-      <div className="px-3 pt-3 pb-2 border-b border-gray-100">
+      {/* ── FIX 3: BLOCO TOPO — sem border visível quando há anúncio ── */}
+      <div className={`px-3 pt-3 pb-2 ${sideBannerAd?.media_url ? "" : "border-b border-gray-100"}`}>
         <div className={sideBannerAd?.media_url ? "grid grid-cols-2 gap-3 items-start" : ""}>
 
           {/* Coluna esquerda — info do produto */}
@@ -396,10 +554,10 @@ const ProductDetail = () => {
             </div>
           </div>
 
-          {/* Coluna direita — banner publicitário do admin (só aparece se existir) */}
+          {/* FIX 3: Coluna direita — banner publicitário sem bordas visíveis */}
           {sideBannerAd?.media_url && (
             <div className="flex-shrink-0">
-              <p className="text-[8px] text-gray-400 text-right mb-0.5 uppercase tracking-wide">Publicidade</p>
+              <p className="text-[8px] text-gray-400 text-right mb-0.5 uppercase tracking-wide">Pub</p>
               {sideBannerAd.destination_url ? (
                 <a href={sideBannerAd.destination_url} target="_blank" rel="noopener noreferrer" className="block">
                   <SideBannerContent ad={sideBannerAd} />
@@ -410,6 +568,9 @@ const ProductDetail = () => {
             </div>
           )}
         </div>
+
+        {/* FIX 3: divider rendered BELOW the grid so it spans full width cleanly */}
+        {sideBannerAd?.media_url && <div className="mt-3 -mx-3 h-px bg-gray-100" />}
       </div>
 
       {/* ── IMAGEM PRINCIPAL ── */}
@@ -443,9 +604,15 @@ const ProductDetail = () => {
         </div>
       )}
 
-      {/* ── VARIANTES ── */}
-      {Object.keys(variantGroups).length > 0 && (
-        <div className="bg-white border-b border-gray-100 px-3 py-3 space-y-3">
+      {/* ── FIX 2: VARIANTES — todos os grupos visíveis ── */}
+      {totalVariantGroupCount > 0 && (
+        <div className="bg-white border-b border-gray-100 px-3 py-3 space-y-4">
+          {/* Label com contagem total de opções */}
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+            Opções disponíveis
+          </p>
+
+          {/* Grupos de variantes pai */}
           {Object.entries(variantGroups).map(([type, variants]) => {
             const selId = selectedVariants[type];
             return (
@@ -453,13 +620,26 @@ const ProductDetail = () => {
                 <p className="text-sm font-bold text-gray-800 mb-2">
                   {typeLabels[type] || type}
                   {selId && <span className="font-normal text-gray-500 ml-1">: {variants.find((v: any) => v.id === selId)?.name}</span>}
+                  <span className="ml-2 text-[10px] font-semibold text-gray-400">({variants.length})</span>
                 </p>
                 <div className="flex gap-2 flex-wrap">
-                  {variants.map((v: any) => <VariantPill key={v.id} v={v} type={type} selected={selId === v.id} onSelect={() => { setSelectedVariants(p => ({ ...p, [type]: selId === v.id ? "" : v.id })); if (selId === v.id) setSelectedSubVariants({}); }} />)}
+                  {variants.map((v: any) => (
+                    <VariantPill
+                      key={v.id} v={v} type={type}
+                      selected={selId === v.id}
+                      onSelect={() => {
+                        setSelectedVariants(p => ({ ...p, [type]: selId === v.id ? "" : v.id }));
+                        if (selId === v.id) setSelectedSubVariants({});
+                        trackEvent(id!, "variant_select", { variant_id: v.id, variant_type: type });
+                      }}
+                    />
+                  ))}
                 </div>
               </div>
             );
           })}
+
+          {/* Grupos de sub-variantes — sempre visíveis */}
           {Object.entries(childGroups).map(([type, variants]) => {
             const selId = selectedSubVariants[type];
             return (
@@ -467,9 +647,19 @@ const ProductDetail = () => {
                 <p className="text-sm font-bold text-gray-800 mb-2">
                   {typeLabels[type] || type}
                   {selId && <span className="font-normal text-gray-500 ml-1">: {variants.find((v: any) => v.id === selId)?.name}</span>}
+                  <span className="ml-2 text-[10px] font-semibold text-gray-400">({variants.length})</span>
                 </p>
                 <div className="flex gap-2 flex-wrap">
-                  {variants.map((v: any) => <VariantPill key={v.id} v={v} type={type} selected={selId === v.id} onSelect={() => setSelectedSubVariants(p => ({ ...p, [type]: selId === v.id ? "" : v.id }))} />)}
+                  {variants.map((v: any) => (
+                    <VariantPill
+                      key={v.id} v={v} type={type}
+                      selected={selId === v.id}
+                      onSelect={() => {
+                        setSelectedSubVariants(p => ({ ...p, [type]: selId === v.id ? "" : v.id }));
+                        trackEvent(id!, "variant_select", { variant_id: v.id, variant_type: type, is_sub: true });
+                      }}
+                    />
+                  ))}
                 </div>
               </div>
             );
@@ -612,9 +802,9 @@ const ProductDetail = () => {
   );
 };
 
-// ─── Banner lateral (sub-componente simples) ───────────────────────────────────
+// ─── Banner lateral (sem bordas visíveis, apenas o media) ─────────────────────
 const SideBannerContent = ({ ad }: { ad: any }) => (
-  <div className="rounded-xl overflow-hidden border border-gray-200 relative" style={{ aspectRatio: "1/1" }}>
+  <div className="rounded-xl overflow-hidden relative" style={{ aspectRatio: "1/1" }}>
     {ad.media_type === "video"
       ? <video src={ad.media_url} className="w-full h-full object-cover" autoPlay muted loop playsInline />
       : <img src={ad.media_url} alt={ad.title || "Anúncio"} className="w-full h-full object-cover" />}
