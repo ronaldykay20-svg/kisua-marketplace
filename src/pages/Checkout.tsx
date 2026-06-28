@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, MapPin, CreditCard, Truck, CheckCircle, Loader2, ShieldCheck } from "lucide-react";
+import { ArrowLeft, MapPin, CreditCard, Truck, CheckCircle, Loader2, ShieldCheck, ImageOff } from "lucide-react";
 import { useCart } from "@/hooks/useSupabaseData";
 import { useClearCart } from "@/hooks/useCartActions";
 import { useAuth } from "@/contexts/AuthContext";
@@ -450,21 +450,39 @@ const Checkout = () => {
                 <h3 className="text-sm font-bold text-foreground">Itens ({cartItems.length})</h3>
               </div>
               <div className="space-y-2">
-                {cartItems.map((item: any) => (
-                  <div key={item.id} className="flex items-center gap-3">
-                    <img
-                      src={item.products?.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=80&h=80&fit=crop"}
-                      className="w-12 h-12 rounded-lg object-cover" alt=""
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-foreground line-clamp-1">{item.products?.title}</p>
-                      <p className="text-xs text-muted-foreground">Qtd: {item.quantity}</p>
+                {cartItems.map((item: any) => {
+                  const imageUrl = item.products?.image_url;
+                  return (
+                    <div key={item.id} className="flex items-center gap-3">
+                      {imageUrl ? (
+                        <img
+                          src={imageUrl}
+                          className="w-12 h-12 rounded-lg object-cover bg-muted"
+                          alt={item.products?.title || "Produto"}
+                          onError={(e) => {
+                            // Se a URL real falhar ao carregar, mostra estado neutro em vez de uma foto de outro produto
+                            (e.target as HTMLImageElement).style.display = "none";
+                            const sibling = (e.target as HTMLImageElement).nextElementSibling as HTMLElement | null;
+                            if (sibling) sibling.style.display = "flex";
+                          }}
+                        />
+                      ) : null}
+                      <div
+                        className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center flex-shrink-0"
+                        style={{ display: imageUrl ? "none" : "flex" }}
+                      >
+                        <ImageOff className="w-5 h-5 text-muted-foreground" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-foreground line-clamp-1">{item.products?.title}</p>
+                        <p className="text-xs text-muted-foreground">Qtd: {item.quantity}</p>
+                      </div>
+                      <p className="text-sm font-bold text-foreground">
+                        {formatPrice((item.products?.price || 0) * item.quantity)}
+                      </p>
                     </div>
-                    <p className="text-sm font-bold text-foreground">
-                      {formatPrice((item.products?.price || 0) * item.quantity)}
-                    </p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div className="border-t border-border mt-3 pt-3 space-y-1.5">
