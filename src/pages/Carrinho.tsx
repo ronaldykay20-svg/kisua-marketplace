@@ -380,6 +380,9 @@ const Carrinho = () => {
                   {suggestions.slice(0, 20).map((p: any) => {
                     const imgUrl: string | null = p.cover_url || p.image_url || null;
                     const isFav = favorites.includes(p.id);
+                    // Só mostra a contagem de avaliações se ela realmente existir e for > 0.
+                    // Nunca exibir "(0)" — isso sugeriria falsamente que há avaliações.
+                    const hasReviews = typeof p.total_reviews === "number" && p.total_reviews > 0;
                     return (
                       <div
                         key={p.id}
@@ -441,11 +444,11 @@ const Carrinho = () => {
                           <p className="text-xs font-black mt-1" style={{ color: brown }}>
                             {formatPrice(p.price)}
                           </p>
-                          {p.rating && (
+                          {hasReviews && (
                             <div className="flex items-center gap-1 mt-1">
                               <Star className="w-3 h-3" style={{ color: "#F9A825", fill: "#F9A825" }} />
                               <span className="text-[10px] font-semibold" style={{ color: sandDark }}>
-                                {p.rating} ({p.total_reviews ?? 0})
+                                {p.rating} ({p.total_reviews})
                               </span>
                             </div>
                           )}
