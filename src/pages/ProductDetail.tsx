@@ -2,7 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Heart, Share2, ShoppingCart, Star, Truck, Shield,
   MapPin, ChevronRight, Minus, Plus, ZoomIn, Store, MessageCircle,
-  Send, Loader2, ShieldCheck, X, Building2, Check, Zap,
+  Send, Loader2, ShieldCheck, X, Building2, Check,
 } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { allProducts } from "@/data/products";
@@ -12,7 +12,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAddToCart } from "@/hooks/useCartActions";
 import { useFavorites } from "@/hooks/useFavorites";
-import { useCart } from "@/hooks/useSupabaseData";
 import { toast } from "sonner";
 
 const N = {
@@ -96,82 +95,6 @@ const AvatarWithFallback = ({ src, name, isCompany }: { src: string | null; name
   return <div className="w-9 h-9 rounded-full flex items-center justify-center bg-gray-100 border border-gray-200">{isCompany ? <Building2 className="w-4 h-4 text-gray-500" /> : <Store className="w-4 h-4 text-gray-500" />}</div>;
 };
 
-// ─── FIX 1: Buy Now Modal ──────────────────────────────────────────────────────
-const BuyNowModal = ({
-  onBuyOnly,
-  onBuyWithCart,
-  onClose,
-  cartCount,
-}: {
-  onBuyOnly: () => void;
-  onBuyWithCart: () => void;
-  onClose: () => void;
-  cartCount: number;
-}) => (
-  <div className="fixed inset-0 z-[200] flex items-end justify-center" onClick={onClose}>
-    {/* Backdrop */}
-    <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
-
-    {/* Sheet */}
-    <div
-      className="relative w-full max-w-md rounded-t-2xl overflow-hidden"
-      style={{ background: "#fff" }}
-      onClick={e => e.stopPropagation()}
-    >
-      {/* Handle */}
-      <div className="flex justify-center pt-3 pb-1">
-        <div className="w-10 h-1 rounded-full bg-gray-200" />
-      </div>
-
-      <div className="px-5 pt-3 pb-2">
-        <div className="flex items-center justify-between mb-1">
-          <p className="text-base font-black text-gray-900">Como quer continuar?</p>
-          <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-100">
-            <X className="w-4 h-4 text-gray-500" />
-          </button>
-        </div>
-        <p className="text-xs text-gray-500 mb-4">
-          Tem {cartCount} {cartCount === 1 ? "produto" : "produtos"} no carrinho.
-        </p>
-      </div>
-
-      <div className="px-5 pb-6 space-y-3">
-        {/* Option A: só este produto */}
-        <button
-          onClick={onBuyOnly}
-          className="w-full flex items-center gap-3 rounded-xl p-4 text-left transition active:scale-[0.98]"
-          style={{ background: N.brown, boxShadow: "0 4px 14px rgba(74,46,10,0.25)" }}
-        >
-          <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-            style={{ background: "rgba(255,255,255,0.18)" }}>
-            <Zap className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <p className="text-sm font-black text-white">Comprar só este</p>
-            <p className="text-[11px] text-white/70 mt-0.5">Checkout apenas com este produto</p>
-          </div>
-        </button>
-
-        {/* Option B: este + carrinho */}
-        <button
-          onClick={onBuyWithCart}
-          className="w-full flex items-center gap-3 rounded-xl p-4 text-left border transition active:scale-[0.98]"
-          style={{ borderColor: N.brown, background: "#fff" }}
-        >
-          <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
-            style={{ background: N.brownLight }}>
-            <ShoppingCart className="w-5 h-5" style={{ color: N.brown }} />
-          </div>
-          <div>
-            <p className="text-sm font-black" style={{ color: N.brown }}>Levar também o carrinho</p>
-            <p className="text-[11px] text-gray-400 mt-0.5">{cartCount} {cartCount === 1 ? "produto" : "produtos"} adicionados ao pedido</p>
-          </div>
-        </button>
-      </div>
-    </div>
-  </div>
-);
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -183,7 +106,6 @@ const ProductDetail = () => {
   const addToCart = useAddToCart();
   const { trackEvent } = useProductTracking();
   const { isFavorite, toggleFavorite } = useFavorites();
-  const { data: cartItems = [] } = useCart();
 
   const [qty, setQty] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
@@ -191,8 +113,6 @@ const ProductDetail = () => {
   const [selectedSubVariants, setSelectedSubVariants] = useState<Record<string, string>>({});
   const [zoomOpen, setZoomOpen] = useState(false);
   const [descExpanded, setDescExpanded] = useState(false);
-  // FIX 1: Buy Now modal state
-  const [buyNowModal, setBuyNowModal] = useState(false);
   const touchStartX = useRef<number | null>(null);
   const viewTracked = useRef(false);
   const isUuid = id && id.length > 10;
@@ -315,46 +235,20 @@ const ProductDetail = () => {
     addToCart.mutate({ productId: id!, quantity: qty, variantId: getVariantId() });
   };
 
-  // FIX 1: handleBuyNow checks cart
-  const cartCount = (cartItems as any[]).length;
-
-  const executeBuyNow = (includeCart: boolean) => {
-    setBuyNowModal(false);
-    trackEvent(id!, "buy_now", { quantity: qty, mode: includeCart ? "with_cart" : "only_this" });
-
-    if (includeCart) {
-      // Add this product then go to checkout (cart already has others)
-      addToCart.mutate(
-        { productId: id!, quantity: qty, variantId: getVariantId() },
-        { onSuccess: () => navigate("/checkout") }
-      );
-    } else {
-      // Navigate to checkout with a "solo" flag so Checkout only uses this product.
-      // We pass state via navigate so Checkout can detect it.
-      navigate("/checkout", {
-        state: {
-          soloProduct: {
-            productId: id!,
-            quantity: qty,
-            variantId: getVariantId() || null,
-          },
-        },
-      });
-    }
-  };
-
+  // Comprar agora — sempre só este produto, direto para checkout
   const handleBuyNow = () => {
     if (!user) { navigate("/auth"); return; }
     if (!isUuid) { toast.info("Produto de demonstração"); return; }
-    if (cartCount > 0) {
-      setBuyNowModal(true);
-    } else {
-      // No cart items — go directly
-      addToCart.mutate(
-        { productId: id!, quantity: qty, variantId: getVariantId() },
-        { onSuccess: () => navigate("/checkout") }
-      );
-    }
+    trackEvent(id!, "buy_now", { quantity: qty });
+    navigate("/checkout", {
+      state: {
+        soloProduct: {
+          productId: id!,
+          quantity: qty,
+          variantId: getVariantId() || null,
+        },
+      },
+    });
   };
 
   const handleZoom = () => { trackEvent(id!, "image_zoom", { image_index: selectedImage }); setZoomOpen(true); };
@@ -430,7 +324,7 @@ const ProductDetail = () => {
     product.weight_kg  ? { label: "Peso",        value: `${product.weight_kg} kg` }                               : null,
     dimensionsStr      ? { label: "Dimensões",   value: dimensionsStr }                                            : null,
     product.freeShipping ? { label: "Frete",     value: "Grátis para Luanda" }                                    : null,
-    { label: "Devolução",  value: "Grátis até 30 dias" },
+    { label: "Devolução",  value: "Grátis até 3 dias" },
     { label: "Pagamento",  value: "Seguro e encriptado" },
     { label: "Entrega",    value: "2–5 dias úteis" },
     publisher?.name    ? { label: "Vendedor",    value: publisher.name }                                           : null,
@@ -468,16 +362,6 @@ const ProductDetail = () => {
   return (
     <div className="min-h-screen bg-white">
       {zoomOpen && <ZoomLightbox images={displayImages} index={selectedImage} onClose={() => setZoomOpen(false)} onChange={setSelectedImage} onShare={handleShare} />}
-
-      {/* FIX 1: Buy Now Modal */}
-      {buyNowModal && (
-        <BuyNowModal
-          cartCount={cartCount}
-          onBuyOnly={() => executeBuyNow(false)}
-          onBuyWithCart={() => executeBuyNow(true)}
-          onClose={() => setBuyNowModal(false)}
-        />
-      )}
 
       {/* ── MINI HEADER ── */}
       <div className="sticky top-0 z-50 flex items-center gap-2 px-3 h-12 bg-white border-b border-gray-200">
@@ -702,7 +586,7 @@ const ProductDetail = () => {
             { icon: "🚚", text: "Envio para todo o país" },
             { icon: "🔒", text: "Pagamento seguro" },
             { icon: "⭐", text: "Suporte ao cliente 24/7" },
-            { icon: "↩️", text: "Devolução grátis 30 dias" },
+            { icon: "↩️", text: "Devolução grátis 3 dias" },
             { icon: "📦", text: "Embalagem protegida" },
           ].map((b, i) => (
             <div key={i} className="flex items-start gap-1.5 p-2 rounded-lg" style={{ background: "#fafafa", border: "1px solid #f0f0f0" }}>
@@ -719,7 +603,7 @@ const ProductDetail = () => {
         <div className="grid grid-cols-3 gap-2">
           {[
             { icon: <MapPin className="w-4 h-4 text-blue-500" />, bg: "#eff6ff", title: "Luanda, Angola", sub: "2–5 dias úteis" },
-            { icon: <Shield className="w-4 h-4 text-green-600" />, bg: "#f0fdf4", title: "Devolução grátis", sub: "Até 30 dias" },
+            { icon: <Shield className="w-4 h-4 text-green-600" />, bg: "#f0fdf4", title: "Devolução grátis", sub: "Até 3 dias" },
             { icon: <ShieldCheck className="w-4 h-4 text-purple-500" />, bg: "#faf5ff", title: "Pag. seguro", sub: "Encriptado" },
           ].map((item, i) => (
             <div key={i} className="flex flex-col items-center text-center p-2 rounded-lg" style={{ background: item.bg }}>
