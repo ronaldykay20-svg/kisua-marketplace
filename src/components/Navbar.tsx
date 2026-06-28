@@ -120,7 +120,6 @@ const Navbar = () => {
       const current = window.scrollY;
       setScrollY(current);
       setShowLocation(current < 30);
-      // categories só colapsam via clique manual no handle
     };
     window.addEventListener("scroll", handler, { passive: true });
     return () => window.removeEventListener("scroll", handler);
@@ -201,14 +200,23 @@ const Navbar = () => {
   const brownLight = "rgba(74,46,10,0.12)";
   const scrolled   = scrollY > 4;
 
+  // ── Safe area top: preenche a barra de status do iOS com a cor do header ──
+  const safeAreaTop = "env(safe-area-inset-top)";
+
   let navbarStyle: React.CSSProperties;
   if (isCategoriaDetalhePage) {
-    navbarStyle = { background: "transparent", boxShadow: "none", backdropFilter: "none" };
+    navbarStyle = {
+      background: "transparent",
+      boxShadow: "none",
+      backdropFilter: "none",
+      paddingTop: safeAreaTop,
+    };
   } else {
     navbarStyle = {
       background: `linear-gradient(160deg, ${cream} 0%, ${sand} 60%, #C9A87C 100%)`,
       boxShadow: scrolled ? "0 2px 20px rgba(74,46,10,0.18)" : "0 1px 0 rgba(74,46,10,0.08)",
       transition: "box-shadow 0.3s ease",
+      paddingTop: safeAreaTop,
     };
   }
 
@@ -216,13 +224,9 @@ const Navbar = () => {
     ? "absolute top-0 left-0 right-0 w-full z-50"
     : "sticky top-0 z-50";
 
-  // Largura do badge do logo: ocupa o espaço central entre o botão menu e os ícones da direita.
-  // Usamos flex-1 nos dois lados para centrar automaticamente em qualquer visor.
-
   return (
     <>
       <nav className={navPositionClass} style={navbarStyle}>
-        {/* px-3 garante respiro lateral; os botões crescem com w-11 fixo */}
         <div style={{ paddingLeft: 12, paddingRight: 12 }}>
 
           {/* ══ LINHA 1: barra de ícones ══ */}
@@ -256,13 +260,9 @@ const Navbar = () => {
               </span>
             ) : (
               <>
-                {/* flex-1 empurra o logo para o centro */}
                 <div className="flex-1" />
-
-                {/* ── Logo badge — altura fixa 44px = mesma dos botões ── */}
                 <a href="/" className="flex-shrink-0" style={{ display: "inline-flex", height: 44 }}>
                   <div style={{ position: "relative", display: "inline-flex", alignItems: "center", justifyContent: "center", height: 44 }}>
-                    {/* Moldura SVG stadium com borda dourada */}
                     <svg
                       style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
                       viewBox="0 0 170 44"
@@ -282,7 +282,6 @@ const Navbar = () => {
                         strokeWidth="8"
                       />
                     </svg>
-                    {/* Logo — sem fallback de texto, sem skeleton */}
                     <div style={{
                       position: "relative", zIndex: 1,
                       width: 170, height: 44,
@@ -300,12 +299,11 @@ const Navbar = () => {
                     </div>
                   </div>
                 </a>
-
                 <div className="flex-1" />
               </>
             )}
 
-            {/* ── Botão pesquisa direita: só na página de detalhe ou quando barra está aberta ── */}
+            {/* ── Botão pesquisa direita ── */}
             {isCategoriaDetalhePage ? (
               <button
                 className="flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center"
@@ -323,7 +321,6 @@ const Navbar = () => {
                 <X className="w-5 h-5 text-white" />
               </button>
             ) : (
-              /* Nas páginas normais sem barra aberta: espaçador invisível para manter simetria */
               <div className="flex-shrink-0 w-11 h-11" />
             )}
 
@@ -390,7 +387,6 @@ const Navbar = () => {
                   className="flex-1 py-2.5 px-2 bg-transparent focus:outline-none"
                   style={{ color: brown, fontSize: "16px" }}
                 />
-                {/* Microfone apenas — câmera removida */}
                 <button
                   type="button"
                   onClick={handleMicClick}
@@ -434,7 +430,6 @@ const Navbar = () => {
                   className="flex-1 py-2.5 px-2.5 bg-transparent focus:outline-none"
                   style={{ color: brown, fontSize: "16px" }}
                 />
-                {/* Microfone apenas — câmera removida */}
                 <button
                   type="button"
                   onClick={handleMicClick}
@@ -492,7 +487,6 @@ const Navbar = () => {
           {/* ══ HANDLE + CATEGORIAS ══ */}
           {!isCategoriasPage && !isPesquisaPage && !isCategoriaDetalhePage && (
             <>
-              {/* Handle manual — nunca colapsa automaticamente */}
               <button
                 className="w-full flex items-center justify-center"
                 style={{ height: 18, gap: 6 }}
@@ -517,16 +511,7 @@ const Navbar = () => {
                   transition: "max-height 0.4s cubic-bezier(0.4,0,0.2,1), opacity 0.3s ease",
                 }}
               >
-                {/*
-                  Layout de categorias:
-                  - O scroll horizontal mostra todas as categorias + botão "Ver todas"
-                  - O botão de pesquisa fica FIXO na posição da 7ª coluna (à direita, fora do scroll)
-                  - As primeiras 6 categorias cabem no visor; a partir daí arrasta-se
-                  - Cada item tem largura calc(100vw/7 - gap) para caber exactamente 6 + lupa visível
-                */}
                 <div style={{ display: "flex", alignItems: "flex-start", paddingTop: 8, paddingBottom: 12, gap: 0 }}>
-
-                  {/* Área scrollável com as categorias — paddingRight garante que a última categoria visível não fica coberta pela lupa fixa */}
                   <div
                     className="overflow-x-auto scrollbar-hide flex-1"
                     style={{ display: "flex", gap: 6, alignItems: "flex-start", paddingRight: 8 }}
@@ -537,8 +522,6 @@ const Navbar = () => {
                         onClick={() => navigate(`/categoria/${encodeURIComponent(cat.name)}`)}
                         className="flex flex-col items-center gap-1 flex-shrink-0"
                         style={{
-                          // 6 categorias por ecrã + 1 lupa fixa: cada cat = (100vw - 24px padding - 8px gap lupa - 6*6px gaps) / 6
-                          // Simplificado: calc((100vw - 80px) / 6) para qualquer visor
                           width: "calc((100vw - 80px) / 6)",
                           maxWidth: 64,
                           minWidth: 46,
@@ -568,7 +551,6 @@ const Navbar = () => {
                       </button>
                     ))}
 
-                    {/* Botão "Ver todas" dentro do scroll */}
                     <button
                       onClick={() => navigate("/categorias")}
                       className="flex flex-col items-center gap-1 flex-shrink-0"
@@ -597,7 +579,6 @@ const Navbar = () => {
                     </button>
                   </div>
 
-                  {/* ── Botão de pesquisa FIXO na 7ª posição ── */}
                   <div
                     className="flex-shrink-0 flex flex-col items-center gap-1"
                     style={{
