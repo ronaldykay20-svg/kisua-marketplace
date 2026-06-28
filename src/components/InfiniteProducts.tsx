@@ -88,11 +88,8 @@ const ProductCard = ({
       style={{
         borderRadius: "3px",
         background: "#ffffff",
-        boxShadow: pressed
-          ? "0 1px 4px rgba(107,58,31,0.12)"
-          : "0 2px 10px rgba(107,58,31,0.10)",
         transform: pressed ? "scale(0.974)" : "scale(1)",
-        transition: "transform 0.13s ease, box-shadow 0.13s ease",
+        transition: "transform 0.13s ease",
       }}
     >
       {/* Imagem */}
@@ -156,15 +153,15 @@ const ProductCard = ({
         </button>
       </div>
 
-      {/* Info — compacta: título resumido, descrição em 1 linha, avaliação/vendidos discretos, preço em destaque */}
+      {/* Info — compacta: título resumido, descrição até 3 linhas, avaliação/vendidos discretos, preço em destaque */}
       <div className="px-2 pt-1.5 pb-2">
-        <p className="text-[11.5px] font-semibold line-clamp-2 leading-tight mb-1" style={{ color: "#6b3a1f", minHeight: "28px" }}>
+        <p className="text-[11.5px] font-semibold line-clamp-2 leading-tight mb-0.5" style={{ color: "#6b3a1f" }}>
           {p.title}
         </p>
 
-        {/* Descrição resumida em 1 linha (como na referência) */}
+        {/* Descrição: cola logo abaixo do título, maior, preta, até 3 linhas */}
         {p.description && (
-          <p className="text-[10px] line-clamp-1 mb-1" style={{ color: "#a88a72" }}>
+          <p className="text-[11px] leading-snug line-clamp-3 mb-1" style={{ color: "#1a1a1a" }}>
             {p.description}
           </p>
         )}
@@ -346,8 +343,8 @@ const InfiniteProducts = () => {
         <span className="text-[10px]" style={{ color: "#9a7060" }}>{allProducts.length} produtos</span>
       </div>
 
-      {/* Grelha responsiva alinhada: 2 mobile, 3 tablet, 5 desktop */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 md:gap-3">
+      {/* Grelha responsiva alinhada: 2 mobile, 3 tablet, 5 desktop — fundo branco também no gap, sem linhas visíveis */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 md:gap-3" style={{ background: "#ffffff" }}>
         {allProducts.map((p: any, i: number) => (
           <ProductCard
             key={`${p.id}-${loopCycle}`}
