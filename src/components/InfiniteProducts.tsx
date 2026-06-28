@@ -29,10 +29,11 @@ const LazyImg = ({ src, alt }: { src: string | null; alt: string }) => {
   useEffect(() => { setLoaded(false); }, [src]);
 
   return (
-    // Imagem mais compacta/quadrada (estilo grelha B2B), em vez do formato alto/retrato anterior
-    <div ref={wrapRef} className="relative w-full overflow-hidden aspect-square" style={{ background: "#f0e6da" }}>
+    // Fundo 100% branco (igual ao card) — assim fotos com fundo branco ou PNGs
+    // transparentes fundem-se perfeitamente, sem criar um retângulo bege visível
+    <div ref={wrapRef} className="relative w-full overflow-hidden aspect-square" style={{ background: "#ffffff" }}>
       {(!visible || !loaded) && (
-        <div className="absolute inset-0 animate-pulse" style={{ background: "linear-gradient(135deg, #f0e6da 0%, #e8d5c4 100%)" }} />
+        <div className="absolute inset-0 animate-pulse" style={{ background: "linear-gradient(135deg, #f7f5f2 0%, #ededeb 100%)" }} />
       )}
       {visible && src && (
         <img
@@ -155,11 +156,18 @@ const ProductCard = ({
         </button>
       </div>
 
-      {/* Info — compacta: título resumido, avaliação/vendidos discretos, preço em destaque */}
+      {/* Info — compacta: título resumido, descrição em 1 linha, avaliação/vendidos discretos, preço em destaque */}
       <div className="px-2 pt-1.5 pb-2">
         <p className="text-[11.5px] font-semibold line-clamp-2 leading-tight mb-1" style={{ color: "#6b3a1f", minHeight: "28px" }}>
           {p.title}
         </p>
+
+        {/* Descrição resumida em 1 linha (como na referência) */}
+        {p.description && (
+          <p className="text-[10px] line-clamp-1 mb-1" style={{ color: "#a88a72" }}>
+            {p.description}
+          </p>
+        )}
 
         {/* Linha discreta: estrelas + vendidos juntos, tamanho reduzido */}
         {(p.rating >= 3.5 || p.sales_count > 0) && (
@@ -202,7 +210,7 @@ const ProductCard = ({
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 const Skeleton = () => (
   <div className="w-full overflow-hidden animate-pulse" style={{ borderRadius: "3px", background: "#ffffff" }}>
-    <div style={{ aspectRatio: "1/1", background: "#f0e6da" }} />
+    <div style={{ aspectRatio: "1/1", background: "linear-gradient(135deg, #f7f5f2 0%, #ededeb 100%)" }} />
     <div className="px-2 pt-1.5 pb-2 space-y-1.5">
       <div className="h-3 rounded w-4/5" style={{ background: "#f0e6da" }} />
       <div className="h-3 rounded w-3/5" style={{ background: "#f0e6da" }} />
