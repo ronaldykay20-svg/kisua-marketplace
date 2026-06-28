@@ -232,7 +232,7 @@ const Navbar = () => {
           {/* ══ LINHA 1: barra de ícones ══ */}
           <div
             className="flex items-center"
-            style={{ height: 64, gap: 8, paddingTop: 10, paddingBottom: 10 }}
+            style={{ height: 64, gap: 8, paddingTop: 10, paddingBottom: 10, position: "relative" }}
           >
             {/* ── Botão esquerdo ── */}
             {isCategoriaDetalhePage ? (
@@ -260,8 +260,7 @@ const Navbar = () => {
               </span>
             ) : (
               <>
-                <div className="flex-1" />
-                <a href="/" className="flex-shrink-0" style={{ display: "inline-flex", height: 44 }}>
+                <a href="/" className="flex-shrink-0" style={{ display: "inline-flex", height: 44, position: "absolute", left: "50%", transform: "translateX(-50%)", zIndex: 1 }}>
                   <div style={{ position: "relative", display: "inline-flex", alignItems: "center", justifyContent: "center", height: 44 }}>
                     <svg
                       style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
@@ -299,7 +298,6 @@ const Navbar = () => {
                     </div>
                   </div>
                 </a>
-                <div className="flex-1" />
               </>
             )}
 
