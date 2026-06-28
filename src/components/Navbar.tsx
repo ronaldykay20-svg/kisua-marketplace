@@ -340,21 +340,6 @@ const Navbar = () => {
               </button>
             )}
 
-            <button
-              className="relative flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center"
-              style={{ background: "#FFFFFF", boxShadow: "0 2px 6px rgba(74,46,10,0.18)", border: "1px solid rgba(74,46,10,0.10)" }}
-              onClick={() => navigate("/carrinho")}
-            >
-              <ShoppingCart className="w-5 h-5" style={{ color: brown }} />
-              {cartCount > 0 && (
-                <span
-                  className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 rounded-full text-white text-[8px] font-black flex items-center justify-center px-0.5"
-                  style={{ background: "#E53935" }}
-                >
-                  {cartCount > 9 ? "9+" : cartCount}
-                </span>
-              )}
-            </button>
           </div>
 
           {/* ══ BARRA DE PESQUISA inline (páginas normais) ══ */}
