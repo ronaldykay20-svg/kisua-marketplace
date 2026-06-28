@@ -305,7 +305,7 @@ const Navbar = () => {
               </>
             )}
 
-            {/* ── Botões direita ── */}
+            {/* ── Botão pesquisa direita: só na página de detalhe ou quando barra está aberta ── */}
             {isCategoriaDetalhePage ? (
               <button
                 className="flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center"
@@ -323,13 +323,8 @@ const Navbar = () => {
                 <X className="w-5 h-5 text-white" />
               </button>
             ) : (
-              <button
-                className="flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center"
-                style={{ background: brown, boxShadow: "0 2px 6px rgba(74,46,10,0.25)" }}
-                onClick={() => setSearchBarOpen(true)}
-              >
-                <Search className="w-5 h-5 text-white" />
-              </button>
+              /* Nas páginas normais sem barra aberta: espaçador invisível para manter simetria */
+              <div className="flex-shrink-0 w-11 h-11" />
             )}
 
             {user && (
@@ -531,10 +526,10 @@ const Navbar = () => {
                 */}
                 <div style={{ display: "flex", alignItems: "flex-start", paddingTop: 8, paddingBottom: 12, gap: 0 }}>
 
-                  {/* Área scrollável com as categorias */}
+                  {/* Área scrollável com as categorias — paddingRight garante que a última categoria visível não fica coberta pela lupa fixa */}
                   <div
                     className="overflow-x-auto scrollbar-hide flex-1"
-                    style={{ display: "flex", gap: 6, alignItems: "flex-start" }}
+                    style={{ display: "flex", gap: 6, alignItems: "flex-start", paddingRight: 8 }}
                   >
                     {categories.map((cat: any) => (
                       <button
@@ -602,7 +597,7 @@ const Navbar = () => {
                     </button>
                   </div>
 
-                  {/* ── Botão de pesquisa FIXO na 7ª posição ── */}
+                  {/* ── Botão de pesquisa FIXO na 7ª posição — fundo azul fraco ── */}
                   <div
                     className="flex-shrink-0 flex flex-col items-center gap-1"
                     style={{
@@ -617,12 +612,13 @@ const Navbar = () => {
                       style={{
                         width: "100%", aspectRatio: "1", borderRadius: 12,
                         display: "flex", alignItems: "center", justifyContent: "center",
-                        background: brown,
-                        boxShadow: "0 2px 8px rgba(74,46,10,0.30)",
+                        background: "rgba(21, 101, 192, 0.12)",
+                        border: "2px solid rgba(21, 101, 192, 0.30)",
+                        boxShadow: "0 2px 8px rgba(21,101,192,0.15)",
                         flexShrink: 0,
                       }}
                     >
-                      <Search className="w-5 h-5 text-white" />
+                      <Search className="w-5 h-5" style={{ color: "#1565C0" }} />
                     </button>
                     <span className="text-[9px] font-bold text-center" style={{ color: brown }}>Pesquisar</span>
                   </div>
