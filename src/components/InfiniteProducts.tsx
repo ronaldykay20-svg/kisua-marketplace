@@ -198,11 +198,6 @@ const InfiniteProducts = () => {
   const { isFavorite, toggleFavorite } = useFavorites();
   const sentinelRef = useRef<HTMLDivElement>(null);
 
-  // Ciclo actual de loop (quantas vezes já repetimos a lista)
-  const [loopCycle, setLoopCycle] = useState(0);
-  // Mapa completo de todas as imagens de cada produto: { productId: [url0, url1, url2, ...] }
-  const allImagesRef = useRef<Record<string, string[]>>({});
-
   // ── Query principal (paginada) ────────────────────────────────────────────
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
     useInfiniteQuery({
@@ -221,7 +216,6 @@ const InfiniteProducts = () => {
         let coverMap: Record<string, string> = {};
 
         if (ids.length > 0) {
-          // Busca a cover de cada produto para a primeira exibição
           const { data: media } = await supabase
             .from("product_media")
             .select("product_id, url")
@@ -241,75 +235,13 @@ const InfiniteProducts = () => {
 
   const allProducts = data?.pages.flat() || [];
 
-  // ── Quando a lista acaba, busca TODAS as imagens de cada produto ──────────
-  useEffect(() => {
-    if (!hasNextPage && allProducts.length > 0 && !isFetchingNextPage) {
-      const ids = allProducts.map((p: any) => p.id);
-
-      supabase
-        .from("product_media")
-        .select("product_id, url, sort_order")
-        .in("product_id", ids)
-        .order("sort_order")
-        .then(({ data: media }) => {
-          // Monta mapa: productId → [url_capa, url2, url3, ...]
-          const map: Record<string, string[]> = {};
-
-          // Inicializa com a cover já conhecida (garante que índice 0 = cover)
-          allProducts.forEach((p: any) => {
-            if (p.cover_url) map[p.id] = [p.cover_url];
-            else map[p.id] = [];
-          });
-
-          // Adiciona as restantes imagens em ordem, sem duplicar a cover
-          (media || []).forEach((m: any) => {
-            if (!map[m.product_id]) map[m.product_id] = [];
-            if (!map[m.product_id].includes(m.url)) {
-              map[m.product_id].push(m.url);
-            }
-          });
-
-          allImagesRef.current = map;
-
-          // Só entra em loop se pelo menos 1 produto tem mais de 1 imagem
-          const hasExtra = Object.values(map).some(imgs => imgs.length > 1);
-          if (hasExtra) {
-            const t = setTimeout(() => setLoopCycle(c => c + 1), 400);
-            return () => clearTimeout(t);
-          }
-        });
-    }
-  }, [hasNextPage, isFetchingNextPage]);
-
-  // ── Nos ciclos seguintes, avança para o próximo ciclo quando chegar ao fim ─
-  useEffect(() => {
-    if (loopCycle === 0) return;
-    // loopCycle > 0 significa que estamos a repetir — sentinel dispara novo ciclo
-  }, [loopCycle]);
-
-  // ── Retorna a URL a exibir para cada produto no ciclo actual ─────────────
-  const getDisplayUrl = (productId: string, fallbackUrl: string | null): string | null => {
-    if (loopCycle === 0) return fallbackUrl;
-    const imgs = allImagesRef.current[productId];
-    if (!imgs || imgs.length === 0) return fallbackUrl;
-    // Roda pelas imagens do mesmo produto: ciclo 1 → índice 1, ciclo 2 → índice 2, etc.
-    return imgs[loopCycle % imgs.length];
-  };
-
-  // ── Sentinel — carregar mais (ou avançar ciclo) ───────────────────────────
+  // ── Sentinel — carregar mais páginas ─────────────────────────────────────
   const handleObserver = useCallback(
     (entries: IntersectionObserverEntry[]) => {
       if (!entries[0].isIntersecting) return;
-
-      if (hasNextPage && !isFetchingNextPage) {
-        // Ainda há páginas reais para buscar
-        fetchNextPage();
-      } else if (!hasNextPage && allProducts.length > 0 && Object.keys(allImagesRef.current).length > 0) {
-        // Lista acabou e já temos o mapa de imagens — avança o ciclo
-        setLoopCycle(c => c + 1);
-      }
+      if (hasNextPage && !isFetchingNextPage) fetchNextPage();
     },
-    [hasNextPage, isFetchingNextPage, fetchNextPage, allProducts.length]
+    [hasNextPage, isFetchingNextPage, fetchNextPage]
   );
 
   useEffect(() => {
@@ -356,7 +288,6 @@ const InfiniteProducts = () => {
 
   return (
     <section className="px-2 md:px-4 pt-3 pb-4" style={{ background: "#ffffff" }}>
-      {/* Header */}
       <div className="flex items-center justify-between mb-2 px-0.5">
         <h2 className="text-sm font-bold" style={{ color: "#1a0f07" }}>Para si</h2>
         <span className="text-[10px]" style={{ color: "#9a7060" }}>{allProducts.length} produtos</span>
@@ -367,7 +298,7 @@ const InfiniteProducts = () => {
           <ProductCard
             key={p.id}
             p={p}
-            displayUrl={getDisplayUrl(p.id, p.cover_url)}
+            displayUrl={p.cover_url}
             isTrending={(trendingIds as Set<string>).has(p.id)}
             isFav={isFavorite(p.id)}
             onFav={makeFav(p.id)}
