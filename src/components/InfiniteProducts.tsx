@@ -329,7 +329,7 @@ const InfiniteProducts = () => {
   };
 
   if (isLoading) return (
-    <section className="px-2 md:px-4 pt-3 pb-4">
+    <section className="px-2 md:px-4 pt-3 pb-4" style={{ background: "#ffffff" }}>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 md:gap-3">
         {[0, 1, 2, 3, 4, 5].map(i => <Skeleton key={i} />)}
       </div>
@@ -339,7 +339,7 @@ const InfiniteProducts = () => {
   if (allProducts.length === 0) return null;
 
   return (
-    <section className="px-2 md:px-4 pt-3 pb-4">
+    <section className="px-2 md:px-4 pt-3 pb-4" style={{ background: "#ffffff" }}>
       {/* Header */}
       <div className="flex items-center justify-between mb-2 px-0.5">
         <h2 className="text-sm font-bold" style={{ color: "#1a0f07" }}>Para si</h2>
