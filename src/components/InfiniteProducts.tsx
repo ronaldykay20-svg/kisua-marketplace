@@ -25,12 +25,9 @@ const LazyImg = ({ src, alt }: { src: string | null; alt: string }) => {
     return () => obs.disconnect();
   }, []);
 
-  // Reset quando src muda (loop infinito com nova imagem)
   useEffect(() => { setLoaded(false); }, [src]);
 
   return (
-    // Fundo 100% branco (igual ao card) — assim fotos com fundo branco ou PNGs
-    // transparentes fundem-se perfeitamente, sem criar um retângulo bege visível
     <div ref={wrapRef} className="relative w-full overflow-hidden aspect-square" style={{ background: "#ffffff" }}>
       {(!visible || !loaded) && (
         <div className="absolute inset-0 animate-pulse" style={{ background: "linear-gradient(135deg, #f7f5f2 0%, #ededeb 100%)" }} />
@@ -50,11 +47,11 @@ const LazyImg = ({ src, alt }: { src: string | null; alt: string }) => {
   );
 };
 
-// ─── Mapa de cores dos badges do produto (valores reais do formulário do vendedor) ──
+// ─── Badges ───────────────────────────────────────────────────────────────────
 const BADGE_STYLES: Record<string, { label: string; bg: string; icon?: any }> = {
-  HOT: { label: "HOT", bg: "#f57c00", icon: Flame },
-  NOVO: { label: "NOVO", bg: "#1e88e5" },
-  PROMO: { label: "PROMO", bg: "#e53935" },
+  HOT:     { label: "HOT",      bg: "#f57c00", icon: Flame },
+  NOVO:    { label: "NOVO",     bg: "#1e88e5" },
+  PROMO:   { label: "PROMO",    bg: "#e53935" },
   LIMITED: { label: "LIMITADO", bg: "#7b1fa2" },
 };
 
@@ -63,18 +60,16 @@ const getBadgeStyle = (badge: string | null | undefined) => {
   return BADGE_STYLES[badge] || null;
 };
 
-// ─── Card (estilo da página: bege quente, sem arestas duras) ──────────────────
+// ─── Card ─────────────────────────────────────────────────────────────────────
 const ProductCard = ({
-  p, coverOverride, isTrending, isFav, onFav, onClick,
+  p, displayUrl, isTrending, isFav, onFav, onClick,
 }: {
-  p: any; coverOverride?: string | null; isTrending: boolean;
+  p: any; displayUrl: string | null; isTrending: boolean;
   isFav: boolean; onFav: (e: React.MouseEvent) => void;
   onClick: () => void;
 }) => {
   const [pressed, setPressed] = useState(false);
-  const cover = coverOverride ?? p.cover_url ?? p.image_url ?? null;
 
-  // Prioridade do badge superior-esquerdo: desconto > badge custom (Promoção/Limitado/etc.) > Hot por trending
   const customBadge = !p.discount_percent ? getBadgeStyle(p.badge) : null;
   const showHotFallback = isTrending && !p.discount_percent && !customBadge;
 
@@ -92,59 +87,42 @@ const ProductCard = ({
         transition: "transform 0.13s ease",
       }}
     >
-      {/* Imagem */}
       <div className="relative">
-        <LazyImg src={cover} alt={p.title} />
+        <LazyImg src={displayUrl} alt={p.title} />
 
-        {/* Desconto (vermelho vivo) */}
         {p.discount_percent > 0 && (
-          <span
-            className="absolute top-2 left-2 px-1.5 py-0.5 text-[10px] font-black text-white z-10"
-            style={{ background: "#e53935", borderRadius: "4px" }}
-          >
+          <span className="absolute top-2 left-2 px-1.5 py-0.5 text-[10px] font-black text-white z-10"
+            style={{ background: "#e53935", borderRadius: "4px" }}>
             -{p.discount_percent}%
           </span>
         )}
 
-        {/* Badge customizado do produto (HOT, NOVO, PROMO, LIMITED) */}
         {customBadge && (
-          <span
-            className="absolute top-2 left-2 flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-black text-white z-10"
-            style={{ background: customBadge.bg, borderRadius: "4px" }}
-          >
+          <span className="absolute top-2 left-2 flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-black text-white z-10"
+            style={{ background: customBadge.bg, borderRadius: "4px" }}>
             {customBadge.icon && <customBadge.icon className="w-2.5 h-2.5" />}
             {customBadge.label}
           </span>
         )}
 
-        {/* Hot por trending (fallback apenas quando não há desconto nem badge custom escolhido pelo vendedor) */}
         {showHotFallback && (
-          <span
-            className="absolute top-2 left-2 flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-black text-white z-10"
-            style={{ background: "#f57c00", borderRadius: "4px" }}
-          >
+          <span className="absolute top-2 left-2 flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-black text-white z-10"
+            style={{ background: "#f57c00", borderRadius: "4px" }}>
             <Flame className="w-2.5 h-2.5" /> Hot
           </span>
         )}
 
-        {/* Frete grátis */}
         {p.free_shipping && (
-          <span
-            className="absolute bottom-2 left-2 flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-bold text-white z-10"
-            style={{ background: "rgba(26,92,58,0.88)", borderRadius: "4px" }}
-          >
+          <span className="absolute bottom-2 left-2 flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-bold text-white z-10"
+            style={{ background: "rgba(26,92,58,0.88)", borderRadius: "4px" }}>
             <Truck className="w-2.5 h-2.5" /> Grátis
           </span>
         )}
 
-        {/* Coração */}
         <button
           onClick={onFav}
           className="absolute bottom-2 right-2 w-7 h-7 rounded-full flex items-center justify-center z-10"
-          style={{
-            background: "rgba(253,248,244,0.93)",
-            boxShadow: "0 1px 5px rgba(107,58,31,0.18)",
-          }}
+          style={{ background: "rgba(253,248,244,0.93)", boxShadow: "0 1px 5px rgba(107,58,31,0.18)" }}
         >
           <Heart
             className="w-3.5 h-3.5 transition-all"
@@ -153,20 +131,17 @@ const ProductCard = ({
         </button>
       </div>
 
-      {/* Info — compacta: título resumido, descrição até 3 linhas, avaliação/vendidos discretos, preço em destaque */}
       <div className="px-2 pt-1.5 pb-2">
         <p className="text-[11.5px] font-semibold line-clamp-2 leading-tight" style={{ color: "#6b3a1f", margin: 0 }}>
           {p.title}
         </p>
 
-        {/* Descrição: cola logo abaixo do título (sem margem entre eles), bem maior, preto puro, até 3 linhas */}
         {p.description && (
           <p className="text-[13px] font-medium leading-snug line-clamp-3" style={{ color: "#000000", margin: "2px 0 6px 0" }}>
             {p.description}
           </p>
         )}
 
-        {/* Linha discreta: estrelas + vendidos juntos, tamanho reduzido */}
         {(p.rating >= 3.5 || p.sales_count > 0) && (
           <div className="flex items-center gap-1 mb-1 flex-wrap">
             {p.rating >= 3.5 && (
@@ -223,17 +198,18 @@ const InfiniteProducts = () => {
   const { isFavorite, toggleFavorite } = useFavorites();
   const sentinelRef = useRef<HTMLDivElement>(null);
 
-  // Controla o ciclo de loop — incrementa para reiniciar com novas imagens
+  // Ciclo actual de loop (quantas vezes já repetimos a lista)
   const [loopCycle, setLoopCycle] = useState(0);
-  // Pool de covers extra para o loop
-  const extraCoversRef = useRef<string[]>([]);
+  // Mapa completo de todas as imagens de cada produto: { productId: [url0, url1, url2, ...] }
+  const allImagesRef = useRef<Record<string, string[]>>({});
 
+  // ── Query principal (paginada) ────────────────────────────────────────────
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
     useInfiniteQuery({
-      queryKey: ["infinite_products", loopCycle],
+      queryKey: ["infinite_products"],
       queryFn: async ({ pageParam = 0 }) => {
         const from = pageParam * PAGE_SIZE;
-        const { data, error } = await supabase
+        const { data: products, error } = await supabase
           .from("products")
           .select("*")
           .eq("is_active", true)
@@ -241,9 +217,11 @@ const InfiniteProducts = () => {
           .range(from, from + PAGE_SIZE - 1);
         if (error) throw error;
 
-        const ids = (data || []).map((p: any) => p.id);
+        const ids = (products || []).map((p: any) => p.id);
         let coverMap: Record<string, string> = {};
+
         if (ids.length > 0) {
+          // Busca a cover de cada produto para a primeira exibição
           const { data: media } = await supabase
             .from("product_media")
             .select("product_id, url")
@@ -251,64 +229,87 @@ const InfiniteProducts = () => {
             .eq("is_cover", true);
           (media || []).forEach((m: any) => { coverMap[m.product_id] = m.url; });
         }
-        return (data || []).map((p: any) => ({ ...p, cover_url: coverMap[p.id] || null }));
+
+        return (products || []).map((p: any) => ({
+          ...p,
+          cover_url: coverMap[p.id] || null,
+        }));
       },
       getNextPageParam: (last, all) => last.length < PAGE_SIZE ? undefined : all.length,
       initialPageParam: 0,
     });
 
-  const { data: trendingIds = new Set<string>() } = useQuery({
-    queryKey: ["trending_ids"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("products").select("id, category, sales_count")
-        .eq("is_active", true)
-        .order("sales_count", { ascending: false }).limit(100);
-      if (!data) return new Set<string>();
-      const seen = new Set<string>(); const top = new Set<string>();
-      for (const p of data) {
-        if (p.category && !seen.has(p.category)) { seen.add(p.category); top.add(p.id); }
-      }
-      return top;
-    },
-  });
-
   const allProducts = data?.pages.flat() || [];
 
-  // Quando chega ao fim, guarda covers e reinicia com novo ciclo
+  // ── Quando a lista acaba, busca TODAS as imagens de cada produto ──────────
   useEffect(() => {
     if (!hasNextPage && allProducts.length > 0 && !isFetchingNextPage) {
-      // Recolhe todas as covers disponíveis embaralhadas
-      const covers = allProducts
-        .map((p: any) => p.cover_url).filter(Boolean) as string[];
-      // Embaralha
-      for (let i = covers.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [covers[i], covers[j]] = [covers[j], covers[i]];
-      }
-      extraCoversRef.current = covers;
-      // Espera 400ms para não ser abrupto, depois reinicia
-      const t = setTimeout(() => setLoopCycle(c => c + 1), 400);
-      return () => clearTimeout(t);
+      const ids = allProducts.map((p: any) => p.id);
+
+      supabase
+        .from("product_media")
+        .select("product_id, url, sort_order")
+        .in("product_id", ids)
+        .order("sort_order")
+        .then(({ data: media }) => {
+          // Monta mapa: productId → [url_capa, url2, url3, ...]
+          const map: Record<string, string[]> = {};
+
+          // Inicializa com a cover já conhecida (garante que índice 0 = cover)
+          allProducts.forEach((p: any) => {
+            if (p.cover_url) map[p.id] = [p.cover_url];
+            else map[p.id] = [];
+          });
+
+          // Adiciona as restantes imagens em ordem, sem duplicar a cover
+          (media || []).forEach((m: any) => {
+            if (!map[m.product_id]) map[m.product_id] = [];
+            if (!map[m.product_id].includes(m.url)) {
+              map[m.product_id].push(m.url);
+            }
+          });
+
+          allImagesRef.current = map;
+
+          // Só entra em loop se pelo menos 1 produto tem mais de 1 imagem
+          const hasExtra = Object.values(map).some(imgs => imgs.length > 1);
+          if (hasExtra) {
+            const t = setTimeout(() => setLoopCycle(c => c + 1), 400);
+            return () => clearTimeout(t);
+          }
+        });
     }
   }, [hasNextPage, isFetchingNextPage]);
 
-  // Assign covers do loop: no ciclo > 0, roda as covers guardadas
-  const getLoopCover = (index: number): string | null => {
-    if (loopCycle === 0) return null;
-    const pool = extraCoversRef.current;
-    if (!pool.length) return null;
-    return pool[index % pool.length];
+  // ── Nos ciclos seguintes, avança para o próximo ciclo quando chegar ao fim ─
+  useEffect(() => {
+    if (loopCycle === 0) return;
+    // loopCycle > 0 significa que estamos a repetir — sentinel dispara novo ciclo
+  }, [loopCycle]);
+
+  // ── Retorna a URL a exibir para cada produto no ciclo actual ─────────────
+  const getDisplayUrl = (productId: string, fallbackUrl: string | null): string | null => {
+    if (loopCycle === 0) return fallbackUrl;
+    const imgs = allImagesRef.current[productId];
+    if (!imgs || imgs.length === 0) return fallbackUrl;
+    // Roda pelas imagens do mesmo produto: ciclo 1 → índice 1, ciclo 2 → índice 2, etc.
+    return imgs[loopCycle % imgs.length];
   };
 
-  // Sentinel — carregar mais
+  // ── Sentinel — carregar mais (ou avançar ciclo) ───────────────────────────
   const handleObserver = useCallback(
     (entries: IntersectionObserverEntry[]) => {
-      if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+      if (!entries[0].isIntersecting) return;
+
+      if (hasNextPage && !isFetchingNextPage) {
+        // Ainda há páginas reais para buscar
         fetchNextPage();
+      } else if (!hasNextPage && allProducts.length > 0 && Object.keys(allImagesRef.current).length > 0) {
+        // Lista acabou e já temos o mapa de imagens — avança o ciclo
+        setLoopCycle(c => c + 1);
       }
     },
-    [hasNextPage, isFetchingNextPage, fetchNextPage]
+    [hasNextPage, isFetchingNextPage, fetchNextPage, allProducts.length]
   );
 
   useEffect(() => {
@@ -325,6 +326,24 @@ const InfiniteProducts = () => {
     toggleFavorite(id);
   };
 
+  // ── Trending ──────────────────────────────────────────────────────────────
+  const { data: trendingIds = new Set<string>() } = useQuery({
+    queryKey: ["trending_ids"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("products").select("id, category, sales_count")
+        .eq("is_active", true)
+        .order("sales_count", { ascending: false }).limit(100);
+      if (!data) return new Set<string>();
+      const seen = new Set<string>(); const top = new Set<string>();
+      for (const p of data) {
+        if (p.category && !seen.has(p.category)) { seen.add(p.category); top.add(p.id); }
+      }
+      return top;
+    },
+  });
+
+  // ── Render ────────────────────────────────────────────────────────────────
   if (isLoading) return (
     <section className="px-2 md:px-4 pt-3 pb-4" style={{ background: "#ffffff" }}>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 md:gap-3">
@@ -343,13 +362,12 @@ const InfiniteProducts = () => {
         <span className="text-[10px]" style={{ color: "#9a7060" }}>{allProducts.length} produtos</span>
       </div>
 
-      {/* Grelha responsiva alinhada: 2 mobile, 3 tablet, 5 desktop — fundo branco também no gap, sem linhas visíveis */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 md:gap-3" style={{ background: "#ffffff" }}>
-        {allProducts.map((p: any, i: number) => (
+        {allProducts.map((p: any) => (
           <ProductCard
-            key={`${p.id}-${loopCycle}`}
+            key={p.id}
             p={p}
-            coverOverride={loopCycle > 0 ? getLoopCover(i) : null}
+            displayUrl={getDisplayUrl(p.id, p.cover_url)}
             isTrending={(trendingIds as Set<string>).has(p.id)}
             isFav={isFavorite(p.id)}
             onFav={makeFav(p.id)}
