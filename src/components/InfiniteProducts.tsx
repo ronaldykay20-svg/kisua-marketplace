@@ -29,7 +29,8 @@ const LazyImg = ({ src, alt }: { src: string | null; alt: string }) => {
   useEffect(() => { setLoaded(false); }, [src]);
 
   return (
-    <div ref={wrapRef} className="relative w-full overflow-hidden aspect-[17/20] md:aspect-[4/5]" style={{ background: "#f0e6da" }}>
+    // Imagem mais compacta/quadrada (estilo grelha B2B), em vez do formato alto/retrato anterior
+    <div ref={wrapRef} className="relative w-full overflow-hidden aspect-square" style={{ background: "#f0e6da" }}>
       {(!visible || !loaded) && (
         <div className="absolute inset-0 animate-pulse" style={{ background: "linear-gradient(135deg, #f0e6da 0%, #e8d5c4 100%)" }} />
       )}
@@ -154,34 +155,41 @@ const ProductCard = ({
         </button>
       </div>
 
-      {/* Info */}
-      <div className="px-2.5 pt-1.5 pb-2 md:pt-2 md:pb-2.5">
-        <p className="text-[12px] font-semibold line-clamp-2 leading-snug mb-1" style={{ color: "#6b3a1f" }}>
+      {/* Info — compacta: título resumido, avaliação/vendidos discretos, preço em destaque */}
+      <div className="px-2 pt-1.5 pb-2">
+        <p className="text-[11.5px] font-semibold line-clamp-2 leading-tight mb-1" style={{ color: "#6b3a1f", minHeight: "28px" }}>
           {p.title}
         </p>
 
-        {p.rating >= 3.5 && (
-          <div className="flex items-center gap-0.5 mb-0.5">
-            <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
-            <span className="text-[10px]" style={{ color: "#9a7060" }}>{Number(p.rating).toFixed(1)}</span>
-            {p.total_reviews > 0 && (
-              <span className="text-[10px]" style={{ color: "#b09080" }}>({p.total_reviews})</span>
+        {/* Linha discreta: estrelas + vendidos juntos, tamanho reduzido */}
+        {(p.rating >= 3.5 || p.sales_count > 0) && (
+          <div className="flex items-center gap-1 mb-1 flex-wrap">
+            {p.rating >= 3.5 && (
+              <span className="flex items-center gap-0.5">
+                <Star className="w-2 h-2 fill-amber-400 text-amber-400" />
+                <span className="text-[9px]" style={{ color: "#b09080" }}>
+                  {Number(p.rating).toFixed(1)}
+                  {p.total_reviews > 0 ? ` (${p.total_reviews})` : ""}
+                </span>
+              </span>
+            )}
+            {p.rating >= 3.5 && p.sales_count > 0 && (
+              <span className="text-[9px]" style={{ color: "#d4c4b4" }}>•</span>
+            )}
+            {p.sales_count > 0 && (
+              <span className="flex items-center gap-0.5 text-[9px]" style={{ color: "#b09080" }}>
+                <Users className="w-2 h-2" /> {p.sales_count}+ vendidos
+              </span>
             )}
           </div>
         )}
 
-        {p.sales_count > 0 && (
-          <p className="text-[10px] mb-0.5 flex items-center gap-0.5" style={{ color: "#9a7060" }}>
-            <Users className="w-2.5 h-2.5" /> {p.sales_count}+ vendidos
-          </p>
-        )}
-
-        <div className="flex items-baseline gap-1.5 mt-0.5 flex-wrap">
-          <span className="font-black leading-none" style={{ fontSize: "15px", color: "#1a0f07" }}>
+        <div className="flex items-baseline gap-1.5 flex-wrap">
+          <span className="font-black leading-none" style={{ fontSize: "14px", color: "#1a0f07" }}>
             {Number(p.price).toLocaleString("pt-AO")} Kz
           </span>
           {p.old_price && (
-            <span className="text-[10px] line-through" style={{ color: "#b09080" }}>
+            <span className="text-[9px] line-through" style={{ color: "#b09080" }}>
               {Number(p.old_price).toLocaleString("pt-AO")} Kz
             </span>
           )}
@@ -194,11 +202,11 @@ const ProductCard = ({
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 const Skeleton = () => (
   <div className="w-full overflow-hidden animate-pulse" style={{ borderRadius: "3px", background: "#ffffff" }}>
-    <div style={{ aspectRatio: "4/5", background: "#f0e6da" }} />
-    <div className="px-2.5 pt-2 pb-2.5 space-y-1.5">
+    <div style={{ aspectRatio: "1/1", background: "#f0e6da" }} />
+    <div className="px-2 pt-1.5 pb-2 space-y-1.5">
       <div className="h-3 rounded w-4/5" style={{ background: "#f0e6da" }} />
       <div className="h-3 rounded w-3/5" style={{ background: "#f0e6da" }} />
-      <div className="h-4 rounded w-2/5 mt-1" style={{ background: "#f0e6da" }} />
+      <div className="h-3.5 rounded w-2/5 mt-1" style={{ background: "#f0e6da" }} />
     </div>
   </div>
 );
