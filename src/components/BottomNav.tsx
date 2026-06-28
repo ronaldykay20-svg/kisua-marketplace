@@ -18,7 +18,7 @@ const BottomNav = () => {
   return (
     <nav
       className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t"
-      style={{ backgroundColor: "#c8a97e", borderColor: "#b8956a" }}
+      style={{ backgroundColor: "#F7F0E6", borderColor: "rgba(74,46,10,0.14)" }}
     >
       <div className="flex items-center justify-around h-14">
         {tabs.map(tab => {
@@ -31,11 +31,11 @@ const BottomNav = () => {
             >
               <tab.icon
                 className="w-5 h-5"
-                style={{ color: isActive ? "#7b3f00" : "rgba(255,255,255,0.75)" }}
+                style={{ color: isActive ? "#4A2E0A" : "rgba(74,46,10,0.45)" }}
               />
               <span
                 className="text-[10px] font-medium"
-                style={{ color: isActive ? "#7b3f00" : "rgba(255,255,255,0.75)" }}
+                style={{ color: isActive ? "#4A2E0A" : "rgba(74,46,10,0.45)" }}
               >
                 {tab.label}
               </span>
@@ -46,4 +46,5 @@ const BottomNav = () => {
     </nav>
   );
 };
+
 export default BottomNav;
