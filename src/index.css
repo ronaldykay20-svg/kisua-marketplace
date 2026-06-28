@@ -53,7 +53,7 @@
   }
   /* Garante que o fundo atrás da safe area do iOS fica igual ao header */
   html {
-    background-color: #D4B896;
+    background-color: #F7F0E6;
   }
 }
 @layer utilities {
