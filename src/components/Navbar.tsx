@@ -260,6 +260,7 @@ const Navbar = () => {
               </span>
             ) : (
               <>
+                <div className="flex-1" />
                 <a href="/" className="flex-shrink-0" style={{ display: "inline-flex", height: 44, position: "absolute", left: "50%", transform: "translateX(-50%)", zIndex: 1 }}>
                   <div style={{ position: "relative", display: "inline-flex", alignItems: "center", justifyContent: "center", height: 44 }}>
                     <svg
@@ -298,6 +299,7 @@ const Navbar = () => {
                     </div>
                   </div>
                 </a>
+                <div className="flex-1" />
               </>
             )}
 
