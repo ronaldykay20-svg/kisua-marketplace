@@ -212,17 +212,39 @@ const ProductDetail = () => {
 
   const handleShare = async () => {
     trackEvent(id!, "share", {});
+
+    const title = (dbProduct as any)?.title || "Produto";
+    const price = activePrice;
+    const desc = `${(dbProduct as any)?.description?.slice(0, 100) || ""}${price ? `\n💰 ${price}` : ""}`;
+    const url = window.location.href;
+
     try {
       if (navigator.share) {
-        await navigator.share({
-          title: (dbProduct as any)?.title || "Produto",
-          text: (dbProduct as any)?.description?.slice(0, 120) || "",
-          url: window.location.href,
-        });
-      } else {
-        await navigator.clipboard.writeText(window.location.href);
-        toast.success("Link copiado!");
+        // Tenta partilhar com imagem como ficheiro
+        if (currentImageUrl) {
+          try {
+            const res = await fetch(currentImageUrl);
+            const blob = await res.blob();
+            const ext = blob.type.includes("png") ? "png" : "jpg";
+            const file = new File([blob], `produto.${ext}`, { type: blob.type });
+
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+              await navigator.share({ title, text: `${desc}\n\n${url}`, files: [file] });
+              return;
+            }
+          } catch (_) {
+            // Se falhar o download da imagem, continua sem imagem
+          }
+        }
+
+        // Partilha sem imagem mas com título, descrição e link
+        await navigator.share({ title, text: `${desc}\n\n${url}` });
+        return;
       }
+
+      // Fallback: copia tudo para a área de transferência
+      await navigator.clipboard.writeText(`${title}\n${desc}\n\n${url}`);
+      toast.success("Link copiado!");
     } catch (err: any) {
       if (err?.name !== "AbortError") toast.error("Não foi possível partilhar");
     }
