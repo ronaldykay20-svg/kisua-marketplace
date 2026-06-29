@@ -113,6 +113,8 @@ const ProductDetail = () => {
   const [selectedSubVariants, setSelectedSubVariants] = useState<Record<string, string>>({});
   const [zoomOpen, setZoomOpen] = useState(false);
   const [descExpanded, setDescExpanded] = useState(false);
+  // ── FIX 2: Estado separado para "Comprar agora" ───────────────────────────
+  const [buyingNow, setBuyingNow] = useState(false);
   const touchStartX = useRef<number | null>(null);
   const viewTracked = useRef(false);
   const isUuid = id && id.length > 10;
@@ -228,6 +230,7 @@ const ProductDetail = () => {
 
   const getVariantId = () => Object.values(selectedSubVariants).find(Boolean) || Object.values(selectedVariants).find(Boolean) || undefined;
 
+  // ── FIX 2: Carrinho — não bloqueia "Comprar agora" ───────────────────────
   const handleAddToCart = () => {
     if (!user) { navigate("/auth"); return; }
     if (!isUuid) { toast.info("Produto de demonstração"); return; }
@@ -235,10 +238,11 @@ const ProductDetail = () => {
     addToCart.mutate({ productId: id!, quantity: qty, variantId: getVariantId() });
   };
 
-  // Comprar agora — sempre só este produto, direto para checkout
-  const handleBuyNow = () => {
+  // ── FIX 2: Comprar agora — estado próprio, ignora carrinho ───────────────
+  const handleBuyNow = async () => {
     if (!user) { navigate("/auth"); return; }
     if (!isUuid) { toast.info("Produto de demonstração"); return; }
+    setBuyingNow(true);
     trackEvent(id!, "buy_now", { quantity: qty });
     navigate("/checkout", {
       state: {
@@ -249,6 +253,7 @@ const ProductDetail = () => {
         },
       },
     });
+    setBuyingNow(false);
   };
 
   const handleZoom = () => { trackEvent(id!, "image_zoom", { image_index: selectedImage }); setZoomOpen(true); };
@@ -280,7 +285,6 @@ const ProductDetail = () => {
     width_cm: productBase.width_cm || null, height_cm: productBase.height_cm || null,
   };
 
-  // ── FIX 2: Variants — show ALL groups (parent + active children) ──────────
   const parentVariants = (dbVariants as any[]).filter((v: any) => !v.parent_id);
   const childVariants  = (dbVariants as any[]).filter((v: any) =>  v.parent_id);
   const variantGroups: Record<string, any[]> = {};
@@ -289,9 +293,6 @@ const ProductDetail = () => {
     variantGroups[v.variant_type].push(v);
   });
 
-  // Children: always show all child groups that exist, regardless of parent selection
-  // (so customer sees all available options upfront). Filter to selected parents when
-  // a parent IS selected.
   const selectedParentIds = Object.values(selectedVariants).filter(Boolean);
   const activeChildren = childVariants.filter((c: any) =>
     selectedParentIds.length > 0 ? selectedParentIds.includes(c.parent_id) : true
@@ -299,7 +300,6 @@ const ProductDetail = () => {
   const childGroups: Record<string, any[]> = {};
   activeChildren.forEach((v: any) => {
     if (!childGroups[v.variant_type]) childGroups[v.variant_type] = [];
-    // Deduplicate by name to avoid repetition when no parent selected
     if (!childGroups[v.variant_type].some((x: any) => x.name === v.name)) {
       childGroups[v.variant_type].push(v);
     }
@@ -334,7 +334,6 @@ const ProductDetail = () => {
   const relatedProducts = relatedDb.slice(0, 20);
   const popularityBadge = product.reviews && product.reviews > 200 ? `Em ${Math.floor(product.reviews / 5)}+ carrinhos` : null;
 
-  // ── FIX 2: VariantPill (unchanged, handles color + generic) ──────────────
   const VariantPill = ({ v, selected, onSelect, type }: { v: any; selected: boolean; onSelect: () => void; type: string }) => {
     if (type === "color" && v.value?.startsWith("#")) {
       return (
@@ -356,7 +355,6 @@ const ProductDetail = () => {
     );
   };
 
-  // Compute how many variant groups are visible total
   const totalVariantGroupCount = Object.keys(variantGroups).length + Object.keys(childGroups).length;
 
   return (
@@ -388,12 +386,57 @@ const ProductDetail = () => {
         </div>
       </div>
 
-      {/* ── FIX 3: BLOCO TOPO — sem border visível quando há anúncio ── */}
-      <div className={`px-3 pt-3 pb-2 ${sideBannerAd?.media_url ? "" : "border-b border-gray-100"}`}>
-        <div className={sideBannerAd?.media_url ? "grid grid-cols-2 gap-3 items-start" : ""}>
+      {/* ── BLOCO TOPO ── */}
+      {/*
+        FIX 3 — Desktop layout:
+        - No desktop (md+), mostra info do produto em coluna esquerda e a imagem principal
+          em coluna direita (sem o banner lateral que era muito grande).
+        - O banner lateral só aparece em mobile (abaixo do título) para não ficar gigante.
+        - Usamos max-w-5xl mx-auto para centrar o conteúdo em ecrãs largos.
+      */}
+      <div className="max-w-5xl mx-auto">
 
-          {/* Coluna esquerda — info do produto */}
-          <div className="min-w-0">
+        {/* ── LAYOUT DESKTOP: grid de 2 colunas ── */}
+        <div className="md:grid md:grid-cols-2 md:gap-8 md:px-6 md:pt-6 md:pb-4">
+
+          {/* COLUNA ESQUERDA (desktop) — imagem principal + thumbnails */}
+          <div className="md:block">
+            {/* Imagem principal */}
+            <div className="relative bg-gray-50"
+              onTouchStart={e => { touchStartX.current = e.touches[0].clientX; }}
+              onTouchEnd={e => { if (touchStartX.current === null) return; const diff = touchStartX.current - e.changedTouches[0].clientX; if (Math.abs(diff) > 40) setSelectedImage(i => diff > 0 ? Math.min(i + 1, displayImages.length - 1) : Math.max(i - 1, 0)); touchStartX.current = null; }}>
+              {/* Mobile: full width; Desktop: rounded + max height controlled by grid */}
+              <div className="w-full md:rounded-2xl md:overflow-hidden" style={{ aspectRatio: "1/1" }}>
+                {displayImages[selectedImage]?.type === "video"
+                  ? <video src={displayImages[selectedImage].url} controls className="w-full h-full object-contain" />
+                  : <img src={displayImages[selectedImage]?.url} alt={product.title} className="w-full h-full object-contain" />}
+              </div>
+              {product.discount && <div className="absolute top-2 left-2 px-2 py-0.5 rounded text-xs font-black text-white bg-red-500">{product.discount}</div>}
+              {product.badge === "HOT" && !product.discount && <div className="absolute top-2 left-2 px-2 py-0.5 rounded text-xs font-black text-white" style={{ background: N.brown }}>🔥 Hot</div>}
+              <button onClick={handleZoom} className="absolute bottom-2 right-2 w-8 h-8 rounded-full flex items-center justify-center bg-white border border-gray-200 shadow">
+                <ZoomIn className="w-4 h-4 text-gray-600" />
+              </button>
+            </div>
+
+            {/* Thumbnails strip */}
+            {displayImages.length > 1 && (
+              <div className="flex gap-2 px-3 md:px-0 py-2 overflow-x-auto scrollbar-hide bg-white border-b border-gray-100 md:border-none">
+                {displayImages.map((img, i) => (
+                  <button key={i} onClick={() => setSelectedImage(i)} className="flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden border-2 transition-all"
+                    style={{ borderColor: i === selectedImage ? N.brown : "#ddd", opacity: i === selectedImage ? 1 : 0.6 }}>
+                    {img.type === "video" ? <video src={img.url} className="w-full h-full object-cover" /> : <img src={img.url} alt="" className="w-full h-full object-cover" />}
+                  </button>
+                ))}
+                <div className="flex items-center gap-1 ml-auto flex-shrink-0 md:hidden">
+                  {displayImages.map((_, i) => <span key={i} className="rounded-full transition-all" style={{ width: i === selectedImage ? 14 : 5, height: 5, background: i === selectedImage ? N.brown : "#ccc" }} />)}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* COLUNA DIREITA (desktop) — info do produto; em mobile fica abaixo da imagem */}
+          <div className={`px-3 pt-3 pb-2 md:px-0 md:pt-0 md:pb-0 ${sideBannerAd?.media_url ? "" : "border-b border-gray-100 md:border-none"}`}>
+
             {/* Vendedor */}
             {publisher && !loadingPublisher && (
               <button onClick={handlePublisherNavigate} className="flex items-center gap-2 mb-1.5 w-full text-left">
@@ -408,7 +451,7 @@ const ProductDetail = () => {
               </button>
             )}
 
-            <h1 className="text-base font-bold leading-snug text-gray-900 line-clamp-2">{product.title}</h1>
+            <h1 className="text-base md:text-xl font-bold leading-snug text-gray-900 line-clamp-2 md:line-clamp-none">{product.title}</h1>
 
             {/* Rating */}
             {product.rating ? (
@@ -428,7 +471,7 @@ const ProductDetail = () => {
             <div className="mt-2">
               {product.discount && <p className="text-[10px] font-bold uppercase text-red-600">Oferta por tempo limitado</p>}
               <div className="flex items-baseline gap-2 flex-wrap">
-                <span className="text-2xl font-black" style={{ color: N.brown }}>{activePrice}</span>
+                <span className="text-2xl md:text-3xl font-black" style={{ color: N.brown }}>{activePrice}</span>
                 {product.discount && <span className="text-xs font-bold px-2 py-0.5 rounded-full text-red-600 bg-red-50">{product.discount}</span>}
               </div>
               {product.oldPrice && <p className="text-sm line-through text-gray-400">De: {product.oldPrice}</p>}
@@ -436,229 +479,206 @@ const ProductDetail = () => {
                 <p className="text-xs font-bold text-green-700 flex items-center gap-1 mt-0.5"><Truck className="w-3.5 h-3.5" /> Frete grátis</p>
               )}
             </div>
-          </div>
 
-          {/* FIX 3: Coluna direita — banner publicitário sem bordas visíveis */}
-          {sideBannerAd?.media_url && (
-            <div className="flex-shrink-0">
-              <p className="text-[8px] text-gray-400 text-right mb-0.5 uppercase tracking-wide">Pub</p>
-              {sideBannerAd.destination_url ? (
-                <a href={sideBannerAd.destination_url} target="_blank" rel="noopener noreferrer" className="block">
-                  <SideBannerContent ad={sideBannerAd} />
-                </a>
-              ) : (
-                <SideBannerContent ad={sideBannerAd} />
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* FIX 3: divider rendered BELOW the grid so it spans full width cleanly */}
-        {sideBannerAd?.media_url && <div className="mt-3 -mx-3 h-px bg-gray-100" />}
-      </div>
-
-      {/* ── IMAGEM PRINCIPAL ── */}
-      <div className="relative bg-gray-50"
-        onTouchStart={e => { touchStartX.current = e.touches[0].clientX; }}
-        onTouchEnd={e => { if (touchStartX.current === null) return; const diff = touchStartX.current - e.changedTouches[0].clientX; if (Math.abs(diff) > 40) setSelectedImage(i => diff > 0 ? Math.min(i + 1, displayImages.length - 1) : Math.max(i - 1, 0)); touchStartX.current = null; }}>
-        <div className="w-full" style={{ aspectRatio: "1/1", maxHeight: 380 }}>
-          {displayImages[selectedImage]?.type === "video"
-            ? <video src={displayImages[selectedImage].url} controls className="w-full h-full object-contain" />
-            : <img src={displayImages[selectedImage]?.url} alt={product.title} className="w-full h-full object-contain" />}
-        </div>
-        {product.discount && <div className="absolute top-2 left-2 px-2 py-0.5 rounded text-xs font-black text-white bg-red-500">{product.discount}</div>}
-        {product.badge === "HOT" && !product.discount && <div className="absolute top-2 left-2 px-2 py-0.5 rounded text-xs font-black text-white" style={{ background: N.brown }}>🔥 Hot</div>}
-        <button onClick={handleZoom} className="absolute bottom-2 right-2 w-8 h-8 rounded-full flex items-center justify-center bg-white border border-gray-200 shadow">
-          <ZoomIn className="w-4 h-4 text-gray-600" />
-        </button>
-      </div>
-
-      {/* Thumbnails strip */}
-      {displayImages.length > 1 && (
-        <div className="flex gap-2 px-3 py-2 overflow-x-auto scrollbar-hide bg-white border-b border-gray-100">
-          {displayImages.map((img, i) => (
-            <button key={i} onClick={() => setSelectedImage(i)} className="flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden border-2 transition-all"
-              style={{ borderColor: i === selectedImage ? N.brown : "#ddd", opacity: i === selectedImage ? 1 : 0.6 }}>
-              {img.type === "video" ? <video src={img.url} className="w-full h-full object-cover" /> : <img src={img.url} alt="" className="w-full h-full object-cover" />}
-            </button>
-          ))}
-          <div className="flex items-center gap-1 ml-auto flex-shrink-0">
-            {displayImages.map((_, i) => <span key={i} className="rounded-full transition-all" style={{ width: i === selectedImage ? 14 : 5, height: 5, background: i === selectedImage ? N.brown : "#ccc" }} />)}
-          </div>
-        </div>
-      )}
-
-      {/* ── FIX 2: VARIANTES — todos os grupos visíveis ── */}
-      {totalVariantGroupCount > 0 && (
-        <div className="bg-white border-b border-gray-100 px-3 py-3 space-y-4">
-          {/* Label com contagem total de opções */}
-          <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
-            Opções disponíveis
-          </p>
-
-          {/* Grupos de variantes pai */}
-          {Object.entries(variantGroups).map(([type, variants]) => {
-            const selId = selectedVariants[type];
-            return (
-              <div key={type}>
-                <p className="text-sm font-bold text-gray-800 mb-2">
-                  {typeLabels[type] || type}
-                  {selId && <span className="font-normal text-gray-500 ml-1">: {variants.find((v: any) => v.id === selId)?.name}</span>}
-                  <span className="ml-2 text-[10px] font-semibold text-gray-400">({variants.length})</span>
-                </p>
-                <div className="flex gap-2 flex-wrap">
-                  {variants.map((v: any) => (
-                    <VariantPill
-                      key={v.id} v={v} type={type}
-                      selected={selId === v.id}
-                      onSelect={() => {
-                        setSelectedVariants(p => ({ ...p, [type]: selId === v.id ? "" : v.id }));
-                        if (selId === v.id) setSelectedSubVariants({});
-                        trackEvent(id!, "variant_select", { variant_id: v.id, variant_type: type });
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-
-          {/* Grupos de sub-variantes — sempre visíveis */}
-          {Object.entries(childGroups).map(([type, variants]) => {
-            const selId = selectedSubVariants[type];
-            return (
-              <div key={`sub-${type}`}>
-                <p className="text-sm font-bold text-gray-800 mb-2">
-                  {typeLabels[type] || type}
-                  {selId && <span className="font-normal text-gray-500 ml-1">: {variants.find((v: any) => v.id === selId)?.name}</span>}
-                  <span className="ml-2 text-[10px] font-semibold text-gray-400">({variants.length})</span>
-                </p>
-                <div className="flex gap-2 flex-wrap">
-                  {variants.map((v: any) => (
-                    <VariantPill
-                      key={v.id} v={v} type={type}
-                      selected={selId === v.id}
-                      onSelect={() => {
-                        setSelectedSubVariants(p => ({ ...p, [type]: selId === v.id ? "" : v.id }));
-                        trackEvent(id!, "variant_select", { variant_id: v.id, variant_type: type, is_sub: true });
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* ── ESPECIFICAÇÕES ── */}
-      {specRows.length > 0 && (
-        <div className="bg-white border-b border-gray-100 px-3 py-3">
-          <p className="text-sm font-bold text-gray-900 mb-2">Especificações</p>
-          <div className="grid grid-cols-2 gap-0">
-            {specRows.map((row, i) => (
-              <div key={row.label} className="py-2 px-2" style={{ background: i % 2 === 0 ? "#fafafa" : "#fff", borderBottom: "1px solid #f0f0f0" }}>
-                <p className="text-[10px] text-gray-400 uppercase tracking-wide">{row.label}</p>
-                <p className="text-xs font-semibold text-gray-900 mt-0.5">{row.value}</p>
-              </div>
-            ))}
-            {specRows.length % 2 !== 0 && (
-              <div className="py-2 px-2" style={{ background: "#fff", borderBottom: "1px solid #f0f0f0" }} />
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ── SOBRE O PRODUTO ── */}
-      <div className="bg-white border-b border-gray-100 px-3 py-3">
-        <p className="text-sm font-bold text-gray-900 mb-1.5">Sobre este produto</p>
-        <p className={`text-sm leading-relaxed text-gray-700 whitespace-pre-line ${!descExpanded ? "line-clamp-4" : ""}`}>
-          {product.description || "Produto de alta qualidade disponível no ZANGU."}
-        </p>
-        {product.description && product.description.length > 200 && (
-          <button onClick={() => setDescExpanded(v => !v)} className="text-xs font-bold mt-1" style={{ color: N.accent }}>
-            {descExpanded ? "Ver menos ▲" : "Ver mais ▼"}
-          </button>
-        )}
-        <div className="grid grid-cols-2 gap-2 mt-3">
-          {[
-            { icon: "✅", text: "Produto original com garantia" },
-            { icon: "🚚", text: "Envio para todo o país" },
-            { icon: "🔒", text: "Pagamento seguro" },
-            { icon: "⭐", text: "Suporte ao cliente 24/7" },
-            { icon: "↩️", text: "Devolução grátis 3 dias" },
-            { icon: "📦", text: "Embalagem protegida" },
-          ].map((b, i) => (
-            <div key={i} className="flex items-start gap-1.5 p-2 rounded-lg" style={{ background: "#fafafa", border: "1px solid #f0f0f0" }}>
-              <span className="text-sm flex-shrink-0">{b.icon}</span>
-              <span className="text-[11px] text-gray-700 leading-tight">{b.text}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ── ENTREGA ── */}
-      <div className="bg-white border-b border-gray-100 px-3 py-3">
-        <p className="text-sm font-bold text-gray-900 mb-2">Entrega e devoluções</p>
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { icon: <MapPin className="w-4 h-4 text-blue-500" />, bg: "#eff6ff", title: "Luanda, Angola", sub: "2–5 dias úteis" },
-            { icon: <Shield className="w-4 h-4 text-green-600" />, bg: "#f0fdf4", title: "Devolução grátis", sub: "Até 3 dias" },
-            { icon: <ShieldCheck className="w-4 h-4 text-purple-500" />, bg: "#faf5ff", title: "Pag. seguro", sub: "Encriptado" },
-          ].map((item, i) => (
-            <div key={i} className="flex flex-col items-center text-center p-2 rounded-lg" style={{ background: item.bg }}>
-              {item.icon}
-              <p className="text-[10px] font-bold text-gray-800 mt-1 leading-tight">{item.title}</p>
-              <p className="text-[9px] text-gray-500 mt-0.5">{item.sub}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ── AVALIAÇÕES ── */}
-      <ProductReviewsSection productId={id || ""} product={product} dbReviews={dbReviews} userOrders={userOrders} trackEvent={trackEvent} />
-
-      {/* ── PRODUTOS RELACIONADOS ── */}
-      {relatedProducts.length > 0 && (
-        <div className="bg-white border-b border-gray-100 px-3 py-3">
-          <p className="text-sm font-bold text-gray-900 mb-3">Produtos relacionados</p>
-          <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
-            {relatedProducts.map((p: any) => (
-              <MinimalProductCard key={p.id} product={p} onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "related" }); navigate(`/produto/${p.id}`); }} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── ADS (fundo de página) ── */}
-      {productAds.length > 0 && (
-        <div className="bg-white px-3 py-3 space-y-3">
-          <p className="text-[10px] text-right text-gray-400">Publicidade</p>
-          {productAds.map((ad: any) => {
-            const inner = (
-              <div className="rounded-xl overflow-hidden border border-gray-200">
-                {ad.media_url ? (
-                  <div className="relative">
-                    {ad.media_type === "video" ? <video src={ad.media_url} className="w-full object-cover max-h-36" autoPlay muted loop playsInline /> : <img src={ad.media_url} alt={ad.title || ""} className="w-full object-cover max-h-36" />}
-                    {ad.title && <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent px-3 py-2"><p className="text-white text-xs font-bold truncate">{ad.title}</p></div>}
-                    <span className="absolute top-2 right-2 text-[9px] font-bold text-white/80 bg-black/40 px-1.5 py-0.5 rounded-full">Patrocinado</span>
-                  </div>
+            {/* FIX 3: banner lateral — só aparece em mobile (md:hidden) para não ficar gigante no desktop */}
+            {sideBannerAd?.media_url && (
+              <div className="md:hidden mt-3">
+                <p className="text-[8px] text-gray-400 text-right mb-0.5 uppercase tracking-wide">Pub</p>
+                {sideBannerAd.destination_url ? (
+                  <a href={sideBannerAd.destination_url} target="_blank" rel="noopener noreferrer" className="block">
+                    <SideBannerContent ad={sideBannerAd} />
+                  </a>
                 ) : (
-                  <div className="px-4 py-3 flex items-center justify-between gap-3 bg-gray-50">
-                    <p className="text-sm font-bold truncate text-gray-800">{ad.title}</p>
-                    <span className="text-[10px] font-bold border rounded-full px-2 py-0.5 text-gray-600 border-gray-300">Ver mais</span>
-                  </div>
+                  <SideBannerContent ad={sideBannerAd} />
                 )}
               </div>
-            );
-            return ad.destination_url ? <a key={ad.id} href={ad.destination_url} target="_blank" rel="noopener noreferrer" className="block">{inner}</a> : <div key={ad.id}>{inner}</div>;
-          })}
+            )}
+
+            {/* ── Botões de ação DESKTOP (visíveis só em md+) ── */}
+            <div className="hidden md:block mt-5">
+              {/* Quantidade */}
+              <div className="flex items-center gap-3 mb-4">
+                <span className="text-sm font-semibold text-gray-700">Quantidade:</span>
+                <div className="flex items-center rounded-lg overflow-hidden border border-gray-300">
+                  <button onClick={() => setQty(q => Math.max(1, q - 1))} className="w-9 h-9 flex items-center justify-center text-gray-600 hover:bg-gray-50"><Minus className="w-4 h-4" /></button>
+                  <span className="w-10 text-center text-sm font-bold text-gray-900">{qty}</span>
+                  <button onClick={() => setQty(q => q + 1)} className="w-9 h-9 flex items-center justify-center text-gray-600 hover:bg-gray-50"><Plus className="w-4 h-4" /></button>
+                </div>
+              </div>
+              {/* Botões */}
+              <div className="flex gap-3">
+                <button onClick={handleAddToCart} disabled={addToCart.isPending}
+                  className="flex-1 py-3 rounded-xl font-bold text-sm transition flex items-center justify-center gap-2 disabled:opacity-50 border hover:bg-gray-50"
+                  style={{ borderColor: N.brown, color: N.brown, background: "#fff" }}>
+                  {addToCart.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />} Adicionar ao carrinho
+                </button>
+                <button onClick={handleBuyNow} disabled={buyingNow}
+                  className="flex-1 py-3 rounded-xl font-bold text-sm text-white transition flex items-center justify-center gap-2 disabled:opacity-50 hover:opacity-90"
+                  style={{ background: N.brown }}>
+                  {buyingNow && <Loader2 className="w-4 h-4 animate-spin" />} Comprar agora
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
-      )}
+
+        {/* ── MOBILE: imagem principal fica ANTES da info (invertido no mobile via order) ── */}
+        {/* NOTE: A imagem mobile já está dentro do grid acima. Em mobile o CSS natural empilha
+            coluna 1 (imagem) depois coluna 2 (info). Perfeito. */}
+
+        {/* ── VARIANTES ── */}
+        {totalVariantGroupCount > 0 && (
+          <div className="bg-white border-b border-gray-100 px-3 md:px-6 py-3 space-y-4">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Opções disponíveis</p>
+            {Object.entries(variantGroups).map(([type, variants]) => {
+              const selId = selectedVariants[type];
+              return (
+                <div key={type}>
+                  <p className="text-sm font-bold text-gray-800 mb-2">
+                    {typeLabels[type] || type}
+                    {selId && <span className="font-normal text-gray-500 ml-1">: {variants.find((v: any) => v.id === selId)?.name}</span>}
+                    <span className="ml-2 text-[10px] font-semibold text-gray-400">({variants.length})</span>
+                  </p>
+                  <div className="flex gap-2 flex-wrap">
+                    {variants.map((v: any) => (
+                      <VariantPill key={v.id} v={v} type={type} selected={selectedVariants[type] === v.id}
+                        onSelect={() => { setSelectedVariants(p => ({ ...p, [type]: selectedVariants[type] === v.id ? "" : v.id })); if (selectedVariants[type] === v.id) setSelectedSubVariants({}); trackEvent(id!, "variant_select", { variant_id: v.id, variant_type: type }); }} />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+            {Object.entries(childGroups).map(([type, variants]) => {
+              const selId = selectedSubVariants[type];
+              return (
+                <div key={`sub-${type}`}>
+                  <p className="text-sm font-bold text-gray-800 mb-2">
+                    {typeLabels[type] || type}
+                    {selId && <span className="font-normal text-gray-500 ml-1">: {variants.find((v: any) => v.id === selId)?.name}</span>}
+                    <span className="ml-2 text-[10px] font-semibold text-gray-400">({variants.length})</span>
+                  </p>
+                  <div className="flex gap-2 flex-wrap">
+                    {variants.map((v: any) => (
+                      <VariantPill key={v.id} v={v} type={type} selected={selectedSubVariants[type] === v.id}
+                        onSelect={() => { setSelectedSubVariants(p => ({ ...p, [type]: selectedSubVariants[type] === v.id ? "" : v.id })); trackEvent(id!, "variant_select", { variant_id: v.id, variant_type: type, is_sub: true }); }} />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ── ESPECIFICAÇÕES ── */}
+        {specRows.length > 0 && (
+          <div className="bg-white border-b border-gray-100 px-3 md:px-6 py-3">
+            <p className="text-sm font-bold text-gray-900 mb-2">Especificações</p>
+            <div className="grid grid-cols-2 gap-0">
+              {specRows.map((row, i) => (
+                <div key={row.label} className="py-2 px-2" style={{ background: i % 2 === 0 ? "#fafafa" : "#fff", borderBottom: "1px solid #f0f0f0" }}>
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wide">{row.label}</p>
+                  <p className="text-xs font-semibold text-gray-900 mt-0.5">{row.value}</p>
+                </div>
+              ))}
+              {specRows.length % 2 !== 0 && (
+                <div className="py-2 px-2" style={{ background: "#fff", borderBottom: "1px solid #f0f0f0" }} />
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── SOBRE O PRODUTO ── */}
+        <div className="bg-white border-b border-gray-100 px-3 md:px-6 py-3">
+          <p className="text-sm font-bold text-gray-900 mb-1.5">Sobre este produto</p>
+          <p className={`text-sm leading-relaxed text-gray-700 whitespace-pre-line ${!descExpanded ? "line-clamp-4" : ""}`}>
+            {product.description || "Produto de alta qualidade disponível no ZANGU."}
+          </p>
+          {product.description && product.description.length > 200 && (
+            <button onClick={() => setDescExpanded(v => !v)} className="text-xs font-bold mt-1" style={{ color: N.accent }}>
+              {descExpanded ? "Ver menos ▲" : "Ver mais ▼"}
+            </button>
+          )}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-3">
+            {[
+              { icon: "✅", text: "Produto original com garantia" },
+              { icon: "🚚", text: "Envio para todo o país" },
+              { icon: "🔒", text: "Pagamento seguro" },
+              { icon: "⭐", text: "Suporte ao cliente 24/7" },
+              { icon: "↩️", text: "Devolução grátis 3 dias" },
+              { icon: "📦", text: "Embalagem protegida" },
+            ].map((b, i) => (
+              <div key={i} className="flex items-start gap-1.5 p-2 rounded-lg" style={{ background: "#fafafa", border: "1px solid #f0f0f0" }}>
+                <span className="text-sm flex-shrink-0">{b.icon}</span>
+                <span className="text-[11px] text-gray-700 leading-tight">{b.text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── ENTREGA ── */}
+        <div className="bg-white border-b border-gray-100 px-3 md:px-6 py-3">
+          <p className="text-sm font-bold text-gray-900 mb-2">Entrega e devoluções</p>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { icon: <MapPin className="w-4 h-4 text-blue-500" />, bg: "#eff6ff", title: "Luanda, Angola", sub: "2–5 dias úteis" },
+              { icon: <Shield className="w-4 h-4 text-green-600" />, bg: "#f0fdf4", title: "Devolução grátis", sub: "Até 3 dias" },
+              { icon: <ShieldCheck className="w-4 h-4 text-purple-500" />, bg: "#faf5ff", title: "Pag. seguro", sub: "Encriptado" },
+            ].map((item, i) => (
+              <div key={i} className="flex flex-col items-center text-center p-2 rounded-lg" style={{ background: item.bg }}>
+                {item.icon}
+                <p className="text-[10px] font-bold text-gray-800 mt-1 leading-tight">{item.title}</p>
+                <p className="text-[9px] text-gray-500 mt-0.5">{item.sub}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── AVALIAÇÕES ── */}
+        <ProductReviewsSection productId={id || ""} product={product} dbReviews={dbReviews} userOrders={userOrders} trackEvent={trackEvent} />
+
+        {/* ── PRODUTOS RELACIONADOS ── */}
+        {relatedProducts.length > 0 && (
+          <div className="bg-white border-b border-gray-100 px-3 md:px-6 py-3">
+            <p className="text-sm font-bold text-gray-900 mb-3">Produtos relacionados</p>
+            <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
+              {relatedProducts.map((p: any) => (
+                <MinimalProductCard key={p.id} product={p} onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "related" }); navigate(`/produto/${p.id}`); }} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── ADS (fundo de página) ── */}
+        {productAds.length > 0 && (
+          <div className="bg-white px-3 md:px-6 py-3 space-y-3">
+            <p className="text-[10px] text-right text-gray-400">Publicidade</p>
+            {productAds.map((ad: any) => {
+              const inner = (
+                <div className="rounded-xl overflow-hidden border border-gray-200 md:max-w-lg">
+                  {ad.media_url ? (
+                    <div className="relative">
+                      {ad.media_type === "video" ? <video src={ad.media_url} className="w-full object-cover max-h-36" autoPlay muted loop playsInline /> : <img src={ad.media_url} alt={ad.title || ""} className="w-full object-cover max-h-36" />}
+                      {ad.title && <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent px-3 py-2"><p className="text-white text-xs font-bold truncate">{ad.title}</p></div>}
+                      <span className="absolute top-2 right-2 text-[9px] font-bold text-white/80 bg-black/40 px-1.5 py-0.5 rounded-full">Patrocinado</span>
+                    </div>
+                  ) : (
+                    <div className="px-4 py-3 flex items-center justify-between gap-3 bg-gray-50">
+                      <p className="text-sm font-bold truncate text-gray-800">{ad.title}</p>
+                      <span className="text-[10px] font-bold border rounded-full px-2 py-0.5 text-gray-600 border-gray-300">Ver mais</span>
+                    </div>
+                  )}
+                </div>
+              );
+              return ad.destination_url ? <a key={ad.id} href={ad.destination_url} target="_blank" rel="noopener noreferrer" className="block">{inner}</a> : <div key={ad.id}>{inner}</div>;
+            })}
+          </div>
+        )}
+
+      </div>{/* /max-w-5xl */}
 
       <div className="h-28 md:hidden" aria-hidden />
 
-      {/* ── BARRA INFERIOR MOBILE ── */}
+      {/* ── BARRA INFERIOR MOBILE (hidden no desktop) ── */}
       <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-white border-t border-gray-200"
         style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
         <div className="flex items-center gap-2 px-3 pt-2 pb-1">
@@ -670,15 +690,16 @@ const ProductDetail = () => {
           <span className="text-sm font-black ml-auto" style={{ color: N.brown }}>{activePrice}</span>
         </div>
         <div className="flex gap-2 px-3 pt-1">
+          {/* FIX 2: disabled INDEPENDENTE — carrinho e comprar agora não se bloqueiam mutuamente */}
           <button onClick={handleAddToCart} disabled={addToCart.isPending}
             className="flex-1 py-3 rounded-xl font-bold text-sm transition flex items-center justify-center gap-1.5 disabled:opacity-50 border"
             style={{ borderColor: N.brown, color: N.brown, background: "#fff" }}>
             {addToCart.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />} Carrinho
           </button>
-          <button onClick={handleBuyNow} disabled={addToCart.isPending}
+          <button onClick={handleBuyNow} disabled={buyingNow}
             className="flex-1 py-3 rounded-xl font-bold text-sm text-white transition flex items-center justify-center gap-1.5 disabled:opacity-50"
             style={{ background: N.brown }}>
-            {addToCart.isPending && <Loader2 className="w-4 h-4 animate-spin" />} Comprar agora
+            {buyingNow && <Loader2 className="w-4 h-4 animate-spin" />} Comprar agora
           </button>
         </div>
       </div>
@@ -686,9 +707,9 @@ const ProductDetail = () => {
   );
 };
 
-// ─── Banner lateral (sem bordas visíveis, apenas o media) ─────────────────────
+// ─── Banner lateral content ────────────────────────────────────────────────────
 const SideBannerContent = ({ ad }: { ad: any }) => (
-  <div className="rounded-xl overflow-hidden relative" style={{ aspectRatio: "1/1" }}>
+  <div className="rounded-xl overflow-hidden relative" style={{ aspectRatio: "1/1", maxWidth: 160 }}>
     {ad.media_type === "video"
       ? <video src={ad.media_url} className="w-full h-full object-cover" autoPlay muted loop playsInline />
       : <img src={ad.media_url} alt={ad.title || "Anúncio"} className="w-full h-full object-cover" />}
@@ -753,7 +774,7 @@ const ProductReviewsSection = ({ productId, product, dbReviews, userOrders, trac
   });
 
   return (
-    <div className="bg-white border-b border-gray-100 px-3 py-3">
+    <div className="bg-white border-b border-gray-100 px-3 md:px-6 py-3">
       <div className="flex items-center justify-between mb-3">
         <p className="text-sm font-bold text-gray-900">Avaliações dos clientes</p>
         {canReview && (
