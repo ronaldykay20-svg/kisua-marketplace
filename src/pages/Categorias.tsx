@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { ShoppingBag, ShoppingCart, Search, Sparkles, Trophy } from "lucide-react";
+import { ShoppingBag, ShoppingCart, Search, Trophy, Heart, Menu, SlidersHorizontal, Star } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,20 +7,24 @@ import { useCategories } from "@/hooks/useSupabaseData";
 import { useAddToCart } from "@/hooks/useCartActions";
 
 /* ════════════════════════════════════════════════════════════
-   TOKENS — identidade "mercado": terracota, areia e cacau
+   TOKENS — onde a referência usa azul, entra um castanho fraco
+   (suave, dessaturado) em vez de um castanho escuro/forte
    ════════════════════════════════════════════════════════════ */
 const bg          = "#FAF5EE";   // papel quente
 const surface     = "#FFFFFF";
-const ink         = "#2E1B0E";   // cacau profundo
-const inkSoft     = "#7A6249";   // cacau suave (texto secundário)
+const ink         = "#2E1B0E";   // texto principal
+const inkSoft     = "#7A6249";   // texto secundário
+const headerBrown = "#A9835C";   // castanho fraco — substitui o azul Walmart
+const headerBrownDeep = "#8F6C49";
 const sand        = "#E3C49C";
 const sandDeep    = "#B9803F";
-const clay        = "#A8552E";   // terracota — CTA / preço
-const gold        = "#C8932F";   // selo / avaliação
-const line         = "rgba(46,27,14,0.10)";
-const lineSoft     = "rgba(46,27,14,0.06)";
-const shadowSm     = "0 1px 3px rgba(46,27,14,0.08)";
-const shadowMd     = "0 4px 16px rgba(46,27,14,0.10)";
+const clay        = "#A8552E";   // tag de promoção (substitui o "Rollback" vermelho-marca)
+const gold        = "#C8932F";
+const dealGreen   = "#1E7A3C";   // preço em promoção — mantém-se verde, não é um elemento "azul"
+const line        = "rgba(46,27,14,0.10)";
+const lineSoft    = "rgba(46,27,14,0.06)";
+const shadowSm    = "0 1px 3px rgba(46,27,14,0.08)";
+const shadowMd    = "0 4px 16px rgba(46,27,14,0.10)";
 
 const fontDisplay = "'Fraunces', Georgia, serif";
 const fontBody    = "'Manrope', system-ui, sans-serif";
@@ -95,16 +99,22 @@ const useTopProducts = () =>
         (mediaData || []).forEach((m: any) => { coverMap[m.product_id] = m.url; });
       }
 
-      return (data || []).map((p: any) => ({
-        id: p.id,
-        title: p.title,
-        price: Number(p.price),
-        priceFormatted: formatPrice(Number(p.price)),
-        image: coverMap[p.id] || p.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&h=600&fit=crop",
-        discount: p.discount_percent ? `-${p.discount_percent}%` : undefined,
-        rating: p.rating || 0,
-        reviews: p.total_reviews || 0,
-      }));
+      return (data || []).map((p: any) => {
+        const price = Number(p.price);
+        const hasDiscount = !!p.discount_percent;
+        const originalPrice = hasDiscount ? price / (1 - Number(p.discount_percent) / 100) : null;
+        return {
+          id: p.id,
+          title: p.title,
+          price,
+          priceFormatted: formatPrice(price),
+          originalPriceFormatted: originalPrice ? formatPrice(originalPrice) : null,
+          image: coverMap[p.id] || p.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&h=600&fit=crop",
+          discount: hasDiscount ? `-${p.discount_percent}%` : undefined,
+          rating: p.rating || 0,
+          reviews: p.total_reviews || 0,
+        };
+      });
     },
   });
 
@@ -124,10 +134,10 @@ const GlobalStyle = () => (
   <style>{`
     @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;0,700;1,500&family=Manrope:wght@500;600;700;800&display=swap');
 
-    .cgr-cat-card { transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
-    .cgr-cat-card:hover { transform: translateY(-3px); box-shadow: 0 10px 24px rgba(46,27,14,0.14) !important; border-color: ${sandDeep}55 !important; }
+    .cgr-cat-card { transition: transform .18s ease, box-shadow .18s ease; }
+    .cgr-cat-card:hover { transform: translateY(-3px); box-shadow: 0 10px 24px rgba(46,27,14,0.14) !important; }
 
-    .cgr-side-btn { transition: background .15s ease, border-color .15s ease; position: relative; }
+    .cgr-side-btn { transition: background .15s ease; }
     .cgr-side-btn:hover { background: ${surface} !important; }
 
     .cgr-prod-card { transition: transform .18s ease, box-shadow .18s ease; }
@@ -135,128 +145,141 @@ const GlobalStyle = () => (
 
     .cgr-cart-btn { transition: transform .15s ease, filter .15s ease; }
     .cgr-cart-btn:active { transform: scale(0.92); }
-    .cgr-cart-btn:hover { filter: brightness(1.06); }
+    .cgr-cart-btn:hover { filter: brightness(1.08); }
+
+    .cgr-heart-btn { transition: transform .15s ease; }
+    .cgr-heart-btn:active { transform: scale(0.88); }
+
+    .cgr-chip { transition: background .15s ease, border-color .15s ease; }
+    .cgr-chip:hover { border-color: ${headerBrown} !important; }
 
     .cgr-cta:hover { filter: brightness(1.08); }
 
     .cgr-products-scroll::-webkit-scrollbar { display: none; }
+    .cgr-chips-scroll::-webkit-scrollbar { display: none; }
     @keyframes cgr-spin { to { transform: rotate(360deg); } }
   `}</style>
 );
 
-/* ── Selo de pódio (top 3) — estampa metálica ── */
-const PodiumStamp = ({ rank }: { rank: number }) => {
-  const metals: Record<number, [string, string]> = {
-    1: ["#F4D578", "#C8932F"],
-    2: ["#E7E7E7", "#A6A6A6"],
-    3: ["#D79A6B", "#9C5E2E"],
-  };
-  const [light, deepC] = metals[rank];
-  return (
-    <div style={{
-      position: "absolute", top: -8, right: -8, zIndex: 10,
-      width: 24, height: 24, borderRadius: "50%",
-      background: `conic-gradient(from 200deg, ${light}, ${deepC}, ${light})`,
-      display: "flex", alignItems: "center", justifyContent: "center",
-      boxShadow: "0 2px 6px rgba(46,27,14,0.35)",
-      border: `2px solid ${surface}`,
-    }}>
-      <span style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 11, color: ink }}>
-        {rank}
-      </span>
+/* ── Estrelas de avaliação, estilo etiqueta de preço de mercado ── */
+const RatingRow = ({ rating, reviews }: { rating: number; reviews: number }) => (
+  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+    <div style={{ display: "flex", gap: 1 }}>
+      {[1, 2, 3, 4, 5].map((i) => (
+        <Star
+          key={i}
+          style={{ width: 11, height: 11 }}
+          fill={i <= Math.round(rating) ? gold : "none"}
+          stroke={i <= Math.round(rating) ? gold : inkSoft}
+          strokeWidth={1.5}
+        />
+      ))}
     </div>
-  );
-};
+    {reviews > 0 && (
+      <span style={{ fontFamily: fontBody, fontSize: 10, color: inkSoft, fontWeight: 600 }}>
+        {reviews.toLocaleString("pt-AO")}
+      </span>
+    )}
+  </div>
+);
 
-/* ── Cartão de produto — acabamento "etiqueta de bilhete" ── */
+/* ── Cartão de produto, densidade de catálogo grande ── */
 const ProductCard = ({ product, rank, isTablet }: { product: any; rank: number; isTablet: boolean }) => {
   const navigate = useNavigate();
   const addToCart = useAddToCart();
-
-  const cartSize = isTablet ? 34 : 27;
-  const iconSize = isTablet ? 16 : 13;
+  const [liked, setLiked] = useState(false);
 
   return (
     <div
       className="cgr-prod-card"
       style={{
         position: "relative", flexShrink: 0,
-        width: isTablet ? "calc((100vw - 60px) / 6)" : "calc((100vw - 140px) / 2.4)",
+        width: isTablet ? 200 : 158,
+        background: surface, borderRadius: 14,
+        border: `1px solid ${line}`,
         boxShadow: shadowSm,
-        borderRadius: 14,
+        overflow: "hidden",
       }}
     >
-      {rank <= 3 && <PodiumStamp rank={rank} />}
+      <button
+        style={{ display: "block", width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer" }}
+        onClick={() => navigate(`/produto/${product.id}`)}
+      >
+        <div style={{ position: "relative", width: "100%", aspectRatio: "1/1", background: bg }}>
+          <img src={product.image} alt={product.title} loading="lazy"
+            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
 
-      <div style={{
-        background: surface, borderRadius: 14,
-        border: `1.5px solid ${line}`,
-        overflow: "hidden", display: "flex", flexDirection: "column",
-      }}>
-        <button
-          style={{ display: "block", width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer" }}
-          onClick={() => navigate(`/produto/${product.id}`)}
-        >
-          <div style={{ position: "relative", width: "100%", aspectRatio: "3/4", overflow: "hidden", background: bg }}>
-            <img src={product.image} alt={product.title} loading="lazy"
-              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-            {product.discount && (
-              <span style={{
-                position: "absolute", top: 6, left: 6,
-                background: clay, color: surface,
-                fontFamily: fontBody,
-                fontSize: 9, fontWeight: 800,
-                padding: "2px 6px", borderRadius: 20,
-                letterSpacing: 0.2,
-              }}>
-                {product.discount}
-              </span>
-            )}
-          </div>
-        </button>
-
-        {/* Perfuração estilo bilhete entre imagem e preço */}
-        <div style={{ position: "relative", height: 1 }}>
-          <div style={{
-            position: "absolute", left: -1, top: -5, width: 10, height: 10,
-            borderRadius: "50%", background: bg,
-          }} />
-          <div style={{
-            position: "absolute", right: -1, top: -5, width: 10, height: 10,
-            borderRadius: "50%", background: bg,
-          }} />
-          <div style={{
-            position: "absolute", left: 8, right: 8, top: -1,
-            borderTop: `1.5px dashed ${line}`,
-          }} />
+          {product.discount && (
+            <span style={{
+              position: "absolute", top: 8, left: 8,
+              background: clay, color: surface,
+              fontFamily: fontBody, fontSize: 10, fontWeight: 800,
+              padding: "3px 8px", borderRadius: 6,
+              letterSpacing: 0.2,
+            }}>
+              Promoção
+            </span>
+          )}
+          {rank <= 3 && (
+            <span style={{
+              position: "absolute", bottom: 8, left: 8,
+              background: ink, color: surface,
+              fontFamily: fontBody, fontSize: 9, fontWeight: 800,
+              padding: "3px 7px", borderRadius: 6,
+            }}>
+              #{rank} mais vendido
+            </span>
+          )}
         </div>
+      </button>
 
-        <div style={{
-          display: "flex", alignItems: "center",
-          padding: "8px 8px 7px",
-          background: surface,
-        }}>
-          <span style={{
-            fontFamily: fontBody, fontVariantNumeric: "tabular-nums",
-            fontSize: isTablet ? 12 : 11, fontWeight: 800, color: clay, flex: 1, lineHeight: 1.2,
-          }}>
+      <button
+        className="cgr-heart-btn"
+        onClick={(e) => { e.stopPropagation(); setLiked((v) => !v); }}
+        style={{
+          position: "absolute", top: 8, right: 8,
+          width: 28, height: 28, borderRadius: "50%", border: "none", cursor: "pointer",
+          background: "rgba(255,255,255,0.92)", boxShadow: shadowSm,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}
+      >
+        <Heart style={{ width: 14, height: 14 }} fill={liked ? clay : "none"} stroke={liked ? clay : inkSoft} strokeWidth={2} />
+      </button>
+
+      <div style={{ padding: "10px 10px 12px" }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
+          <span style={{ fontFamily: fontBody, fontSize: isTablet ? 16 : 14, fontWeight: 800, color: dealGreen, fontVariantNumeric: "tabular-nums" }}>
             {product.priceFormatted}
           </span>
-          <button
-            className="cgr-cart-btn"
-            onClick={(e) => { e.stopPropagation(); addToCart.mutate({ productId: product.id, quantity: 1 }); }}
-            disabled={addToCart.isPending}
-            style={{
-              width: cartSize, height: cartSize, borderRadius: 8, border: "none", cursor: "pointer",
-              background: `linear-gradient(135deg, ${sandDeep}, ${sand})`,
-              boxShadow: "0 2px 6px rgba(46,27,14,0.28)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              flexShrink: 0,
-            }}
-          >
-            <ShoppingCart style={{ width: iconSize, height: iconSize, color: surface }} />
-          </button>
+          {product.originalPriceFormatted && (
+            <span style={{ fontFamily: fontBody, fontSize: 11, color: inkSoft, textDecoration: "line-through", fontWeight: 600 }}>
+              {product.originalPriceFormatted}
+            </span>
+          )}
         </div>
+
+        <p style={{
+          margin: "4px 0 6px", fontFamily: fontBody, fontSize: 11.5, fontWeight: 600, color: ink,
+          lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
+        }}>
+          {product.title}
+        </p>
+
+        <RatingRow rating={product.rating} reviews={product.reviews} />
+
+        <button
+          className="cgr-cta"
+          onClick={(e) => { e.stopPropagation(); addToCart.mutate({ productId: product.id, quantity: 1 }); }}
+          disabled={addToCart.isPending}
+          style={{
+            width: "100%", marginTop: 9, padding: "8px 0", borderRadius: 20, border: "none", cursor: "pointer",
+            background: `linear-gradient(135deg, ${headerBrownDeep}, ${headerBrown})`,
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+          }}
+        >
+          <ShoppingCart style={{ width: 13, height: 13, color: surface }} />
+          <span style={{ fontFamily: fontBody, fontSize: 11.5, fontWeight: 800, color: surface }}>Adicionar</span>
+        </button>
       </div>
     </div>
   );
@@ -297,15 +320,27 @@ const Categorias = () => {
     <div style={{ background: bg, minHeight: "100vh", fontFamily: fontBody }}>
       <GlobalStyle />
 
-      {/* ── Pesquisa ── */}
-      <div style={{ padding: "14px 14px 10px" }}>
+      {/* ── Cabeçalho — onde a referência usa azul, aqui é castanho fraco ── */}
+      <div style={{ background: `linear-gradient(180deg, ${headerBrown}, ${headerBrownDeep})`, padding: "12px 14px 16px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+          <button style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
+            <Menu style={{ width: 22, height: 22, color: surface }} strokeWidth={2.2} />
+          </button>
+          <span style={{ fontFamily: fontDisplay, fontSize: 19, fontWeight: 700, color: surface, letterSpacing: -0.3 }}>
+            zangu
+          </span>
+          <div style={{ flex: 1 }} />
+          <button style={{ position: "relative", background: "none", border: "none", cursor: "pointer", padding: 4 }}>
+            <ShoppingCart style={{ width: 21, height: 21, color: surface }} strokeWidth={2.2} />
+          </button>
+        </div>
+
         <div style={{
           display: "flex", alignItems: "center", gap: 10,
-          background: surface, border: `1px solid ${line}`,
-          borderRadius: 14, padding: "11px 14px",
+          background: surface, borderRadius: 14, padding: "11px 14px",
           boxShadow: shadowSm,
         }}>
-          <Search style={{ width: 17, height: 17, color: sandDeep, flexShrink: 0 }} strokeWidth={2.2} />
+          <Search style={{ width: 17, height: 17, color: headerBrown, flexShrink: 0 }} strokeWidth={2.2} />
           <input
             type="text"
             placeholder="Pesquisar categorias..."
@@ -321,9 +356,32 @@ const Categorias = () => {
         </div>
       </div>
 
+      {/* ── Filtros rápidos ── */}
+      <div
+        className="cgr-chips-scroll"
+        style={{ display: "flex", gap: 8, padding: "12px 14px 4px", overflowX: "auto", scrollbarWidth: "none" }}
+      >
+        <button className="cgr-chip" style={{
+          flexShrink: 0, display: "flex", alignItems: "center", gap: 6,
+          background: surface, border: `1.5px solid ${line}`, borderRadius: 20,
+          padding: "8px 12px", cursor: "pointer",
+        }}>
+          <SlidersHorizontal style={{ width: 13, height: 13, color: headerBrownDeep }} />
+        </button>
+        {["Lojas físicas", "Preço", "Marca", "Avaliação"].map((label) => (
+          <button key={label} className="cgr-chip" style={{
+            flexShrink: 0, background: surface, border: `1.5px solid ${line}`, borderRadius: 20,
+            padding: "8px 14px", cursor: "pointer",
+            fontFamily: fontBody, fontSize: 12, fontWeight: 700, color: headerBrownDeep,
+          }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
       {/* ── Sidebar + Grelha ── */}
       <div style={{
-        display: "flex", margin: "0 10px",
+        display: "flex", margin: "10px 10px 0",
         borderRadius: 20, overflow: "hidden",
         boxShadow: shadowMd,
         border: `1px solid ${line}`,
@@ -413,13 +471,11 @@ const Categorias = () => {
                   </div>
                 )}
 
-                {/* Overlay de leitura */}
                 <div style={{
                   position: "absolute", inset: 0,
                   background: "linear-gradient(180deg, rgba(46,27,14,0) 38%, rgba(46,27,14,0.78) 100%)",
                 }} />
 
-                {/* Selo do ícone — agora dentro do próprio cartão, sem cortes */}
                 {cat.image && (
                   <div style={{
                     position: "absolute", top: 7, left: 7,
@@ -451,64 +507,33 @@ const Categorias = () => {
         </div>
       </div>
 
-      {/* ── Ofertas Imperdíveis ── */}
-      <button
-        className="cgr-cta"
-        onClick={() => navigate("/promocoes")}
-        style={{
-          width: "calc(100% - 20px)", margin: "14px 10px 0", padding: "14px 16px",
-          background: `linear-gradient(135deg, ${ink}, #43290F)`,
-          border: "none", borderRadius: 16, cursor: "pointer",
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          boxShadow: shadowMd,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{
-            width: 40, height: 40, borderRadius: 10,
-            background: `linear-gradient(135deg, ${gold}, ${sandDeep})`,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            flexShrink: 0,
-          }}>
-            <Sparkles style={{ width: 19, height: 19, color: surface }} strokeWidth={2.2} />
+      {/* ── Campeões de Vendas: Top 12, densidade de catálogo ── */}
+      <div style={{ margin: "20px 10px 0" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{
+              width: 34, height: 34, borderRadius: 10,
+              background: `linear-gradient(135deg, ${gold}, #A8701F)`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "0 2px 8px rgba(200,147,47,0.4)",
+            }}>
+              <Trophy style={{ width: 17, height: 17, color: surface }} strokeWidth={2.2} />
+            </div>
+            <div>
+              <h3 style={{ margin: 0, fontFamily: fontDisplay, fontSize: 16, fontWeight: 600, color: ink, letterSpacing: -0.2 }}>
+                Campeões de Vendas
+              </h3>
+              <p style={{ margin: 0, fontFamily: fontBody, fontSize: 10, color: inkSoft, fontWeight: 600 }}>
+                Os produtos mais bem avaliados
+              </p>
+            </div>
           </div>
-          <div style={{ textAlign: "left" }}>
-            <p style={{ margin: 0, fontFamily: fontDisplay, fontSize: 14, fontWeight: 600, color: surface }}>
-              Ofertas Imperdíveis
-            </p>
-            <p style={{ margin: 0, fontFamily: fontBody, fontSize: 10, color: "#D9C2A6" }}>
-              Descontos exclusivos por tempo limitado
-            </p>
-          </div>
-        </div>
-        <span style={{
-          background: "rgba(255,255,255,0.14)", color: surface, fontFamily: fontBody,
-          borderRadius: 10, padding: "8px 14px",
-          fontSize: 11, fontWeight: 800, whiteSpace: "nowrap",
-        }}>
-          Ver ofertas →
-        </span>
-      </button>
-
-      {/* ── Campeões de Vendas: Top 12 ── */}
-      <div style={{ margin: "18px 10px 0" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-          <div style={{
-            width: 34, height: 34, borderRadius: 10,
-            background: `linear-gradient(135deg, ${gold}, #A8701F)`,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            boxShadow: "0 2px 8px rgba(200,147,47,0.4)",
-          }}>
-            <Trophy style={{ width: 17, height: 17, color: surface }} strokeWidth={2.2} />
-          </div>
-          <div>
-            <h3 style={{ margin: 0, fontFamily: fontDisplay, fontSize: 16, fontWeight: 600, color: ink, letterSpacing: -0.2 }}>
-              Campeões de Vendas
-            </h3>
-            <p style={{ margin: 0, fontFamily: fontBody, fontSize: 10, color: inkSoft, fontWeight: 600 }}>
-              Os produtos mais bem avaliados
-            </p>
-          </div>
+          <button
+            onClick={() => navigate("/promocoes")}
+            style={{ background: "none", border: "none", cursor: "pointer", fontFamily: fontBody, fontSize: 12, fontWeight: 700, color: headerBrownDeep, textDecoration: "underline" }}
+          >
+            Ver tudo
+          </button>
         </div>
 
         {loadingProducts ? (
@@ -516,7 +541,7 @@ const Categorias = () => {
             <div style={{
               width: 28, height: 28, borderRadius: "50%",
               border: `3px solid ${line}`,
-              borderTopColor: sandDeep,
+              borderTopColor: headerBrown,
               animation: "cgr-spin 0.8s linear infinite",
             }} />
           </div>
@@ -526,7 +551,7 @@ const Categorias = () => {
             style={{
               display: "flex", flexDirection: "row", gap: 10,
               overflowX: "auto", overflowY: "visible",
-              paddingBottom: 8, paddingTop: 10,
+              paddingBottom: 8, paddingTop: 2,
               scrollbarWidth: "none", msOverflowStyle: "none",
             }}
           >
@@ -538,7 +563,7 @@ const Categorias = () => {
         )}
       </div>
 
-      <div style={{ height: 20 }} />
+      <div style={{ height: 24 }} />
     </div>
   );
 };
