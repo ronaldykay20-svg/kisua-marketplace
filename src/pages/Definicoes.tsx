@@ -1,12 +1,17 @@
-import { Settings, ChevronLeft, Globe, Moon, Sun, Palette } from "lucide-react";
+import { Settings, ChevronLeft, Globe, Moon, Sun, Palette, Banknote, ShieldCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useUserRole } from "@/hooks/useUserRole";
 
 const Definicoes = () => {
   const navigate = useNavigate();
   const [language, setLanguage] = useState("pt");
   const [darkMode, setDarkMode] = useState(false);
+  const { hasRole } = useUserRole();
+
+  // Atalho de gestão visível apenas para Admin e Moderador
+  const canManagePayments = hasRole("admin") || hasRole("moderator");
 
   const toggleDark = () => {
     setDarkMode(!darkMode);
@@ -23,7 +28,6 @@ const Definicoes = () => {
         <h1 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
           <Settings className="w-5 h-5 text-primary" /> Definições
         </h1>
-
         <div className="bg-card rounded-lg border border-border divide-y divide-border">
           <div className="flex items-center gap-3 px-4 py-3">
             <Globe className="w-5 h-5 text-primary" />
@@ -37,7 +41,6 @@ const Definicoes = () => {
               <option value="en">English</option>
             </select>
           </div>
-
           <div className="flex items-center gap-3 px-4 py-3">
             {darkMode ? <Moon className="w-5 h-5 text-primary" /> : <Sun className="w-5 h-5 text-primary" />}
             <div className="flex-1">
@@ -51,6 +54,24 @@ const Definicoes = () => {
           </div>
         </div>
 
+        {/* Atalho de gestão — só visível para Admin/Moderador, nunca para clientes comuns */}
+        {canManagePayments && (
+          <div className="mt-4">
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide mb-2 px-1">Gestão</p>
+            <button
+              onClick={() => navigate("/admin/contas-pagamento")}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-card border border-border text-left"
+            >
+              <Banknote className="w-5 h-5 text-primary" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-foreground">Contas de Pagamento</p>
+                <p className="text-[10px] text-muted-foreground">Gerir contas bancárias e Multicaixa Express</p>
+              </div>
+              <ShieldCheck className="w-4 h-4 text-muted-foreground" />
+            </button>
+          </div>
+        )}
+
         <div className="mt-6 text-center">
           <p className="text-[10px] text-muted-foreground">Kwanza Store v1.0.0</p>
         </div>
@@ -58,5 +79,4 @@ const Definicoes = () => {
     </div>
   );
 };
-
 export default Definicoes;
