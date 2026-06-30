@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Shield, Users, Search, Plus, Trash2, Crown, Building2, Store, CheckCircle, XCircle, ShieldCheck, UserCheck, UsersRound, FolderTree, ImageIcon, ShoppingBag, Settings, Star, Gavel, Upload, Eye, EyeOff, Copy, Megaphone, Play, TrendingUp, Users as UsersIcon, X, Loader2, Truck } from "lucide-react";
+import { Shield, Users, Search, Plus, Trash2, Crown, Building2, Store, CheckCircle, XCircle, ShieldCheck, UserCheck, UsersRound, FolderTree, ImageIcon, ShoppingBag, Settings, Star, Gavel, Upload, Eye, EyeOff, Copy, Megaphone, Play, TrendingUp, Users as UsersIcon, X, Loader2, Truck, Banknote } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,6 +13,7 @@ import AdminSettingsTab from "@/components/admin/AdminSettingsTab";
 import AdminBannersTab from "@/components/admin/AdminBannersTab";
 import AdminFreightTab from "@/components/admin/AdminFreightTab";
 import AdminSuppliersTab from "@/components/admin/AdminSuppliersTab";
+import AdminPaymentReviewTab from "@/components/admin/AdminPaymentReviewTab";
 import { toast } from "sonner";
 
 const roleBadge: Record<string, { label: string; color: string; icon: any }> = {
@@ -21,7 +22,7 @@ const roleBadge: Record<string, { label: string; color: string; icon: any }> = {
   user: { label: "Utilizador", color: "bg-primary/10 text-primary border-primary/20", icon: Users },
 };
 
-type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos" | "encomendas" | "categorias" | "banners" | "definicoes" | "leiloes" | "publicidade" | "frete" | "fornecedores";
+type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos" | "encomendas" | "categorias" | "banners" | "definicoes" | "leiloes" | "publicidade" | "frete" | "fornecedores" | "pagamentos";
 
 const AD_TYPES = [
   { value: "banner",           label: "Banner (imagem/vídeo)",   icon: ImageIcon,   desc: "Upload direto de imagem ou vídeo" },
@@ -324,7 +325,6 @@ const AdminLeiloesTab = () => {
   const [showMethodForm, setShowMethodForm] = useState(false);
   const [methodForm, setMethodForm] = useState({ type: "xpress", label: "", value: "", holder: "" });
 
-  // ── Imagem Hero ──
   const { data: heroImage } = useQuery({
     queryKey: ["auction_hero_image"],
     queryFn: async () => {
@@ -368,7 +368,6 @@ const AdminLeiloesTab = () => {
     }
   };
 
-  // ── Comprovantes ──
   const { data: proofs = [] } = useQuery({
     queryKey: ["admin_bid_proofs"],
     queryFn: async () => {
@@ -382,7 +381,6 @@ const AdminLeiloesTab = () => {
     refetchInterval: 10000,
   });
 
-  // ── Métodos de Pagamento ──
   const { data: methods = [] } = useQuery({
     queryKey: ["auction_payment_methods"],
     queryFn: async () => {
@@ -472,7 +470,6 @@ const AdminLeiloesTab = () => {
 
   return (
     <>
-      {/* ── IMAGEM HERO DO LEILÃO ── */}
       <div className="bg-card rounded-xl border border-border p-4 mb-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
@@ -526,7 +523,6 @@ const AdminLeiloesTab = () => {
         )}
       </div>
 
-      {/* ── MÉTODOS DE PAGAMENTO ── */}
       <div className="bg-card rounded-xl border border-border p-4 mb-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
@@ -626,7 +622,6 @@ const AdminLeiloesTab = () => {
         </div>
       </div>
 
-      {/* ── STATS COMPROVANTES ── */}
       <div className="grid grid-cols-3 gap-2 mb-4">
         {[
           { label: "Pendentes",  status: "pending",  color: "bg-amber-500/10 text-amber-500 border-amber-500/20" },
@@ -642,7 +637,6 @@ const AdminLeiloesTab = () => {
         ))}
       </div>
 
-      {/* ── LISTA COMPROVANTES ── */}
       <div className="space-y-2">
         {proofs.length === 0 && (
           <p className="text-center py-6 text-sm text-muted-foreground">
@@ -730,7 +724,6 @@ const AdminLeiloesTab = () => {
         ))}
       </div>
 
-      {/* ── MODAL COMPROVANTE ── */}
       {proofModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
@@ -1015,6 +1008,7 @@ const AdminPanel = () => {
     { key: "vendedores",   label: "Vendedores",    icon: Store },
     { key: "empresas",     label: "Empresas",      icon: Building2 },
     { key: "encomendas",   label: "Encomendas",    icon: ShoppingBag },
+    { key: "pagamentos",   label: "Pagamentos",    icon: Banknote },
     { key: "banners",      label: "Banners",       icon: ImageIcon },
     { key: "publicidade",  label: "Publicidade",   icon: Megaphone },
     { key: "frete",        label: "Frete",         icon: Truck },
@@ -1052,6 +1046,7 @@ const AdminPanel = () => {
         {tab === "categorias"   && <AdminCategoriesTab />}
         {tab === "publicidade"  && <AdminAdsTab />}
         {tab === "encomendas"   && <AdminOrdersTab />}
+        {tab === "pagamentos"   && <AdminPaymentReviewTab />}
         {tab === "banners"      && <AdminBannersTab />}
         {tab === "definicoes"   && <AdminSettingsTab />}
         {tab === "leiloes"      && <AdminLeiloesTab />}
