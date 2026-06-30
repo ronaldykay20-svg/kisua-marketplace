@@ -80,8 +80,8 @@ const RejectReasonModal = ({ onConfirm, onClose, isPending }: { onConfirm: (reas
         Cancelar
       </button>
     </div>
-  );
-};
+  </div>
+);
 
 // ─── Componente principal ──────────────────────────────────────────────────────
 const AdminPaymentReviewTab = () => {
