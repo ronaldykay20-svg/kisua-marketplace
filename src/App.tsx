@@ -38,6 +38,7 @@ import LojasVerificadas from "./pages/LojasVerificadas.tsx";
 import VenderKwanza from "./pages/VenderKwanza.tsx";
 import Auth from "./pages/Auth.tsx";
 import AdminPanel from "./pages/AdminPanel.tsx";
+import AdminPaymentAccounts from "./pages/AdminPaymentAccounts.tsx";
 import Enderecos from "./pages/Enderecos.tsx";
 import Pagamentos from "./pages/Pagamentos.tsx";
 import Notificacoes from "./pages/Notificacoes.tsx";
@@ -127,6 +128,7 @@ const App = () => (
             <Route path="/definicoes" element={<Layout><ProtectedRoute><Definicoes /></ProtectedRoute></Layout>} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/admin" element={<Layout><ProtectedRoute requiredRole="admin"><AdminPanel /></ProtectedRoute></Layout>} />
+            <Route path="/admin/contas-pagamento" element={<Layout><ProtectedRoute requiredRole="moderator"><AdminPaymentAccounts /></ProtectedRoute></Layout>} />
             <Route path="/painel-vendedor" element={<Layout><ProtectedRoute><SellerDashboard /></ProtectedRoute></Layout>} />
             <Route path="/painel-empresa" element={<Layout><ProtectedRoute><CompanyDashboard /></ProtectedRoute></Layout>} />
             <Route path="/painel-moderador" element={<Layout><ProtectedRoute requiredRole="moderator"><ModeratorPanel /></ProtectedRoute></Layout>} />
