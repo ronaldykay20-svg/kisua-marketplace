@@ -329,25 +329,25 @@ const Categorias = () => {
         border: `1px solid ${line}`,
       }}>
         <aside style={{
-          width: 100, flexShrink: 0,
+          width: 96, flexShrink: 0,
           background: bg, borderRight: `1px solid ${line}`,
           overflowY: "auto", maxHeight: "calc(100vh - 160px)",
+          padding: "10px 6px",
         }}>
           <button
             className="cgr-side-btn"
             onClick={() => setSelectedCategory(null)}
             style={{
               width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
-              padding: "13px 8px", cursor: "pointer",
+              padding: "11px 6px", marginBottom: 4, cursor: "pointer",
+              borderRadius: 11, border: "none",
               background: selectedCategory === null ? surface : "transparent",
-              borderLeft: `3px solid ${selectedCategory === null ? gold : "transparent"}`,
-              borderRight: "none", borderTop: "none",
-              borderBottom: `1px solid ${line}`,
+              boxShadow: selectedCategory === null ? shadowSm : "none",
             }}
           >
             <span style={{
               fontFamily: fontBody, fontSize: 11, textAlign: "center",
-              color: selectedCategory === null ? sandDeep : inkSoft,
+              color: selectedCategory === null ? clay : inkSoft,
               fontWeight: selectedCategory === null ? 800 : 600,
             }}>
               Todas
@@ -363,17 +363,16 @@ const Categorias = () => {
                 onClick={() => navigate(`/categoria/${encodeURIComponent(cat.name)}`)}
                 style={{
                   width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
-                  padding: "13px 8px", cursor: "pointer",
+                  padding: "11px 6px", marginBottom: 4, cursor: "pointer",
+                  borderRadius: 11, border: "none",
                   background: isActive ? surface : "transparent",
-                  borderLeft: `3px solid ${isActive ? gold : "transparent"}`,
-                  borderRight: "none", borderTop: "none",
-                  borderBottom: `1px solid ${line}`,
+                  boxShadow: isActive ? shadowSm : "none",
                 }}
               >
                 <span style={{
                   fontFamily: fontBody, fontSize: 11, textAlign: "center", lineHeight: 1.3,
                   wordBreak: "break-word",
-                  color: isActive ? sandDeep : inkSoft,
+                  color: isActive ? clay : inkSoft,
                   fontWeight: isActive ? 800 : 600,
                 }}>
                   {cat.name}
@@ -383,7 +382,7 @@ const Categorias = () => {
           })}
         </aside>
 
-        {/* Grelha 3 colunas */}
+        {/* Grelha 3 colunas — cartões a sangue total */}
         <div style={{ flex: 1, padding: "16px 10px", background: surface, minWidth: 0 }}>
           <h2 style={{
             fontFamily: fontDisplay, color: ink, fontSize: 17, fontWeight: 600,
@@ -391,51 +390,57 @@ const Categorias = () => {
           }}>
             Todas as Categorias
           </h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 9 }}>
             {displayed.map((cat: any) => (
               <button
                 key={cat.name}
                 className="cgr-cat-card"
                 onClick={() => navigate(`/categoria/${encodeURIComponent(cat.name)}`)}
                 style={{
-                  display: "flex", flexDirection: "column",
-                  background: surface, border: `1px solid ${line}`,
-                  borderRadius: 16, overflow: "hidden",
-                  cursor: "pointer", padding: 0, textAlign: "left",
+                  position: "relative", aspectRatio: "1/1.12",
+                  borderRadius: 14, overflow: "hidden",
+                  cursor: "pointer", padding: 0, border: "none",
                   boxShadow: shadowSm,
                 }}
               >
-                <div style={{ width: "100%", aspectRatio: "1/0.68", position: "relative", overflow: "hidden" }}>
-                  {cat.cover ? (
-                    <img src={cat.cover} alt={cat.name}
-                      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                  ) : (
-                    <div style={{ width: "100%", height: "100%", background: lineSoft,
-                      display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <ShoppingBag style={{ width: 24, height: 24, color: sandDeep }} />
-                    </div>
-                  )}
+                {cat.cover ? (
+                  <img src={cat.cover} alt={cat.name}
+                    style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+                ) : (
+                  <div style={{ position: "absolute", inset: 0, background: lineSoft,
+                    display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <ShoppingBag style={{ width: 24, height: 24, color: sandDeep }} />
+                  </div>
+                )}
+
+                {/* Overlay de leitura */}
+                <div style={{
+                  position: "absolute", inset: 0,
+                  background: "linear-gradient(180deg, rgba(46,27,14,0) 38%, rgba(46,27,14,0.78) 100%)",
+                }} />
+
+                {/* Selo do ícone — agora dentro do próprio cartão, sem cortes */}
+                {cat.image && (
                   <div style={{
-                    position: "absolute", inset: 0,
-                    background: "linear-gradient(180deg, rgba(46,27,14,0) 55%, rgba(46,27,14,0.32) 100%)",
-                  }} />
-                  {cat.image && (
-                    <div style={{
-                      position: "absolute", bottom: -12, left: 8,
-                      width: 28, height: 28, borderRadius: "50%",
-                      overflow: "hidden", border: `2.5px solid ${surface}`,
-                      boxShadow: "0 1px 5px rgba(46,27,14,0.25)",
-                    }}>
-                      <img src={cat.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                    </div>
-                  )}
-                </div>
-                <div style={{ padding: "18px 8px 10px" }}>
-                  <p style={{ margin: 0, fontFamily: fontBody, fontSize: 11, fontWeight: 700, color: ink, lineHeight: 1.25 }}>
+                    position: "absolute", top: 7, left: 7,
+                    width: 24, height: 24, borderRadius: "50%",
+                    overflow: "hidden", border: `1.5px solid rgba(255,255,255,0.85)`,
+                    boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
+                  }}>
+                    <img src={cat.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  </div>
+                )}
+
+                <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: "0 9px 9px" }}>
+                  <p style={{
+                    margin: 0, fontFamily: fontBody, fontSize: 11.5, fontWeight: 800,
+                    color: surface, lineHeight: 1.25, textAlign: "left",
+                    textShadow: "0 1px 3px rgba(0,0,0,0.35)",
+                  }}>
                     {cat.name}
                   </p>
                   {cat.count !== null && (
-                    <p style={{ margin: "2px 0 0", fontFamily: fontBody, fontSize: 9, color: sandDeep, fontWeight: 600 }}>
+                    <p style={{ margin: "1px 0 0", fontFamily: fontBody, fontSize: 9, color: "#F0DCC2", fontWeight: 600, textAlign: "left" }}>
                       {cat.count.toLocaleString("pt-AO")} itens
                     </p>
                   )}
