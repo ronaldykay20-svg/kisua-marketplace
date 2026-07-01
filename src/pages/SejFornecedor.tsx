@@ -110,6 +110,30 @@ export default function SejFornecedor() {
         });
       }
 
+      // Notifica TODOS os admins com um aviso muito claro para aparecerem
+      // como pendentes no painel deles.
+      try {
+        const { data: admins } = await (supabase as any)
+          .from("profiles")
+          .select("id")
+          .eq("is_admin", true);
+        if (admins && admins.length > 0) {
+          const rows = admins.map((a: any) => ({
+            user_id: a.id,
+            title: "🆕 Nova candidatura a Fornecedor — AÇÃO NECESSÁRIA",
+            message:
+              `Empresa: ${form.company_name}\n` +
+              `Contacto: ${form.contact_name} (${form.phone})\n` +
+              `Província: ${form.province}\n\n` +
+              `Aprove ou rejeite no painel de administração.`,
+            type: "pendente",
+            link_url: "/admin?tab=fornecedores",
+            is_read: false,
+          }));
+          await supabase.from("notifications").insert(rows);
+        }
+      } catch { /* não bloqueia o registo se falhar */ }
+
       setStep(3);
       toast.success("Pedido enviado com sucesso!");
     } catch (error: any) {
