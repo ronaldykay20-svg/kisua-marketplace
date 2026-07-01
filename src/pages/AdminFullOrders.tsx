@@ -157,7 +157,7 @@ const NormalOrdersSection = () => {
         title: "Aviso da administração",
         message,
         type: "order",
-        link_url: "/painel-vendedor",
+        link_url: "/central-de-pedidos",
         is_read: false,
       });
       if (error) throw error;
@@ -322,7 +322,7 @@ const DropshipOrdersSection = () => {
         title: "Aviso da administração",
         message,
         type: "order",
-        link_url: "/painel-fornecedor",
+        link_url: "/central-de-pedidos",
         is_read: false,
       });
       if (error) throw error;
