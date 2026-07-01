@@ -116,6 +116,17 @@ export default function AdminSuppliersTab() {
         ? await (supabase as any).from("sellers").update(sellerPayload).eq("id", existingSeller.id)
         : await (supabase as any).from("sellers").insert({ ...sellerPayload, user_id: supplier.user_id });
       if (sellerResult.error) throw sellerResult.error;
+
+      await supabase.from("notifications").insert({
+        user_id: supplier.user_id,
+        title: "✅ Candidatura a Fornecedor APROVADA",
+        message:
+          `Parabéns! A sua candidatura foi aprovada.\n` +
+          `Já pode publicar produtos no seu painel de fornecedor.`,
+        type: "aprovado",
+        link_url: "/painel-fornecedor",
+        is_read: false,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin_suppliers"] });
@@ -132,7 +143,17 @@ export default function AdminSuppliersTab() {
         .update({ status: "rejected" })
         .eq("id", id);
       if (error) throw error;
-      if (supplier?.user_id) await (supabase as any).from("sellers").update({ is_active: false, is_verified: false }).eq("user_id", supplier.user_id);
+      if (supplier?.user_id) {
+        await (supabase as any).from("sellers").update({ is_active: false, is_verified: false }).eq("user_id", supplier.user_id);
+        await supabase.from("notifications").insert({
+          user_id: supplier.user_id,
+          title: "❌ Candidatura a Fornecedor NÃO aprovada",
+          message: "A sua candidatura foi rejeitada. Contacte o suporte para saber os motivos.",
+          type: "rejeitado",
+          link_url: "/ajuda",
+          is_read: false,
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin_suppliers"] });
@@ -176,6 +197,17 @@ export default function AdminSuppliersTab() {
         ? await (supabase as any).from("sellers").update(payload).eq("id", existingSeller.id)
         : await (supabase as any).from("sellers").insert({ ...payload, user_id: store.user_id });
       if (sellerResult.error) throw sellerResult.error;
+
+      await supabase.from("notifications").insert({
+        user_id: store.user_id,
+        title: "✅ Candidatura a Afiliado APROVADA",
+        message:
+          `Parabéns! A sua loja "${store.store_name}" já está ativa.\n` +
+          `Aceda ao painel para importar produtos e começar a vender.`,
+        type: "aprovado",
+        link_url: "/painel-afiliado",
+        is_read: false,
+      });
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_dropship_stores"] }); toast.success("Afiliado aprovado!"); },
     onError: (e: any) => toast.error(e.message),
@@ -186,10 +218,19 @@ export default function AdminSuppliersTab() {
       const { error } = await (supabase as any).from("dropship_stores").update({ status: "suspended" }).eq("id", store.id);
       if (error) throw error;
       await (supabase as any).from("sellers").update({ is_active: false }).eq("user_id", store.user_id);
+      await supabase.from("notifications").insert({
+        user_id: store.user_id,
+        title: "⚠️ Conta de Afiliado SUSPENSA",
+        message: "A sua loja foi suspensa pela administração. Contacte o suporte para regularizar.",
+        type: "pendente",
+        link_url: "/ajuda",
+        is_read: false,
+      });
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_dropship_stores"] }); toast.success("Afiliado suspenso"); },
     onError: (e: any) => toast.error(e.message),
   });
+
 
   const formatKz = (v: number) => `${(v || 0).toLocaleString("pt-AO")} Kz`;
 

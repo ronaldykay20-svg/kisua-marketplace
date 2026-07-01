@@ -6,8 +6,6 @@ import { supabase } from "@/integrations/supabase/client";
 import ProductCard, { type Product } from "@/components/ProductCard";
 import MobileSearchProductCard from "@/components/MobileSearchProductCard";
 
-const GEMINI_API_KEY = "AIzaSyAWG6GlEHL6wkTxX8vmycF8WttF4Kc8dx8";
-
 const searchTabs = ["Produtos", "Vendedores", "Empresas"];
 const sortOptions = ["Mais relevantes", "Menor preço", "Maior preço", "Mais vendidos", "Melhor avaliação"];
 const ITEMS_PER_PAGE = 12;
@@ -33,40 +31,18 @@ const aggregateRatings = (reviews: { entity_id: string; rating: number }[]): Rec
   return result;
 };
 
-// Gemini analisa a imagem e devolve termos de pesquisa visuais detalhados
+// A análise da imagem é feita numa Edge Function do Supabase (`image-search`)
+// que guarda a chave da API em segredo no servidor. NUNCA colocar a chave da
+// Gemini no cliente — ela ficaria visível para qualquer visitante.
 const analisarImagemComGemini = async (base64: string): Promise<string[]> => {
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            {
-              inline_data: {
-                mime_type: "image/jpeg",
-                data: base64,
-              }
-            },
-            {
-              text: `Analisa esta imagem de produto para um marketplace. 
-Responde APENAS com uma lista JSON de termos de pesquisa em português, do mais específico ao mais geral.
-Inclui: tipo de produto, material, cor, estilo, uso, categoria.
-Exemplo: ["sapato social masculino preto couro", "sapato social preto", "sapato masculino", "calçado social", "sapato"]
-Devolve só o array JSON, sem mais texto.`
-            }
-          ]
-        }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 200 }
-      }),
-    }
-  );
-  if (!res.ok) throw new Error("Erro Gemini: " + res.status);
-  const data = await res.json();
-  const texto = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
-  const limpo = texto.replace(/```json|```/g, "").trim();
-  return JSON.parse(limpo);
+  const { data, error } = await supabase.functions.invoke("image-search", {
+    body: { image_base64: base64 },
+  });
+  if (error) throw new Error(error.message || "Erro na pesquisa por imagem");
+  if (!data?.terms || !Array.isArray(data.terms)) {
+    throw new Error("Resposta inválida do serviço de pesquisa por imagem");
+  }
+  return data.terms as string[];
 };
 
 const SearchResults = () => {

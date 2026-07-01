@@ -137,6 +137,29 @@ export default function CriarLoja() {
         });
       }
 
+      // Notifica todos os admins com destaque para aprovar/rejeitar
+      try {
+        const { data: admins } = await (supabase as any)
+          .from("profiles")
+          .select("id")
+          .eq("is_admin", true);
+        if (admins && admins.length > 0) {
+          const rows = admins.map((a: any) => ({
+            user_id: a.id,
+            title: "🆕 Nova candidatura a Afiliado — AÇÃO NECESSÁRIA",
+            message:
+              `Loja: ${form.store_name}\n` +
+              `Província: ${form.province}\n` +
+              (form.phone ? `Contacto: ${form.phone}\n` : "") +
+              `\nAprove ou rejeite no painel de administração.`,
+            type: "pendente",
+            link_url: "/admin?tab=afiliados",
+            is_read: false,
+          }));
+          await supabase.from("notifications").insert(rows);
+        }
+      } catch { /* silencioso */ }
+
       setStep(3);
       queryClient.invalidateQueries({ queryKey: ["my_dropship_store"] });
       toast.success("Candidatura enviada para aprovação do Admin!");
