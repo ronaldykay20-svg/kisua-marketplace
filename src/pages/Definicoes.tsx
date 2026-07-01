@@ -1,4 +1,4 @@
-import { Settings, ChevronLeft, Globe, Moon, Sun, Palette, Banknote, ShieldCheck } from "lucide-react";
+import { Settings, ChevronLeft, Globe, Moon, Sun, Palette, Banknote, ShieldCheck, Truck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -66,6 +66,17 @@ const Definicoes = () => {
               <div className="flex-1">
                 <p className="text-sm font-medium text-foreground">Contas de Pagamento</p>
                 <p className="text-[10px] text-muted-foreground">Gerir contas bancárias e Multicaixa Express</p>
+              </div>
+              <ShieldCheck className="w-4 h-4 text-muted-foreground" />
+            </button>
+            <button
+              onClick={() => navigate("/admin/pedidos-completos")}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-card border border-border text-left mt-2"
+            >
+              <Truck className="w-5 h-5 text-primary" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-foreground">Pedidos Completos</p>
+                <p className="text-[10px] text-muted-foreground">Acompanhar todos os pedidos e a rota de cada produto</p>
               </div>
               <ShieldCheck className="w-4 h-4 text-muted-foreground" />
             </button>
