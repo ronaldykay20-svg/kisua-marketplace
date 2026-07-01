@@ -7,6 +7,7 @@ import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCategories } from "@/hooks/useSupabaseData";
+import { classifyNotification } from "@/lib/notificationStyle";
 
 const staticCategories = [
   { name: "Electrónicos", image: "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=100&h=100&fit=crop" },
@@ -150,6 +151,7 @@ const Navbar = () => {
   });
 
   const unread = notifications.filter((n: any) => !n.is_read).length;
+  const hasUrgentUnread = notifications.some((n: any) => !n.is_read && classifyNotification(n).tone === "red");
 
   const markAllRead = async () => {
     if (!user) return;
@@ -327,14 +329,18 @@ const Navbar = () => {
             {user && (
               <button
                 className="relative flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center"
-                style={{ background: brown, boxShadow: "0 2px 6px rgba(74,46,10,0.25)" }}
+                style={{
+                  background: hasUrgentUnread ? "#E53935" : brown,
+                  boxShadow: hasUrgentUnread ? "0 0 0 4px rgba(229,57,53,0.22)" : "0 2px 6px rgba(74,46,10,0.25)",
+                  animation: hasUrgentUnread ? "pulse 1.4s ease-in-out infinite" : "none",
+                }}
                 onClick={() => { setNotifOpen(!notifOpen); setMenuOpen(false); }}
               >
                 <Bell className="w-5 h-5 text-white" />
                 {unread > 0 && (
                   <span
                     className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 rounded-full text-white text-[8px] font-black flex items-center justify-center px-0.5"
-                    style={{ background: "#E53935" }}
+                    style={{ background: hasUrgentUnread ? "#8B0000" : "#E53935" }}
                   >
                     {unread > 9 ? "9+" : unread}
                   </span>
@@ -617,7 +623,12 @@ const Navbar = () => {
               className="flex items-center justify-between px-4 py-3 border-b border-border"
               style={{ background: `linear-gradient(135deg, ${sand}, ${sandDark})` }}
             >
-              <h3 className="text-sm font-black" style={{ color: brown }}>Notificacoes</h3>
+              <div>
+                <h3 className="text-sm font-black" style={{ color: brown }}>Notificações</h3>
+                {hasUrgentUnread && (
+                  <p className="text-[10px] font-bold text-red-600">⚠ Há avisos urgentes por ler</p>
+                )}
+              </div>
               <div className="flex items-center gap-2">
                 {unread > 0 && (
                   <button onClick={markAllRead} className="text-[10px] font-bold underline" style={{ color: brown }}>
@@ -633,27 +644,35 @@ const Navbar = () => {
               {notifications.length === 0 && (
                 <div className="py-8 text-center">
                   <Bell className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                  <p className="text-xs text-muted-foreground">Sem notificacoes</p>
+                  <p className="text-xs text-muted-foreground">Sem notificações</p>
                 </div>
               )}
-              {notifications.map((n: any) => (
-                <button
-                  key={n.id}
-                  onClick={() => markOneRead(n.id, n.link_url)}
-                  className={`w-full text-left px-4 py-3 hover:bg-muted transition ${!n.is_read ? "bg-primary/5" : ""}`}
-                >
-                  <div className="flex items-start gap-2">
-                    <span className={`w-2 h-2 rounded-full flex-shrink-0 mt-1.5 ${!n.is_read ? "bg-primary" : "bg-transparent"}`} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-foreground">{n.title}</p>
-                      <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{n.message}</p>
-                      <p className="text-[10px] text-muted-foreground/60 mt-1">
-                        {new Date(n.created_at).toLocaleString("pt-AO", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
-                      </p>
+              {notifications.map((n: any) => {
+                const style = classifyNotification(n);
+                return (
+                  <button
+                    key={n.id}
+                    onClick={() => markOneRead(n.id, n.link_url)}
+                    className={`w-full text-left px-4 py-3 hover:bg-muted transition border-l-4 ${style.border} ${!n.is_read ? style.bg : ""}`}
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${style.iconBg}`}>
+                        <style.Icon className={`w-4 h-4 ${style.iconText}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className={`text-xs font-bold ${!n.is_read ? style.titleText : "text-foreground"}`}>{n.title}</p>
+                          {!n.is_read && <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${style.dot}`} />}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{n.message}</p>
+                        <p className="text-[10px] text-muted-foreground/60 mt-1">
+                          {new Date(n.created_at).toLocaleString("pt-AO", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                </button>
-              ))}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
