@@ -296,9 +296,8 @@ const Checkout = () => {
       // agora — só depois do Adm/Moderador aprovar o comprovativo. Se for
       // pagamento na entrega, segue o fluxo normal de notificação imediata.
       if (!requiresProof) {
-        const sellerIds = cartGroups
-          .filter((g: any) => !g.isCompany)
-          .map((g: any) => g.seller.sellerId);
+        const sellerGroups = cartGroups.filter((g: any) => !g.isCompany);
+        const sellerIds = sellerGroups.map((g: any) => g.seller.sellerId);
 
         if (sellerIds.length > 0) {
           const { data: sellers } = await supabase
@@ -306,20 +305,47 @@ const Checkout = () => {
             .select("id, user_id")
             .in("id", sellerIds);
 
-          const notifications = (sellers || []).map((s: any) => ({
-            user_id: s.user_id,
-            title: "Novo pedido recebido!",
-            message: `Tem um novo pedido #${order.id.slice(0, 8)} no valor de ${total.toLocaleString("pt-AO")} Kz.`,
-            type: "order",
-            link_url: "/painel-vendedor",
-            is_read: false,
-          }));
+          const payLabel =
+            paymentMethod === "cash_on_delivery" ? "Pagamento na entrega" :
+            paymentMethod === "bank_transfer" ? "Transferência bancária" :
+            paymentMethod === "multicaixa_express" ? "Multicaixa Express" :
+            paymentMethod;
+
+          const notifications = (sellers || [])
+            .map((s: any) => {
+              const group = sellerGroups.find((g: any) => g.seller.sellerId === s.id);
+              if (!group) return null;
+              const totalItems = group.items.reduce((n: number, it: any) => n + it.quantity, 0);
+              const preview = group.items
+                .slice(0, 3)
+                .map((it: any) => `• ${it.quantity}× ${it.name}`)
+                .join("\n");
+              const extra = group.items.length > 3
+                ? `\n…e mais ${group.items.length - 3} artigo(s)`
+                : "";
+              return {
+                user_id: s.user_id,
+                title: `🛒 Novo pedido #${order.id.slice(0, 8).toUpperCase()} — AÇÃO NECESSÁRIA`,
+                message:
+                  `Comprador: ${address.name} (${address.phone})\n` +
+                  `Entrega: ${address.municipalityName}, ${address.provinceName}\n` +
+                  `Pagamento: ${payLabel}\n` +
+                  `Total do seu grupo: ${group.subtotal.toLocaleString("pt-AO")} Kz  •  ${totalItems} item(s)\n\n` +
+                  `${preview}${extra}\n\n` +
+                  `Abra o pedido para aceitar e preparar o envio.`,
+                type: "order",
+                link_url: `/pedido/${order.id}`,
+                is_read: false,
+              };
+            })
+            .filter(Boolean);
 
           if (notifications.length > 0) {
-            await supabase.from("notifications").insert(notifications);
+            await supabase.from("notifications").insert(notifications as any);
           }
         }
       }
+
 
       await clearCart.mutateAsync();
       return order;
