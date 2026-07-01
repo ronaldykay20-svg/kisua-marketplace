@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   SlidersHorizontal, ChevronDown, ShoppingCart, Star, Loader2, Plus, X,
-  ArrowLeft, CheckCircle, Store, Building2, Search, Heart,
+  ArrowLeft, CheckCircle, Store, Building2, Heart,
 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useQuery } from "@tanstack/react-query";
@@ -206,6 +206,12 @@ const GlobalStyle = () => (
     .cd-heart-btn:active { transform: scale(0.88); }
     .cd-sub-btn { transition: background .15s ease; }
     .cd-chip { transition: border-color .15s ease, background .15s ease; }
+    .cd-product-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(148px, 190px));
+      gap: 14px 12px;
+      justify-content: start;
+    }
     @keyframes cd-spin { to { transform: rotate(360deg); } }
   `}</style>
 );
@@ -591,51 +597,40 @@ const CategoriaDetalhe = () => {
     <div style={{ position: "relative", minHeight: "100vh", background: bg, fontFamily: fontBody, paddingBottom: 56 }}>
       <GlobalStyle />
 
-      {/* ── Cabeçalho — castanho fraco, sem foto/hero. Nome da categoria
-           entra no lugar do texto de pesquisa, como um "estás aqui" ── */}
-      <div style={{ background: brand, padding: "12px 14px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      {/* ── Faixa de contexto — fina, sem duplicar pesquisa/sino/carrinho
+           que já vêm do cabeçalho partilhado da aplicação nesta rota.
+           Só o essencial: voltar + breadcrumb + título da categoria. ── */}
+      <div style={{ background: brand, padding: "10px 14px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button onClick={() => navigate(-1)} style={{
-            width: 34, height: 34, borderRadius: "50%", background: "rgba(255,255,255,0.18)",
+            width: 30, height: 30, borderRadius: "50%", background: "rgba(255,255,255,0.18)",
             border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
           }}>
-            <ArrowLeft style={{ width: 17, height: 17, color: surface }} strokeWidth={2.4} />
+            <ArrowLeft style={{ width: 15, height: 15, color: surface }} strokeWidth={2.4} />
           </button>
 
-          <button
-            onClick={() => navigate(`/pesquisa?q=${encodeURIComponent(categoryName)}`)}
-            style={{
-              flex: 1, display: "flex", alignItems: "center", gap: 8,
-              background: "#F1E9DC", borderRadius: 24, padding: "10px 16px", border: "none", cursor: "pointer",
-            }}
-          >
-            <Search style={{ width: 15, height: 15, color: brandDeep, flexShrink: 0 }} strokeWidth={2.2} />
-            <span style={{ fontFamily: fontBody, fontSize: 13.5, color: ink, fontWeight: 700, textAlign: "left" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, flexWrap: "wrap", minWidth: 0 }}>
+            <button onClick={() => navigate("/")} style={{
+              background: "none", border: "none", cursor: "pointer", padding: 0,
+              fontFamily: fontBody, color: "rgba(255,255,255,0.75)", fontWeight: 600,
+            }}>
+              Início
+            </button>
+            <span style={{ color: "rgba(255,255,255,0.45)" }}>/</span>
+            <button onClick={() => navigate("/categorias")} style={{
+              background: "none", border: "none", cursor: "pointer", padding: 0,
+              fontFamily: fontBody, color: "rgba(255,255,255,0.75)", fontWeight: 600,
+            }}>
+              Categorias
+            </button>
+            <span style={{ color: "rgba(255,255,255,0.45)" }}>/</span>
+            <span style={{
+              fontFamily: fontBody, fontWeight: 800, color: surface,
+              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+            }}>
               {categoryName}
             </span>
-          </button>
-
-          <button style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}>
-            <ShoppingCart style={{ width: 22, height: 22, color: surface }} strokeWidth={2.2} />
-          </button>
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 10, fontSize: 11 }}>
-          <button onClick={() => navigate("/")} style={{
-            background: "none", border: "none", cursor: "pointer", padding: 0,
-            fontFamily: fontBody, color: "rgba(255,255,255,0.8)", fontWeight: 600,
-          }}>
-            Início
-          </button>
-          <span style={{ color: "rgba(255,255,255,0.5)" }}>/</span>
-          <button onClick={() => navigate("/categorias")} style={{
-            background: "none", border: "none", cursor: "pointer", padding: 0,
-            fontFamily: fontBody, color: "rgba(255,255,255,0.8)", fontWeight: 600,
-          }}>
-            Categorias
-          </button>
-          <span style={{ color: "rgba(255,255,255,0.5)" }}>/</span>
-          <span style={{ fontFamily: fontBody, fontWeight: 800, color: surface }}>{categoryName}</span>
+          </div>
         </div>
       </div>
 
@@ -790,7 +785,7 @@ const CategoriaDetalhe = () => {
                   )}
                 </div>
               ) : (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 14 }}>
+                <div className="cd-product-grid">
                   {products.map((p: any) => <ProductCard key={p.id} product={p} navigate={navigate} addToCart={addToCart} />)}
                 </div>
               )}
