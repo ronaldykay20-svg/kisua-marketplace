@@ -1,20 +1,24 @@
-import { Bell, ChevronLeft, Package, Tag, Megaphone, ShieldCheck, Check, Trash2, Loader2 } from "lucide-react";
+import { Bell, ChevronLeft, Check, Loader2 } from "lucide-react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { classifyNotification, NotificationTone } from "@/lib/notificationStyle";
 
-const typeIcons: Record<string, any> = {
-  order: Package,
-  promo: Tag,
-  system: ShieldCheck,
-  marketing: Megaphone,
-};
+const FILTERS: { key: NotificationTone | "all"; label: string; dot: string }[] = [
+  { key: "all",    label: "Todas",     dot: "bg-muted-foreground" },
+  { key: "red",    label: "Urgentes",  dot: "bg-red-500" },
+  { key: "amber",  label: "Avisos",    dot: "bg-amber-500" },
+  { key: "blue",   label: "Pedidos",   dot: "bg-blue-500" },
+  { key: "green",  label: "Confirmados", dot: "bg-green-500" },
+];
 
 const Notificacoes = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const [filter, setFilter] = useState<NotificationTone | "all">("all");
 
   const { data: notifications = [], isLoading } = useQuery({
     queryKey: ["notifications", user?.id],
@@ -46,6 +50,12 @@ const Notificacoes = () => {
   });
 
   const unreadCount = notifications.filter((n: any) => !n.is_read).length;
+  const urgentUnreadCount = notifications.filter((n: any) => !n.is_read && classifyNotification(n).tone === "red").length;
+
+  const filtered = useMemo(() => {
+    if (filter === "all") return notifications;
+    return notifications.filter((n: any) => classifyNotification(n).tone === filter);
+  }, [notifications, filter]);
 
   if (!user) {
     return (
@@ -66,7 +76,7 @@ const Notificacoes = () => {
           <ChevronLeft className="w-4 h-4" /> Voltar
         </button>
 
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-1">
           <h1 className="text-lg font-bold text-foreground flex items-center gap-2">
             <Bell className="w-5 h-5 text-primary" /> Notificações
             {unreadCount > 0 && (
@@ -83,22 +93,49 @@ const Notificacoes = () => {
           )}
         </div>
 
+        {urgentUnreadCount > 0 && (
+          <div className="flex items-center gap-2 rounded-lg px-3 py-2 mb-3 bg-red-500/10 border border-red-500/25">
+            <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
+            <p className="text-[11px] font-bold text-red-600">
+              {urgentUnreadCount} {urgentUnreadCount === 1 ? "aviso urgente" : "avisos urgentes"} por ler — requer atenção imediata.
+            </p>
+          </div>
+        )}
+
+        {/* Filtros por cor/tipo */}
+        <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-3 mb-1">
+          {FILTERS.map(f => (
+            <button
+              key={f.key}
+              onClick={() => setFilter(f.key)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap border transition ${
+                filter === f.key ? "bg-foreground text-background border-foreground" : "bg-card text-muted-foreground border-border"
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${f.dot}`} />
+              {f.label}
+            </button>
+          ))}
+        </div>
+
         {isLoading && (
           <div className="text-center py-12">
             <Loader2 className="w-6 h-6 animate-spin text-primary mx-auto" />
           </div>
         )}
 
-        {!isLoading && notifications.length === 0 && (
+        {!isLoading && filtered.length === 0 && (
           <div className="text-center py-12">
             <Bell className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground">Nenhuma notificação ainda</p>
+            <p className="text-sm text-muted-foreground">
+              {filter === "all" ? "Nenhuma notificação ainda" : "Nada nesta categoria"}
+            </p>
           </div>
         )}
 
         <div className="space-y-2">
-          {notifications.map((n: any) => {
-            const Icon = typeIcons[n.type] || Bell;
+          {filtered.map((n: any) => {
+            const style = classifyNotification(n);
             return (
               <button
                 key={n.id}
@@ -106,21 +143,22 @@ const Notificacoes = () => {
                   if (!n.is_read) markRead.mutate(n.id);
                   if (n.link_url) navigate(n.link_url);
                 }}
-                className={`w-full text-left p-3 rounded-xl border transition ${
-                  n.is_read
-                    ? "bg-card border-border"
-                    : "bg-primary/5 border-primary/20 shadow-sm"
+                className={`w-full text-left p-3 rounded-xl border border-l-4 transition ${style.border} ${
+                  n.is_read ? "bg-card border-border" : `${style.bg} border-border shadow-sm`
                 }`}
               >
                 <div className="flex gap-3">
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${n.is_read ? "bg-muted" : "bg-primary/10"}`}>
-                    <Icon className={`w-4 h-4 ${n.is_read ? "text-muted-foreground" : "text-primary"}`} />
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${style.iconBg}`}>
+                    <style.Icon className={`w-4 h-4 ${style.iconText}`} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className={`text-xs font-bold truncate ${n.is_read ? "text-foreground" : "text-primary"}`}>{n.title}</p>
-                      {!n.is_read && <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />}
+                      <span className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${style.iconBg} ${style.iconText}`}>
+                        {style.label}
+                      </span>
+                      {!n.is_read && <span className={`w-2 h-2 rounded-full flex-shrink-0 ${style.dot}`} />}
                     </div>
+                    <p className={`text-xs font-bold truncate mt-1 ${!n.is_read ? style.titleText : "text-foreground"}`}>{n.title}</p>
                     {n.message && <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{n.message}</p>}
                     <p className="text-[10px] text-muted-foreground mt-1">
                       {new Date(n.created_at).toLocaleDateString("pt-AO")} • {new Date(n.created_at).toLocaleTimeString("pt-AO", { hour: "2-digit", minute: "2-digit" })}
