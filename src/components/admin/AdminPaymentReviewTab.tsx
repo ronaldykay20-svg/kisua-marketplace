@@ -152,7 +152,7 @@ const AdminPaymentReviewTab = () => {
             title: "Novo pedido recebido!",
             message: `Tem um novo pedido #${(order.order_number || order.id).toString().slice(0, 8)} no valor de ${Number(order.total).toLocaleString("pt-AO")} Kz.`,
             type: "order",
-            link_url: "/painel-vendedor",
+            link_url: "/central-de-pedidos",
             is_read: false,
           });
         }
