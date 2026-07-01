@@ -143,7 +143,17 @@ export default function AdminSuppliersTab() {
         .update({ status: "rejected" })
         .eq("id", id);
       if (error) throw error;
-      if (supplier?.user_id) await (supabase as any).from("sellers").update({ is_active: false, is_verified: false }).eq("user_id", supplier.user_id);
+      if (supplier?.user_id) {
+        await (supabase as any).from("sellers").update({ is_active: false, is_verified: false }).eq("user_id", supplier.user_id);
+        await supabase.from("notifications").insert({
+          user_id: supplier.user_id,
+          title: "❌ Candidatura a Fornecedor NÃO aprovada",
+          message: "A sua candidatura foi rejeitada. Contacte o suporte para saber os motivos.",
+          type: "rejeitado",
+          link_url: "/ajuda",
+          is_read: false,
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin_suppliers"] });
