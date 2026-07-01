@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   SlidersHorizontal, ChevronDown, ShoppingCart, Star, Loader2, Plus, X,
-  ArrowLeft, CheckCircle, Store, Building2,
+  ArrowLeft, CheckCircle, Store, Building2, Search, Heart,
 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useQuery } from "@tanstack/react-query";
@@ -13,19 +13,20 @@ import { useAddToCart } from "@/hooks/useCartActions";
 /* ════════════════════════════════════════════════════════════
    TOKENS — mesma identidade da página Categorias
    ════════════════════════════════════════════════════════════ */
-const bg           = "#FAF5EE";
-const surface      = "#FFFFFF";
-const ink          = "#23150B";
-const inkSoft      = "#7A6249";
-const brand        = "#A9835C";
-const brandDeep    = "#8F6C49";
-const promo        = "#C23B2B";
-const dealGreen    = "#1E7A3C";
-const gold         = "#C8932F";
-const line         = "rgba(35,21,11,0.10)";
-const lineSoft     = "rgba(35,21,11,0.06)";
-const shadowSm     = "0 1px 3px rgba(35,21,11,0.08)";
-const shadowMd     = "0 4px 16px rgba(35,21,11,0.10)";
+const bg        = "#FAF5EE";
+const surface   = "#FFFFFF";
+const ink       = "#23150B";
+const inkSoft   = "#7A6249";
+const brand     = "#A9835C";
+const brandDeep = "#8F6C49";
+const promo     = "#C23B2B";
+const dealGreen = "#1E7A3C";
+const saveBg    = "#E3F2E6";
+const gold      = "#C8932F";
+const line      = "rgba(35,21,11,0.10)";
+const lineSoft  = "rgba(35,21,11,0.06)";
+const shadowSm  = "0 1px 3px rgba(35,21,11,0.08)";
+const shadowMd  = "0 4px 16px rgba(35,21,11,0.10)";
 
 const fontBody = "'Manrope', system-ui, sans-serif";
 
@@ -46,53 +47,7 @@ const subcategories: Record<string, string[]> = {
   "Empregos": ["TI", "Saúde", "Educação", "Vendas", "Engenharia"],
   "Educação": ["Cursos", "Livros", "Material", "Explicações", "Online"],
   "Animais": ["Cães", "Gatos", "Aves", "Acessórios", "Alimentação"],
-};
-
-const categoryHeroImages: Record<string, string> = {
-  "Electrónicos": "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=800&h=400&fit=crop",
-  "Veículos": "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=800&h=400&fit=crop",
-  "Imóveis": "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800&h=400&fit=crop",
-  "Moda": "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800&h=400&fit=crop",
-  "Casa & Jardim": "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=800&h=400&fit=crop",
-  "Desporto": "https://images.unsplash.com/photo-1461896836934-bd45ba8a0a42?w=800&h=400&fit=crop",
-  "Bebé & Criança": "https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?w=800&h=400&fit=crop",
-  "Saúde & Beleza": "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=800&h=400&fit=crop",
-  "Informática": "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=800&h=400&fit=crop",
-  "Gaming": "https://images.unsplash.com/photo-1612287230202-1ff1d85d1bdf?w=800&h=400&fit=crop",
-  "Jóias & Relógios": "https://images.unsplash.com/photo-1515562141589-67f0d569b6fc?w=800&h=400&fit=crop",
-  "Viagens": "https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800&h=400&fit=crop",
-  "Alimentação": "https://images.unsplash.com/photo-1506617420156-8e4536971650?w=800&h=400&fit=crop",
-  "Empregos": "https://images.unsplash.com/photo-1521737711867-e3b97375f902?w=800&h=400&fit=crop",
-  "Educação": "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=800&h=400&fit=crop",
-  "Animais": "https://images.unsplash.com/photo-1450778869180-41d0601e046e?w=800&h=400&fit=crop",
-  "Vestuário": "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800&h=400&fit=crop",
-};
-
-const categorySubtitles: Record<string, string> = {
-  "Electrónicos": "Tecnologia de ponta ao seu alcance.",
-  "Veículos": "O veículo ideal para cada jornada.",
-  "Imóveis": "O seu próximo lar está aqui.",
-  "Moda": "Estilo, conforto e moda para todas as ocasiões.",
-  "Vestuário": "Estilo, conforto e moda para todas as ocasiões.",
-  "Casa & Jardim": "Transforme a sua casa num lar.",
-  "Desporto": "Equipamento para cada aventura.",
-  "Bebé & Criança": "Tudo para os mais pequenos.",
-  "Saúde & Beleza": "Cuide de si com os melhores produtos.",
-  "Informática": "Potência e produtividade ao seu dispor.",
-  "Gaming": "Leve o jogo a outro nível.",
-  "Jóias & Relógios": "Elegância que nunca passa de moda.",
-  "Viagens": "Descubra o mundo sem limites.",
-  "Alimentação": "Frescura e sabor em cada produto.",
-  "Empregos": "A sua próxima oportunidade está aqui.",
-  "Educação": "Conhecimento que transforma vidas.",
-  "Animais": "Para os seus companheiros de quatro patas.",
-};
-
-const colorNameToHexMap: Record<string, string> = {
-  "Preto": "#000000", "Branco": "#FFFFFF", "Vermelho": "#EF4444",
-  "Azul": "#3B82F6", "Verde": "#22C55E", "Amarelo": "#EAB308",
-  "Rosa": "#EC4899", "Roxo": "#A855F7", "Laranja": "#F97316",
-  "Cinza": "#6B7280", "Cáqui": "#D97706", "Marrom": "#78350F",
+  "Drones": ["Câmara", "Corrida (FPV)", "Recreativo", "Profissional", "Peças e baterias"],
 };
 
 const colorOptions = [
@@ -131,11 +86,14 @@ const hexClose = (a: string, b: string, tolerance = 60) => {
   } catch { return false; }
 };
 
-/* ── Hook: empresas e vendedores patrocinados pelo Admin — lê a tabela
-     `ads` (type = "empresa" | "vendedor", is_active = true), depois vai
-     buscar os dados reais a `companies` / `sellers`. Mesma abordagem de
-     leitura de logo/avatar e verificação usada no SearchResults.tsx
-     (logo_url para empresas, avatar_url para vendedores, is_verified). ── */
+const formatPrice = (n: number) => n.toLocaleString("pt-AO").replace(/,/g, ".") + " Kz";
+
+/* ── Hook: empresas e vendedores patrocinados pelo Admin — lê `ads`
+     (type = "empresa" | "vendedor", is_active = true) e depois busca os
+     dados reais em `companies` / `sellers`. Peço TODOS os campos de imagem
+     plausíveis (logo_url, cover_url, avatar_url, image_url) e uso o
+     primeiro que vier preenchido — corrige o caso da imagem não aparecer
+     quando a coluna usada na tua base não era a que eu assumia. ── */
 const useSponsoredEntities = () =>
   useQuery({
     queryKey: ["sponsored_entities_strip"],
@@ -157,7 +115,7 @@ const useSponsoredEntities = () =>
       if (companyIds.length > 0) {
         const { data } = await (supabase as any)
           .from("companies")
-          .select("id, name, logo_url, cover_url, description, is_verified")
+          .select("*")
           .in("id", companyIds)
           .eq("is_active", true);
         companiesData = data || [];
@@ -165,7 +123,7 @@ const useSponsoredEntities = () =>
       if (sellerIds.length > 0) {
         const { data } = await (supabase as any)
           .from("sellers")
-          .select("id, name, avatar_url, description, is_verified")
+          .select("*")
           .in("id", sellerIds)
           .eq("is_active", true);
         sellersData = data || [];
@@ -176,7 +134,11 @@ const useSponsoredEntities = () =>
       const sellerById: Record<string, any> = {};
       sellersData.forEach((s) => { sellerById[s.id] = s; });
 
-      // mantém a ordem de patrocínio (mais recente primeiro), sem duplicar
+      const pickImage = (obj: any, keys: string[]) => {
+        for (const k of keys) if (obj?.[k]) return obj[k];
+        return null;
+      };
+
       const seen = new Set<string>();
       const list: any[] = [];
       (adsData || []).forEach((a: any) => {
@@ -189,7 +151,7 @@ const useSponsoredEntities = () =>
             kind: "empresa",
             id: c.id,
             name: c.name,
-            image: c.logo_url || c.cover_url || null,
+            image: pickImage(c, ["logo_url", "cover_url", "image_url", "avatar_url", "photo_url"]),
             description: c.description || null,
             verified: !!c.is_verified,
             link: `/empresa/${c.id}`,
@@ -201,7 +163,7 @@ const useSponsoredEntities = () =>
             kind: "vendedor",
             id: s.id,
             name: s.name,
-            image: s.avatar_url || null,
+            image: pickImage(s, ["avatar_url", "logo_url", "image_url", "cover_url", "photo_url"]),
             description: s.description || null,
             verified: !!s.is_verified,
             link: `/vendedor/${s.id}`,
@@ -213,12 +175,45 @@ const useSponsoredEntities = () =>
     },
   });
 
-/* ── Faixa discreta "Acompanhe Empresas Confiáveis" ── */
+/* ── Hook: produtos da categoria ── */
+const useCategoryProducts = (categoryId: string | undefined, sortBy: string) =>
+  useQuery({
+    queryKey: ["category_products", categoryId, sortBy],
+    queryFn: async () => {
+      let query = supabase
+        .from("products")
+        .select("*, product_media(url, is_cover), product_variants(variant_type, value, name)")
+        .eq("is_active", true);
+      if (categoryId) query = query.eq("category_id", categoryId);
+      if (sortBy === "Menor preço") query = query.order("price", { ascending: true });
+      else if (sortBy === "Maior preço") query = query.order("price", { ascending: false });
+      else if (sortBy === "Mais vendidos") query = query.order("sales_count", { ascending: false });
+      else query = query.order("created_at", { ascending: false });
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!categoryId,
+  });
+
+const GlobalStyle = () => (
+  <style>{`
+    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800;900&display=swap');
+    .cd-scroll::-webkit-scrollbar { display: none; }
+    .cd-prod-card { transition: transform .15s ease, box-shadow .15s ease; }
+    .cd-prod-card:hover { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(35,21,11,0.14) !important; }
+    .cd-cart-btn:active { transform: scale(0.97); }
+    .cd-heart-btn:active { transform: scale(0.88); }
+    .cd-sub-btn { transition: background .15s ease; }
+    .cd-chip { transition: border-color .15s ease, background .15s ease; }
+    @keyframes cd-spin { to { transform: rotate(360deg); } }
+  `}</style>
+);
+
+/* ── Faixa "Acompanhe Empresas Confiáveis" ── */
 const TrustedEntitiesStrip = ({ navigate }: { navigate: any }) => {
   const { data: entities, isLoading } = useSponsoredEntities();
-
-  if (isLoading) return null;
-  if (!entities || entities.length === 0) return null;
+  if (isLoading || !entities || entities.length === 0) return null;
 
   return (
     <div style={{ background: surface, borderBottom: `1px solid ${line}`, padding: "14px 0" }}>
@@ -234,27 +229,28 @@ const TrustedEntitiesStrip = ({ navigate }: { navigate: any }) => {
             key={`${e.kind}-${e.id}`}
             onClick={() => navigate(e.link)}
             style={{
-              flexShrink: 0, width: 168, display: "flex", alignItems: "center", gap: 9,
+              flexShrink: 0, width: 176, display: "flex", alignItems: "center", gap: 10,
               background: bg, border: `1px solid ${line}`, borderRadius: 14,
               padding: "9px 10px", cursor: "pointer", textAlign: "left",
             }}
           >
             <div style={{
-              width: 36, height: 36, borderRadius: e.kind === "empresa" ? 9 : "50%",
+              width: 42, height: 42, borderRadius: e.kind === "empresa" ? 10 : "50%",
               overflow: "hidden", flexShrink: 0, background: "#EFE2CE",
               display: "flex", alignItems: "center", justifyContent: "center",
+              border: `1px solid ${line}`,
             }}>
               {e.image
                 ? <img src={e.image} alt={e.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 : (e.kind === "empresa"
-                  ? <Building2 style={{ width: 16, height: 16, color: brandDeep }} />
-                  : <Store style={{ width: 16, height: 16, color: brandDeep }} />)}
+                  ? <Building2 style={{ width: 18, height: 18, color: brandDeep }} />
+                  : <Store style={{ width: 18, height: 18, color: brandDeep }} />)}
             </div>
             <div style={{ minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
                 <span style={{
-                  fontFamily: fontBody, fontSize: 11.5, fontWeight: 800, color: ink,
-                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 100,
+                  fontFamily: fontBody, fontSize: 12, fontWeight: 800, color: ink,
+                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 105,
                 }}>
                   {e.name}
                 </span>
@@ -274,17 +270,128 @@ const TrustedEntitiesStrip = ({ navigate }: { navigate: any }) => {
   );
 };
 
-const GlobalStyle = () => (
-  <style>{`
-    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800;900&display=swap');
-    .cd-scroll::-webkit-scrollbar { display: none; }
-    .cd-prod-card { transition: transform .15s ease, box-shadow .15s ease; }
-    .cd-prod-card:hover { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(35,21,11,0.14) !important; }
-    .cd-cart-btn:active { transform: scale(0.92); }
-    .cd-sub-btn { transition: background .15s ease; }
-    @keyframes cd-spin { to { transform: rotate(360deg); } }
-  `}</style>
+/* ── Estrelas ── */
+const RatingRow = ({ rating, reviews }: { rating: number; reviews: number }) => (
+  <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}>
+    <div style={{ display: "flex", gap: 1 }}>
+      {[1, 2, 3, 4, 5].map((i) => (
+        <Star key={i} style={{ width: 11, height: 11 }}
+          fill={i <= Math.round(rating) ? gold : "none"}
+          stroke={i <= Math.round(rating) ? gold : "#C8BBA8"} strokeWidth={1.5} />
+      ))}
+    </div>
+    {reviews > 0 && (
+      <span style={{ fontFamily: fontBody, fontSize: 10, color: inkSoft, fontWeight: 600 }}>
+        {reviews.toLocaleString("pt-AO")}
+      </span>
+    )}
+  </div>
 );
+
+/* ── Cartão de produto — densidade Walmart, igual ao usado em Categorias ── */
+const ProductCard = ({ product, navigate, addToCart }: { product: any; navigate: any; addToCart: any }) => {
+  const [liked, setLiked] = useState(false);
+
+  return (
+    <div className="cd-prod-card" style={{ width: "100%" }}>
+      <div style={{ position: "relative" }}>
+        <button
+          onClick={() => navigate(`/produto/${product.id}`)}
+          style={{ display: "block", width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer" }}
+        >
+          <div style={{
+            width: "100%", aspectRatio: "1/1", borderRadius: 12, overflow: "hidden",
+            background: surface, border: `1px solid ${line}`,
+          }}>
+            <img src={product.image} alt={product.title} loading="lazy"
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+          </div>
+        </button>
+
+        {product.discount && (
+          <span style={{
+            position: "absolute", top: 8, left: 0,
+            background: promo, color: surface,
+            fontFamily: fontBody, fontSize: 10.5, fontWeight: 800,
+            padding: "3px 9px", borderRadius: "0 6px 6px 0",
+          }}>
+            {product.discount}
+          </span>
+        )}
+        {product.freeShipping && (
+          <span style={{
+            position: "absolute", bottom: 8, left: 8,
+            background: "rgba(35,21,11,0.75)", color: surface,
+            fontFamily: fontBody, fontSize: 9, fontWeight: 700,
+            padding: "3px 8px", borderRadius: 20,
+          }}>
+            Frete grátis
+          </span>
+        )}
+
+        <button
+          className="cd-heart-btn"
+          onClick={(e) => { e.stopPropagation(); setLiked((v) => !v); }}
+          style={{
+            position: "absolute", top: 8, right: 8,
+            width: 26, height: 26, borderRadius: "50%", border: "none", cursor: "pointer",
+            background: surface, boxShadow: shadowSm,
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+        >
+          <Heart style={{ width: 13, height: 13 }} fill={liked ? promo : "none"} stroke={liked ? promo : ink} strokeWidth={1.8} />
+        </button>
+      </div>
+
+      <button
+        className="cd-cart-btn"
+        onClick={() => addToCart.mutate({ productId: product.id, quantity: 1 })}
+        disabled={addToCart.isPending}
+        style={{
+          width: "100%", marginTop: 9, padding: "8px 0", borderRadius: 20, border: "none", cursor: "pointer",
+          background: brandDeep, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+        }}
+      >
+        {addToCart.isPending
+          ? <Loader2 style={{ width: 13, height: 13, color: surface }} className="animate-spin" />
+          : <ShoppingCart style={{ width: 12, height: 12, color: surface }} />}
+        <span style={{ fontFamily: fontBody, fontSize: 12, fontWeight: 800, color: surface }}>Adicionar</span>
+      </button>
+
+      <div style={{ marginTop: 7 }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
+          <span style={{ fontFamily: fontBody, fontSize: 16, fontWeight: 800, color: dealGreen, fontVariantNumeric: "tabular-nums" }}>
+            {product.priceFormatted}
+          </span>
+        </div>
+        {product.oldPriceFormatted && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 1, flexWrap: "wrap" }}>
+            <span style={{ fontFamily: fontBody, fontSize: 11, color: inkSoft, textDecoration: "line-through", fontWeight: 600 }}>
+              {product.oldPriceFormatted}
+            </span>
+            {product.discount && (
+              <span style={{
+                fontFamily: fontBody, fontSize: 9.5, fontWeight: 800, color: dealGreen,
+                background: saveBg, borderRadius: 4, padding: "1px 5px",
+              }}>
+                {product.discount}
+              </span>
+            )}
+          </div>
+        )}
+
+        <p style={{
+          margin: "5px 0 0", fontFamily: fontBody, fontSize: 12, fontWeight: 600, color: ink,
+          lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
+        }}>
+          {product.title}
+        </p>
+
+        {product.rating > 0 && <RatingRow rating={product.rating} reviews={product.reviews} />}
+      </div>
+    </div>
+  );
+};
 
 const CategoriaDetalhe = () => {
   const { nome } = useParams();
@@ -303,24 +410,7 @@ const CategoriaDetalhe = () => {
   const category = (dbCategories || []).find((c: any) => c.name === categoryName);
   const categoryId = category?.id;
 
-  const { data: dbProducts, isLoading } = useQuery({
-    queryKey: ["category_products", categoryId, sortBy],
-    queryFn: async () => {
-      let query = supabase
-        .from("products")
-        .select("*, product_media(url, is_cover), product_variants(variant_type, value, name)")
-        .eq("is_active", true);
-      if (categoryId) query = query.eq("category_id", categoryId);
-      if (sortBy === "Menor preço") query = query.order("price", { ascending: true });
-      else if (sortBy === "Maior preço") query = query.order("price", { ascending: false });
-      else if (sortBy === "Mais vendidos") query = query.order("sales_count", { ascending: false });
-      else query = query.order("created_at", { ascending: false });
-      const { data, error } = await query;
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!categoryId,
-  });
+  const { data: dbProducts, isLoading } = useCategoryProducts(categoryId, sortBy);
 
   const allProducts = useMemo(() =>
     (dbProducts || []).map((p: any) => {
@@ -339,8 +429,8 @@ const CategoriaDetalhe = () => {
         id: p.id,
         title: p.title,
         price,
-        priceFormatted: price.toLocaleString("pt-AO").replace(/,/g, ".") + " Kz",
-        oldPriceFormatted: oldPriceNum ? oldPriceNum.toLocaleString("pt-AO").replace(/,/g, ".") + " Kz" : undefined,
+        priceFormatted: formatPrice(price),
+        oldPriceFormatted: oldPriceNum ? formatPrice(oldPriceNum) : undefined,
         discount: p.discount_percent ? `-${p.discount_percent}%` : undefined,
         image: cover,
         rating: p.rating || 0,
@@ -373,22 +463,11 @@ const CategoriaDetalhe = () => {
     return list;
   }, [allProducts, selectedColors, selectedPrice, selectedSub]);
 
-  const subs = subcategories[categoryName] || ["Todos"];
+  const subs = subcategories[categoryName] || [];
   const toggleColor = (c: string) =>
     setSelectedColors((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
 
   const activeFiltersCount = (selectedSub ? 1 : 0) + selectedColors.length + (selectedPrice ? 1 : 0);
-
-  const heroImage =
-    category?.cover_image_url ||
-    categoryHeroImages[categoryName] ||
-    "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800&h=400&fit=crop";
-
-  const heroSubtitle =
-    category?.description ||
-    categorySubtitles[categoryName] ||
-    "Os melhores produtos para si.";
-
   const clearFilters = () => { setSelectedSub(null); setSelectedColors([]); setSelectedPrice(null); };
 
   const FiltersPanel = () => (
@@ -407,41 +486,43 @@ const CategoriaDetalhe = () => {
         </button>
       )}
 
-      <div>
-        <h3 style={{ fontFamily: fontBody, fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6, color: inkSoft, margin: "0 0 8px" }}>
-          Categoria
-        </h3>
-        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          {subs.map((sub) => {
-            const active = selectedSub === sub;
-            return (
-              <button
-                key={sub}
-                className="cd-sub-btn"
-                onClick={() => setSelectedSub(active ? null : sub)}
-                style={{
-                  display: "flex", alignItems: "center", justifyContent: "space-between",
-                  width: "100%", textAlign: "left", padding: "7px 8px", borderRadius: 9, border: "none",
-                  cursor: "pointer", background: active ? lineSoft : "transparent",
-                }}
-              >
-                <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{
-                    width: 15, height: 15, borderRadius: "50%", border: `2px solid ${active ? brandDeep : "#CBBFA9"}`,
-                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-                  }}>
-                    {active && <span style={{ width: 7, height: 7, borderRadius: "50%", background: brandDeep }} />}
+      {subs.length > 0 && (
+        <div>
+          <h3 style={{ fontFamily: fontBody, fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6, color: inkSoft, margin: "0 0 8px" }}>
+            Subcategoria
+          </h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            {subs.map((sub) => {
+              const active = selectedSub === sub;
+              return (
+                <button
+                  key={sub}
+                  className="cd-sub-btn"
+                  onClick={() => setSelectedSub(active ? null : sub)}
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    width: "100%", textAlign: "left", padding: "7px 8px", borderRadius: 9, border: "none",
+                    cursor: "pointer", background: active ? lineSoft : "transparent",
+                  }}
+                >
+                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{
+                      width: 15, height: 15, borderRadius: "50%", border: `2px solid ${active ? brandDeep : "#CBBFA9"}`,
+                      display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                    }}>
+                      {active && <span style={{ width: 7, height: 7, borderRadius: "50%", background: brandDeep }} />}
+                    </span>
+                    <span style={{ fontFamily: fontBody, fontSize: 12.5, color: active ? ink : inkSoft, fontWeight: active ? 700 : 500 }}>
+                      {sub}
+                    </span>
                   </span>
-                  <span style={{ fontFamily: fontBody, fontSize: 12.5, color: active ? ink : inkSoft, fontWeight: active ? 700 : 500 }}>
-                    {sub}
-                  </span>
-                </span>
-                <Plus style={{ width: 12, height: 12, color: brandDeep }} />
-              </button>
-            );
-          })}
+                  <Plus style={{ width: 12, height: 12, color: brandDeep }} />
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       <div>
         <h3 style={{ fontFamily: fontBody, fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6, color: inkSoft, margin: "0 0 8px" }}>
@@ -506,153 +587,85 @@ const CategoriaDetalhe = () => {
     </div>
   );
 
-  const ProductCard = ({ product }: { product: any }) => (
-    <div className="cd-prod-card" style={{
-      width: "100%", overflow: "hidden", background: surface,
-      borderRadius: 14, border: `1px solid ${line}`, boxShadow: shadowSm,
-    }}>
-      <button style={{ display: "block", width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}
-        onClick={() => navigate(`/produto/${product.id}`)}>
-        <div style={{ position: "relative", width: "100%", aspectRatio: "1/1", background: bg }}>
-          <img src={product.image} alt={product.title} loading="lazy"
-            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-          {product.discount && (
-            <span style={{
-              position: "absolute", top: 8, left: 0, background: promo, color: surface,
-              fontFamily: fontBody, fontSize: 10, fontWeight: 800, padding: "3px 9px", borderRadius: "0 6px 6px 0",
-            }}>
-              {product.discount}
-            </span>
-          )}
-          {product.freeShipping && (
-            <span style={{
-              position: "absolute", bottom: 8, left: 8, background: "rgba(35,21,11,0.75)", color: surface,
-              fontFamily: fontBody, fontSize: 9, fontWeight: 700, padding: "3px 8px", borderRadius: 20,
-            }}>
-              Frete grátis
-            </span>
-          )}
-        </div>
-      </button>
-
-      <div style={{ padding: "9px 10px 11px" }}>
-        <button style={{ display: "block", width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}
-          onClick={() => navigate(`/produto/${product.id}`)}>
-          <p style={{
-            margin: "0 0 5px", fontFamily: fontBody, fontSize: 12, fontWeight: 600, color: ink, lineHeight: 1.3,
-            display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
-          }}>
-            {product.title}
-          </p>
-
-          {product.rating > 0 && (
-            <div style={{ display: "flex", alignItems: "center", gap: 3, marginBottom: 5 }}>
-              {[1, 2, 3, 4, 5].map((i) => (
-                <Star key={i} style={{ width: 10, height: 10 }}
-                  fill={i <= Math.round(product.rating) ? gold : "none"}
-                  stroke={i <= Math.round(product.rating) ? gold : "#C8BBA8"} strokeWidth={1.5} />
-              ))}
-              {product.reviews > 0 && (
-                <span style={{ fontFamily: fontBody, fontSize: 9.5, color: inkSoft, fontWeight: 600 }}>
-                  ({product.reviews})
-                </span>
-              )}
-            </div>
-          )}
-
-          <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
-            {product.oldPriceFormatted && (
-              <span style={{ fontFamily: fontBody, fontSize: 10.5, color: inkSoft, textDecoration: "line-through", fontWeight: 600 }}>
-                {product.oldPriceFormatted}
-              </span>
-            )}
-            <span style={{ fontFamily: fontBody, fontSize: 14, fontWeight: 800, color: dealGreen }}>
-              {product.priceFormatted}
-            </span>
-          </div>
-        </button>
-
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
-          <button
-            className="cd-cart-btn"
-            onClick={(e) => { e.stopPropagation(); addToCart.mutate({ productId: product.id, quantity: 1 }); }}
-            disabled={addToCart.isPending}
-            style={{
-              display: "flex", alignItems: "center", justifyContent: "center",
-              width: 30, height: 30, borderRadius: 9, border: "none", cursor: "pointer",
-              background: brandDeep, transition: "transform .15s ease",
-            }}
-          >
-            {addToCart.isPending
-              ? <Loader2 style={{ width: 13, height: 13, color: surface }} className="animate-spin" />
-              : <ShoppingCart style={{ width: 13, height: 13, color: surface }} />}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-
   return (
     <div style={{ position: "relative", minHeight: "100vh", background: bg, fontFamily: fontBody, paddingBottom: 56 }}>
       <GlobalStyle />
 
-      {/* ── Hero ── */}
-      <div style={{ position: "relative", width: "100%", overflow: "hidden", minHeight: 260 }}>
-        <img src={heroImage} alt={categoryName}
-          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
-        <div style={{
-          position: "absolute", inset: 0,
-          background: "linear-gradient(to bottom, rgba(35,21,11,0.10) 0%, rgba(35,21,11,0.14) 40%, rgba(35,21,11,0.62) 78%, rgba(35,21,11,0.80) 100%)",
-        }} />
-
-        <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-end", padding: "16px 16px 22px", minHeight: 260 }}>
+      {/* ── Cabeçalho — castanho fraco, sem foto/hero. Nome da categoria
+           entra no lugar do texto de pesquisa, como um "estás aqui" ── */}
+      <div style={{ background: brand, padding: "12px 14px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <button onClick={() => navigate(-1)} style={{
-            position: "absolute", top: 14, left: 14, width: 34, height: 34, borderRadius: "50%",
-            background: "rgba(255,255,255,0.22)", backdropFilter: "blur(4px)", border: "none", cursor: "pointer",
-            display: "flex", alignItems: "center", justifyContent: "center",
+            width: 34, height: 34, borderRadius: "50%", background: "rgba(255,255,255,0.18)",
+            border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
           }}>
             <ArrowLeft style={{ width: 17, height: 17, color: surface }} strokeWidth={2.4} />
           </button>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, marginBottom: 8 }}>
-            <button onClick={() => navigate("/")} style={{
-              background: "none", border: "none", cursor: "pointer", padding: 0,
-              fontFamily: fontBody, color: "rgba(255,255,255,0.85)", fontWeight: 600,
-              textShadow: "0 1px 4px rgba(0,0,0,0.5)",
-            }}>
-              Início
-            </button>
-            <span style={{ color: "rgba(255,255,255,0.5)" }}>/</span>
-            <button onClick={() => navigate("/categorias")} style={{
-              background: "none", border: "none", cursor: "pointer", padding: 0,
-              fontFamily: fontBody, color: "rgba(255,255,255,0.85)", fontWeight: 600,
-              textShadow: "0 1px 4px rgba(0,0,0,0.5)",
-            }}>
-              Categorias
-            </button>
-            <span style={{ color: "rgba(255,255,255,0.5)" }}>/</span>
-            <span style={{ fontFamily: fontBody, fontWeight: 800, color: surface, textShadow: "0 1px 4px rgba(0,0,0,0.6)" }}>
+          <button
+            onClick={() => navigate(`/pesquisa?q=${encodeURIComponent(categoryName)}`)}
+            style={{
+              flex: 1, display: "flex", alignItems: "center", gap: 8,
+              background: "#F1E9DC", borderRadius: 24, padding: "10px 16px", border: "none", cursor: "pointer",
+            }}
+          >
+            <Search style={{ width: 15, height: 15, color: brandDeep, flexShrink: 0 }} strokeWidth={2.2} />
+            <span style={{ fontFamily: fontBody, fontSize: 13.5, color: ink, fontWeight: 700, textAlign: "left" }}>
               {categoryName}
             </span>
-          </div>
+          </button>
 
-          <h1 style={{
-            margin: "0 0 6px", fontFamily: fontBody, fontSize: 28, fontWeight: 800, color: surface,
-            lineHeight: 1.15, textShadow: "0 2px 6px rgba(0,0,0,0.5)",
+          <button style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}>
+            <ShoppingCart style={{ width: 22, height: 22, color: surface }} strokeWidth={2.2} />
+          </button>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 10, fontSize: 11 }}>
+          <button onClick={() => navigate("/")} style={{
+            background: "none", border: "none", cursor: "pointer", padding: 0,
+            fontFamily: fontBody, color: "rgba(255,255,255,0.8)", fontWeight: 600,
           }}>
-            {categoryName}
-          </h1>
-          <p style={{
-            margin: 0, fontFamily: fontBody, fontSize: 13.5, fontWeight: 600, color: "rgba(255,255,255,0.9)",
-            maxWidth: 280, textShadow: "0 1px 4px rgba(0,0,0,0.5)",
+            Início
+          </button>
+          <span style={{ color: "rgba(255,255,255,0.5)" }}>/</span>
+          <button onClick={() => navigate("/categorias")} style={{
+            background: "none", border: "none", cursor: "pointer", padding: 0,
+            fontFamily: fontBody, color: "rgba(255,255,255,0.8)", fontWeight: 600,
           }}>
-            {heroSubtitle}
-          </p>
+            Categorias
+          </button>
+          <span style={{ color: "rgba(255,255,255,0.5)" }}>/</span>
+          <span style={{ fontFamily: fontBody, fontWeight: 800, color: surface }}>{categoryName}</span>
         </div>
       </div>
 
-      {/* ── Empresas / vendedores patrocinados — discreto, logo abaixo do hero ── */}
+      {/* ── Empresas / vendedores patrocinados ── */}
       <TrustedEntitiesStrip navigate={navigate} />
+
+      {/* ── Subcategorias — chips horizontais ── */}
+      {subs.length > 0 && (
+        <div className="cd-scroll" style={{ display: "flex", gap: 8, padding: "12px 14px", background: surface, overflowX: "auto", scrollbarWidth: "none", borderBottom: `1px solid ${line}` }}>
+          {subs.map((sub) => {
+            const active = selectedSub === sub;
+            return (
+              <button
+                key={sub}
+                className="cd-chip"
+                onClick={() => setSelectedSub(active ? null : sub)}
+                style={{
+                  flexShrink: 0, padding: "8px 14px", borderRadius: 20, cursor: "pointer",
+                  background: active ? brandDeep : surface,
+                  border: `1.5px solid ${active ? brandDeep : line}`,
+                  fontFamily: fontBody, fontSize: 12.5, fontWeight: 700,
+                  color: active ? surface : brandDeep,
+                }}
+              >
+                {sub}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* ── Barra de ordenação ── */}
       <div style={{ position: "sticky", top: 0, zIndex: 30, background: surface, borderBottom: `1px solid ${line}` }}>
@@ -767,16 +780,18 @@ const CategoriaDetalhe = () => {
                   <p style={{ margin: 0, fontFamily: fontBody, fontSize: 12, color: inkSoft, textAlign: "center", maxWidth: 200 }}>
                     Tente ajustar os filtros para encontrar o que procura.
                   </p>
-                  <button onClick={clearFilters} style={{
-                    marginTop: 4, padding: "9px 18px", borderRadius: 20, border: "none", cursor: "pointer",
-                    background: brandDeep, color: surface, fontFamily: fontBody, fontSize: 12, fontWeight: 800,
-                  }}>
-                    Limpar filtros
-                  </button>
+                  {activeFiltersCount > 0 && (
+                    <button onClick={clearFilters} style={{
+                      marginTop: 4, padding: "9px 18px", borderRadius: 20, border: "none", cursor: "pointer",
+                      background: brandDeep, color: surface, fontFamily: fontBody, fontSize: 12, fontWeight: 800,
+                    }}>
+                      Limpar filtros
+                    </button>
+                  )}
                 </div>
               ) : (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
-                  {products.map((p: any) => <ProductCard key={p.id} product={p} />)}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 14 }}>
+                  {products.map((p: any) => <ProductCard key={p.id} product={p} navigate={navigate} addToCart={addToCart} />)}
                 </div>
               )}
             </>
