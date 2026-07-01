@@ -116,6 +116,17 @@ export default function AdminSuppliersTab() {
         ? await (supabase as any).from("sellers").update(sellerPayload).eq("id", existingSeller.id)
         : await (supabase as any).from("sellers").insert({ ...sellerPayload, user_id: supplier.user_id });
       if (sellerResult.error) throw sellerResult.error;
+
+      await supabase.from("notifications").insert({
+        user_id: supplier.user_id,
+        title: "✅ Candidatura a Fornecedor APROVADA",
+        message:
+          `Parabéns! A sua candidatura foi aprovada.\n` +
+          `Já pode publicar produtos no seu painel de fornecedor.`,
+        type: "aprovado",
+        link_url: "/painel-fornecedor",
+        is_read: false,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin_suppliers"] });
