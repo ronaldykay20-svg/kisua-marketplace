@@ -1,10 +1,8 @@
 import { useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
-  SlidersHorizontal, ChevronDown, ShoppingCart, Star, Loader2, X,
-  ShieldCheck, Sparkles, Smartphone, Car, Home, Shirt, Sofa, Dumbbell,
-  Baby, HeartPulse, Laptop, Gamepad2, Gem, Plane, UtensilsCrossed,
-  Briefcase, GraduationCap, PawPrint, Package, ChevronRight,
+  SlidersHorizontal, ChevronDown, ShoppingCart, Star, Loader2, Plus, X,
+  ArrowLeft, CheckCircle, Store, Building2,
 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useQuery } from "@tanstack/react-query";
@@ -12,16 +10,25 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCategories } from "@/hooks/useSupabaseData";
 import { useAddToCart } from "@/hooks/useCartActions";
 
-/* ══════════════════════ Paleta da marca ══════════════════════ */
-const sand       = "#D4B896";
-const sandDark   = "#B8956A";
-const cream      = "#F7F0E6";
-const brown      = "#4A2E0A";
-const brownLight = "rgba(74,46,10,0.08)";
-const brownMid   = "rgba(74,46,10,0.16)";
-const rust       = "#C0552E"; // novo accent — usado só no selo da categoria e no CTA patrocinado
+/* ════════════════════════════════════════════════════════════
+   TOKENS — mesma identidade da página Categorias
+   ════════════════════════════════════════════════════════════ */
+const bg           = "#FAF5EE";
+const surface      = "#FFFFFF";
+const ink          = "#23150B";
+const inkSoft      = "#7A6249";
+const brand        = "#A9835C";
+const brandDeep    = "#8F6C49";
+const promo        = "#C23B2B";
+const dealGreen    = "#1E7A3C";
+const gold         = "#C8932F";
+const line         = "rgba(35,21,11,0.10)";
+const lineSoft     = "rgba(35,21,11,0.06)";
+const shadowSm     = "0 1px 3px rgba(35,21,11,0.08)";
+const shadowMd     = "0 4px 16px rgba(35,21,11,0.10)";
 
-/* ══════════════════════ Dados de apoio ══════════════════════ */
+const fontBody = "'Manrope', system-ui, sans-serif";
+
 const subcategories: Record<string, string[]> = {
   "Electrónicos": ["Smartphones", "Tablets", "Computadores", "Áudio", "TV & Vídeo", "Câmeras", "Acessórios"],
   "Veículos": ["Carros", "Motas", "Peças", "Camiões", "Barcos"],
@@ -41,33 +48,24 @@ const subcategories: Record<string, string[]> = {
   "Animais": ["Cães", "Gatos", "Aves", "Acessórios", "Alimentação"],
 };
 
-const categoryIcons: Record<string, any> = {
-  "Electrónicos": Smartphone, "Veículos": Car, "Imóveis": Home, "Moda": Shirt,
-  "Vestuário": Shirt, "Casa & Jardim": Sofa, "Desporto": Dumbbell,
-  "Bebé & Criança": Baby, "Saúde & Beleza": HeartPulse, "Informática": Laptop,
-  "Gaming": Gamepad2, "Jóias & Relógios": Gem, "Viagens": Plane,
-  "Alimentação": UtensilsCrossed, "Empregos": Briefcase, "Educação": GraduationCap,
-  "Animais": PawPrint,
-};
-
 const categoryHeroImages: Record<string, string> = {
-  "Electrónicos": "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=900&h=500&fit=crop",
-  "Veículos": "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=900&h=500&fit=crop",
-  "Imóveis": "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=900&h=500&fit=crop",
-  "Moda": "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=900&h=500&fit=crop",
-  "Casa & Jardim": "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=900&h=500&fit=crop",
-  "Desporto": "https://images.unsplash.com/photo-1461896836934-bd45ba8a0a42?w=900&h=500&fit=crop",
-  "Bebé & Criança": "https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?w=900&h=500&fit=crop",
-  "Saúde & Beleza": "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=900&h=500&fit=crop",
-  "Informática": "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=900&h=500&fit=crop",
-  "Gaming": "https://images.unsplash.com/photo-1612287230202-1ff1d85d1bdf?w=900&h=500&fit=crop",
-  "Jóias & Relógios": "https://images.unsplash.com/photo-1515562141589-67f0d569b6fc?w=900&h=500&fit=crop",
-  "Viagens": "https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=900&h=500&fit=crop",
-  "Alimentação": "https://images.unsplash.com/photo-1506617420156-8e4536971650?w=900&h=500&fit=crop",
-  "Empregos": "https://images.unsplash.com/photo-1521737711867-e3b97375f902?w=900&h=500&fit=crop",
-  "Educação": "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=900&h=500&fit=crop",
-  "Animais": "https://images.unsplash.com/photo-1450778869180-41d0601e046e?w=900&h=500&fit=crop",
-  "Vestuário": "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=900&h=500&fit=crop",
+  "Electrónicos": "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=800&h=400&fit=crop",
+  "Veículos": "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=800&h=400&fit=crop",
+  "Imóveis": "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800&h=400&fit=crop",
+  "Moda": "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800&h=400&fit=crop",
+  "Casa & Jardim": "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=800&h=400&fit=crop",
+  "Desporto": "https://images.unsplash.com/photo-1461896836934-bd45ba8a0a42?w=800&h=400&fit=crop",
+  "Bebé & Criança": "https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?w=800&h=400&fit=crop",
+  "Saúde & Beleza": "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=800&h=400&fit=crop",
+  "Informática": "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=800&h=400&fit=crop",
+  "Gaming": "https://images.unsplash.com/photo-1612287230202-1ff1d85d1bdf?w=800&h=400&fit=crop",
+  "Jóias & Relógios": "https://images.unsplash.com/photo-1515562141589-67f0d569b6fc?w=800&h=400&fit=crop",
+  "Viagens": "https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800&h=400&fit=crop",
+  "Alimentação": "https://images.unsplash.com/photo-1506617420156-8e4536971650?w=800&h=400&fit=crop",
+  "Empregos": "https://images.unsplash.com/photo-1521737711867-e3b97375f902?w=800&h=400&fit=crop",
+  "Educação": "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=800&h=400&fit=crop",
+  "Animais": "https://images.unsplash.com/photo-1450778869180-41d0601e046e?w=800&h=400&fit=crop",
+  "Vestuário": "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800&h=400&fit=crop",
 };
 
 const categorySubtitles: Record<string, string> = {
@@ -90,20 +88,26 @@ const categorySubtitles: Record<string, string> = {
   "Animais": "Para os seus companheiros de quatro patas.",
 };
 
+const colorNameToHexMap: Record<string, string> = {
+  "Preto": "#000000", "Branco": "#FFFFFF", "Vermelho": "#EF4444",
+  "Azul": "#3B82F6", "Verde": "#22C55E", "Amarelo": "#EAB308",
+  "Rosa": "#EC4899", "Roxo": "#A855F7", "Laranja": "#F97316",
+  "Cinza": "#6B7280", "Cáqui": "#D97706", "Marrom": "#78350F",
+};
+
 const colorOptions = [
-  { name: "Múltiplo", color: "bg-gradient-to-br from-yellow-400 via-pink-500 to-blue-500", hex: null },
-  { name: "Preto",    color: "bg-black",        hex: "#000000" },
-  { name: "Branco",   color: "bg-white border border-gray-300", hex: "#FFFFFF" },
-  { name: "Rosa",     color: "bg-pink-400",     hex: "#EC4899" },
-  { name: "Azul",     color: "bg-blue-500",     hex: "#3B82F6" },
-  { name: "Cinza",    color: "bg-gray-400",     hex: "#6B7280" },
-  { name: "Verde",    color: "bg-green-500",    hex: "#22C55E" },
-  { name: "Vermelho", color: "bg-red-500",      hex: "#EF4444" },
-  { name: "Amarelo",  color: "bg-yellow-400",   hex: "#EAB308" },
-  { name: "Cáqui",    color: "bg-amber-600",    hex: "#D97706" },
-  { name: "Marrom",   color: "bg-amber-800",    hex: "#78350F" },
-  { name: "Roxo",     color: "bg-purple-500",   hex: "#A855F7" },
-  { name: "Laranja",  color: "bg-orange-500",   hex: "#F97316" },
+  { name: "Preto",    hex: "#000000" },
+  { name: "Branco",   hex: "#FFFFFF" },
+  { name: "Rosa",     hex: "#EC4899" },
+  { name: "Azul",     hex: "#3B82F6" },
+  { name: "Cinza",    hex: "#6B7280" },
+  { name: "Verde",    hex: "#22C55E" },
+  { name: "Vermelho", hex: "#EF4444" },
+  { name: "Amarelo",  hex: "#EAB308" },
+  { name: "Cáqui",    hex: "#D97706" },
+  { name: "Marrom",   hex: "#78350F" },
+  { name: "Roxo",     hex: "#A855F7" },
+  { name: "Laranja",  hex: "#F97316" },
 ];
 
 const priceRanges = [
@@ -118,16 +122,170 @@ const sortOptions = ["Recomendado", "Menor preço", "Maior preço", "Mais vendid
 const hexClose = (a: string, b: string, tolerance = 60) => {
   const parse = (h: string) => {
     const s = h.replace("#", "");
-    return [parseInt(s.slice(0,2),16), parseInt(s.slice(2,4),16), parseInt(s.slice(4,6),16)];
+    return [parseInt(s.slice(0, 2), 16), parseInt(s.slice(2, 4), 16), parseInt(s.slice(4, 6), 16)];
   };
   try {
-    const [r1,g1,b1] = parse(a);
-    const [r2,g2,b2] = parse(b);
-    return Math.abs(r1-r2) + Math.abs(g1-g2) + Math.abs(b1-b2) <= tolerance;
+    const [r1, g1, b1] = parse(a);
+    const [r2, g2, b2] = parse(b);
+    return Math.abs(r1 - r2) + Math.abs(g1 - g2) + Math.abs(b1 - b2) <= tolerance;
   } catch { return false; }
 };
 
-/* ══════════════════════ Componente ══════════════════════ */
+/* ── Hook: empresas e vendedores patrocinados pelo Admin — lê a tabela
+     `ads` (type = "empresa" | "vendedor", is_active = true), depois vai
+     buscar os dados reais a `companies` / `sellers`. Mesma abordagem de
+     leitura de logo/avatar e verificação usada no SearchResults.tsx
+     (logo_url para empresas, avatar_url para vendedores, is_verified). ── */
+const useSponsoredEntities = () =>
+  useQuery({
+    queryKey: ["sponsored_entities_strip"],
+    queryFn: async () => {
+      const { data: adsData, error: adsError } = await (supabase as any)
+        .from("ads")
+        .select("type, ref_id, created_at")
+        .in("type", ["empresa", "vendedor"])
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+      if (adsError) throw adsError;
+
+      const companyIds = [...new Set((adsData || []).filter((a: any) => a.type === "empresa").map((a: any) => a.ref_id).filter(Boolean))];
+      const sellerIds  = [...new Set((adsData || []).filter((a: any) => a.type === "vendedor").map((a: any) => a.ref_id).filter(Boolean))];
+
+      let companiesData: any[] = [];
+      let sellersData: any[] = [];
+
+      if (companyIds.length > 0) {
+        const { data } = await (supabase as any)
+          .from("companies")
+          .select("id, name, logo_url, cover_url, description, is_verified")
+          .in("id", companyIds)
+          .eq("is_active", true);
+        companiesData = data || [];
+      }
+      if (sellerIds.length > 0) {
+        const { data } = await (supabase as any)
+          .from("sellers")
+          .select("id, name, avatar_url, description, is_verified")
+          .in("id", sellerIds)
+          .eq("is_active", true);
+        sellersData = data || [];
+      }
+
+      const companyById: Record<string, any> = {};
+      companiesData.forEach((c) => { companyById[c.id] = c; });
+      const sellerById: Record<string, any> = {};
+      sellersData.forEach((s) => { sellerById[s.id] = s; });
+
+      // mantém a ordem de patrocínio (mais recente primeiro), sem duplicar
+      const seen = new Set<string>();
+      const list: any[] = [];
+      (adsData || []).forEach((a: any) => {
+        const key = `${a.type}:${a.ref_id}`;
+        if (seen.has(key)) return;
+        if (a.type === "empresa" && companyById[a.ref_id]) {
+          const c = companyById[a.ref_id];
+          seen.add(key);
+          list.push({
+            kind: "empresa",
+            id: c.id,
+            name: c.name,
+            image: c.logo_url || c.cover_url || null,
+            description: c.description || null,
+            verified: !!c.is_verified,
+            link: `/empresa/${c.id}`,
+          });
+        } else if (a.type === "vendedor" && sellerById[a.ref_id]) {
+          const s = sellerById[a.ref_id];
+          seen.add(key);
+          list.push({
+            kind: "vendedor",
+            id: s.id,
+            name: s.name,
+            image: s.avatar_url || null,
+            description: s.description || null,
+            verified: !!s.is_verified,
+            link: `/vendedor/${s.id}`,
+          });
+        }
+      });
+
+      return list;
+    },
+  });
+
+/* ── Faixa discreta "Acompanhe Empresas Confiáveis" ── */
+const TrustedEntitiesStrip = ({ navigate }: { navigate: any }) => {
+  const { data: entities, isLoading } = useSponsoredEntities();
+
+  if (isLoading) return null;
+  if (!entities || entities.length === 0) return null;
+
+  return (
+    <div style={{ background: surface, borderBottom: `1px solid ${line}`, padding: "14px 0" }}>
+      <div style={{ padding: "0 14px", marginBottom: 10, display: "flex", alignItems: "center", gap: 7 }}>
+        <CheckCircle style={{ width: 14, height: 14, color: brandDeep }} strokeWidth={2.4} />
+        <span style={{ fontFamily: fontBody, fontSize: 12.5, fontWeight: 800, color: inkSoft, letterSpacing: 0.2 }}>
+          Acompanhe Empresas Confiáveis
+        </span>
+      </div>
+      <div className="cd-scroll" style={{ display: "flex", gap: 10, overflowX: "auto", padding: "0 14px", scrollbarWidth: "none" }}>
+        {entities.map((e: any) => (
+          <button
+            key={`${e.kind}-${e.id}`}
+            onClick={() => navigate(e.link)}
+            style={{
+              flexShrink: 0, width: 168, display: "flex", alignItems: "center", gap: 9,
+              background: bg, border: `1px solid ${line}`, borderRadius: 14,
+              padding: "9px 10px", cursor: "pointer", textAlign: "left",
+            }}
+          >
+            <div style={{
+              width: 36, height: 36, borderRadius: e.kind === "empresa" ? 9 : "50%",
+              overflow: "hidden", flexShrink: 0, background: "#EFE2CE",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              {e.image
+                ? <img src={e.image} alt={e.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                : (e.kind === "empresa"
+                  ? <Building2 style={{ width: 16, height: 16, color: brandDeep }} />
+                  : <Store style={{ width: 16, height: 16, color: brandDeep }} />)}
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                <span style={{
+                  fontFamily: fontBody, fontSize: 11.5, fontWeight: 800, color: ink,
+                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 100,
+                }}>
+                  {e.name}
+                </span>
+                {e.verified && <CheckCircle style={{ width: 11, height: 11, color: brandDeep, flexShrink: 0 }} />}
+              </div>
+              <p style={{
+                margin: "1px 0 0", fontFamily: fontBody, fontSize: 9.5, color: inkSoft, fontWeight: 600,
+                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+              }}>
+                {e.description || (e.kind === "empresa" ? "Empresa parceira" : "Vendedor parceiro")}
+              </p>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const GlobalStyle = () => (
+  <style>{`
+    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800;900&display=swap');
+    .cd-scroll::-webkit-scrollbar { display: none; }
+    .cd-prod-card { transition: transform .15s ease, box-shadow .15s ease; }
+    .cd-prod-card:hover { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(35,21,11,0.14) !important; }
+    .cd-cart-btn:active { transform: scale(0.92); }
+    .cd-sub-btn { transition: background .15s ease; }
+    @keyframes cd-spin { to { transform: rotate(360deg); } }
+  `}</style>
+);
+
 const CategoriaDetalhe = () => {
   const { nome } = useParams();
   const navigate = useNavigate();
@@ -135,17 +293,16 @@ const CategoriaDetalhe = () => {
   const [sortBy, setSortBy] = useState("Recomendado");
   const [showSort, setShowSort] = useState(false);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
-  const [selectedSub, setSelectedSub]       = useState<string | null>(null);
+  const [selectedSub, setSelectedSub] = useState<string | null>(null);
   const [selectedColors, setSelectedColors] = useState<string[]>([]);
-  const [selectedPrice, setSelectedPrice]   = useState<string | null>(null);
+  const [selectedPrice, setSelectedPrice] = useState<string | null>(null);
   const isMobile = useIsMobile();
   const addToCart = useAddToCart();
 
   const { data: dbCategories } = useCategories();
-  const category   = (dbCategories || []).find((c: any) => c.name === categoryName);
+  const category = (dbCategories || []).find((c: any) => c.name === categoryName);
   const categoryId = category?.id;
 
-  /* ── Produtos ── */
   const { data: dbProducts, isLoading } = useQuery({
     queryKey: ["category_products", categoryId, sortBy],
     queryFn: async () => {
@@ -154,10 +311,10 @@ const CategoriaDetalhe = () => {
         .select("*, product_media(url, is_cover), product_variants(variant_type, value, name)")
         .eq("is_active", true);
       if (categoryId) query = query.eq("category_id", categoryId);
-      if (sortBy === "Menor preço")        query = query.order("price",       { ascending: true  });
-      else if (sortBy === "Maior preço")   query = query.order("price",       { ascending: false });
+      if (sortBy === "Menor preço") query = query.order("price", { ascending: true });
+      else if (sortBy === "Maior preço") query = query.order("price", { ascending: false });
       else if (sortBy === "Mais vendidos") query = query.order("sales_count", { ascending: false });
-      else                                 query = query.order("created_at",  { ascending: false });
+      else query = query.order("created_at", { ascending: false });
       const { data, error } = await query;
       if (error) throw error;
       return data || [];
@@ -165,208 +322,270 @@ const CategoriaDetalhe = () => {
     enabled: !!categoryId,
   });
 
-  /* ── Vendedores / empresas patrocinados (tabela ads) ── */
-  const { data: sponsoredAds } = useQuery({
-    queryKey: ["sponsored_ads_category"],
-    queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("ads")
-        .select("*")
-        .in("type", ["empresa", "vendedor"])
-        .eq("is_active", true)
-        .order("created_at", { ascending: false })
-        .limit(12);
-      if (error) throw error;
-      return data || [];
-    },
-  });
-
-  const companyIds = useMemo(() => (sponsoredAds || []).filter((a: any) => a.type === "empresa").map((a: any) => a.ref_id), [sponsoredAds]);
-  const sellerIds  = useMemo(() => (sponsoredAds || []).filter((a: any) => a.type === "vendedor").map((a: any) => a.ref_id), [sponsoredAds]);
-
-  const { data: sponsoredCompanies } = useQuery({
-    queryKey: ["sponsored_companies_detail", companyIds],
-    queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("companies").select("id, name, logo_url, cover_url, is_verified").in("id", companyIds);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: companyIds.length > 0,
-  });
-
-  const { data: sponsoredSellers } = useQuery({
-    queryKey: ["sponsored_sellers_detail", sellerIds],
-    queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("sellers").select("id, name, avatar_url, is_verified, total_sales").in("id", sellerIds);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: sellerIds.length > 0,
-  });
-
-  const featuredSellers = useMemo(() => {
-    const fromCompanies = (sponsoredCompanies || []).map((c: any) => ({
-      id: c.id, kind: "empresa" as const, name: c.name,
-      image: c.logo_url || c.cover_url, verified: c.is_verified,
-      subtitle: "Empresa parceira", route: `/empresa/${c.id}`,
-    }));
-    const fromSellers = (sponsoredSellers || []).map((s: any) => ({
-      id: s.id, kind: "vendedor" as const, name: s.name,
-      image: s.avatar_url, verified: s.is_verified,
-      subtitle: s.total_sales ? `${s.total_sales} vendas` : "Vendedor verificado", route: `/vendedor/${s.id}`,
-    }));
-    return [...fromCompanies, ...fromSellers];
-  }, [sponsoredCompanies, sponsoredSellers]);
-
-  /* ── Produtos formatados + filtros ── */
   const allProducts = useMemo(() =>
     (dbProducts || []).map((p: any) => {
       const cover = p.product_media?.find((m: any) => m.is_cover)?.url
         || p.image_url
         || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&h=600&fit=crop";
+
       const productColorHexes: string[] = (p.product_variants || [])
         .filter((v: any) => v.variant_type === "color" && v.value)
         .map((v: any) => v.value as string);
+
+      const price = Number(p.price);
+      const oldPriceNum = p.old_price ? Number(p.old_price) : null;
+
       return {
-        id: p.id, title: p.title, price: Number(p.price),
-        priceFormatted: Number(p.price).toLocaleString("pt-AO").replace(/,/g, ".") + " Kz",
-        oldPrice: p.old_price ? Number(p.old_price).toLocaleString("pt-AO").replace(/,/g, ".") + " Kz" : undefined,
+        id: p.id,
+        title: p.title,
+        price,
+        priceFormatted: price.toLocaleString("pt-AO").replace(/,/g, ".") + " Kz",
+        oldPriceFormatted: oldPriceNum ? oldPriceNum.toLocaleString("pt-AO").replace(/,/g, ".") + " Kz" : undefined,
         discount: p.discount_percent ? `-${p.discount_percent}%` : undefined,
-        image: cover, rating: p.rating || 0, reviews: p.total_reviews || 0,
-        freeShipping: p.free_shipping, salesCount: p.sales_count || 0,
-        colorHexes: productColorHexes, subcategory: p.subcategory || null,
+        image: cover,
+        rating: p.rating || 0,
+        reviews: p.total_reviews || 0,
+        freeShipping: p.free_shipping,
+        salesCount: p.sales_count || 0,
+        colorHexes: productColorHexes,
+        subcategory: p.subcategory || null,
       };
     }),
   [dbProducts]);
 
   const products = useMemo(() => {
     let list = allProducts;
-    if (selectedSub) list = list.filter(p => p.subcategory === selectedSub);
+    if (selectedSub) list = list.filter((p) => p.subcategory === selectedSub);
     if (selectedColors.length > 0) {
-      list = list.filter(p => {
+      list = list.filter((p) => {
         if (p.colorHexes.length === 0) return false;
-        return selectedColors.some(colorName => {
-          const filterHex = colorOptions.find(c => c.name === colorName)?.hex;
+        return selectedColors.some((colorName) => {
+          const filterHex = colorOptions.find((c) => c.name === colorName)?.hex;
           if (!filterHex) return false;
           return p.colorHexes.some((h: string) => hexClose(h, filterHex));
         });
       });
     }
     if (selectedPrice) {
-      const range = priceRanges.find(r => r.label === selectedPrice);
-      if (range) list = list.filter(p => p.price >= range.min && p.price < range.max);
+      const range = priceRanges.find((r) => r.label === selectedPrice);
+      if (range) list = list.filter((p) => p.price >= range.min && p.price < range.max);
     }
     return list;
-  }, [allProducts, selectedSub, selectedColors, selectedPrice]);
+  }, [allProducts, selectedColors, selectedPrice, selectedSub]);
 
-  const subs = subcategories[categoryName] || [];
+  const subs = subcategories[categoryName] || ["Todos"];
   const toggleColor = (c: string) =>
-    setSelectedColors(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]);
+    setSelectedColors((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
 
   const activeFiltersCount = (selectedSub ? 1 : 0) + selectedColors.length + (selectedPrice ? 1 : 0);
 
-  const heroImage = category?.cover_image_url || categoryHeroImages[categoryName]
-    || "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=900&h=500&fit=crop";
-  const heroSubtitle = category?.description || categorySubtitles[categoryName] || "Os melhores produtos para si.";
-  const CategoryIcon = categoryIcons[categoryName] || Package;
+  const heroImage =
+    category?.cover_image_url ||
+    categoryHeroImages[categoryName] ||
+    "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800&h=400&fit=crop";
 
-  /* ── Painel de filtros (cor + preço — subcategoria agora é chips no topo) ── */
+  const heroSubtitle =
+    category?.description ||
+    categorySubtitles[categoryName] ||
+    "Os melhores produtos para si.";
+
+  const clearFilters = () => { setSelectedSub(null); setSelectedColors([]); setSelectedPrice(null); };
+
   const FiltersPanel = () => (
-    <div className="space-y-5">
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {activeFiltersCount > 0 && (
         <button
-          onClick={() => { setSelectedSub(null); setSelectedColors([]); setSelectedPrice(null); }}
-          className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full"
-          style={{ background: brownLight, color: brown, border: `1px solid ${brownMid}` }}>
-          <X className="w-3 h-3" /> Limpar filtros ({activeFiltersCount})
+          onClick={clearFilters}
+          style={{
+            display: "flex", alignItems: "center", gap: 4, alignSelf: "flex-start",
+            fontFamily: fontBody, fontSize: 10.5, fontWeight: 800,
+            padding: "5px 10px", borderRadius: 20, cursor: "pointer",
+            background: lineSoft, color: brandDeep, border: `1px solid ${line}`,
+          }}
+        >
+          <X style={{ width: 11, height: 11 }} /> Limpar filtros ({activeFiltersCount})
         </button>
       )}
+
       <div>
-        <h3 className="text-[11px] font-black uppercase tracking-[0.12em] mb-2.5" style={{ color: sandDark }}>Cor</h3>
-        <div className="grid grid-cols-2 gap-1.5">
-          {colorOptions.map(c => (
-            <button key={c.name} onClick={() => toggleColor(c.name)}
-              className="flex items-center gap-2 px-1.5 py-1 rounded-lg transition-colors text-xs"
-              style={{
-                background: selectedColors.includes(c.name) ? brownLight : "transparent",
-                color:      selectedColors.includes(c.name) ? brown : "#555",
-                fontWeight: selectedColors.includes(c.name) ? 700 : 400,
-                border:     selectedColors.includes(c.name) ? `1px solid ${brownMid}` : "1px solid transparent",
-              }}>
-              <div className={`w-4 h-4 rounded-full ${c.color} flex-shrink-0`} />
-              {c.name}
-            </button>
-          ))}
+        <h3 style={{ fontFamily: fontBody, fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6, color: inkSoft, margin: "0 0 8px" }}>
+          Categoria
+        </h3>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          {subs.map((sub) => {
+            const active = selectedSub === sub;
+            return (
+              <button
+                key={sub}
+                className="cd-sub-btn"
+                onClick={() => setSelectedSub(active ? null : sub)}
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  width: "100%", textAlign: "left", padding: "7px 8px", borderRadius: 9, border: "none",
+                  cursor: "pointer", background: active ? lineSoft : "transparent",
+                }}
+              >
+                <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{
+                    width: 15, height: 15, borderRadius: "50%", border: `2px solid ${active ? brandDeep : "#CBBFA9"}`,
+                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                  }}>
+                    {active && <span style={{ width: 7, height: 7, borderRadius: "50%", background: brandDeep }} />}
+                  </span>
+                  <span style={{ fontFamily: fontBody, fontSize: 12.5, color: active ? ink : inkSoft, fontWeight: active ? 700 : 500 }}>
+                    {sub}
+                  </span>
+                </span>
+                <Plus style={{ width: 12, height: 12, color: brandDeep }} />
+              </button>
+            );
+          })}
         </div>
       </div>
+
       <div>
-        <h3 className="text-[11px] font-black uppercase tracking-[0.12em] mb-2.5" style={{ color: sandDark }}>Preço</h3>
-        <div className="space-y-0.5">
-          {priceRanges.map(r => (
-            <button key={r.label} onClick={() => setSelectedPrice(selectedPrice === r.label ? null : r.label)}
-              className="flex items-center gap-2 w-full text-left px-2 py-1.5 rounded-lg transition-colors text-xs"
-              style={{ background: selectedPrice === r.label ? brownLight : "transparent", color: selectedPrice === r.label ? brown : "#555" }}>
-              <div className="w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0"
-                style={{ borderColor: selectedPrice === r.label ? sandDark : "#ccc" }}>
-                {selectedPrice === r.label && <div className="w-2 h-2 rounded-sm" style={{ background: sandDark }} />}
-              </div>
-              {r.label}
-            </button>
-          ))}
+        <h3 style={{ fontFamily: fontBody, fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6, color: inkSoft, margin: "0 0 8px" }}>
+          Cor
+        </h3>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6 }}>
+          {colorOptions.map((c) => {
+            const active = selectedColors.includes(c.name);
+            return (
+              <button
+                key={c.name}
+                onClick={() => toggleColor(c.name)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 7, padding: "5px 6px", borderRadius: 9,
+                  cursor: "pointer", fontFamily: fontBody, fontSize: 11.5,
+                  background: active ? lineSoft : "transparent",
+                  color: active ? ink : inkSoft, fontWeight: active ? 700 : 500,
+                  border: active ? `1px solid ${line}` : "1px solid transparent",
+                }}
+              >
+                <span style={{
+                  width: 15, height: 15, borderRadius: "50%", flexShrink: 0,
+                  background: c.hex, border: c.hex === "#FFFFFF" ? `1px solid ${line}` : "none",
+                }} />
+                {c.name}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div>
+        <h3 style={{ fontFamily: fontBody, fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6, color: inkSoft, margin: "0 0 8px" }}>
+          Preço
+        </h3>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          {priceRanges.map((r) => {
+            const active = selectedPrice === r.label;
+            return (
+              <button
+                key={r.label}
+                onClick={() => setSelectedPrice(active ? null : r.label)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left",
+                  padding: "7px 8px", borderRadius: 9, border: "none", cursor: "pointer",
+                  background: active ? lineSoft : "transparent",
+                  fontFamily: fontBody, fontSize: 12.5, color: active ? ink : inkSoft, fontWeight: active ? 700 : 500,
+                }}
+              >
+                <span style={{
+                  width: 15, height: 15, borderRadius: 4, border: `2px solid ${active ? brandDeep : "#CBBFA9"}`,
+                  display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                }}>
+                  {active && <span style={{ width: 7, height: 7, borderRadius: 2, background: brandDeep }} />}
+                </span>
+                {r.label}
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>
   );
 
-  /* ── Card de produto ── */
   const ProductCard = ({ product }: { product: any }) => (
-    <div className="w-full overflow-hidden group"
-      style={{ background: "#fff", borderRadius: 16, border: `1.5px solid ${brownMid}`, boxShadow: "0 2px 10px rgba(74,46,10,0.06)" }}>
-      <button className="w-full text-left relative block" onClick={() => navigate(`/produto/${product.id}`)}>
-        <div className="relative w-full overflow-hidden" style={{ aspectRatio: "1 / 1", background: cream }}>
-          <img src={product.image} alt={product.title}
-            className="w-full h-full object-cover group-hover:scale-[1.06] transition-transform duration-500" loading="lazy" />
+    <div className="cd-prod-card" style={{
+      width: "100%", overflow: "hidden", background: surface,
+      borderRadius: 14, border: `1px solid ${line}`, boxShadow: shadowSm,
+    }}>
+      <button style={{ display: "block", width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}
+        onClick={() => navigate(`/produto/${product.id}`)}>
+        <div style={{ position: "relative", width: "100%", aspectRatio: "1/1", background: bg }}>
+          <img src={product.image} alt={product.title} loading="lazy"
+            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
           {product.discount && (
-            <div className="absolute -left-1 top-2.5 flex items-center">
-              <span className="text-[9px] font-black pl-2 pr-1.5 py-1 text-white" style={{ background: rust, clipPath: "polygon(0 0, 100% 0, 88% 100%, 0% 100%)" }}>
-                {product.discount}
-              </span>
-            </div>
+            <span style={{
+              position: "absolute", top: 8, left: 0, background: promo, color: surface,
+              fontFamily: fontBody, fontSize: 10, fontWeight: 800, padding: "3px 9px", borderRadius: "0 6px 6px 0",
+            }}>
+              {product.discount}
+            </span>
           )}
           {product.freeShipping && (
-            <span className="absolute bottom-2 left-2 text-[8px] font-bold px-1.5 py-0.5 rounded-full"
-              style={{ background: "rgba(74,46,10,0.72)", color: "#fff" }}>Frete grátis</span>
+            <span style={{
+              position: "absolute", bottom: 8, left: 8, background: "rgba(35,21,11,0.75)", color: surface,
+              fontFamily: fontBody, fontSize: 9, fontWeight: 700, padding: "3px 8px", borderRadius: 20,
+            }}>
+              Frete grátis
+            </span>
           )}
         </div>
       </button>
-      <div className="px-2.5 pt-2 pb-2.5">
-        <button className="w-full text-left" onClick={() => navigate(`/produto/${product.id}`)}>
-          <h3 className="text-[11px] font-semibold leading-snug mb-1 truncate" style={{ color: brown }}>{product.title}</h3>
+
+      <div style={{ padding: "9px 10px 11px" }}>
+        <button style={{ display: "block", width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}
+          onClick={() => navigate(`/produto/${product.id}`)}>
+          <p style={{
+            margin: "0 0 5px", fontFamily: fontBody, fontSize: 12, fontWeight: 600, color: ink, lineHeight: 1.3,
+            display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
+          }}>
+            {product.title}
+          </p>
+
           {product.rating > 0 && (
-            <div className="flex items-center gap-0.5 mb-1">
-              {[...Array(5)].map((_, i) => (
-                <Star key={i} className="w-2 h-2"
-                  style={{ fill: i < product.rating ? sandDark : "transparent", color: i < product.rating ? sandDark : "#ccc" }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 3, marginBottom: 5 }}>
+              {[1, 2, 3, 4, 5].map((i) => (
+                <Star key={i} style={{ width: 10, height: 10 }}
+                  fill={i <= Math.round(product.rating) ? gold : "none"}
+                  stroke={i <= Math.round(product.rating) ? gold : "#C8BBA8"} strokeWidth={1.5} />
               ))}
-              {product.reviews > 0 && <span className="text-[8px] ml-0.5" style={{ color: sandDark }}>({product.reviews})</span>}
+              {product.reviews > 0 && (
+                <span style={{ fontFamily: fontBody, fontSize: 9.5, color: inkSoft, fontWeight: 600 }}>
+                  ({product.reviews})
+                </span>
+              )}
             </div>
           )}
-          <div className="flex items-baseline gap-1">
-            {product.oldPrice && <span className="text-[9px] line-through" style={{ color: "#aaa" }}>{product.oldPrice}</span>}
-            <span className="text-xs font-black" style={{ color: brown }}>{product.priceFormatted}</span>
+
+          <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
+            {product.oldPriceFormatted && (
+              <span style={{ fontFamily: fontBody, fontSize: 10.5, color: inkSoft, textDecoration: "line-through", fontWeight: 600 }}>
+                {product.oldPriceFormatted}
+              </span>
+            )}
+            <span style={{ fontFamily: fontBody, fontSize: 14, fontWeight: 800, color: dealGreen }}>
+              {product.priceFormatted}
+            </span>
           </div>
         </button>
-        <div className="flex justify-end mt-1.5">
+
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
           <button
+            className="cd-cart-btn"
             onClick={(e) => { e.stopPropagation(); addToCart.mutate({ productId: product.id, quantity: 1 }); }}
             disabled={addToCart.isPending}
-            className="flex items-center justify-center w-7 h-7 rounded-lg transition-all active:scale-95 disabled:opacity-60"
-            style={{ background: `linear-gradient(135deg, ${sandDark}, ${sand})`, boxShadow: "0 2px 6px rgba(74,46,10,0.22)" }}>
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "center",
+              width: 30, height: 30, borderRadius: 9, border: "none", cursor: "pointer",
+              background: brandDeep, transition: "transform .15s ease",
+            }}
+          >
             {addToCart.isPending
-              ? <Loader2 className="w-3 h-3 animate-spin" style={{ color: "#fff" }} />
-              : <ShoppingCart className="w-3 h-3" style={{ color: "#fff" }} />}
+              ? <Loader2 style={{ width: 13, height: 13, color: surface }} className="animate-spin" />
+              : <ShoppingCart style={{ width: 13, height: 13, color: surface }} />}
           </button>
         </div>
       </div>
@@ -374,96 +593,127 @@ const CategoriaDetalhe = () => {
   );
 
   return (
-    <div className="relative min-h-screen pb-14 md:pb-0" style={{ backgroundColor: "#F5F5F5" }}>
+    <div style={{ position: "relative", minHeight: "100vh", background: bg, fontFamily: fontBody, paddingBottom: 56 }}>
+      <GlobalStyle />
 
-      {/* ══ HERO — emblema de categoria sobreposto ══ */}
-      <div className="relative w-full overflow-hidden" style={{ minHeight: 230 }}>
-        <img src={heroImage} alt={categoryName} className="absolute inset-0 w-full h-full object-cover" />
-        <div className="absolute inset-0" style={{
-          background: "linear-gradient(180deg, rgba(74,46,10,0.45) 0%, rgba(74,46,10,0.20) 35%, rgba(74,46,10,0.85) 100%)",
+      {/* ── Hero ── */}
+      <div style={{ position: "relative", width: "100%", overflow: "hidden", minHeight: 260 }}>
+        <img src={heroImage} alt={categoryName}
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+        <div style={{
+          position: "absolute", inset: 0,
+          background: "linear-gradient(to bottom, rgba(35,21,11,0.10) 0%, rgba(35,21,11,0.14) 40%, rgba(35,21,11,0.62) 78%, rgba(35,21,11,0.80) 100%)",
         }} />
-        <div className="relative z-10 flex flex-col justify-between px-4 pb-9" style={{ paddingTop: 60, minHeight: 230 }}>
-          <div className="flex items-center gap-1 text-[11px]">
-            <button onClick={() => navigate("/")} className="font-medium" style={{ color: "rgba(255,255,255,0.85)" }}>Início</button>
-            <span style={{ color: "rgba(255,255,255,0.45)" }}>/</span>
-            <button onClick={() => navigate("/categorias")} className="font-medium" style={{ color: "rgba(255,255,255,0.85)" }}>Categorias</button>
-            <span style={{ color: "rgba(255,255,255,0.45)" }}>/</span>
-            <span className="font-black text-white">{categoryName}</span>
-          </div>
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] mb-1" style={{ color: sand }}>Categoria</p>
-            <h1 className="text-[28px] font-black leading-none mb-1.5 text-white">{categoryName}</h1>
-            <p className="text-sm font-medium max-w-xs" style={{ color: "rgba(255,255,255,0.85)" }}>{heroSubtitle}</p>
-          </div>
-        </div>
 
-        {/* Selo da categoria — flutua sobre a transição hero → conteúdo */}
-        <div className="absolute z-20 left-4 -bottom-7 flex items-center justify-center rounded-2xl"
-          style={{ width: 56, height: 56, background: `linear-gradient(135deg, ${rust}, ${sandDark})`, boxShadow: "0 6px 16px rgba(74,46,10,0.35)", border: "3px solid #fff" }}>
-          <CategoryIcon className="w-6 h-6 text-white" />
+        <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-end", padding: "16px 16px 22px", minHeight: 260 }}>
+          <button onClick={() => navigate(-1)} style={{
+            position: "absolute", top: 14, left: 14, width: 34, height: 34, borderRadius: "50%",
+            background: "rgba(255,255,255,0.22)", backdropFilter: "blur(4px)", border: "none", cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <ArrowLeft style={{ width: 17, height: 17, color: surface }} strokeWidth={2.4} />
+          </button>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, marginBottom: 8 }}>
+            <button onClick={() => navigate("/")} style={{
+              background: "none", border: "none", cursor: "pointer", padding: 0,
+              fontFamily: fontBody, color: "rgba(255,255,255,0.85)", fontWeight: 600,
+              textShadow: "0 1px 4px rgba(0,0,0,0.5)",
+            }}>
+              Início
+            </button>
+            <span style={{ color: "rgba(255,255,255,0.5)" }}>/</span>
+            <button onClick={() => navigate("/categorias")} style={{
+              background: "none", border: "none", cursor: "pointer", padding: 0,
+              fontFamily: fontBody, color: "rgba(255,255,255,0.85)", fontWeight: 600,
+              textShadow: "0 1px 4px rgba(0,0,0,0.5)",
+            }}>
+              Categorias
+            </button>
+            <span style={{ color: "rgba(255,255,255,0.5)" }}>/</span>
+            <span style={{ fontFamily: fontBody, fontWeight: 800, color: surface, textShadow: "0 1px 4px rgba(0,0,0,0.6)" }}>
+              {categoryName}
+            </span>
+          </div>
+
+          <h1 style={{
+            margin: "0 0 6px", fontFamily: fontBody, fontSize: 28, fontWeight: 800, color: surface,
+            lineHeight: 1.15, textShadow: "0 2px 6px rgba(0,0,0,0.5)",
+          }}>
+            {categoryName}
+          </h1>
+          <p style={{
+            margin: 0, fontFamily: fontBody, fontSize: 13.5, fontWeight: 600, color: "rgba(255,255,255,0.9)",
+            maxWidth: 280, textShadow: "0 1px 4px rgba(0,0,0,0.5)",
+          }}>
+            {heroSubtitle}
+          </p>
         </div>
       </div>
 
-      {/* ══ Linha de resultado + ordenar ══ */}
-      <div className="container mx-auto px-3 pt-10 pb-2 flex items-center justify-between">
-        <p className="text-xs font-medium" style={{ color: sandDark }}>
-          <span className="font-black" style={{ color: brown }}>{products.length}</span> resultado{products.length !== 1 ? "s" : ""}
-        </p>
-        <div className="relative">
-          <button onClick={() => setShowSort(!showSort)} className="flex items-center gap-1 text-xs font-medium" style={{ color: brown }}>
-            <span className="font-black" style={{ color: sandDark }}>{sortBy}</span>
-            <ChevronDown className="w-3 h-3" style={{ color: sandDark }} />
-          </button>
-          {showSort && (
-            <div className="absolute top-full right-0 mt-1 rounded-xl shadow-lg z-40 min-w-[170px] overflow-hidden"
-              style={{ background: "#fff", border: `1.5px solid ${brownMid}` }}>
-              {sortOptions.map(opt => (
-                <button key={opt} onClick={() => { setSortBy(opt); setShowSort(false); }}
-                  className="block w-full text-left px-3 py-2 text-xs transition-colors"
-                  style={{ color: opt === sortBy ? sandDark : brown, fontWeight: opt === sortBy ? 800 : 400, background: opt === sortBy ? brownLight : "transparent" }}>
-                  {opt}
-                </button>
-              ))}
-            </div>
+      {/* ── Empresas / vendedores patrocinados — discreto, logo abaixo do hero ── */}
+      <TrustedEntitiesStrip navigate={navigate} />
+
+      {/* ── Barra de ordenação ── */}
+      <div style={{ position: "sticky", top: 0, zIndex: 30, background: surface, borderBottom: `1px solid ${line}` }}>
+        <div style={{ padding: "10px 14px", display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ position: "relative", flex: 1 }}>
+            <button onClick={() => setShowSort(!showSort)} style={{
+              display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: 0,
+              fontFamily: fontBody, fontSize: 12.5, fontWeight: 600, color: ink,
+            }}>
+              Ordenar por <span style={{ fontWeight: 800, color: brandDeep }}>{sortBy}</span>
+              <ChevronDown style={{ width: 13, height: 13, color: brandDeep }} />
+            </button>
+            {showSort && (
+              <div style={{
+                position: "absolute", top: "100%", left: 0, marginTop: 4, minWidth: 180, zIndex: 40,
+                background: surface, border: `1px solid ${line}`, borderRadius: 12, boxShadow: shadowMd, overflow: "hidden",
+              }}>
+                {sortOptions.map((opt) => (
+                  <button key={opt} onClick={() => { setSortBy(opt); setShowSort(false); }} style={{
+                    display: "block", width: "100%", textAlign: "left", padding: "9px 12px", border: "none", cursor: "pointer",
+                    background: opt === sortBy ? lineSoft : "transparent",
+                    fontFamily: fontBody, fontSize: 12.5, color: opt === sortBy ? brandDeep : ink, fontWeight: opt === sortBy ? 800 : 500,
+                  }}>
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {isMobile && (
+            <button onClick={() => setShowMobileFilters(true)} style={{
+              display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 20, cursor: "pointer",
+              background: activeFiltersCount > 0 ? brandDeep : lineSoft,
+              border: `1.5px solid ${activeFiltersCount > 0 ? brandDeep : line}`,
+              fontFamily: fontBody, fontSize: 11.5, fontWeight: 800,
+              color: activeFiltersCount > 0 ? surface : ink,
+            }}>
+              <SlidersHorizontal style={{ width: 13, height: 13 }} />
+              Filtro{activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}
+            </button>
           )}
         </div>
       </div>
 
-      {/* ══ Chips de subcategoria + botão filtro ══ */}
-      {(subs.length > 0 || isMobile) && (
-        <div className="sticky top-14 z-30" style={{ backgroundColor: "#F5F5F5" }}>
-          <div className="container mx-auto px-3 py-2 flex items-center gap-2">
-            <div className="flex-1 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-              {subs.map(sub => (
-                <button key={sub} onClick={() => setSelectedSub(selectedSub === sub ? null : sub)}
-                  className="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition-colors whitespace-nowrap"
-                  style={{
-                    background: selectedSub === sub ? brown : "#fff",
-                    color: selectedSub === sub ? "#fff" : brown,
-                    border: `1.5px solid ${selectedSub === sub ? brown : brownMid}`,
-                  }}>
-                  {sub}
-                </button>
-              ))}
-            </div>
-            <button onClick={() => setShowMobileFilters(true)}
-              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-colors"
-              style={{ background: activeFiltersCount > selectedSub ? sandDark : "#fff", border: `1.5px solid ${brownMid}`, color: activeFiltersCount > (selectedSub ? 1 : 0) ? "#fff" : brown }}>
-              <SlidersHorizontal className="w-3.5 h-3.5" style={{ color: activeFiltersCount > (selectedSub ? 1 : 0) ? "#fff" : sandDark }} />
-              {!isMobile && "Filtros"}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ══ Drawer de filtros (cor + preço) ══ */}
-      {showMobileFilters && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" onClick={() => setShowMobileFilters(false)}>
-          <div className="absolute right-0 top-0 bottom-0 w-72 overflow-y-auto p-4" style={{ background: cream }} onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-black" style={{ color: brown }}>Filtros</h2>
-              <button onClick={() => setShowMobileFilters(false)} className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: brownLight }}>
-                <X className="w-4 h-4" style={{ color: brown }} />
+      {/* ── Drawer de filtros (mobile) ── */}
+      {isMobile && showMobileFilters && (
+        <div onClick={() => setShowMobileFilters(false)} style={{
+          position: "fixed", inset: 0, zIndex: 50, background: "rgba(35,21,11,0.45)", backdropFilter: "blur(2px)",
+        }}>
+          <div onClick={(e) => e.stopPropagation()} style={{
+            position: "absolute", left: 0, top: 0, bottom: 0, width: 280, overflowY: "auto",
+            background: bg, padding: 16,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <h2 style={{ margin: 0, fontFamily: fontBody, fontSize: 14, fontWeight: 800, color: ink }}>Filtros</h2>
+              <button onClick={() => setShowMobileFilters(false)} style={{
+                width: 28, height: 28, borderRadius: "50%", border: "none", cursor: "pointer",
+                background: lineSoft, display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                <X style={{ width: 15, height: 15, color: ink }} />
               </button>
             </div>
             <FiltersPanel />
@@ -471,69 +721,65 @@ const CategoriaDetalhe = () => {
         </div>
       )}
 
-      {/* ══ Vendedores em destaque (patrocinados) ══ */}
-      {featuredSellers.length > 0 && (
-        <div className="container mx-auto px-3 pt-3 pb-1">
-          <div className="flex items-center gap-1.5 mb-2.5">
-            <Sparkles className="w-3.5 h-3.5" style={{ color: rust }} />
-            <h2 className="text-[11px] font-black uppercase tracking-[0.12em]" style={{ color: brown }}>Vendedores em destaque</h2>
-            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full ml-1" style={{ background: brownLight, color: sandDark }}>Patrocinado</span>
-          </div>
-          <div className="flex gap-2.5 overflow-x-auto no-scrollbar pb-1">
-            {featuredSellers.map(s => (
-              <button key={`${s.kind}-${s.id}`} onClick={() => navigate(s.route)}
-                className="flex-shrink-0 flex flex-col items-center gap-1.5 w-20 group">
-                <div className="relative">
-                  <div className="w-16 h-16 rounded-full overflow-hidden flex items-center justify-center"
-                    style={{ background: cream, border: `2.5px solid ${sandDark}` }}>
-                    {s.image
-                      ? <img src={s.image} alt={s.name} className="w-full h-full object-cover" />
-                      : <Package className="w-6 h-6" style={{ color: sandDark }} />}
-                  </div>
-                  {s.verified && (
-                    <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full flex items-center justify-center border-2 border-white"
-                      style={{ background: "#3B82F6" }}>
-                      <ShieldCheck className="w-3 h-3 text-white" />
-                    </div>
-                  )}
-                </div>
-                <p className="text-[10px] font-bold text-center leading-tight truncate w-full" style={{ color: brown }}>{s.name}</p>
-                <p className="text-[8px] text-center leading-tight" style={{ color: sandDark }}>{s.subtitle}</p>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ══ Layout principal ══ */}
-      <div className="container mx-auto px-3 flex gap-4">
+      {/* ── Layout principal ── */}
+      <div style={{ display: "flex", gap: 16, padding: "0 14px" }}>
         {!isMobile && (
-          <aside className="w-56 flex-shrink-0 py-4 px-3 mt-3 rounded-2xl self-start sticky top-[140px]"
-            style={{ background: cream, border: `1.5px solid ${brownMid}`, boxShadow: "0 2px 10px rgba(74,46,10,0.07)" }}>
+          <aside style={{
+            width: 220, flexShrink: 0, alignSelf: "flex-start", position: "sticky", top: 60,
+            marginTop: 16, padding: "16px 14px", borderRadius: 16,
+            background: surface, border: `1px solid ${line}`, boxShadow: shadowSm,
+          }}>
             <FiltersPanel />
           </aside>
         )}
-        <div className="flex-1 py-3">
+
+        <div style={{ flex: 1, padding: "12px 0" }}>
           {isLoading ? (
-            <div className="flex justify-center py-12">
-              <Loader2 className="w-6 h-6 animate-spin" style={{ color: sandDark }} />
-            </div>
-          ) : products.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-3">
-              <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: brownLight }}>
-                <SlidersHorizontal className="w-6 h-6" style={{ color: sandDark }} />
-              </div>
-              <p className="text-sm font-semibold" style={{ color: brown }}>Sem resultados</p>
-              <p className="text-xs text-center max-w-[200px]" style={{ color: "#888" }}>Tente ajustar os filtros para encontrar o que procura.</p>
-              <button onClick={() => { setSelectedSub(null); setSelectedColors([]); setSelectedPrice(null); }}
-                className="px-4 py-2 rounded-full text-xs font-bold" style={{ background: sandDark, color: "#fff" }}>
-                Limpar filtros
-              </button>
+            <div style={{ display: "flex", justifyContent: "center", padding: "40px 0" }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: "50%", border: `3px solid ${line}`, borderTopColor: brand,
+                animation: "cd-spin 0.8s linear infinite",
+              }} />
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-              {products.map((p: any) => <ProductCard key={p.id} product={p} />)}
-            </div>
+            <>
+              <p style={{ margin: "0 0 12px", fontFamily: fontBody, fontSize: 12, fontWeight: 600, color: inkSoft }}>
+                {products.length} resultado{products.length !== 1 ? "s" : ""} em "{categoryName}"
+                {activeFiltersCount > 0 && (
+                  <button onClick={clearFilters} style={{
+                    marginLeft: 8, background: "none", border: "none", cursor: "pointer",
+                    fontFamily: fontBody, fontSize: 12, color: brandDeep, textDecoration: "underline", fontWeight: 700,
+                  }}>
+                    limpar filtros
+                  </button>
+                )}
+              </p>
+
+              {products.length === 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "48px 0", gap: 10 }}>
+                  <div style={{
+                    width: 52, height: 52, borderRadius: "50%", background: lineSoft,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    <SlidersHorizontal style={{ width: 22, height: 22, color: brandDeep }} />
+                  </div>
+                  <p style={{ margin: 0, fontFamily: fontBody, fontSize: 13.5, fontWeight: 700, color: ink }}>Sem resultados</p>
+                  <p style={{ margin: 0, fontFamily: fontBody, fontSize: 12, color: inkSoft, textAlign: "center", maxWidth: 200 }}>
+                    Tente ajustar os filtros para encontrar o que procura.
+                  </p>
+                  <button onClick={clearFilters} style={{
+                    marginTop: 4, padding: "9px 18px", borderRadius: 20, border: "none", cursor: "pointer",
+                    background: brandDeep, color: surface, fontFamily: fontBody, fontSize: 12, fontWeight: 800,
+                  }}>
+                    Limpar filtros
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
+                  {products.map((p: any) => <ProductCard key={p.id} product={p} />)}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
