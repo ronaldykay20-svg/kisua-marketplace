@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { STORAGE_BUCKETS } from "@/lib/storage";
 import { useUserRole } from "@/hooks/useUserRole";
+import { convertToWebP } from "@/lib/imageToWebp";
 
 // ─── Types ────────────────────────────────────────────────
 interface ProductFormData {
@@ -358,9 +359,12 @@ const SellerProductForm = ({
     setPhotoError(false);
     try {
       for (const file of Array.from(files)) {
-        const ext = file.name.split(".").pop();
+        // Converte para WebP antes de enviar (só imagens; vídeos passam direto)
+        const uploadFile = type === "image" ? await convertToWebP(file, 0.8, 1600) : file;
+
+        const ext = type === "image" ? "webp" : file.name.split(".").pop();
         const path = `products/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-        const { error } = await supabase.storage.from(STORAGE_BUCKETS.products).upload(path, file);
+        const { error } = await supabase.storage.from(STORAGE_BUCKETS.products).upload(path, uploadFile);
         if (error) throw error;
         const { data } = supabase.storage.from(STORAGE_BUCKETS.products).getPublicUrl(path);
         setMedia(prev => [...prev, { url: data.publicUrl, type, is_cover: prev.length === 0, sort_order: prev.length }]);
@@ -377,9 +381,11 @@ const SellerProductForm = ({
     if (!file) return;
     setUploadingVariantIdx(tempId);
     try {
-      const ext = file.name.split(".").pop();
-      const path = `products/variants/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error } = await supabase.storage.from(STORAGE_BUCKETS.products).upload(path, file);
+      // Converte para WebP antes de enviar (imagens de variação podem ser mais pequenas)
+      const uploadFile = await convertToWebP(file, 0.8, 1000);
+
+      const path = `products/variants/${Date.now()}-${Math.random().toString(36).slice(2)}.webp`;
+      const { error } = await supabase.storage.from(STORAGE_BUCKETS.products).upload(path, uploadFile);
       if (error) throw error;
       const { data } = supabase.storage.from(STORAGE_BUCKETS.products).getPublicUrl(path);
       setVariants(prev => prev.map(v => v._tempId === tempId ? { ...v, image_url: data.publicUrl } : v));
