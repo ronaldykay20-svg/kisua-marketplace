@@ -9,12 +9,11 @@ type View = "main" | "forgot";
 
 const VISITED_KEY = "zango_has_visited";
 
-// Paleta castanha aplicada diretamente neste componente
 const BROWN = {
-  dark: "#5A3820",     // texto/hover forte
-  primary: "#6B4423",  // cor principal (botões, header)
-  accent: "#B8834D",   // detalhes, focus ring
-  light: "#F5EDE3",    // fundos suaves
+  dark: "#5A3820",
+  primary: "#6B4423",
+  accent: "#B8834D",
+  light: "#F5EDE3",
 };
 
 const Auth = () => {
@@ -22,7 +21,8 @@ const Auth = () => {
   const { user } = useAuth();
   const [view, setView] = useState<View>("main");
   const [isReturning, setIsReturning] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<"login" | "signup" | null>(null);
+  const [resetEmail, setResetEmail] = useState("");
 
   useEffect(() => {
     if (user) navigate("/conta", { replace: true });
@@ -38,27 +38,23 @@ const Auth = () => {
     }
   }, []);
 
-  // Forgot password field (para contas antigas criadas por email/palavra-passe)
-  const [resetEmail, setResetEmail] = useState("");
-
-  const handleGoogleLogin = async () => {
-    setLoading(true);
-    // Se o utilizador não tiver conta, o Supabase cria-a automaticamente
+  const handleGoogleAuth = async (mode: "login" | "signup") => {
+    setLoading(mode);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo: window.location.origin },
     });
-    setLoading(false);
+    setLoading(null);
     if (error) toast.error(error.message);
   };
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setLoading("login");
     const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
       redirectTo: `${window.location.origin}/redefinir-password`,
     });
-    setLoading(false);
+    setLoading(null);
     if (error) {
       toast.error(error.message);
     } else {
@@ -69,7 +65,6 @@ const Auth = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
       <div className="px-4 py-3 flex items-center gap-3" style={{ backgroundColor: BROWN.primary }}>
         <button onClick={() => navigate(-1)} className="text-white">
           <ArrowLeft className="w-5 h-5" />
@@ -81,7 +76,6 @@ const Auth = () => {
         <div className="w-full max-w-md">
           {view === "main" && (
             <>
-              {/* Welcome text */}
               <div className="text-center mb-8">
                 <h1 className="text-2xl font-black text-foreground">
                   {isReturning ? "Bem-vindo de volta!" : "Bem-vindo!"}
@@ -91,22 +85,28 @@ const Auth = () => {
                 </p>
               </div>
 
-              {/* Google Sign In */}
-              <button
-                onClick={handleGoogleLogin}
-                disabled={loading}
-                className="w-full py-3.5 rounded-lg border-2 bg-card text-sm font-bold text-foreground hover:brightness-95 transition flex items-center justify-center gap-3 disabled:opacity-60"
-                style={{ borderColor: BROWN.primary }}
-              >
-                <img src="https://www.google.com/favicon.ico" alt="Google" className="w-5 h-5" />
-                {loading ? "A entrar..." : "Continuar com Google"}
-              </button>
+              <div className="space-y-3">
+                <button
+                  onClick={() => handleGoogleAuth("login")}
+                  disabled={loading !== null}
+                  className="w-full py-3.5 rounded-lg text-white text-sm font-bold hover:brightness-110 transition flex items-center justify-center gap-3 disabled:opacity-60"
+                  style={{ backgroundColor: BROWN.primary }}
+                >
+                  <img src="https://www.google.com/favicon.ico" alt="Google" className="w-5 h-5 bg-white rounded-full p-0.5" />
+                  {loading === "login" ? "A entrar..." : "Iniciar Sessão com Google"}
+                </button>
 
-              <p className="text-xs text-muted-foreground text-center mt-4">
-                Se ainda não tens conta, é criada automaticamente ao entrares com o Google.
-              </p>
+                <button
+                  onClick={() => handleGoogleAuth("signup")}
+                  disabled={loading !== null}
+                  className="w-full py-3.5 rounded-lg border-2 bg-card text-sm font-bold text-foreground hover:brightness-95 transition flex items-center justify-center gap-3 disabled:opacity-60"
+                  style={{ borderColor: BROWN.primary, color: BROWN.primary }}
+                >
+                  <img src="https://www.google.com/favicon.ico" alt="Google" className="w-5 h-5" />
+                  {loading === "signup" ? "A criar conta..." : "Criar Conta com Google"}
+                </button>
+              </div>
 
-              {/* Link discreto para contas antigas com email/palavra-passe */}
               <div className="text-center mt-8">
                 <button
                   type="button"
@@ -148,7 +148,7 @@ const Auth = () => {
 
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading !== null}
                   className="w-full py-3 rounded-lg text-white font-bold text-sm hover:brightness-110 transition disabled:opacity-60"
                   style={{ backgroundColor: BROWN.primary }}
                 >
@@ -167,7 +167,6 @@ const Auth = () => {
             </>
           )}
 
-          {/* Terms */}
           <p className="text-[10px] text-muted-foreground text-center mt-10">
             Ao continuar, aceitas os <span className="font-semibold" style={{ color: BROWN.primary }}>Termos de Serviço</span> e a{" "}
             <span className="font-semibold" style={{ color: BROWN.primary }}>Política de Privacidade</span> da Zango Shopping.
