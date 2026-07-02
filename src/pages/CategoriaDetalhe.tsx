@@ -597,42 +597,7 @@ const CategoriaDetalhe = () => {
     <div style={{ position: "relative", minHeight: "100vh", background: bg, fontFamily: fontBody, paddingBottom: 56 }}>
       <GlobalStyle />
 
-      {/* ── Faixa de contexto — fina, sem duplicar pesquisa/sino/carrinho
-           que já vêm do cabeçalho partilhado da aplicação nesta rota.
-           Só o essencial: voltar + breadcrumb + título da categoria. ── */}
-      <div style={{ background: brand, padding: "10px 14px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button onClick={() => navigate(-1)} style={{
-            width: 30, height: 30, borderRadius: "50%", background: "rgba(255,255,255,0.18)",
-            border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-          }}>
-            <ArrowLeft style={{ width: 15, height: 15, color: surface }} strokeWidth={2.4} />
-          </button>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, flexWrap: "wrap", minWidth: 0 }}>
-            <button onClick={() => navigate("/")} style={{
-              background: "none", border: "none", cursor: "pointer", padding: 0,
-              fontFamily: fontBody, color: "rgba(255,255,255,0.75)", fontWeight: 600,
-            }}>
-              Início
-            </button>
-            <span style={{ color: "rgba(255,255,255,0.45)" }}>/</span>
-            <button onClick={() => navigate("/categorias")} style={{
-              background: "none", border: "none", cursor: "pointer", padding: 0,
-              fontFamily: fontBody, color: "rgba(255,255,255,0.75)", fontWeight: 600,
-            }}>
-              Categorias
-            </button>
-            <span style={{ color: "rgba(255,255,255,0.45)" }}>/</span>
-            <span style={{
-              fontFamily: fontBody, fontWeight: 800, color: surface,
-              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-            }}>
-              {categoryName}
-            </span>
-          </div>
-        </div>
-      </div>
+      {/* ── Faixa de contexto removida por pedido do utilizador ── */}
 
       {/* ── Empresas / vendedores patrocinados ── */}
       <TrustedEntitiesStrip navigate={navigate} />
