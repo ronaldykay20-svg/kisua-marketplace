@@ -205,26 +205,14 @@ const Navbar = () => {
   // ── Safe area top: preenche a barra de status do iOS com a cor do header ──
   const safeAreaTop = "env(safe-area-inset-top)";
 
-  let navbarStyle: React.CSSProperties;
-  if (isCategoriaDetalhePage) {
-    navbarStyle = {
-      background: "transparent",
-      boxShadow: "none",
-      backdropFilter: "none",
-      paddingTop: safeAreaTop,
-    };
-  } else {
-    navbarStyle = {
-      background: "#F7F0E6",
-      boxShadow: scrolled ? "0 2px 20px rgba(74,46,10,0.18)" : "0 1px 0 rgba(74,46,10,0.08)",
-      transition: "box-shadow 0.3s ease",
-      paddingTop: safeAreaTop,
-    };
-  }
+  const navbarStyle: React.CSSProperties = {
+    background: "#F7F0E6",
+    boxShadow: scrolled ? "0 2px 20px rgba(74,46,10,0.18)" : "0 1px 0 rgba(74,46,10,0.08)",
+    transition: "box-shadow 0.3s ease",
+    paddingTop: safeAreaTop,
+  };
 
-  const navPositionClass = isCategoriaDetalhePage
-    ? "absolute top-0 left-0 right-0 w-full z-50"
-    : "sticky top-0 z-50";
+  const navPositionClass = "sticky top-0 z-50";
 
   return (
     <>
