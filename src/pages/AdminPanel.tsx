@@ -15,6 +15,7 @@ import AdminFreightTab from "@/components/admin/AdminFreightTab";
 import AdminSuppliersTab from "@/components/admin/AdminSuppliersTab";
 import AdminPaymentReviewTab from "@/components/admin/AdminPaymentReviewTab";
 import { toast } from "sonner";
+import { convertToWebP } from "@/lib/imageToWebp";
 
 const roleBadge: Record<string, { label: string; color: string; icon: any }> = {
   admin: { label: "Admin", color: "bg-red-500/10 text-red-500 border-red-500/20", icon: Crown },
@@ -98,11 +99,13 @@ const AdForm = ({ onClose }: { onClose: () => void }) => {
       let mediaUrl: string | null = null;
       let mediaType: "image" | "video" | null = null;
       if (file) {
-        const ext = file.name.split(".").pop();
         const isVideo = file.type.startsWith("video/");
         mediaType = isVideo ? "video" : "image";
+        // Converte para WebP antes de enviar (só imagens; vídeos passam direto)
+        const uploadFile = isVideo ? file : await convertToWebP(file, 0.8, 1600);
+        const ext = isVideo ? file.name.split(".").pop() : "webp";
         const path = `ads/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-        const { error: upErr } = await (supabase as any).storage.from("ads").upload(path, file, { upsert: true });
+        const { error: upErr } = await (supabase as any).storage.from("ads").upload(path, uploadFile, { upsert: true });
         if (upErr) throw upErr;
         const { data: urlData } = (supabase as any).storage.from("ads").getPublicUrl(path);
         mediaUrl = urlData.publicUrl;
@@ -340,11 +343,12 @@ const AdminLeiloesTab = () => {
   const uploadHero = async (file: File) => {
     setHeroUploading(true);
     try {
-      const ext = file.name.split(".").pop();
-      const path = `hero-${Date.now()}.${ext}`;
+      // Converte para WebP antes de enviar
+      const webpFile = await convertToWebP(file, 0.8, 1600);
+      const path = `hero-${Date.now()}.webp`;
       const { error: upErr } = await (supabase as any).storage
         .from("auction-hero")
-        .upload(path, file, { upsert: true });
+        .upload(path, webpFile, { upsert: true });
       if (upErr) throw upErr;
 
       const { data: urlData } = (supabase as any).storage
