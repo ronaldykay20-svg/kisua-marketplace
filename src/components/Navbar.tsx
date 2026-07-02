@@ -255,55 +255,47 @@ const Navbar = () => {
               </button>
             )}
 
-            {/* ── Centro: título ou logo ── */}
-            {isCategoriaDetalhePage ? (
-              <span className="flex-1 text-base font-black text-center" style={{ color: brown }}>
-                {categoryNameFromUrl}
-              </span>
-            ) : (
-              <>
-                <div className="flex-1" />
-                <a href="/" className="flex-shrink-0" style={{ display: "inline-flex", height: 44, position: "absolute", left: "50%", transform: "translateX(-50%)", zIndex: 1 }}>
-                  <div style={{ position: "relative", display: "inline-flex", alignItems: "center", justifyContent: "center", height: 44 }}>
-                    <svg
-                      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
-                      viewBox="0 0 170 44"
-                      preserveAspectRatio="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        d="M 22 0 Q 0 0 0 22 Q 0 44 22 44 L 148 44 Q 170 44 170 22 Q 170 0 148 0 Z"
-                        fill="rgba(255,255,255,0.93)"
-                        stroke="#F9A825"
-                        strokeWidth="3.5"
-                      />
-                      <path
-                        d="M 22 0 Q 0 0 0 22 Q 0 44 22 44 L 148 44 Q 170 44 170 22 Q 170 0 148 0 Z"
-                        fill="none"
-                        stroke="rgba(249,168,37,0.20)"
-                        strokeWidth="8"
-                      />
-                    </svg>
-                    <div style={{
-                      position: "relative", zIndex: 1,
-                      width: 170, height: 44,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      padding: "0 16px",
-                    }}>
-                      {logoUrl && (
-                        <img
-                          src={logoUrl}
-                          alt="Logo"
-                          fetchPriority="high"
-                          style={{ height: 34, maxWidth: 140, objectFit: "contain" }}
-                        />
-                      )}
-                    </div>
-                  </div>
-                </a>
-                <div className="flex-1" />
-              </>
-            )}
+            {/* ── Centro: logo (sem título de categoria) ── */}
+            <div className="flex-1" />
+            <a href="/" className="flex-shrink-0" style={{ display: "inline-flex", height: 44, position: "absolute", left: "50%", transform: "translateX(-50%)", zIndex: 1 }}>
+              <div style={{ position: "relative", display: "inline-flex", alignItems: "center", justifyContent: "center", height: 44 }}>
+                <svg
+                  style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
+                  viewBox="0 0 170 44"
+                  preserveAspectRatio="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M 22 0 Q 0 0 0 22 Q 0 44 22 44 L 148 44 Q 170 44 170 22 Q 170 0 148 0 Z"
+                    fill="rgba(255,255,255,0.93)"
+                    stroke="#F9A825"
+                    strokeWidth="3.5"
+                  />
+                  <path
+                    d="M 22 0 Q 0 0 0 22 Q 0 44 22 44 L 148 44 Q 170 44 170 22 Q 170 0 148 0 Z"
+                    fill="none"
+                    stroke="rgba(249,168,37,0.20)"
+                    strokeWidth="8"
+                  />
+                </svg>
+                <div style={{
+                  position: "relative", zIndex: 1,
+                  width: 170, height: 44,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  padding: "0 16px",
+                }}>
+                  {logoUrl && (
+                    <img
+                      src={logoUrl}
+                      alt="Logo"
+                      fetchPriority="high"
+                      style={{ height: 34, maxWidth: 140, objectFit: "contain" }}
+                    />
+                  )}
+                </div>
+              </div>
+            </a>
+            <div className="flex-1" />
 
             {/* ── Botão pesquisa direita ── */}
             {isCategoriaDetalhePage ? (
