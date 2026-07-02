@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   SlidersHorizontal, ChevronDown, ShoppingCart, Star, Loader2, Plus, X,
-  ArrowLeft, CheckCircle, Store, Building2, Heart,
+  CheckCircle, Store, Building2, Heart,
 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useQuery } from "@tanstack/react-query";
