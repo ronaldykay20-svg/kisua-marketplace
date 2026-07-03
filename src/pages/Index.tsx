@@ -122,7 +122,7 @@ const TabletLayout = () => (
     <LazySection estimatedHeight={280}>
       <HomeBannerSlot slot={203} device="tablet" />
     </LazySection>
-    <LazySection estimatedHeight={480} rootMargin="400px">
+    <LazySection estimatedHeight={480} rootMargin="80px">
       <div className="mt-4">
         <FeaturedSellers layout="tablet" />
       </div>
@@ -139,12 +139,12 @@ const TabletLayout = () => (
     <LazySection estimatedHeight={280}>
       <HomeBannerSlot slot={207} device="tablet" />
     </LazySection>
-    <LazySection estimatedHeight={340} rootMargin="400px">
+    <LazySection estimatedHeight={340} rootMargin="80px">
       <div className="mt-4">
         <PromoProductCards />
       </div>
     </LazySection>
-    <LazySection estimatedHeight={480} rootMargin="400px">
+    <LazySection estimatedHeight={480} rootMargin="80px">
       <div className="grid grid-cols-2 gap-3 mt-3">
         <HomeBannerSlot slot={208} device="tablet" compact />
         <GroupedVideoStories />
@@ -188,7 +188,7 @@ const DesktopLayout = () => (
         <HomeBannerSlot slot={303} device="desktop" />
 
         {/* Abaixo da dobra */}
-        <LazySection estimatedHeight={480} rootMargin="400px">
+        <LazySection estimatedHeight={480} rootMargin="80px">
           <div className="mt-4">
             <FeaturedSellers layout="desktop" />
           </div>
@@ -205,7 +205,7 @@ const DesktopLayout = () => (
         <LazySection estimatedHeight={280}>
           <HomeBannerSlot slot={307} device="desktop" />
         </LazySection>
-        <LazySection estimatedHeight={340} rootMargin="400px">
+        <LazySection estimatedHeight={340} rootMargin="80px">
           <div className="mt-4">
             <PromoProductCards />
           </div>
@@ -213,7 +213,7 @@ const DesktopLayout = () => (
         <LazySection estimatedHeight={280}>
           <HomeBannerSlot slot={308} device="desktop" />
         </LazySection>
-        <LazySection estimatedHeight={480} rootMargin="400px">
+        <LazySection estimatedHeight={480} rootMargin="80px">
           <div className="mt-4">
             <GroupedVideoStories />
           </div>
