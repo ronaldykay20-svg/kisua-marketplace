@@ -508,27 +508,28 @@ const Navbar = () => {
               <div
                 className="overflow-hidden"
                 style={{
-                  maxHeight: !searchBarOpen && categoriesExpanded ? "120px" : "0px",
+                  maxHeight: !searchBarOpen && categoriesExpanded ? "52px" : "0px",
                   opacity: !searchBarOpen && categoriesExpanded ? 1 : 0,
                   transition: "max-height 0.4s cubic-bezier(0.4,0,0.2,1), opacity 0.3s ease",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", paddingTop: 8, paddingBottom: 12, gap: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", paddingTop: 6, paddingBottom: 10, gap: 6 }}>
                   <div
                     className="overflow-x-auto scrollbar-hide flex-1"
-                    style={{ display: "flex", gap: 8, alignItems: "center", paddingRight: 8 }}
+                    style={{ display: "flex", gap: 8, alignItems: "center", paddingRight: 4 }}
                   >
                     <button
                       onClick={() => navigate("/categorias")}
-                      className="flex-shrink-0"
+                      className="flex-shrink-0 inline-flex items-center justify-center"
                       style={{
-                        padding: "5px 11px",
+                        padding: "6px 12px",
                         borderRadius: 999,
                         background: brown,
                         whiteSpace: "nowrap",
+                        lineHeight: 1,
                       }}
                     >
-                      <span className="text-[10px] font-bold text-white">Ver todas</span>
+                      <span className="text-[10px] font-bold text-white" style={{ lineHeight: 1 }}>Ver todas</span>
                     </button>
 
                     {categories.map((cat: any) => {
@@ -537,17 +538,18 @@ const Navbar = () => {
                         <button
                           key={cat.name}
                           onClick={() => navigate(`/categoria/${encodeURIComponent(cat.name)}`)}
-                          className="flex-shrink-0"
+                          className="flex-shrink-0 inline-flex items-center justify-center"
                           style={{
-                            padding: "5px 11px",
+                            padding: "6px 12px",
                             borderRadius: 999,
                             background: `${accent}17`,
                             whiteSpace: "nowrap",
+                            lineHeight: 1,
                           }}
                         >
                           <span
                             className="text-[10px] font-semibold"
-                            style={{ color: accent }}
+                            style={{ color: accent, lineHeight: 1 }}
                           >
                             {cat.name}
                           </span>
@@ -556,31 +558,22 @@ const Navbar = () => {
                     })}
                   </div>
 
-                  <div
-                    className="flex-shrink-0 flex flex-col items-center gap-1"
+                  <button
+                    onClick={() => setSearchBarOpen(true)}
+                    className="flex-shrink-0 inline-flex items-center justify-center"
                     style={{
-                      width: "calc((100vw - 80px) / 6)",
-                      maxWidth: 64,
-                      minWidth: 46,
-                      marginLeft: 6,
+                      padding: "6px 12px",
+                      borderRadius: 999,
+                      background: "rgba(255,255,255,0.65)",
+                      border: `1.5px solid #F9A825`,
+                      whiteSpace: "nowrap",
+                      gap: 5,
+                      lineHeight: 1,
                     }}
                   >
-                    <button
-                      onClick={() => setSearchBarOpen(true)}
-                      style={{
-                        width: "100%", aspectRatio: "1", borderRadius: 12,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        background: "rgba(255,255,255,0.65)",
-                        border: "2px solid #F9A825",
-                        boxShadow: "0 2px 8px rgba(249,168,37,0.22)",
-                        flexShrink: 0,
-                      }}
-                    >
-                      <Search className="w-5 h-5" style={{ color: brown }} />
-                    </button>
-                    <span className="text-[9px] font-bold text-center" style={{ color: brown }}>Pesquisar</span>
-                  </div>
-
+                    <Search className="w-3 h-3" style={{ color: brown }} />
+                    <span className="text-[10px] font-bold" style={{ color: brown, lineHeight: 1 }}>Pesquisar</span>
+                  </button>
                 </div>
               </div>
             </>
