@@ -334,71 +334,8 @@ const Categorias = () => {
     <div style={{ background: bg, minHeight: "100vh", fontFamily: fontBody }}>
       <GlobalStyle />
 
-      {/* ── Cabeçalho ── */}
-      <div style={{ background: brand, padding: "12px 14px 0" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 12 }}>
-          <button style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}>
-            <Menu style={{ width: 22, height: 22, color: surface }} strokeWidth={2.2} />
-          </button>
-          <div style={{
-            width: 30, height: 30, borderRadius: "50%", background: surface,
-            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-          }}>
-            <ShoppingBag style={{ width: 16, height: 16, color: brandDeep }} strokeWidth={2.4} />
-          </div>
+      {/* Cabeçalho removido — o site já usa o Navbar global no topo */}
 
-          <div style={{
-            flex: 1, display: "flex", alignItems: "center", gap: 8,
-            background: "#F1E9DC", borderRadius: 24, padding: "10px 16px",
-          }}>
-            <span style={{ flex: 1, fontFamily: fontBody, fontSize: 14, color: "#8A7A63", fontWeight: 600 }}>
-              Pesquisar no zangu
-            </span>
-            <div style={{
-              width: 30, height: 30, borderRadius: "50%", background: brandDeep,
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}>
-              <Search style={{ width: 14, height: 14, color: surface }} strokeWidth={2.4} />
-            </div>
-          </div>
-
-          <button style={{ position: "relative", background: "none", border: "none", cursor: "pointer", padding: 2 }}>
-            <ShoppingCart style={{ width: 23, height: 23, color: surface }} strokeWidth={2.2} />
-            <span style={{
-              position: "absolute", top: -6, right: -6,
-              background: gold, color: ink, fontSize: 10, fontWeight: 800,
-              width: 16, height: 16, borderRadius: "50%",
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}>
-              0
-            </span>
-          </button>
-        </div>
-
-        {bannerOpen && (
-          <div style={{
-            background: brandDarkest, borderRadius: "10px 10px 0 0",
-            margin: "0 -14px", padding: "12px 14px",
-            display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <Globe style={{ width: 18, height: 18, color: surface, flexShrink: 0 }} strokeWidth={2} />
-              <span style={{ fontFamily: fontBody, fontSize: 13, fontWeight: 700, color: surface, lineHeight: 1.3 }}>
-                Pagamento na entrega já disponível!
-              </span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-              <span style={{ display: "flex", alignItems: "center", gap: 4, fontFamily: fontBody, fontSize: 12, fontWeight: 700, color: surface }}>
-                <MapPin style={{ width: 14, height: 14 }} /> Luanda <ChevronDown style={{ width: 13, height: 13 }} />
-              </span>
-              <button onClick={() => setBannerOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}>
-                <X style={{ width: 16, height: 16, color: surface }} strokeWidth={2.4} />
-              </button>
-            </div>
-          </div>
-        )}
-        <div style={{ height: 12 }} />
-      </div>
 
       {/* ── Categorias: faixa de atalhos ── */}
       <div style={{ background: surface, padding: "16px 14px" }}>
