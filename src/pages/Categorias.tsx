@@ -1,7 +1,6 @@
 import { useState, useMemo } from "react";
 import {
-  ShoppingBag, ShoppingCart, Search, Heart, Menu, SlidersHorizontal,
-  Star, Globe, X, ChevronDown, MapPin, Megaphone,
+  ShoppingBag, Heart, Star, Megaphone,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
