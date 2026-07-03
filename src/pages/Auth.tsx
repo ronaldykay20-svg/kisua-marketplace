@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Eye, EyeOff, Mail, Lock, User, Phone, ArrowLeft, ShoppingBasket } from "lucide-react";
 import { toast } from "sonner";
+import { useSiteSetting } from "@/hooks/useSiteSettings";
 
 type View = "login" | "register" | "forgot";
 
@@ -48,6 +49,8 @@ const Auth = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
 
   const [resetEmail, setResetEmail] = useState("");
+
+  const { data: logoUrl } = useSiteSetting("site_logo_url");
 
   useEffect(() => {
     if (user) navigate("/conta", { replace: true });
@@ -145,6 +148,10 @@ const Auth = () => {
         @keyframes zango-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
         .zango-card { animation: zango-rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
         @media (prefers-reduced-motion: reduce) { .zango-card { animation: none; } }
+        /* Evita que o iOS Safari faça zoom automático ao focar num campo (precisa de >= 16px) */
+        .zango-card input {
+          font-size: 16px !important;
+        }
       `}</style>
 
       {/* Header */}
@@ -153,6 +160,9 @@ const Auth = () => {
           <button onClick={() => navigate(-1)} className="text-white/90 hover:text-white transition">
             <ArrowLeft className="w-5 h-5" />
           </button>
+          {logoUrl && (
+            <img src={logoUrl} alt="" className="w-7 h-7 rounded-lg object-contain bg-white/95 p-0.5 flex-shrink-0" />
+          )}
           <span className="zango-display text-white font-bold text-xl tracking-tight">Zango Shopping</span>
         </div>
         <svg viewBox="0 0 200 10" preserveAspectRatio="none" className="w-full h-2.5 block">
@@ -177,10 +187,19 @@ const Auth = () => {
             <>
               <div className="flex flex-col items-center text-center mb-7">
                 <div
-                  className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4 shadow-sm"
-                  style={{ background: `linear-gradient(135deg, ${PALETTE.terracota}, ${PALETTE.dourado})` }}
+                  className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 shadow-sm overflow-hidden bg-white"
+                  style={{ border: `2px solid ${PALETTE.dourado}` }}
                 >
-                  <ShoppingBasket className="w-7 h-7 text-white" strokeWidth={2.2} />
+                  {logoUrl ? (
+                    <img src={logoUrl} alt="Zango Shopping" className="w-full h-full object-contain p-1.5" />
+                  ) : (
+                    <div
+                      className="w-full h-full flex items-center justify-center"
+                      style={{ background: `linear-gradient(135deg, ${PALETTE.terracota}, ${PALETTE.dourado})` }}
+                    >
+                      <ShoppingBasket className="w-7 h-7 text-white" strokeWidth={2.2} />
+                    </div>
+                  )}
                 </div>
                 <h1 className="zango-display text-3xl font-bold" style={{ color: PALETTE.carvao }}>
                   {view === "login" ? (isReturning ? "Bem-vindo de volta!" : "Bem-vindo!") : "Criar conta"}
