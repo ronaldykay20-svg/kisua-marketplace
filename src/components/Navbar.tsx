@@ -248,7 +248,7 @@ const Navbar = () => {
   return (
     <>
       <nav className={navPositionClass} style={navbarStyle}>
-        <div className="zango-nav-inner" style={{ paddingLeft: 12, paddingRight: 12 }}>
+        <div style={{ paddingLeft: 12, paddingRight: 12 }}>
 
           {/* ══ LINHA 1: barra de ícones ══ */}
           <div
@@ -534,15 +534,18 @@ const Navbar = () => {
                             width: "100%",
                             aspectRatio: "1",
                             borderRadius: 12,
-                            overflow: "hidden",
-                            padding: 3,
-                            background: "rgba(255,255,255,0.65)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            background: categoryAccentColors[cat.name] || brown,
                             border: "2px solid #F9A825",
                             boxShadow: "0 2px 8px rgba(249,168,37,0.22)",
                             flexShrink: 0,
                           }}
                         >
-                          <img src={cat.image} alt={cat.name} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 8 }} />
+                          <span className="text-white font-black" style={{ fontSize: 18 }}>
+                            {cat.name.charAt(0).toUpperCase()}
+                          </span>
                         </div>
                         <span
                           className="text-[9px] font-bold text-center leading-tight line-clamp-1"
@@ -621,16 +624,6 @@ const Navbar = () => {
         }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-        /* Em ecrãs largos (PC/tablet), a barra de navegação deixa de esticar
-           de ponta a ponta -- fica centrada como uma faixa, para o logotipo
-           (que é centrado matematicamente na largura total) não ficar longe
-           dos ícones e parecer desencaixado. */
-        @media (min-width: 768px) {
-          .zango-nav-inner {
-            max-width: 560px;
-            margin: 0 auto;
-          }
-        }
       `}</style>
 
       {/* ══ PAINEL NOTIFICAÇÕES ══ */}
