@@ -513,75 +513,46 @@ const Navbar = () => {
                   transition: "max-height 0.4s cubic-bezier(0.4,0,0.2,1), opacity 0.3s ease",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "flex-start", paddingTop: 8, paddingBottom: 12, gap: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", paddingTop: 8, paddingBottom: 12, gap: 0 }}>
                   <div
                     className="overflow-x-auto scrollbar-hide flex-1"
-                    style={{ display: "flex", gap: 6, alignItems: "flex-start", paddingRight: 8 }}
+                    style={{ display: "flex", gap: 8, alignItems: "center", paddingRight: 8 }}
                   >
+                    <button
+                      onClick={() => navigate("/categorias")}
+                      className="flex-shrink-0"
+                      style={{
+                        padding: "9px 16px",
+                        borderRadius: 999,
+                        background: `linear-gradient(135deg, #6B3F12, ${brown})`,
+                        boxShadow: "0 2px 6px rgba(74,46,10,0.25)",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      <span className="text-[11px] font-bold text-white">Ver todas</span>
+                    </button>
+
                     {categories.map((cat: any) => (
                       <button
                         key={cat.name}
                         onClick={() => navigate(`/categoria/${encodeURIComponent(cat.name)}`)}
-                        className="flex flex-col items-center gap-1 flex-shrink-0"
+                        className="flex-shrink-0"
                         style={{
-                          width: "calc((100vw - 80px) / 6)",
-                          maxWidth: 64,
-                          minWidth: 46,
+                          padding: "9px 16px",
+                          borderRadius: 999,
+                          background: "rgba(255,255,255,0.65)",
+                          border: `1.5px solid ${categoryAccentColors[cat.name] || brown}`,
+                          whiteSpace: "nowrap",
                         }}
                       >
-                        <div
-                          style={{
-                            width: "100%",
-                            aspectRatio: "1",
-                            borderRadius: 12,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            background: categoryAccentColors[cat.name] || brown,
-                            border: "2px solid #F9A825",
-                            boxShadow: "0 2px 8px rgba(249,168,37,0.22)",
-                            flexShrink: 0,
-                          }}
-                        >
-                          <span className="text-white font-black" style={{ fontSize: 18 }}>
-                            {cat.name.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
                         <span
-                          className="text-[9px] font-bold text-center leading-tight line-clamp-1"
-                          style={{ color: brown, width: "100%" }}
+                          className="text-[11px] font-bold"
+                          style={{ color: categoryAccentColors[cat.name] || brown }}
                         >
                           {cat.name}
                         </span>
                       </button>
                     ))}
-
-                    <button
-                      onClick={() => navigate("/categorias")}
-                      className="flex flex-col items-center gap-1 flex-shrink-0"
-                      style={{
-                        width: "calc((100vw - 80px) / 6)",
-                        maxWidth: 64,
-                        minWidth: 46,
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: "100%", aspectRatio: "1", borderRadius: 12,
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          background: `linear-gradient(135deg, #6B3F12, ${brown})`,
-                          boxShadow: "0 2px 6px rgba(74,46,10,0.25)",
-                        }}
-                      >
-                        <div className="grid grid-cols-2 gap-1">
-                          <div className="w-2.5 h-2.5 rounded-sm border-2 border-white" />
-                          <div className="w-2.5 h-2.5 rounded-sm border-2 border-white" />
-                          <div className="w-2.5 h-2.5 rounded-sm border-2 border-white" />
-                          <div className="w-2.5 h-2.5 rounded-sm border-2 border-white" />
-                        </div>
-                      </div>
-                      <span className="text-[9px] font-bold text-center" style={{ color: brown }}>Ver todas</span>
-                    </button>
                   </div>
 
                   <div
