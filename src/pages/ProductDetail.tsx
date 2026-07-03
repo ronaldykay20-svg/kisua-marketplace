@@ -111,6 +111,7 @@ const ProductDetail = () => {
   const [selectedImage, setSelectedImage] = useState(0);
   const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
   const [selectedSubVariants, setSelectedSubVariants] = useState<Record<string, string>>({});
+  const [activeVariantTab, setActiveVariantTab] = useState<string | null>(null);
   const [zoomOpen, setZoomOpen] = useState(false);
   const [descExpanded, setDescExpanded] = useState(false);
   // ── FIX 2: Estado separado para "Comprar agora" ───────────────────────────
@@ -390,6 +391,35 @@ const ProductDetail = () => {
 
   const totalVariantGroupCount = Object.keys(variantGroups).length + Object.keys(childGroups).length;
 
+  // ── FIX: em vez de empilhar cada grupo (Cor, Modelo, Estilo, Material...)
+  // um por baixo do outro, unimos tudo numa lista e mostramos como abas.
+  // Só as opções do grupo activo aparecem, num carrossel horizontal.
+  const allVariantGroupEntries = [
+    ...Object.entries(variantGroups).map(([type, variants]) => ({
+      key: `parent:${type}`, type, variants, isChild: false,
+      label: typeLabels[type] || variantGroupLabels[type] || type,
+    })),
+    ...Object.entries(childGroups).map(([type, variants]) => ({
+      key: `child:${type}`, type, variants, isChild: true,
+      label: typeLabels[type] || childGroupLabels[type] || type,
+    })),
+  ];
+  const currentTabKey = activeVariantTab && allVariantGroupEntries.some(g => g.key === activeVariantTab)
+    ? activeVariantTab
+    : allVariantGroupEntries[0]?.key || null;
+  const activeGroupEntry = allVariantGroupEntries.find(g => g.key === currentTabKey) || null;
+
+  const handleVariantSelect = (entry: { type: string; isChild: boolean }, v: any) => {
+    if (entry.isChild) {
+      setSelectedSubVariants(p => ({ ...p, [entry.type]: selectedSubVariants[entry.type] === v.id ? "" : v.id }));
+      trackEvent(id!, "variant_select", { variant_id: v.id, variant_type: entry.type, is_sub: true });
+    } else {
+      setSelectedVariants(p => ({ ...p, [entry.type]: selectedVariants[entry.type] === v.id ? "" : v.id }));
+      if (selectedVariants[entry.type] === v.id) setSelectedSubVariants({});
+      trackEvent(id!, "variant_select", { variant_id: v.id, variant_type: entry.type });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white">
       {zoomOpen && <ZoomLightbox images={displayImages} index={selectedImage} onClose={() => setZoomOpen(false)} onChange={setSelectedImage} onShare={handleShare} />}
@@ -561,48 +591,38 @@ const ProductDetail = () => {
 
         {/* ── VARIANTES ── */}
         {totalVariantGroupCount > 0 && (
-          <div className="bg-white border-b border-gray-100 px-3 md:px-6 py-3 space-y-4">
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Opções disponíveis</p>
-            {Object.entries(variantGroups).map(([type, variants]) => {
-              const selId = selectedVariants[type];
-              return (
-                <div key={type}>
-                  <p className="text-sm font-bold text-gray-800 mb-2">
-                    {typeLabels[type] || variantGroupLabels[type] || type}
-                    {selId && <span className="font-normal text-gray-500 ml-1">: {variants.find((v: any) => v.id === selId)?.name}</span>}
-                    <span className="ml-2 text-[10px] font-semibold text-gray-400">({variants.length})</span>
-                  </p>
-                  <div className="flex gap-2 overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-1" style={{ WebkitOverflowScrolling: "touch" }}>
-                    {variants.map((v: any) => (
-                      <div key={v.id} className="flex-shrink-0 snap-start">
-                        <VariantPill v={v} type={type} selected={selectedVariants[type] === v.id}
-                          onSelect={() => { setSelectedVariants(p => ({ ...p, [type]: selectedVariants[type] === v.id ? "" : v.id })); if (selectedVariants[type] === v.id) setSelectedSubVariants({}); trackEvent(id!, "variant_select", { variant_id: v.id, variant_type: type }); }} />
-                      </div>
-                    ))}
+          <div className="bg-white border-b border-gray-100 px-3 md:px-6 py-3">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Opções disponíveis</p>
+
+            {/* Abas dos grupos — carrossel horizontal, nunca empilha */}
+            <div className="flex gap-2 overflow-x-auto scrollbar-hide snap-x pb-1" style={{ WebkitOverflowScrolling: "touch" }}>
+              {allVariantGroupEntries.map(entry => {
+                const selId = entry.isChild ? selectedSubVariants[entry.type] : selectedVariants[entry.type];
+                const selName = entry.variants.find((v: any) => v.id === selId)?.name;
+                const isActiveTab = currentTabKey === entry.key;
+                return (
+                  <button key={entry.key} onClick={() => setActiveVariantTab(entry.key)}
+                    className="flex-shrink-0 snap-start px-3 py-1.5 rounded-full text-xs font-bold border transition-all"
+                    style={{ background: isActiveTab ? N.brown : "#fff", color: isActiveTab ? "#fff" : "#555", borderColor: isActiveTab ? N.brown : "#ddd" }}>
+                    {entry.label}
+                    {selName && <span className="font-normal opacity-80">: {selName}</span>}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Opções do grupo activo — carrossel horizontal */}
+            {activeGroupEntry && (
+              <div className="flex gap-2 overflow-x-auto scrollbar-hide snap-x snap-mandatory pt-3 pb-1" style={{ WebkitOverflowScrolling: "touch" }}>
+                {activeGroupEntry.variants.map((v: any) => (
+                  <div key={v.id} className="flex-shrink-0 snap-start">
+                    <VariantPill v={v} type={activeGroupEntry.type}
+                      selected={(activeGroupEntry.isChild ? selectedSubVariants[activeGroupEntry.type] : selectedVariants[activeGroupEntry.type]) === v.id}
+                      onSelect={() => handleVariantSelect(activeGroupEntry, v)} />
                   </div>
-                </div>
-              );
-            })}
-            {Object.entries(childGroups).map(([type, variants]) => {
-              const selId = selectedSubVariants[type];
-              return (
-                <div key={`sub-${type}`}>
-                  <p className="text-sm font-bold text-gray-800 mb-2">
-                    {typeLabels[type] || childGroupLabels[type] || type}
-                    {selId && <span className="font-normal text-gray-500 ml-1">: {variants.find((v: any) => v.id === selId)?.name}</span>}
-                    <span className="ml-2 text-[10px] font-semibold text-gray-400">({variants.length})</span>
-                  </p>
-                  <div className="flex gap-2 overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-1" style={{ WebkitOverflowScrolling: "touch" }}>
-                    {variants.map((v: any) => (
-                      <div key={v.id} className="flex-shrink-0 snap-start">
-                        <VariantPill v={v} type={type} selected={selectedSubVariants[type] === v.id}
-                          onSelect={() => { setSelectedSubVariants(p => ({ ...p, [type]: selectedSubVariants[type] === v.id ? "" : v.id })); trackEvent(id!, "variant_select", { variant_id: v.id, variant_type: type, is_sub: true }); }} />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
+                ))}
+              </div>
+            )}
           </div>
         )}
 
