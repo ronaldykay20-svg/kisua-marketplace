@@ -422,6 +422,39 @@ const CategoriaDetalhe = () => {
     }),
   [dbProducts]);
 
+  /* ─── Filtros derivados de dados reais dos produtos da categoria ─── */
+  const availableSubs = useMemo(() => {
+    const set = new Set<string>();
+    allProducts.forEach((p) => { if (p.subcategory) set.add(p.subcategory); });
+    return Array.from(set).sort();
+  }, [allProducts]);
+
+  const availableColors = useMemo(() => {
+    const map = new Map<string, { name: string; hex: string }>();
+    (dbProducts || []).forEach((p: any) => {
+      (p.product_variants || [])
+        .filter((v: any) => v.variant_type === "color" && v.value)
+        .forEach((v: any) => {
+          const name = (v.name && String(v.name).trim()) || v.value;
+          if (!map.has(name)) {
+            map.set(name, { name, hex: colorNameToHex[name] || v.value });
+          }
+        });
+    });
+    return Array.from(map.values());
+  }, [dbProducts]);
+
+  const priceRanges = useMemo(() => {
+    if (allProducts.length === 0) return [] as { label: string; min: number; max: number }[];
+    const base = [
+      { label: "Até 10.000 Kz",       min: 0,      max: 10000  },
+      { label: "10.000 - 50.000 Kz",  min: 10000,  max: 50000  },
+      { label: "50.000 - 200.000 Kz", min: 50000,  max: 200000 },
+      { label: "200.000+",            min: 200000, max: Infinity },
+    ];
+    return base.filter((r) => allProducts.some((p) => p.price >= r.min && p.price < r.max));
+  }, [allProducts]);
+
   const products = useMemo(() => {
     let list = allProducts;
     if (selectedSub) list = list.filter((p) => p.subcategory === selectedSub);
@@ -429,7 +462,7 @@ const CategoriaDetalhe = () => {
       list = list.filter((p) => {
         if (p.colorHexes.length === 0) return false;
         return selectedColors.some((colorName) => {
-          const filterHex = colorOptions.find((c) => c.name === colorName)?.hex;
+          const filterHex = availableColors.find((c) => c.name === colorName)?.hex;
           if (!filterHex) return false;
           return p.colorHexes.some((h: string) => hexClose(h, filterHex));
         });
@@ -440,9 +473,9 @@ const CategoriaDetalhe = () => {
       if (range) list = list.filter((p) => p.price >= range.min && p.price < range.max);
     }
     return list;
-  }, [allProducts, selectedColors, selectedPrice, selectedSub]);
+  }, [allProducts, selectedColors, selectedPrice, selectedSub, availableColors, priceRanges]);
 
-  const subs = subcategories[categoryName] || [];
+  const subs = availableSubs;
   const toggleColor = (c: string) =>
     setSelectedColors((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
 
