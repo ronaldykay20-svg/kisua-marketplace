@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCategories } from "@/hooks/useSupabaseData";
 import {
   Search, ShoppingCart, Bell, User, ChevronDown,
-  Gavel, Radio, Zap, Store, Users, Mic, LogOut, X, Camera,
+  Gavel, Radio, Zap, Store, Users, LogOut, X,
 } from "lucide-react";
 
 const staticCategories = [
@@ -67,58 +67,9 @@ const useCartCount = (userId?: string) =>
     refetchInterval: 15000,
   });
 
-const useSpeechRecognition = (onResult: (t: string) => void) => {
-  const [listening, setListening] = useState(false);
-  const ref = useRef<any>(null);
-  const start = useCallback(() => {
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) return;
-    const r = new SR();
-    ref.current = r;
-    r.lang = "pt-AO"; r.interimResults = false; r.maxAlternatives = 1;
-    r.onstart = () => setListening(true);
-    r.onend   = () => setListening(false);
-    r.onerror = () => setListening(false);
-    r.onresult = (e: any) => onResult(e.results[0][0].transcript);
-    r.start();
-  }, [onResult]);
-  const stop = useCallback(() => { ref.current?.stop(); setListening(false); }, []);
-  return { listening, start, stop };
-};
-
-const useImageSearch = (onResult: (base64: string) => void) => {
-  const [analyzing, setAnalyzing] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const analyzeImage = useCallback(async (file: File) => {
-    setAnalyzing(true);
-    try {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = (reader.result as string).split(",")[1];
-        onResult(base64);
-        setAnalyzing(false);
-      };
-      reader.readAsDataURL(file);
-    } catch {
-      alert("Erro ao processar imagem.");
-      setAnalyzing(false);
-    }
-  }, [onResult]);
-
-  const openImagePicker = useCallback(() => { fileInputRef.current?.click(); }, []);
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) analyzeImage(file);
-    e.target.value = "";
-  }, [analyzeImage]);
-
-  return { analyzing, openImagePicker, handleFileChange, fileInputRef };
-};
-
 const LogoSkeleton = () => (
   <div
-    className="h-10 w-36 rounded-lg animate-pulse"
+    className="h-11 w-40 rounded-2xl animate-pulse"
     style={{ background: "rgba(74,46,10,0.12)" }}
   />
 );
@@ -189,16 +140,6 @@ const DesktopNavbar = () => {
     }
   };
 
-  const { listening, start, stop } = useSpeechRecognition((t) => {
-    setSearch(t);
-    navigate(`/pesquisa?q=${encodeURIComponent(t)}`);
-  });
-
-  const { analyzing, openImagePicker, handleFileChange, fileInputRef } = useImageSearch((base64) => {
-    navigate(`/pesquisa?modo=imagem&img=${encodeURIComponent(base64)}`);
-    setSearch("");
-  });
-
   const navItems = [
     { label: "Início",          path: "/" },
     { label: "Ofertas",         path: "/promocoes" },
@@ -207,7 +148,7 @@ const DesktopNavbar = () => {
     { label: "Empresas",        path: "/empresas" },
     { label: "Vendedores",      path: "/vendedores" },
     { label: "Ranking",         path: "/ranking" },
-    { label: "Seja Fornecedor", path: "/seja-fornecedor" }, // ✅ adicionado
+    { label: "Seja Fornecedor", path: "/seja-fornecedor" },
     ...(!isAffiliate ? [{ label: "Criar Loja", path: "/criar-loja" }] : []),
   ];
 
@@ -249,27 +190,32 @@ const DesktopNavbar = () => {
     );
   };
 
+  // Logotipo com moldura consistente (mesma linguagem visual do cabeçalho mobile:
+  // caixa branca arredondada com contorno dourado), para não depender das
+  // proporções cruas do ficheiro de imagem e ficar igual em qualquer largura de ecrã.
   const renderLogo = () => {
-    if (logoLoading) {
-      return <LogoSkeleton />;
-    }
-    if (logoUrl) {
-      return (
-        <>
-          {!logoLoaded && <LogoSkeleton />}
-          <img
-            src={logoUrl}
-            alt="Logo"
-            className="h-10 object-contain"
-            style={{ display: logoLoaded ? "block" : "none" }}
-            onLoad={() => setLogoLoaded(true)}
-            onError={() => setLogoLoaded(true)}
-          />
-        </>
-      );
-    }
+    if (logoLoading) return <LogoSkeleton />;
     return (
-      <span className="text-xl font-black" style={{ color: brown }}>AngoExpress</span>
+      <div
+        className="h-11 flex items-center justify-center rounded-2xl bg-white px-4"
+        style={{ border: "2px solid #F9A825", boxShadow: "0 2px 8px rgba(249,168,37,0.20)" }}
+      >
+        {logoUrl ? (
+          <>
+            {!logoLoaded && <LogoSkeleton />}
+            <img
+              src={logoUrl}
+              alt="Logo"
+              className="h-8 max-w-[140px] object-contain"
+              style={{ display: logoLoaded ? "block" : "none" }}
+              onLoad={() => setLogoLoaded(true)}
+              onError={() => setLogoLoaded(true)}
+            />
+          </>
+        ) : (
+          <span className="text-lg font-black" style={{ color: brown }}>Zangu</span>
+        )}
+      </div>
     );
   };
 
@@ -278,14 +224,6 @@ const DesktopNavbar = () => {
       className="hidden md:block sticky top-0 z-50 w-full"
       style={{ background: `linear-gradient(160deg, ${cream} 0%, ${sand} 60%, #C9A87C 100%)` }}
     >
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={handleFileChange}
-      />
-
       <div className="max-w-screen-xl mx-auto px-5 h-16 flex items-center gap-3">
         <a href="/" className="flex-shrink-0">
           {renderLogo()}
@@ -340,30 +278,6 @@ const DesktopNavbar = () => {
             className="flex-1 py-2.5 px-3 bg-transparent focus:outline-none"
             style={{ color: brown, fontSize: "16px" }}
           />
-          <button
-            type="button"
-            onClick={openImagePicker}
-            disabled={analyzing}
-            className="w-10 h-9 flex items-center justify-center rounded-xl m-0.5 transition-all hover:scale-105"
-            style={{ background: analyzing ? "#F9A825" : brownLight, border: `1px solid rgba(74,46,10,0.18)` }}
-            title="Pesquisar por imagem"
-          >
-            {analyzing
-              ? <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: brown, borderTopColor: "transparent" }} />
-              : <Camera className="w-4 h-4" style={{ color: brown }} />
-            }
-          </button>
-          <button
-            type="button"
-            onClick={listening ? stop : start}
-            className="w-10 h-9 flex items-center justify-center rounded-xl m-0.5 transition-all"
-            style={{
-              background: listening ? "#E53935" : `linear-gradient(135deg, ${sandDark}, ${sand})`,
-              boxShadow: listening ? "0 0 0 4px rgba(229,57,53,0.25)" : "none",
-            }}
-          >
-            <Mic className="w-4 h-4 text-white" />
-          </button>
         </form>
 
         <div className="hidden md:flex lg:hidden items-center gap-1.5 flex-shrink-0 px-3 py-1.5 rounded-xl"
