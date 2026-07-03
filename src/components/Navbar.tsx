@@ -477,104 +477,62 @@ const Navbar = () => {
               <div
                 className="overflow-hidden"
                 style={{
-                  maxHeight: !searchBarOpen && categoriesExpanded ? "120px" : "0px",
+                  maxHeight: !searchBarOpen && categoriesExpanded ? "60px" : "0px",
                   opacity: !searchBarOpen && categoriesExpanded ? 1 : 0,
                   transition: "max-height 0.4s cubic-bezier(0.4,0,0.2,1), opacity 0.3s ease",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "flex-start", paddingTop: 8, paddingBottom: 12, gap: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", paddingTop: 8, paddingBottom: 10 }}>
                   <div
                     className="overflow-x-auto scrollbar-hide flex-1"
-                    style={{ display: "flex", gap: 6, alignItems: "flex-start", paddingRight: 8 }}
+                    style={{ display: "flex", gap: 8, alignItems: "center" }}
                   >
+                    {/* Botão "Categorias" — primeiro item, desliza junto no scroll */}
+                    <button
+                      onClick={() => navigate("/categorias")}
+                      className="flex items-center gap-1.5 flex-shrink-0"
+                      style={{
+                        height: 34,
+                        padding: "0 12px",
+                        borderRadius: 999,
+                        background: `linear-gradient(135deg, #6B3F12, ${brown})`,
+                        boxShadow: "0 2px 6px rgba(74,46,10,0.28)",
+                        color: "#fff",
+                        fontSize: 12,
+                        fontWeight: 800,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      <div className="grid grid-cols-2 gap-0.5">
+                        <div className="w-1.5 h-1.5 rounded-sm bg-white" />
+                        <div className="w-1.5 h-1.5 rounded-sm bg-white" />
+                        <div className="w-1.5 h-1.5 rounded-sm bg-white" />
+                        <div className="w-1.5 h-1.5 rounded-sm bg-white" />
+                      </div>
+                      <span>Categorias</span>
+                    </button>
+
                     {categories.map((cat: any) => (
                       <button
                         key={cat.name}
                         onClick={() => navigate(`/categoria/${encodeURIComponent(cat.name)}`)}
-                        className="flex flex-col items-center gap-1 flex-shrink-0"
+                        className="flex-shrink-0"
                         style={{
-                          width: "calc((100vw - 80px) / 6)",
-                          maxWidth: 64,
-                          minWidth: 46,
+                          height: 34,
+                          padding: "0 14px",
+                          borderRadius: 999,
+                          background: "rgba(255,255,255,0.75)",
+                          border: "1.5px solid rgba(74,46,10,0.18)",
+                          color: brown,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          whiteSpace: "nowrap",
                         }}
                       >
-                        <div
-                          style={{
-                            width: "100%",
-                            aspectRatio: "1",
-                            borderRadius: 12,
-                            overflow: "hidden",
-                            padding: 3,
-                            background: "rgba(255,255,255,0.65)",
-                            border: "2px solid #F9A825",
-                            boxShadow: "0 2px 8px rgba(249,168,37,0.22)",
-                            flexShrink: 0,
-                          }}
-                        >
-                          <img src={cat.image} alt={cat.name} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 8 }} />
-                        </div>
-                        <span
-                          className="text-[9px] font-bold text-center leading-tight line-clamp-1"
-                          style={{ color: brown, width: "100%" }}
-                        >
-                          {cat.name}
-                        </span>
+                        {cat.name}
                       </button>
                     ))}
-
-                    <button
-                      onClick={() => navigate("/categorias")}
-                      className="flex flex-col items-center gap-1 flex-shrink-0"
-                      style={{
-                        width: "calc((100vw - 80px) / 6)",
-                        maxWidth: 64,
-                        minWidth: 46,
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: "100%", aspectRatio: "1", borderRadius: 12,
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          background: `linear-gradient(135deg, #6B3F12, ${brown})`,
-                          boxShadow: "0 2px 6px rgba(74,46,10,0.25)",
-                        }}
-                      >
-                        <div className="grid grid-cols-2 gap-1">
-                          <div className="w-2.5 h-2.5 rounded-sm border-2 border-white" />
-                          <div className="w-2.5 h-2.5 rounded-sm border-2 border-white" />
-                          <div className="w-2.5 h-2.5 rounded-sm border-2 border-white" />
-                          <div className="w-2.5 h-2.5 rounded-sm border-2 border-white" />
-                        </div>
-                      </div>
-                      <span className="text-[9px] font-bold text-center" style={{ color: brown }}>Ver todas</span>
-                    </button>
                   </div>
-
-                  <div
-                    className="flex-shrink-0 flex flex-col items-center gap-1"
-                    style={{
-                      width: "calc((100vw - 80px) / 6)",
-                      maxWidth: 64,
-                      minWidth: 46,
-                      marginLeft: 6,
-                    }}
-                  >
-                    <button
-                      onClick={() => setSearchBarOpen(true)}
-                      style={{
-                        width: "100%", aspectRatio: "1", borderRadius: 12,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        background: "rgba(255,255,255,0.65)",
-                        border: "2px solid #F9A825",
-                        boxShadow: "0 2px 8px rgba(249,168,37,0.22)",
-                        flexShrink: 0,
-                      }}
-                    >
-                      <Search className="w-5 h-5" style={{ color: brown }} />
-                    </button>
-                    <span className="text-[9px] font-bold text-center" style={{ color: brown }}>Pesquisar</span>
-                  </div>
-
                 </div>
               </div>
             </>
