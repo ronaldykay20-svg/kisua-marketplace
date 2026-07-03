@@ -541,7 +541,7 @@ const CategoriaDetalhe = () => {
           Cor
         </h3>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6 }}>
-          {colorOptions.map((c) => {
+          {availableColors.map((c) => {
             const active = selectedColors.includes(c.name);
             return (
               <button
