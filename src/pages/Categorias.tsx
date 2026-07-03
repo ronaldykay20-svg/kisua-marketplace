@@ -352,27 +352,9 @@ const Categorias = () => {
 
       <div style={{ height: 1, background: line }} />
 
-      {/* ── Filtros rápidos ── */}
-      <div className="cgr-scroll" style={{ display: "flex", gap: 8, padding: "12px 14px", background: surface, overflowX: "auto", scrollbarWidth: "none" }}>
-        <button className="cgr-chip" style={{
-          flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
-          width: 38, height: 38, background: surface, border: `1.5px solid ${line}`, borderRadius: "50%", cursor: "pointer",
-        }}>
-          <SlidersHorizontal style={{ width: 15, height: 15, color: brandDeep }} />
-        </button>
-        {["Lojas físicas", "Preço", "Marca", "Avaliação"].map((label) => (
-          <button key={label} className="cgr-chip" style={{
-            flexShrink: 0, display: "flex", alignItems: "center", gap: 4,
-            background: surface, border: `1.5px solid ${line}`, borderRadius: 20,
-            padding: "9px 14px", cursor: "pointer",
-            fontFamily: fontBody, fontSize: 13, fontWeight: 700, color: brandDeep,
-          }}>
-            {label} <ChevronDown style={{ width: 13, height: 13 }} />
-          </button>
-        ))}
-      </div>
+      {/* Filtros fictícios removidos — filtros reais estão na página de detalhe da categoria */}
 
-      <div style={{ height: 8, background: bg }} />
+
 
       {/* ── Campeões de Vendas — dados reais do ranking, mesmo hook do /ranking ── */}
       <div style={{ background: surface, padding: "16px 14px 20px" }}>
