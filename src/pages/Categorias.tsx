@@ -306,7 +306,7 @@ const Categorias = () => {
   const { data: rankingProducts, isLoading: loadingRanking } = useProductRanking();
   const { data: sponsoredProducts, isLoading: loadingSponsored } = useSponsoredProducts();
   const addToCart = useAddToCart();
-  const [bannerOpen, setBannerOpen] = useState(true);
+  
 
   const categories: any[] = useMemo(() => {
     const base = dbCategories && dbCategories.length > 0 ? dbCategories : null;
