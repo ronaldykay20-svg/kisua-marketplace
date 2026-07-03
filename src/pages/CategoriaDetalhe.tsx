@@ -536,66 +536,70 @@ const CategoriaDetalhe = () => {
         </div>
       )}
 
-      <div>
-        <h3 style={{ fontFamily: fontBody, fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6, color: inkSoft, margin: "0 0 8px" }}>
-          Cor
-        </h3>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6 }}>
-          {availableColors.map((c) => {
-            const active = selectedColors.includes(c.name);
-            return (
-              <button
-                key={c.name}
-                onClick={() => toggleColor(c.name)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 7, padding: "5px 6px", borderRadius: 9,
-                  cursor: "pointer", fontFamily: fontBody, fontSize: 11.5,
-                  background: active ? lineSoft : "transparent",
-                  color: active ? ink : inkSoft, fontWeight: active ? 700 : 500,
-                  border: active ? `1px solid ${line}` : "1px solid transparent",
-                }}
-              >
-                <span style={{
-                  width: 15, height: 15, borderRadius: "50%", flexShrink: 0,
-                  background: c.hex, border: c.hex === "#FFFFFF" ? `1px solid ${line}` : "none",
-                }} />
-                {c.name}
-              </button>
-            );
-          })}
+      {availableColors.length > 0 && (
+        <div>
+          <h3 style={{ fontFamily: fontBody, fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6, color: inkSoft, margin: "0 0 8px" }}>
+            Cor
+          </h3>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6 }}>
+            {availableColors.map((c) => {
+              const active = selectedColors.includes(c.name);
+              return (
+                <button
+                  key={c.name}
+                  onClick={() => toggleColor(c.name)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 7, padding: "5px 6px", borderRadius: 9,
+                    cursor: "pointer", fontFamily: fontBody, fontSize: 11.5,
+                    background: active ? lineSoft : "transparent",
+                    color: active ? ink : inkSoft, fontWeight: active ? 700 : 500,
+                    border: active ? `1px solid ${line}` : "1px solid transparent",
+                  }}
+                >
+                  <span style={{
+                    width: 15, height: 15, borderRadius: "50%", flexShrink: 0,
+                    background: c.hex, border: c.hex === "#FFFFFF" ? `1px solid ${line}` : "none",
+                  }} />
+                  {c.name}
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
-      <div>
-        <h3 style={{ fontFamily: fontBody, fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6, color: inkSoft, margin: "0 0 8px" }}>
-          Preço
-        </h3>
-        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          {priceRanges.map((r) => {
-            const active = selectedPrice === r.label;
-            return (
-              <button
-                key={r.label}
-                onClick={() => setSelectedPrice(active ? null : r.label)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left",
-                  padding: "7px 8px", borderRadius: 9, border: "none", cursor: "pointer",
-                  background: active ? lineSoft : "transparent",
-                  fontFamily: fontBody, fontSize: 12.5, color: active ? ink : inkSoft, fontWeight: active ? 700 : 500,
-                }}
-              >
-                <span style={{
-                  width: 15, height: 15, borderRadius: 4, border: `2px solid ${active ? brandDeep : "#CBBFA9"}`,
-                  display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-                }}>
-                  {active && <span style={{ width: 7, height: 7, borderRadius: 2, background: brandDeep }} />}
-                </span>
-                {r.label}
-              </button>
-            );
-          })}
+      {priceRanges.length > 0 && (
+        <div>
+          <h3 style={{ fontFamily: fontBody, fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6, color: inkSoft, margin: "0 0 8px" }}>
+            Preço
+          </h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            {priceRanges.map((r) => {
+              const active = selectedPrice === r.label;
+              return (
+                <button
+                  key={r.label}
+                  onClick={() => setSelectedPrice(active ? null : r.label)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left",
+                    padding: "7px 8px", borderRadius: 9, border: "none", cursor: "pointer",
+                    background: active ? lineSoft : "transparent",
+                    fontFamily: fontBody, fontSize: 12.5, color: active ? ink : inkSoft, fontWeight: active ? 700 : 500,
+                  }}
+                >
+                  <span style={{
+                    width: 15, height: 15, borderRadius: 4, border: `2px solid ${active ? brandDeep : "#CBBFA9"}`,
+                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                  }}>
+                    {active && <span style={{ width: 7, height: 7, borderRadius: 2, background: brandDeep }} />}
+                  </span>
+                  {r.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 
