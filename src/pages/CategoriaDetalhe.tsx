@@ -30,47 +30,17 @@ const shadowMd  = "0 4px 16px rgba(35,21,11,0.10)";
 
 const fontBody = "'Manrope', system-ui, sans-serif";
 
-const subcategories: Record<string, string[]> = {
-  "Electrónicos": ["Smartphones", "Tablets", "Computadores", "Áudio", "TV & Vídeo", "Câmeras", "Acessórios"],
-  "Veículos": ["Carros", "Motas", "Peças", "Camiões", "Barcos"],
-  "Imóveis": ["Apartamentos", "Moradias", "Terrenos", "Escritórios", "Armazéns"],
-  "Moda": ["Feminino", "Masculino", "Calçado", "Acessórios", "Infantil"],
-  "Casa & Jardim": ["Mobília", "Decoração", "Ferramentas", "Jardim", "Iluminação"],
-  "Desporto": ["Fitness", "Futebol", "Natação", "Corrida", "Ciclismo"],
-  "Bebé & Criança": ["Roupa", "Brinquedos", "Alimentação", "Higiene", "Móveis"],
-  "Saúde & Beleza": ["Skincare", "Maquiagem", "Perfumes", "Cabelo", "Suplementos"],
-  "Informática": ["Laptops", "Desktop", "Componentes", "Periféricos", "Redes"],
-  "Gaming": ["Consolas", "Jogos", "Acessórios", "PC Gaming", "VR"],
-  "Jóias & Relógios": ["Anéis", "Colares", "Relógios", "Pulseiras", "Brincos"],
-  "Viagens": ["Pacotes", "Voos", "Hotéis", "Aluguer", "Excursões"],
-  "Alimentação": ["Frescos", "Bebidas", "Congelados", "Mercearia", "Bio"],
-  "Empregos": ["TI", "Saúde", "Educação", "Vendas", "Engenharia"],
-  "Educação": ["Cursos", "Livros", "Material", "Explicações", "Online"],
-  "Animais": ["Cães", "Gatos", "Aves", "Acessórios", "Alimentação"],
-  "Drones": ["Câmara", "Corrida (FPV)", "Recreativo", "Profissional", "Peças e baterias"],
+/* Mapa de nome→hex para exibir amostras de cor no filtro. Cobre nomes
+   comuns em PT-BR/PT-PT; qualquer cor extra que apareça nos produtos é
+   mostrada com o próprio hex ou um cinza neutro. */
+const colorNameToHex: Record<string, string> = {
+  "Preto": "#000000", "Branco": "#FFFFFF", "Rosa": "#EC4899",
+  "Azul": "#3B82F6", "Cinza": "#6B7280", "Verde": "#22C55E",
+  "Vermelho": "#EF4444", "Amarelo": "#EAB308", "Cáqui": "#D97706",
+  "Marrom": "#78350F", "Castanho": "#78350F", "Roxo": "#A855F7",
+  "Laranja": "#F97316", "Bege": "#D6B893", "Dourado": "#C8932F",
+  "Prateado": "#C0C0C0",
 };
-
-const colorOptions = [
-  { name: "Preto",    hex: "#000000" },
-  { name: "Branco",   hex: "#FFFFFF" },
-  { name: "Rosa",     hex: "#EC4899" },
-  { name: "Azul",     hex: "#3B82F6" },
-  { name: "Cinza",    hex: "#6B7280" },
-  { name: "Verde",    hex: "#22C55E" },
-  { name: "Vermelho", hex: "#EF4444" },
-  { name: "Amarelo",  hex: "#EAB308" },
-  { name: "Cáqui",    hex: "#D97706" },
-  { name: "Marrom",   hex: "#78350F" },
-  { name: "Roxo",     hex: "#A855F7" },
-  { name: "Laranja",  hex: "#F97316" },
-];
-
-const priceRanges = [
-  { label: "Até 10.000 Kz",       min: 0,      max: 10000  },
-  { label: "10.000 - 50.000 Kz",  min: 10000,  max: 50000  },
-  { label: "50.000 - 200.000 Kz", min: 50000,  max: 200000 },
-  { label: "200.000+",            min: 200000, max: Infinity },
-];
 
 const sortOptions = ["Recomendado", "Menor preço", "Maior preço", "Mais vendidos", "Mais recentes"];
 
@@ -452,6 +422,39 @@ const CategoriaDetalhe = () => {
     }),
   [dbProducts]);
 
+  /* ─── Filtros derivados de dados reais dos produtos da categoria ─── */
+  const availableSubs = useMemo(() => {
+    const set = new Set<string>();
+    allProducts.forEach((p) => { if (p.subcategory) set.add(p.subcategory); });
+    return Array.from(set).sort();
+  }, [allProducts]);
+
+  const availableColors = useMemo(() => {
+    const map = new Map<string, { name: string; hex: string }>();
+    (dbProducts || []).forEach((p: any) => {
+      (p.product_variants || [])
+        .filter((v: any) => v.variant_type === "color" && v.value)
+        .forEach((v: any) => {
+          const name = (v.name && String(v.name).trim()) || v.value;
+          if (!map.has(name)) {
+            map.set(name, { name, hex: colorNameToHex[name] || v.value });
+          }
+        });
+    });
+    return Array.from(map.values());
+  }, [dbProducts]);
+
+  const priceRanges = useMemo(() => {
+    if (allProducts.length === 0) return [] as { label: string; min: number; max: number }[];
+    const base = [
+      { label: "Até 10.000 Kz",       min: 0,      max: 10000  },
+      { label: "10.000 - 50.000 Kz",  min: 10000,  max: 50000  },
+      { label: "50.000 - 200.000 Kz", min: 50000,  max: 200000 },
+      { label: "200.000+",            min: 200000, max: Infinity },
+    ];
+    return base.filter((r) => allProducts.some((p) => p.price >= r.min && p.price < r.max));
+  }, [allProducts]);
+
   const products = useMemo(() => {
     let list = allProducts;
     if (selectedSub) list = list.filter((p) => p.subcategory === selectedSub);
@@ -459,7 +462,7 @@ const CategoriaDetalhe = () => {
       list = list.filter((p) => {
         if (p.colorHexes.length === 0) return false;
         return selectedColors.some((colorName) => {
-          const filterHex = colorOptions.find((c) => c.name === colorName)?.hex;
+          const filterHex = availableColors.find((c) => c.name === colorName)?.hex;
           if (!filterHex) return false;
           return p.colorHexes.some((h: string) => hexClose(h, filterHex));
         });
@@ -470,9 +473,9 @@ const CategoriaDetalhe = () => {
       if (range) list = list.filter((p) => p.price >= range.min && p.price < range.max);
     }
     return list;
-  }, [allProducts, selectedColors, selectedPrice, selectedSub]);
+  }, [allProducts, selectedColors, selectedPrice, selectedSub, availableColors, priceRanges]);
 
-  const subs = subcategories[categoryName] || [];
+  const subs = availableSubs;
   const toggleColor = (c: string) =>
     setSelectedColors((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
 
@@ -533,66 +536,70 @@ const CategoriaDetalhe = () => {
         </div>
       )}
 
-      <div>
-        <h3 style={{ fontFamily: fontBody, fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6, color: inkSoft, margin: "0 0 8px" }}>
-          Cor
-        </h3>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6 }}>
-          {colorOptions.map((c) => {
-            const active = selectedColors.includes(c.name);
-            return (
-              <button
-                key={c.name}
-                onClick={() => toggleColor(c.name)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 7, padding: "5px 6px", borderRadius: 9,
-                  cursor: "pointer", fontFamily: fontBody, fontSize: 11.5,
-                  background: active ? lineSoft : "transparent",
-                  color: active ? ink : inkSoft, fontWeight: active ? 700 : 500,
-                  border: active ? `1px solid ${line}` : "1px solid transparent",
-                }}
-              >
-                <span style={{
-                  width: 15, height: 15, borderRadius: "50%", flexShrink: 0,
-                  background: c.hex, border: c.hex === "#FFFFFF" ? `1px solid ${line}` : "none",
-                }} />
-                {c.name}
-              </button>
-            );
-          })}
+      {availableColors.length > 0 && (
+        <div>
+          <h3 style={{ fontFamily: fontBody, fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6, color: inkSoft, margin: "0 0 8px" }}>
+            Cor
+          </h3>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6 }}>
+            {availableColors.map((c) => {
+              const active = selectedColors.includes(c.name);
+              return (
+                <button
+                  key={c.name}
+                  onClick={() => toggleColor(c.name)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 7, padding: "5px 6px", borderRadius: 9,
+                    cursor: "pointer", fontFamily: fontBody, fontSize: 11.5,
+                    background: active ? lineSoft : "transparent",
+                    color: active ? ink : inkSoft, fontWeight: active ? 700 : 500,
+                    border: active ? `1px solid ${line}` : "1px solid transparent",
+                  }}
+                >
+                  <span style={{
+                    width: 15, height: 15, borderRadius: "50%", flexShrink: 0,
+                    background: c.hex, border: c.hex === "#FFFFFF" ? `1px solid ${line}` : "none",
+                  }} />
+                  {c.name}
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
-      <div>
-        <h3 style={{ fontFamily: fontBody, fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6, color: inkSoft, margin: "0 0 8px" }}>
-          Preço
-        </h3>
-        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          {priceRanges.map((r) => {
-            const active = selectedPrice === r.label;
-            return (
-              <button
-                key={r.label}
-                onClick={() => setSelectedPrice(active ? null : r.label)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left",
-                  padding: "7px 8px", borderRadius: 9, border: "none", cursor: "pointer",
-                  background: active ? lineSoft : "transparent",
-                  fontFamily: fontBody, fontSize: 12.5, color: active ? ink : inkSoft, fontWeight: active ? 700 : 500,
-                }}
-              >
-                <span style={{
-                  width: 15, height: 15, borderRadius: 4, border: `2px solid ${active ? brandDeep : "#CBBFA9"}`,
-                  display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-                }}>
-                  {active && <span style={{ width: 7, height: 7, borderRadius: 2, background: brandDeep }} />}
-                </span>
-                {r.label}
-              </button>
-            );
-          })}
+      {priceRanges.length > 0 && (
+        <div>
+          <h3 style={{ fontFamily: fontBody, fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6, color: inkSoft, margin: "0 0 8px" }}>
+            Preço
+          </h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            {priceRanges.map((r) => {
+              const active = selectedPrice === r.label;
+              return (
+                <button
+                  key={r.label}
+                  onClick={() => setSelectedPrice(active ? null : r.label)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left",
+                    padding: "7px 8px", borderRadius: 9, border: "none", cursor: "pointer",
+                    background: active ? lineSoft : "transparent",
+                    fontFamily: fontBody, fontSize: 12.5, color: active ? ink : inkSoft, fontWeight: active ? 700 : 500,
+                  }}
+                >
+                  <span style={{
+                    width: 15, height: 15, borderRadius: 4, border: `2px solid ${active ? brandDeep : "#CBBFA9"}`,
+                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                  }}>
+                    {active && <span style={{ width: 7, height: 7, borderRadius: 2, background: brandDeep }} />}
+                  </span>
+                  {r.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 
