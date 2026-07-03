@@ -30,47 +30,17 @@ const shadowMd  = "0 4px 16px rgba(35,21,11,0.10)";
 
 const fontBody = "'Manrope', system-ui, sans-serif";
 
-const subcategories: Record<string, string[]> = {
-  "Electrónicos": ["Smartphones", "Tablets", "Computadores", "Áudio", "TV & Vídeo", "Câmeras", "Acessórios"],
-  "Veículos": ["Carros", "Motas", "Peças", "Camiões", "Barcos"],
-  "Imóveis": ["Apartamentos", "Moradias", "Terrenos", "Escritórios", "Armazéns"],
-  "Moda": ["Feminino", "Masculino", "Calçado", "Acessórios", "Infantil"],
-  "Casa & Jardim": ["Mobília", "Decoração", "Ferramentas", "Jardim", "Iluminação"],
-  "Desporto": ["Fitness", "Futebol", "Natação", "Corrida", "Ciclismo"],
-  "Bebé & Criança": ["Roupa", "Brinquedos", "Alimentação", "Higiene", "Móveis"],
-  "Saúde & Beleza": ["Skincare", "Maquiagem", "Perfumes", "Cabelo", "Suplementos"],
-  "Informática": ["Laptops", "Desktop", "Componentes", "Periféricos", "Redes"],
-  "Gaming": ["Consolas", "Jogos", "Acessórios", "PC Gaming", "VR"],
-  "Jóias & Relógios": ["Anéis", "Colares", "Relógios", "Pulseiras", "Brincos"],
-  "Viagens": ["Pacotes", "Voos", "Hotéis", "Aluguer", "Excursões"],
-  "Alimentação": ["Frescos", "Bebidas", "Congelados", "Mercearia", "Bio"],
-  "Empregos": ["TI", "Saúde", "Educação", "Vendas", "Engenharia"],
-  "Educação": ["Cursos", "Livros", "Material", "Explicações", "Online"],
-  "Animais": ["Cães", "Gatos", "Aves", "Acessórios", "Alimentação"],
-  "Drones": ["Câmara", "Corrida (FPV)", "Recreativo", "Profissional", "Peças e baterias"],
+/* Mapa de nome→hex para exibir amostras de cor no filtro. Cobre nomes
+   comuns em PT-BR/PT-PT; qualquer cor extra que apareça nos produtos é
+   mostrada com o próprio hex ou um cinza neutro. */
+const colorNameToHex: Record<string, string> = {
+  "Preto": "#000000", "Branco": "#FFFFFF", "Rosa": "#EC4899",
+  "Azul": "#3B82F6", "Cinza": "#6B7280", "Verde": "#22C55E",
+  "Vermelho": "#EF4444", "Amarelo": "#EAB308", "Cáqui": "#D97706",
+  "Marrom": "#78350F", "Castanho": "#78350F", "Roxo": "#A855F7",
+  "Laranja": "#F97316", "Bege": "#D6B893", "Dourado": "#C8932F",
+  "Prateado": "#C0C0C0",
 };
-
-const colorOptions = [
-  { name: "Preto",    hex: "#000000" },
-  { name: "Branco",   hex: "#FFFFFF" },
-  { name: "Rosa",     hex: "#EC4899" },
-  { name: "Azul",     hex: "#3B82F6" },
-  { name: "Cinza",    hex: "#6B7280" },
-  { name: "Verde",    hex: "#22C55E" },
-  { name: "Vermelho", hex: "#EF4444" },
-  { name: "Amarelo",  hex: "#EAB308" },
-  { name: "Cáqui",    hex: "#D97706" },
-  { name: "Marrom",   hex: "#78350F" },
-  { name: "Roxo",     hex: "#A855F7" },
-  { name: "Laranja",  hex: "#F97316" },
-];
-
-const priceRanges = [
-  { label: "Até 10.000 Kz",       min: 0,      max: 10000  },
-  { label: "10.000 - 50.000 Kz",  min: 10000,  max: 50000  },
-  { label: "50.000 - 200.000 Kz", min: 50000,  max: 200000 },
-  { label: "200.000+",            min: 200000, max: Infinity },
-];
 
 const sortOptions = ["Recomendado", "Menor preço", "Maior preço", "Mais vendidos", "Mais recentes"];
 
