@@ -93,12 +93,43 @@ const Navbar = () => {
   const qc = useQueryClient();
 
   const { data: dbCategories } = useCategories();
-  const categories = dbCategories && dbCategories.length > 0
+
+  // Contagem de produtos por categoria, para escondermos categorias vazias.
+  // Tenta primeiro por category_id (FK comum), depois por uma coluna de texto "category".
+  // Se nenhuma das duas existir, não filtramos nada (comportamento atual mantido).
+  const { data: categoryProductCounts } = useQuery({
+    queryKey: ["category_product_counts"],
+    queryFn: async (): Promise<Record<string, number> | null> => {
+      const byId = await supabase.from("products").select("category_id");
+      if (!byId.error && byId.data) {
+        return byId.data.reduce((acc: Record<string, number>, row: any) => {
+          if (row.category_id) acc[row.category_id] = (acc[row.category_id] || 0) + 1;
+          return acc;
+        }, {});
+      }
+      const byName = await supabase.from("products").select("category");
+      if (!byName.error && byName.data) {
+        return byName.data.reduce((acc: Record<string, number>, row: any) => {
+          if (row.category) acc[row.category] = (acc[row.category] || 0) + 1;
+          return acc;
+        }, {});
+      }
+      return null;
+    },
+    staleTime: 60_000,
+  });
+
+  const allCategories = dbCategories && dbCategories.length > 0
     ? dbCategories.map((c: any) => ({
+        id: c.id,
         name: c.name,
         image: c.image_url || staticCategories.find((s) => s.name === c.name)?.image || "",
       }))
-    : staticCategories;
+    : staticCategories.map((c) => ({ id: c.name, name: c.name, image: c.image }));
+
+  const categories = categoryProductCounts
+    ? allCategories.filter((cat: any) => (categoryProductCounts[cat.id] || categoryProductCounts[cat.name] || 0) > 0)
+    : allCategories;
 
   const quickLinks = [
     ...(hasLeiloesAccess ? [{ label: "Leilão", path: "/leilao", icon: Gavel }] : []),
@@ -217,7 +248,7 @@ const Navbar = () => {
   return (
     <>
       <nav className={navPositionClass} style={navbarStyle}>
-        <div style={{ paddingLeft: 12, paddingRight: 12 }}>
+        <div className="zango-nav-inner" style={{ paddingLeft: 12, paddingRight: 12 }}>
 
           {/* ══ LINHA 1: barra de ícones ══ */}
           <div
@@ -477,62 +508,104 @@ const Navbar = () => {
               <div
                 className="overflow-hidden"
                 style={{
-                  maxHeight: !searchBarOpen && categoriesExpanded ? "60px" : "0px",
+                  maxHeight: !searchBarOpen && categoriesExpanded ? "120px" : "0px",
                   opacity: !searchBarOpen && categoriesExpanded ? 1 : 0,
                   transition: "max-height 0.4s cubic-bezier(0.4,0,0.2,1), opacity 0.3s ease",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", paddingTop: 8, paddingBottom: 10 }}>
+                <div style={{ display: "flex", alignItems: "flex-start", paddingTop: 8, paddingBottom: 12, gap: 0 }}>
                   <div
                     className="overflow-x-auto scrollbar-hide flex-1"
-                    style={{ display: "flex", gap: 8, alignItems: "center" }}
+                    style={{ display: "flex", gap: 6, alignItems: "flex-start", paddingRight: 8 }}
                   >
-                    {/* Botão "Categorias" — primeiro item, desliza junto no scroll */}
-                    <button
-                      onClick={() => navigate("/categorias")}
-                      className="flex items-center gap-1.5 flex-shrink-0"
-                      style={{
-                        height: 34,
-                        padding: "0 12px",
-                        borderRadius: 999,
-                        background: `linear-gradient(135deg, #6B3F12, ${brown})`,
-                        boxShadow: "0 2px 6px rgba(74,46,10,0.28)",
-                        color: "#fff",
-                        fontSize: 12,
-                        fontWeight: 800,
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      <div className="grid grid-cols-2 gap-0.5">
-                        <div className="w-1.5 h-1.5 rounded-sm bg-white" />
-                        <div className="w-1.5 h-1.5 rounded-sm bg-white" />
-                        <div className="w-1.5 h-1.5 rounded-sm bg-white" />
-                        <div className="w-1.5 h-1.5 rounded-sm bg-white" />
-                      </div>
-                      <span>Categorias</span>
-                    </button>
-
                     {categories.map((cat: any) => (
                       <button
                         key={cat.name}
                         onClick={() => navigate(`/categoria/${encodeURIComponent(cat.name)}`)}
-                        className="flex-shrink-0"
+                        className="flex flex-col items-center gap-1 flex-shrink-0"
                         style={{
-                          height: 34,
-                          padding: "0 14px",
-                          borderRadius: 999,
-                          background: "rgba(255,255,255,0.75)",
-                          border: "1.5px solid rgba(74,46,10,0.18)",
-                          color: brown,
-                          fontSize: 12,
-                          fontWeight: 700,
-                          whiteSpace: "nowrap",
+                          width: "calc((100vw - 80px) / 6)",
+                          maxWidth: 64,
+                          minWidth: 46,
                         }}
                       >
-                        {cat.name}
+                        <div
+                          style={{
+                            width: "100%",
+                            aspectRatio: "1",
+                            borderRadius: 12,
+                            overflow: "hidden",
+                            padding: 3,
+                            background: "rgba(255,255,255,0.65)",
+                            border: "2px solid #F9A825",
+                            boxShadow: "0 2px 8px rgba(249,168,37,0.22)",
+                            flexShrink: 0,
+                          }}
+                        >
+                          <img src={cat.image} alt={cat.name} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 8 }} />
+                        </div>
+                        <span
+                          className="text-[9px] font-bold text-center leading-tight line-clamp-1"
+                          style={{ color: brown, width: "100%" }}
+                        >
+                          {cat.name}
+                        </span>
                       </button>
                     ))}
+
+                    <button
+                      onClick={() => navigate("/categorias")}
+                      className="flex flex-col items-center gap-1 flex-shrink-0"
+                      style={{
+                        width: "calc((100vw - 80px) / 6)",
+                        maxWidth: 64,
+                        minWidth: 46,
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: "100%", aspectRatio: "1", borderRadius: 12,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          background: `linear-gradient(135deg, #6B3F12, ${brown})`,
+                          boxShadow: "0 2px 6px rgba(74,46,10,0.25)",
+                        }}
+                      >
+                        <div className="grid grid-cols-2 gap-1">
+                          <div className="w-2.5 h-2.5 rounded-sm border-2 border-white" />
+                          <div className="w-2.5 h-2.5 rounded-sm border-2 border-white" />
+                          <div className="w-2.5 h-2.5 rounded-sm border-2 border-white" />
+                          <div className="w-2.5 h-2.5 rounded-sm border-2 border-white" />
+                        </div>
+                      </div>
+                      <span className="text-[9px] font-bold text-center" style={{ color: brown }}>Ver todas</span>
+                    </button>
                   </div>
+
+                  <div
+                    className="flex-shrink-0 flex flex-col items-center gap-1"
+                    style={{
+                      width: "calc((100vw - 80px) / 6)",
+                      maxWidth: 64,
+                      minWidth: 46,
+                      marginLeft: 6,
+                    }}
+                  >
+                    <button
+                      onClick={() => setSearchBarOpen(true)}
+                      style={{
+                        width: "100%", aspectRatio: "1", borderRadius: 12,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        background: "rgba(255,255,255,0.65)",
+                        border: "2px solid #F9A825",
+                        boxShadow: "0 2px 8px rgba(249,168,37,0.22)",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Search className="w-5 h-5" style={{ color: brown }} />
+                    </button>
+                    <span className="text-[9px] font-bold text-center" style={{ color: brown }}>Pesquisar</span>
+                  </div>
+
                 </div>
               </div>
             </>
@@ -548,6 +621,16 @@ const Navbar = () => {
         }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        /* Em ecrãs largos (PC/tablet), a barra de navegação deixa de esticar
+           de ponta a ponta -- fica centrada como uma faixa, para o logotipo
+           (que é centrado matematicamente na largura total) não ficar longe
+           dos ícones e parecer desencaixado. */
+        @media (min-width: 768px) {
+          .zango-nav-inner {
+            max-width: 560px;
+            margin: 0 auto;
+          }
+        }
       `}</style>
 
       {/* ══ PAINEL NOTIFICAÇÕES ══ */}
