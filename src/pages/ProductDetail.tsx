@@ -307,12 +307,19 @@ const ProductDetail = () => {
     width_cm: productBase.width_cm || null, height_cm: productBase.height_cm || null,
   };
 
+  // ── FIX: normaliza o tipo de variante (trim + lowercase) para evitar que
+  // "Estilo", "estilo" ou "Estilo " virem grupos diferentes. O texto original
+  // (primeira ocorrência) é guardado em *Labels para continuar a exibir bonito.
+  const normType = (t: string) => (t || "").trim().toLowerCase();
+
   const parentVariants = (dbVariants as any[]).filter((v: any) => !v.parent_id);
   const childVariants  = (dbVariants as any[]).filter((v: any) =>  v.parent_id);
   const variantGroups: Record<string, any[]> = {};
+  const variantGroupLabels: Record<string, string> = {};
   parentVariants.forEach((v: any) => {
-    if (!variantGroups[v.variant_type]) variantGroups[v.variant_type] = [];
-    variantGroups[v.variant_type].push(v);
+    const key = normType(v.variant_type);
+    if (!variantGroups[key]) { variantGroups[key] = []; variantGroupLabels[key] = v.variant_type; }
+    variantGroups[key].push(v);
   });
 
   const selectedParentIds = Object.values(selectedVariants).filter(Boolean);
@@ -320,15 +327,19 @@ const ProductDetail = () => {
     selectedParentIds.length > 0 ? selectedParentIds.includes(c.parent_id) : true
   );
   const childGroups: Record<string, any[]> = {};
+  const childGroupLabels: Record<string, string> = {};
   activeChildren.forEach((v: any) => {
-    if (!childGroups[v.variant_type]) childGroups[v.variant_type] = [];
-    if (!childGroups[v.variant_type].some((x: any) => x.name === v.name)) {
-      childGroups[v.variant_type].push(v);
+    const key = normType(v.variant_type);
+    if (!childGroups[key]) { childGroups[key] = []; childGroupLabels[key] = v.variant_type; }
+    if (!childGroups[key].some((x: any) => x.name === v.name)) {
+      childGroups[key].push(v);
     }
   });
 
   const allSelIds     = [...Object.values(selectedVariants), ...Object.values(selectedSubVariants)].filter(Boolean);
-  const activeVariant = (dbVariants as any[]).find((v: any) => allSelIds.includes(v.id) && v.price_override);
+  // FIX: antes só trocava a imagem se a variante tivesse price_override.
+  // Agora troca sempre que a variante selecionada tiver imagem própria.
+  const activeVariant = (dbVariants as any[]).find((v: any) => allSelIds.includes(v.id) && (v.image_url || v.price_override));
   const activePrice   = activeVariant?.price_override ? fmt(activeVariant.price_override) : product.price;
   const variantImage  = activeVariant?.image_url || null;
   const images        = dbMedia.length > 0 ? dbMedia.map((m: any) => ({ url: m.url, type: m.type || "image" })) : [{ url: product.image, type: "image" }];
@@ -557,14 +568,16 @@ const ProductDetail = () => {
               return (
                 <div key={type}>
                   <p className="text-sm font-bold text-gray-800 mb-2">
-                    {typeLabels[type] || type}
+                    {typeLabels[type] || variantGroupLabels[type] || type}
                     {selId && <span className="font-normal text-gray-500 ml-1">: {variants.find((v: any) => v.id === selId)?.name}</span>}
                     <span className="ml-2 text-[10px] font-semibold text-gray-400">({variants.length})</span>
                   </p>
-                  <div className="flex gap-2 flex-wrap">
+                  <div className="flex gap-2 overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-1" style={{ WebkitOverflowScrolling: "touch" }}>
                     {variants.map((v: any) => (
-                      <VariantPill key={v.id} v={v} type={type} selected={selectedVariants[type] === v.id}
-                        onSelect={() => { setSelectedVariants(p => ({ ...p, [type]: selectedVariants[type] === v.id ? "" : v.id })); if (selectedVariants[type] === v.id) setSelectedSubVariants({}); trackEvent(id!, "variant_select", { variant_id: v.id, variant_type: type }); }} />
+                      <div key={v.id} className="flex-shrink-0 snap-start">
+                        <VariantPill v={v} type={type} selected={selectedVariants[type] === v.id}
+                          onSelect={() => { setSelectedVariants(p => ({ ...p, [type]: selectedVariants[type] === v.id ? "" : v.id })); if (selectedVariants[type] === v.id) setSelectedSubVariants({}); trackEvent(id!, "variant_select", { variant_id: v.id, variant_type: type }); }} />
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -575,14 +588,16 @@ const ProductDetail = () => {
               return (
                 <div key={`sub-${type}`}>
                   <p className="text-sm font-bold text-gray-800 mb-2">
-                    {typeLabels[type] || type}
+                    {typeLabels[type] || childGroupLabels[type] || type}
                     {selId && <span className="font-normal text-gray-500 ml-1">: {variants.find((v: any) => v.id === selId)?.name}</span>}
                     <span className="ml-2 text-[10px] font-semibold text-gray-400">({variants.length})</span>
                   </p>
-                  <div className="flex gap-2 flex-wrap">
+                  <div className="flex gap-2 overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-1" style={{ WebkitOverflowScrolling: "touch" }}>
                     {variants.map((v: any) => (
-                      <VariantPill key={v.id} v={v} type={type} selected={selectedSubVariants[type] === v.id}
-                        onSelect={() => { setSelectedSubVariants(p => ({ ...p, [type]: selectedSubVariants[type] === v.id ? "" : v.id })); trackEvent(id!, "variant_select", { variant_id: v.id, variant_type: type, is_sub: true }); }} />
+                      <div key={v.id} className="flex-shrink-0 snap-start">
+                        <VariantPill v={v} type={type} selected={selectedSubVariants[type] === v.id}
+                          onSelect={() => { setSelectedSubVariants(p => ({ ...p, [type]: selectedSubVariants[type] === v.id ? "" : v.id })); trackEvent(id!, "variant_select", { variant_id: v.id, variant_type: type, is_sub: true }); }} />
+                      </div>
                     ))}
                   </div>
                 </div>
