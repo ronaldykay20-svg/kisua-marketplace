@@ -522,37 +522,38 @@ const Navbar = () => {
                       onClick={() => navigate("/categorias")}
                       className="flex-shrink-0"
                       style={{
-                        padding: "9px 16px",
+                        padding: "5px 11px",
                         borderRadius: 999,
-                        background: `linear-gradient(135deg, #6B3F12, ${brown})`,
-                        boxShadow: "0 2px 6px rgba(74,46,10,0.25)",
+                        background: brown,
                         whiteSpace: "nowrap",
                       }}
                     >
-                      <span className="text-[11px] font-bold text-white">Ver todas</span>
+                      <span className="text-[10px] font-bold text-white">Ver todas</span>
                     </button>
 
-                    {categories.map((cat: any) => (
-                      <button
-                        key={cat.name}
-                        onClick={() => navigate(`/categoria/${encodeURIComponent(cat.name)}`)}
-                        className="flex-shrink-0"
-                        style={{
-                          padding: "9px 16px",
-                          borderRadius: 999,
-                          background: "rgba(255,255,255,0.65)",
-                          border: `1.5px solid ${categoryAccentColors[cat.name] || brown}`,
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        <span
-                          className="text-[11px] font-bold"
-                          style={{ color: categoryAccentColors[cat.name] || brown }}
+                    {categories.map((cat: any) => {
+                      const accent = categoryAccentColors[cat.name] || brown;
+                      return (
+                        <button
+                          key={cat.name}
+                          onClick={() => navigate(`/categoria/${encodeURIComponent(cat.name)}`)}
+                          className="flex-shrink-0"
+                          style={{
+                            padding: "5px 11px",
+                            borderRadius: 999,
+                            background: `${accent}17`,
+                            whiteSpace: "nowrap",
+                          }}
                         >
-                          {cat.name}
-                        </span>
-                      </button>
-                    ))}
+                          <span
+                            className="text-[10px] font-semibold"
+                            style={{ color: accent }}
+                          >
+                            {cat.name}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
 
                   <div
