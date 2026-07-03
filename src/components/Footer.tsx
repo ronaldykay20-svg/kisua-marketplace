@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Facebook, Instagram, Youtube, Twitter, Linkedin, MessageCircle, Music2, MapPin, ShieldCheck, ChevronDown } from "lucide-react";
@@ -37,6 +38,27 @@ type FooterSection = {
   links: { label: string; href: string; external?: boolean }[];
 };
 
+const FooterLink = ({ label, href, external }: { label: string; href: string; external?: boolean }) => {
+  const className = "text-[13px] text-[#d9bfa5] hover:text-white transition-colors";
+
+  // Links externos (redes sociais, WhatsApp, etc.) continuam como <a> normal
+  if (external) {
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer" className={className}>
+        {label}
+      </a>
+    );
+  }
+
+  // Links internos usam o Link do React Router: navegação client-side,
+  // sem pedido ao servidor -> resolve o problema de 404 no domínio próprio
+  return (
+    <Link to={href} className={className}>
+      {label}
+    </Link>
+  );
+};
+
 const FooterAccordionItem = ({ section, isOpen, onToggle }: { section: FooterSection; isOpen: boolean; onToggle: () => void }) => (
   <div className="border-b border-white/10">
     <button
@@ -53,14 +75,7 @@ const FooterAccordionItem = ({ section, isOpen, onToggle }: { section: FooterSec
       <ul className="pb-3 space-y-2.5">
         {section.links.map((l) => (
           <li key={l.label}>
-            <a
-              href={l.href}
-              target={l.external ? "_blank" : undefined}
-              rel={l.external ? "noopener noreferrer" : undefined}
-              className="text-[13px] text-[#d9bfa5] hover:text-white transition-colors"
-            >
-              {l.label}
-            </a>
+            <FooterLink label={l.label} href={l.href} external={l.external} />
           </li>
         ))}
       </ul>
@@ -158,14 +173,7 @@ const Footer = () => {
               <ul className="space-y-2 text-[13px]">
                 {s.links.map((l) => (
                   <li key={l.label}>
-                    <a
-                      href={l.href}
-                      target={l.external ? "_blank" : undefined}
-                      rel={l.external ? "noopener noreferrer" : undefined}
-                      className="text-[#d9bfa5] hover:text-white transition-colors"
-                    >
-                      {l.label}
-                    </a>
+                    <FooterLink label={l.label} href={l.href} external={l.external} />
                   </li>
                 ))}
               </ul>
