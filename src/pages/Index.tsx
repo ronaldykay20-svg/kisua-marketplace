@@ -13,7 +13,7 @@ import { useDeviceLayout } from "@/hooks/useDeviceLayout";
 const LazySection = ({
   children,
   estimatedHeight = 200,
-  rootMargin = "300px",
+  rootMargin = "50px",
 }: {
   children: React.ReactNode;
   estimatedHeight?: number;
