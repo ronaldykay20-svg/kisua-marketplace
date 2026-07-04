@@ -1,15 +1,18 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Footer from "@/components/Footer";
 import { Search, Star, MapPin, CheckCircle, ChevronRight, Users, ShoppingBag, Eye, Package } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useSellers } from "@/hooks/useSupabaseData";
 import { useBulkSellerSales } from "@/hooks/useSalesCount";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 
 const filtersList = ["Todos", "Verificados", "Mais Vendidos", "Melhor Avaliação", "Luanda", "Benguela"];
 
 const Vendedores = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [activeFilter, setActiveFilter] = useState("Todos");
   const [search, setSearch] = useState("");
   // Sem filtro de tipo: mostra vendedores individuais, lojas e fornecedores/afiliados no mesmo sítio
@@ -21,7 +24,61 @@ const Vendedores = () => {
     [dbSellers]
   );
 
-  const { data: salesMap = {} } = useBulkSellerSales(sellerIds);
+  const { data: salesMap = {}, refetch: refetchSalesMap } = useBulkSellerSales(sellerIds);
+
+  // ── FIX: contagem real de seguidores por vendedor, em vez da coluna
+  // estática seller.followers_count (que não é actualizada automaticamente).
+  const { data: followersMap = {}, refetch: refetchFollowersMap } = useQuery({
+    queryKey: ["sellers_followers_map", sellerIds],
+    queryFn: async () => {
+      if (sellerIds.length === 0) return {} as Record<string, number>;
+      const { data, error } = await supabase
+        .from("seller_follows")
+        .select("seller_id")
+        .in("seller_id", sellerIds);
+      if (error) throw error;
+      const map: Record<string, number> = {};
+      (data || []).forEach((f: any) => {
+        map[f.seller_id] = (map[f.seller_id] || 0) + 1;
+      });
+      return map;
+    },
+    enabled: sellerIds.length > 0,
+  });
+
+  // ── Tempo real: seguidores E vendas. Vendas mudam quando um item de
+  // encomenda é criado (order_items) ou quando o status da encomenda avança
+  // para confirmed/shipped/delivered (orders) — por isso ouvimos as duas.
+  useEffect(() => {
+    const channel = supabase
+      .channel("vendedores_realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "seller_follows" },
+        () => {
+          refetchFollowersMap();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "order_items" },
+        () => {
+          refetchSalesMap();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "orders" },
+        () => {
+          refetchSalesMap();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [refetchFollowersMap, refetchSalesMap]);
 
   const sellers = useMemo(() =>
     (dbSellers || []).map((s: any) => ({
@@ -34,12 +91,12 @@ const Vendedores = () => {
       sales: (salesMap as Record<string, number>)[s.id] ?? 0,
       products: s.products_count ?? 0,
       visits: s.visits_count ?? 0,
-      followers: s.followers_count ?? 0,
+      followers: (followersMap as Record<string, number>)[s.id] ?? s.followers_count ?? 0,
       verified: s.is_verified,
       image: s.logo_url || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop",
       cover: s.cover_url || "https://images.unsplash.com/photo-1556761175-b413da4baf72?w=600&h=200&fit=crop",
     })),
-    [dbSellers, salesMap]
+    [dbSellers, salesMap, followersMap]
   );
 
   const filtered = useMemo(() =>
