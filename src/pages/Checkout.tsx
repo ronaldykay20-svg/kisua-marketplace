@@ -559,7 +559,7 @@ const Checkout = () => {
                   <input
                     value={address.name}
                     onChange={e => setAddress(p => ({ ...p, name: e.target.value }))}
-                    className="w-full mt-1 px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground"
+                    className="w-full mt-1 px-3 py-2 rounded-lg bg-background border border-border text-base md:text-sm text-foreground"
                     placeholder="Seu nome"
                   />
                 </div>
@@ -568,7 +568,7 @@ const Checkout = () => {
                   <input
                     value={address.phone}
                     onChange={e => setAddress(p => ({ ...p, phone: e.target.value }))}
-                    className="w-full mt-1 px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground"
+                    className="w-full mt-1 px-3 py-2 rounded-lg bg-background border border-border text-base md:text-sm text-foreground"
                     placeholder="+244 9XX XXX XXX"
                   />
                 </div>
@@ -587,7 +587,7 @@ const Checkout = () => {
                           municipalityName: "",
                         }));
                       }}
-                      className="w-full mt-1 h-9 px-3 py-1 rounded-lg bg-background border border-border text-sm text-foreground appearance-none focus:outline-none focus:ring-1 focus:ring-ring"
+                      className="w-full mt-1 h-9 px-3 py-1 rounded-lg bg-background border border-border text-base md:text-sm text-foreground appearance-none focus:outline-none focus:ring-1 focus:ring-ring"
                     >
                       <option value="">Seleccionar…</option>
                       {provinces.map(p => (
@@ -613,7 +613,7 @@ const Checkout = () => {
                         setFreightTotal(0);
                       }}
                       disabled={!address.provinceId}
-                      className="w-full mt-1 h-9 px-3 py-1 rounded-lg bg-background border border-border text-sm text-foreground appearance-none focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+                      className="w-full mt-1 h-9 px-3 py-1 rounded-lg bg-background border border-border text-base md:text-sm text-foreground appearance-none focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
                     >
                       <option value="">Seleccionar…</option>
                       {municipalities.map(m => (
@@ -628,7 +628,7 @@ const Checkout = () => {
                     value={address.street}
                     onChange={e => setAddress(p => ({ ...p, street: e.target.value }))}
                     rows={2}
-                    className="w-full mt-1 px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground resize-none"
+                    className="w-full mt-1 px-3 py-2 rounded-lg bg-background border border-border text-base md:text-sm text-foreground resize-none"
                     placeholder="Rua, número, bairro..."
                   />
                 </div>
@@ -644,11 +644,20 @@ const Checkout = () => {
 
             <button
               onClick={() => setStep("payment")}
-              disabled={!address.name || !address.phone || !address.street || !address.municipalityCode}
+              disabled={!address.name || !address.phone || !address.street || !address.municipalityCode || !freightReady}
               className="w-full py-3 rounded-full bg-primary text-primary-foreground font-bold text-sm disabled:opacity-50"
             >
               Continuar
             </button>
+            {/* Não deixa avançar para o Pagamento sem uma rota de frete definida
+                para todos os vendedores/lojas do pedido — a notificação aparece
+                aqui, logo no Passo 1, em vez de só lá na confirmação final. */}
+            {address.municipalityCode && !freightReady && (
+              <p className="text-xs text-center text-red-500 font-semibold -mt-2">
+                Aguarde o cálculo do frete, ou escolha uma rota alternativa acima
+                (ou levantamento na loja) para poder continuar.
+              </p>
+            )}
           </div>
         )}
 
