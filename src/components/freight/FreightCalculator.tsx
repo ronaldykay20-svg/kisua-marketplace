@@ -83,6 +83,23 @@ const SOURCE_LABELS: Record<string, string> = {
   error: "Não disponível",
 };
 
+// ─── Helpers de nomes de localização ──────────────────────────────────────────
+
+// Dado um código de município, devolve o nome do município e o nome da sua
+// província — usados para escrever mensagens tipo "Benguela ainda não tem
+// rota disponível para X" em vez de mensagens genéricas.
+function resolveLocationLabel(
+  municipalityCode: string | null | undefined,
+  provinces: any[],
+  municipalities: any[]
+): { municipalityName: string | null; provinceName: string | null } {
+  if (!municipalityCode) return { municipalityName: null, provinceName: null };
+  const mun = municipalities.find((m: any) => m.code === municipalityCode);
+  if (!mun) return { municipalityName: null, provinceName: null };
+  const prov = provinces.find((p: any) => p.id === mun.province_id);
+  return { municipalityName: mun.name ?? null, provinceName: prov?.name ?? null };
+}
+
 // ─── Painel de rotas alternativas ─────────────────────────────────────────────
 
 interface AlternativeRoutesProps {
@@ -170,13 +187,23 @@ function AlternativeRoutes({
     });
   };
 
+  // ── Nomes reais de origem e destino para a mensagem de "rota indisponível" ──
+  // Ex: "Benguela ainda não tem rota disponível para Cazenga."
+  const { provinceName: originProvinceName, municipalityName: originMunicipalityName } =
+    resolveLocationLabel(originCode, provinces, municipalities);
+  const { municipalityName: destMunicipalityName } =
+    resolveLocationLabel(currentDestCode, provinces, municipalities);
+
+  const originLabel = originProvinceName || originMunicipalityName || "Este vendedor";
+  const destLabel = destMunicipalityName || "o local seleccionado";
+
   return (
     <div className="rounded-xl border border-amber-900/30 bg-amber-950/10 overflow-hidden">
       <div className="px-4 py-3 border-b border-amber-900/20 flex items-start gap-3">
         <AlertCircle className="w-4 h-4 text-amber-700/70 mt-0.5 shrink-0" />
         <div>
           <p className="text-sm font-medium text-amber-800/80">
-            Rota não disponível para este município
+            {originLabel} ainda não tem rota disponível para {destLabel}.
           </p>
           <p className="text-xs text-amber-700/60 mt-0.5">
             O vendedor não entrega directamente no município seleccionado.
