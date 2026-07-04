@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft, MapPin, CreditCard, Truck, CheckCircle, Loader2, ShieldCheck, ImageOff, Upload, FileCheck, X, Building2, Smartphone } from "lucide-react";
 import { useCart } from "@/hooks/useSupabaseData";
 import { useClearCart } from "@/hooks/useCartActions";
@@ -18,13 +18,79 @@ type Step = "address" | "payment" | "confirm" | "success";
 // Métodos que exigem envio de comprovativo antes de confirmar o pedido
 const METHODS_REQUIRING_PROOF = ["bank_transfer", "multicaixa_express"];
 
+// Formato do state passado pelo botão "Comprar agora" em ProductDetail.tsx
+type SoloProductState = {
+  productId: string;
+  quantity: number;
+  variantId: string | null;
+};
+
 const Checkout = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
-  const { data: cartItems = [], isLoading: cartLoading } = useCart();
   const clearCart = useClearCart();
   const queryClient = useQueryClient();
   const { provinces, getMunicipalitiesByProvince } = useFreight();
+
+  // ── Modo da compra: "solo" (Comprar agora) ou "cart" (Carrinho) ──────────
+  // Se veio state.soloProduct, IGNORAMOS totalmente o carrinho: não o lemos
+  // para montar o pedido, e não o limpamos no final.
+  const soloProduct = (location.state as { soloProduct?: SoloProductState } | null)?.soloProduct;
+  const isSoloCheckout = !!soloProduct;
+
+  // Carrinho real — só é buscado/usado quando NÃO é compra avulsa
+  const { data: realCartItems = [], isLoading: realCartLoading } = useCart();
+
+  // Produto avulso — só é buscado quando É compra avulsa
+  const { data: soloProductData, isLoading: soloLoading, isError: soloError } = useQuery({
+    queryKey: ["checkout_solo_product", soloProduct?.productId, soloProduct?.variantId],
+    queryFn: async () => {
+      const { data: product, error } = await supabase
+        .from("products")
+        .select("*")
+        .eq("id", soloProduct!.productId)
+        .maybeSingle();
+      if (error || !product) throw new Error("Produto não encontrado");
+
+      let unitPrice = product.price;
+      if (soloProduct!.variantId) {
+        const { data: variant } = await supabase
+          .from("product_variants")
+          .select("id, price_override")
+          .eq("id", soloProduct!.variantId)
+          .maybeSingle();
+        if (variant?.price_override) unitPrice = variant.price_override;
+      }
+
+      const { data: cover } = await supabase
+        .from("product_media")
+        .select("url")
+        .eq("product_id", product.id)
+        .eq("is_cover", true)
+        .maybeSingle();
+
+      return { ...product, price: unitPrice, image_url: cover?.url || product.image_url };
+    },
+    enabled: isSoloCheckout,
+    retry: false,
+  });
+
+  // ── "cartItems" unificado: a partir daqui, TODO o resto da página usa
+  // esta variável e nem sabe se veio do carrinho ou de "Comprar agora".
+  const cartItems = isSoloCheckout
+    ? (soloProductData
+        ? [{
+            id: `solo-${soloProduct!.productId}`,
+            product_id: soloProduct!.productId,
+            variant_id: soloProduct!.variantId,
+            quantity: soloProduct!.quantity,
+            products: soloProductData,
+          }]
+        : [])
+    : realCartItems;
+
+  const cartLoading = isSoloCheckout ? soloLoading : realCartLoading;
 
   const [step, setStep] = useState<Step>("address");
   const [address, setAddress] = useState({
@@ -383,8 +449,12 @@ const Checkout = () => {
         }
       }
 
-
-      await clearCart.mutateAsync();
+      // ── Só limpamos o carrinho REAL quando o pedido veio do carrinho.
+      // Numa compra avulsa ("Comprar agora"), o carrinho do usuário nem foi
+      // tocado e deve continuar exatamente como estava antes.
+      if (!isSoloCheckout) {
+        await clearCart.mutateAsync();
+      }
       return order;
     },
     onSuccess: () => {
@@ -409,7 +479,22 @@ const Checkout = () => {
     );
   }
 
-  if (cartItems.length === 0 && step !== "success") {
+  // Compra avulsa com produto inexistente/inativo — não faz sentido mandar
+  // de volta para "/carrinho" (o usuário nem queria comprar do carrinho).
+  if (isSoloCheckout && (soloError || cartItems.length === 0) && step !== "success") {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-center px-6 bg-background">
+        <div>
+          <h2 className="text-lg font-bold mb-2 text-foreground">Não foi possível carregar este produto</h2>
+          <p className="text-sm text-muted-foreground mb-4">Ele pode ter sido removido ou estar indisponível.</p>
+          <button onClick={() => navigate(-1)} className="text-sm font-semibold text-primary">Voltar</button>
+        </div>
+      </div>
+    );
+  }
+
+  // Carrinho normal vazio — aqui sim faz sentido mandar para "/carrinho"
+  if (!isSoloCheckout && cartItems.length === 0 && step !== "success") {
     navigate("/carrinho");
     return null;
   }
