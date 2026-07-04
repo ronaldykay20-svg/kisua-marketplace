@@ -60,6 +60,25 @@ const getBadgeStyle = (badge: string | null | undefined) => {
   return BADGE_STYLES[badge] || null;
 };
 
+// ─── Estrelas de avaliação ────────────────────────────────────────────────────
+const StarRating = ({ rating }: { rating: number }) => {
+  const rounded = Math.round(rating);
+  return (
+    <div className="flex items-center gap-[1px]">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <Star
+          key={i}
+          className="w-2.5 h-2.5"
+          style={{
+            color: i <= rounded ? "#f5a623" : "#e0d5c8",
+            fill: i <= rounded ? "#f5a623" : "none",
+          }}
+        />
+      ))}
+    </div>
+  );
+};
+
 // ─── Card ─────────────────────────────────────────────────────────────────────
 const ProductCard = ({
   p, displayUrl, isTrending, isFav, onFav, onClick,
@@ -72,6 +91,9 @@ const ProductCard = ({
 
   const customBadge = !p.discount_percent ? getBadgeStyle(p.badge) : null;
   const showHotFallback = isTrending && !p.discount_percent && !customBadge;
+
+  const hasRating = p.rating != null && Number(p.rating) > 0;
+  const hasSales = p.sales_count != null && Number(p.sales_count) > 0;
 
   return (
     <div
@@ -132,31 +154,34 @@ const ProductCard = ({
       </div>
 
       <div className="px-2 pt-1.5 pb-2">
-        <p className="text-[11.5px] font-semibold line-clamp-2 leading-tight" style={{ color: "#6b3a1f", margin: 0 }}>
+        <p className="font-bold line-clamp-2 leading-tight" style={{ color: "#6b3a1f", margin: 0, fontSize: "16px" }}>
           {p.title}
         </p>
 
         {p.description && (
-          <p className="text-[13px] font-medium leading-snug line-clamp-3" style={{ color: "#000000", margin: "2px 0 6px 0" }}>
+          <p
+            className="font-medium leading-snug line-clamp-3"
+            style={{ color: "#000000", margin: "3px 0 6px 0", fontSize: "13.5px", letterSpacing: "0.4px" }}
+          >
             {p.description}
           </p>
         )}
 
-        {(p.rating >= 3.5 || p.sales_count > 0) && (
+        {(hasRating || hasSales) && (
           <div className="flex items-center gap-1 mb-1 flex-wrap">
-            {p.rating >= 3.5 && (
-              <span className="flex items-center gap-0.5">
-                <Star className="w-2 h-2 fill-amber-400 text-amber-400" />
+            {hasRating && (
+              <span className="flex items-center gap-1">
+                <StarRating rating={Number(p.rating)} />
                 <span className="text-[9px]" style={{ color: "#b09080" }}>
                   {Number(p.rating).toFixed(1)}
                   {p.total_reviews > 0 ? ` (${p.total_reviews})` : ""}
                 </span>
               </span>
             )}
-            {p.rating >= 3.5 && p.sales_count > 0 && (
+            {hasRating && hasSales && (
               <span className="text-[9px]" style={{ color: "#d4c4b4" }}>•</span>
             )}
-            {p.sales_count > 0 && (
+            {hasSales && (
               <span className="flex items-center gap-0.5 text-[9px]" style={{ color: "#b09080" }}>
                 <Users className="w-2 h-2" /> {p.sales_count}+ vendidos
               </span>
