@@ -499,7 +499,15 @@ const Checkout = () => {
     return null;
   }
 
-  const canConfirmOrder = !requiresProof || (!!proofFile && !proofError);
+  // O frete tem de estar calculado para TODOS os grupos (vendedor/loja) do
+  // pedido antes de poder confirmar. Se o FreightCalculator não conseguiu
+  // calcular algum grupo (ex: vendedor sem município de origem definido),
+  // "freightSelections" fica incompleto e NÃO deixamos passar em silêncio
+  // com frete "0 Kz" — isso escondia o bug de deixar confirmar sem frete real.
+  const freightReady = cartGroups.length > 0 && freightSelections.length >= cartGroups.length;
+
+  const canConfirmOrder =
+    freightReady && (!requiresProof || (!!proofFile && !proofError));
 
   return (
     <div className="min-h-screen bg-background pb-14">
@@ -598,6 +606,11 @@ const Checkout = () => {
                           municipalityCode: e.target.value || null,
                           municipalityName: mun?.name ?? "",
                         }));
+                        // Município mudou: o frete antigo já não é válido para o
+                        // novo destino. Limpamos até o FreightCalculator recalcular
+                        // e chamar onFreightChange de novo com os valores certos.
+                        setFreightSelections([]);
+                        setFreightTotal(0);
                       }}
                       disabled={!address.provinceId}
                       className="w-full mt-1 h-9 px-3 py-1 rounded-lg bg-background border border-border text-sm text-foreground appearance-none focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
@@ -882,7 +895,14 @@ const Checkout = () => {
                 Confirmar pedido
               </button>
             </div>
-            {requiresProof && !proofFile && (
+            {!freightReady && (
+              <p className="text-[11px] text-center text-red-500 -mt-2 font-semibold">
+                Não foi possível calcular o frete para todos os itens. Volte à etapa de
+                endereço, confirme o município e aguarde o valor do frete aparecer antes
+                de continuar.
+              </p>
+            )}
+            {freightReady && requiresProof && !proofFile && (
               <p className="text-[11px] text-center text-muted-foreground -mt-2">
                 Anexe o comprovativo acima para poder confirmar o pedido.
               </p>
