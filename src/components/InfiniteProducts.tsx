@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-import { Heart, Flame, Star, Truck, Users, Eye, AlertTriangle } from "lucide-react";
+import { Heart, Flame, Star, Truck, Users, Eye, Clock, Ticket, ShoppingBag } from "lucide-react";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -29,20 +29,45 @@ const AnimationStyles = () => (
       from { opacity: 0; transform: translate(-50%, 8px); }
       to   { opacity: 1; transform: translate(-50%, 0); }
     }
+    @keyframes zg-dotPulse {
+      0%   { box-shadow: 0 0 0 0 rgba(90,138,90,0.55); }
+      70%  { box-shadow: 0 0 0 5px rgba(90,138,90,0); }
+      100% { box-shadow: 0 0 0 0 rgba(90,138,90,0); }
+    }
+    @keyframes zg-numberBlink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.35; }
+    }
+    @keyframes zg-cartFly {
+      0%   { opacity: 1; transform: scale(1); }
+      100% { opacity: 0; transform: scale(0.2); }
+    }
     .zg-card-enter {
-      animation: zg-fadeInUp 0.45s ease both;
+      animation: zg-fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
     }
     .zg-shimmer {
-      background: linear-gradient(90deg, #f0e6da 0px, #faf5ee 40px, #f0e6da 80px);
+      background: linear-gradient(90deg, #ecdfcf 0px, #fffdfa 60px, #ecdfcf 120px);
       background-size: 800px 100%;
-      animation: zg-shimmer 1.4s infinite linear;
+      animation: zg-shimmer 1.1s infinite linear;
     }
     .zg-heart-pop {
-      animation: zg-heartPop 0.35s ease;
+      animation: zg-heartPop 0.4s ease;
     }
     .zg-toast {
       animation: zg-toastIn 0.25s ease both;
     }
+    .zg-live-dot {
+      width: 6px; height: 6px; border-radius: 50%; background: #5a8a5a;
+      animation: zg-dotPulse 1.6s infinite;
+    }
+    .zg-live-number {
+      animation: zg-numberBlink 2.4s ease-in-out infinite;
+    }
+    .zg-no-scrollbar {
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+    .zg-no-scrollbar::-webkit-scrollbar { display: none; }
   `}</style>
 );
 
@@ -63,11 +88,26 @@ const hashId = (id: string) => {
   return h;
 };
 
-// ─── Lazy Image ───────────────────────────────────────────────────────────────
-const LazyImg = ({ src, alt }: { src: string | null; alt: string }) => {
+// ─── Contagem decrescente até à meia-noite (flash sale diária) ───────────────
+const getRemainingToMidnight = () => {
+  const now = new Date();
+  const end = new Date(now);
+  end.setHours(23, 59, 59, 999);
+  const diff = Math.max(0, end.getTime() - now.getTime());
+  const h = Math.floor(diff / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  const s = Math.floor((diff % 60000) / 1000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(h)}:${pad(m)}:${pad(s)}`;
+};
+
+// ─── Swipe de imagens no card ─────────────────────────────────────────────────
+const ImageSwiper = ({ images, alt }: { images: string[]; alt: string }) => {
   const wrapRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [active, setActive] = useState(0);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -80,23 +120,59 @@ const LazyImg = ({ src, alt }: { src: string | null; alt: string }) => {
     return () => obs.disconnect();
   }, []);
 
-  useEffect(() => { setLoaded(false); }, [src]);
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el || el.clientWidth === 0) return;
+    setActive(Math.round(el.scrollLeft / el.clientWidth));
+  };
+
+  const list = images.length > 0 ? images : [null];
 
   return (
     <div ref={wrapRef} className="relative w-full overflow-hidden aspect-square" style={{ background: "#ffffff" }}>
-      {(!visible || !loaded) && (
-        <div className="absolute inset-0 zg-shimmer" />
+      {(!visible || !loaded) && <div className="absolute inset-0 zg-shimmer" />}
+
+      {visible && (
+        <div
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="zg-no-scrollbar flex w-full h-full overflow-x-auto snap-x snap-mandatory"
+          style={{ scrollBehavior: "smooth" }}
+        >
+          {list.map((src, i) => (
+            src ? (
+              <img
+                key={i}
+                src={src}
+                alt={alt}
+                loading="lazy"
+                decoding="async"
+                className="w-full h-full object-cover flex-shrink-0 snap-center"
+                style={{ minWidth: "100%", opacity: loaded ? 1 : 0, transition: "opacity 0.3s ease" }}
+                onLoad={() => setLoaded(true)}
+              />
+            ) : (
+              <div key={i} className="w-full h-full flex-shrink-0" style={{ minWidth: "100%", background: "#f7f5f2" }} />
+            )
+          ))}
+        </div>
       )}
-      {visible && src && (
-        <img
-          src={src}
-          alt={alt}
-          loading="lazy"
-          decoding="async"
-          className="absolute inset-0 w-full h-full object-cover"
-          style={{ opacity: loaded ? 1 : 0, transition: "opacity 0.3s ease" }}
-          onLoad={() => setLoaded(true)}
-        />
+
+      {list.length > 1 && (
+        <div className="absolute bottom-2 left-1/2 z-10 flex items-center gap-1" style={{ transform: "translateX(-50%)" }}>
+          {list.map((_, i) => (
+            <span
+              key={i}
+              className="rounded-full transition-all"
+              style={{
+                width: i === active ? "6px" : "4px",
+                height: "4px",
+                background: i === active ? "#ffffff" : "rgba(255,255,255,0.55)",
+                boxShadow: "0 0 2px rgba(0,0,0,0.35)",
+              }}
+            />
+          ))}
+        </div>
       )}
     </div>
   );
@@ -136,11 +212,12 @@ const StarRating = ({ rating }: { rating: number }) => {
 
 // ─── Card ─────────────────────────────────────────────────────────────────────
 const ProductCard = ({
-  p, displayUrl, isTrending, isFav, onFav, onClick, index, tick,
+  p, images, isTrending, isFav, onFav, onClick, onAddToCart, index, tick, flashRemaining,
 }: {
-  p: any; displayUrl: string | null; isTrending: boolean;
+  p: any; images: string[]; isTrending: boolean;
   isFav: boolean; onFav: (e: React.MouseEvent) => void;
-  onClick: () => void; index: number; tick: number;
+  onClick: () => void; onAddToCart: (e: React.MouseEvent) => void;
+  index: number; tick: number; flashRemaining: string;
 }) => {
   const [pressed, setPressed] = useState(false);
   const [heartPop, setHeartPop] = useState(false);
@@ -151,20 +228,49 @@ const ProductCard = ({
   const hasRating = p.rating != null && Number(p.rating) > 0;
   const hasSales = p.sales_count != null && Number(p.sales_count) > 0;
 
-  // ── Sinal de urgência: visualizações "em tempo real" (determinístico + leve variação) ──
   const hash = hashId(String(p.id));
-  const viewerBase = 3 + (hash % 25); // 3..27
+  const viewerBase = 3 + (hash % 25);
   const viewerCount = Math.max(1, viewerBase + (((tick + hash) % 5) - 2));
-  const showViewers = isTrending || hasSales;
 
-  // ── Estoque baixo (só exibe se o campo existir e for baixo) ──
   const stockQty = p.stock_quantity ?? p.stock ?? null;
   const lowStock = stockQty != null && Number(stockQty) > 0 && Number(stockQty) <= 5;
+
+  const isFlash = Number(p.discount_percent) > 0;
+  // Cupom extra ilustrativo: aparece em parte dos produtos com desconto (baseado em id, não é aleatório).
+  // Para virar real, ligar a uma tabela/coluna de cupons e substituir esta condição.
+  const hasCoupon = isFlash && hash % 3 === 0;
+  const couponPercent = 5 + (hash % 3) * 2; // 5, 7 ou 9%
 
   const handleFav = (e: React.MouseEvent) => {
     setHeartPop(true);
     setTimeout(() => setHeartPop(false), 350);
     onFav(e);
+  };
+
+  const handleAddToCart = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const target = e.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    const clone = document.createElement("div");
+    clone.style.position = "fixed";
+    clone.style.left = `${rect.left + rect.width / 2 - 8}px`;
+    clone.style.top = `${rect.top + rect.height / 2 - 8}px`;
+    clone.style.width = "16px";
+    clone.style.height = "16px";
+    clone.style.borderRadius = "50%";
+    clone.style.background = "#b84c1e";
+    clone.style.zIndex = "9999";
+    clone.style.pointerEvents = "none";
+    clone.style.transition = "left 0.55s cubic-bezier(0.4,0,0.2,1), top 0.55s cubic-bezier(0.4,0,0.2,1), transform 0.55s ease, opacity 0.55s ease";
+    document.body.appendChild(clone);
+    requestAnimationFrame(() => {
+      clone.style.left = `${window.innerWidth - 40}px`;
+      clone.style.top = `${window.innerHeight - 24}px`;
+      clone.style.transform = "scale(0.3)";
+      clone.style.opacity = "0.3";
+    });
+    setTimeout(() => clone.remove(), 600);
+    onAddToCart(e);
   };
 
   return (
@@ -183,7 +289,7 @@ const ProductCard = ({
       }}
     >
       <div className="relative">
-        <LazyImg src={displayUrl} alt={p.title} />
+        <ImageSwiper images={images} alt={p.title} />
 
         {p.discount_percent > 0 && (
           <span className="absolute top-2 left-2 px-1.5 py-0.5 text-[10px] font-black text-white z-10"
@@ -207,6 +313,13 @@ const ProductCard = ({
           </span>
         )}
 
+        {isFlash && (
+          <span className="absolute top-2 right-2 flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-bold text-white z-10"
+            style={{ background: "rgba(20,20,20,0.75)", borderRadius: "4px" }}>
+            <Clock className="w-2.5 h-2.5" /> {flashRemaining}
+          </span>
+        )}
+
         {p.free_shipping && (
           <span className="absolute bottom-2 left-2 flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-bold text-white z-10"
             style={{ background: "rgba(26,92,58,0.88)", borderRadius: "4px" }}>
@@ -214,16 +327,25 @@ const ProductCard = ({
           </span>
         )}
 
-        <button
-          onClick={handleFav}
-          className="absolute bottom-2 right-2 w-7 h-7 rounded-full flex items-center justify-center z-10"
-          style={{ background: "rgba(253,248,244,0.93)", boxShadow: "0 1px 5px rgba(107,58,31,0.18)" }}
-        >
-          <Heart
-            className={`w-3.5 h-3.5 transition-all ${heartPop ? "zg-heart-pop" : ""}`}
-            style={{ color: isFav ? "#b84c1e" : "#c8a882", fill: isFav ? "#b84c1e" : "none" }}
-          />
-        </button>
+        <div className="absolute bottom-2 right-2 flex flex-col items-center gap-1.5 z-10">
+          <button
+            onClick={handleFav}
+            className="w-7 h-7 rounded-full flex items-center justify-center"
+            style={{ background: "rgba(253,248,244,0.93)", boxShadow: "0 1px 5px rgba(107,58,31,0.18)" }}
+          >
+            <Heart
+              className={`w-3.5 h-3.5 transition-all ${heartPop ? "zg-heart-pop" : ""}`}
+              style={{ color: isFav ? "#b84c1e" : "#c8a882", fill: isFav ? "#b84c1e" : "none" }}
+            />
+          </button>
+          <button
+            onClick={handleAddToCart}
+            className="w-7 h-7 rounded-full flex items-center justify-center"
+            style={{ background: "rgba(253,248,244,0.93)", boxShadow: "0 1px 5px rgba(107,58,31,0.18)" }}
+          >
+            <ShoppingBag className="w-3.5 h-3.5" style={{ color: "#6b3a1f" }} />
+          </button>
+        </div>
       </div>
 
       <div className="px-2 pt-1.5 pb-2">
@@ -262,20 +384,27 @@ const ProductCard = ({
           </div>
         )}
 
-        {showViewers && (
+        <div className="flex items-center gap-1 mb-1">
+          <span className="zg-live-dot" />
+          <Eye className="w-2.5 h-2.5" style={{ color: "#7fa87f" }} />
+          <span className="zg-live-number text-[9.5px] font-semibold" style={{ color: "#5a8a5a" }}>
+            {viewerCount} pessoas a ver agora
+          </span>
+        </div>
+
+        {lowStock && (
           <div className="flex items-center gap-0.5 mb-1">
-            <Eye className="w-2.5 h-2.5" style={{ color: "#7fa87f" }} />
-            <span className="text-[9px] font-medium" style={{ color: "#5a8a5a" }}>
-              {viewerCount} pessoas a ver agora
+            <span className="text-[9px] font-bold" style={{ color: "#e53935" }}>
+              ⚠ Só restam {stockQty}!
             </span>
           </div>
         )}
 
-        {lowStock && (
-          <div className="flex items-center gap-0.5 mb-1">
-            <AlertTriangle className="w-2.5 h-2.5" style={{ color: "#e53935" }} />
-            <span className="text-[9px] font-bold" style={{ color: "#e53935" }}>
-              Só restam {stockQty}!
+        {hasCoupon && (
+          <div className="flex items-center gap-1 mb-1 px-1.5 py-0.5 w-fit" style={{ background: "#fdf0e5", borderRadius: "4px", border: "1px dashed #d99a5c" }}>
+            <Ticket className="w-2.5 h-2.5" style={{ color: "#b8681e" }} />
+            <span className="text-[9px] font-bold" style={{ color: "#b8681e" }}>
+              Cupom: -{couponPercent}% extra
             </span>
           </div>
         )}
@@ -315,11 +444,18 @@ const InfiniteProducts = () => {
   const sentinelRef = useRef<HTMLDivElement>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
+  const [flashRemaining, setFlashRemaining] = useState(getRemainingToMidnight());
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Tick global leve — dá vida aos contadores de "visualizações" ──────────
+  // ── Tick leve (5s) — dá vida aos contadores de "visualizações" ────────────
   useEffect(() => {
     const interval = setInterval(() => setTick((t) => t + 1), 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // ── Tick por segundo — contagem decrescente da flash sale ────────────────
+  useEffect(() => {
+    const interval = setInterval(() => setFlashRemaining(getRemainingToMidnight()), 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -338,20 +474,29 @@ const InfiniteProducts = () => {
         if (error) throw error;
 
         const ids = (products || []).map((p: any) => p.id);
-        let coverMap: Record<string, string> = {};
+        const imagesMap: Record<string, string[]> = {};
 
         if (ids.length > 0) {
           const { data: media } = await supabase
             .from("product_media")
-            .select("product_id, url")
-            .in("product_id", ids)
-            .eq("is_cover", true);
-          (media || []).forEach((m: any) => { coverMap[m.product_id] = m.url; });
+            .select("product_id, url, is_cover")
+            .in("product_id", ids);
+
+          const grouped: Record<string, any[]> = {};
+          (media || []).forEach((m: any) => {
+            if (!grouped[m.product_id]) grouped[m.product_id] = [];
+            grouped[m.product_id].push(m);
+          });
+
+          Object.keys(grouped).forEach((pid) => {
+            const sorted = grouped[pid].sort((a, b) => (b.is_cover ? 1 : 0) - (a.is_cover ? 1 : 0));
+            imagesMap[pid] = sorted.slice(0, 4).map((m) => m.url);
+          });
         }
 
         return (products || []).map((p: any) => ({
           ...p,
-          cover_url: coverMap[p.id] || null,
+          images: imagesMap[p.id] || [],
         }));
       },
       getNextPageParam: (last, all) => last.length < PAGE_SIZE ? undefined : all.length,
@@ -389,6 +534,12 @@ const InfiniteProducts = () => {
     const willBeFav = !isFavorite(id);
     toggleFavorite(id);
     showToast(willBeFav ? "Adicionado aos favoritos ❤️" : "Removido dos favoritos");
+  };
+
+  const makeAddToCart = (p: any) => (e: React.MouseEvent) => {
+    if (!user) { navigate("/auth"); return; }
+    // TODO: ligar aqui à mutação real do carrinho (ex: useCart().addItem(p.id))
+    showToast("Adicionado ao carrinho 🛒");
   };
 
   // ── Trending ──────────────────────────────────────────────────────────────
@@ -434,13 +585,15 @@ const InfiniteProducts = () => {
           <ProductCard
             key={p.id}
             p={p}
-            displayUrl={p.cover_url}
+            images={p.images}
             isTrending={(trendingIds as Set<string>).has(p.id)}
             isFav={isFavorite(p.id)}
             onFav={makeFav(p.id)}
+            onAddToCart={makeAddToCart(p)}
             onClick={() => navigate(`/produto/${p.id}`)}
             index={i}
             tick={tick}
+            flashRemaining={flashRemaining}
           />
         ))}
         {isFetchingNextPage && [0, 1, 2, 3, 4].map(i => <Skeleton key={`skeleton-${i}`} />)}
