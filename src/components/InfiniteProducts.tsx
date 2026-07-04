@@ -2,11 +2,66 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-import { Heart, Flame, Star, Truck, Users } from "lucide-react";
+import { Heart, Flame, Star, Truck, Users, Eye, AlertTriangle } from "lucide-react";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useAuth } from "@/contexts/AuthContext";
 
 const PAGE_SIZE = 20;
+
+// ─── Estilos globais de animação (injetados uma única vez) ───────────────────
+const AnimationStyles = () => (
+  <style>{`
+    @keyframes zg-fadeInUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes zg-shimmer {
+      0%   { background-position: -400px 0; }
+      100% { background-position: 400px 0; }
+    }
+    @keyframes zg-heartPop {
+      0%   { transform: scale(1); }
+      35%  { transform: scale(1.45); }
+      60%  { transform: scale(0.9); }
+      100% { transform: scale(1); }
+    }
+    @keyframes zg-toastIn {
+      from { opacity: 0; transform: translate(-50%, 8px); }
+      to   { opacity: 1; transform: translate(-50%, 0); }
+    }
+    .zg-card-enter {
+      animation: zg-fadeInUp 0.45s ease both;
+    }
+    .zg-shimmer {
+      background: linear-gradient(90deg, #f0e6da 0px, #faf5ee 40px, #f0e6da 80px);
+      background-size: 800px 100%;
+      animation: zg-shimmer 1.4s infinite linear;
+    }
+    .zg-heart-pop {
+      animation: zg-heartPop 0.35s ease;
+    }
+    .zg-toast {
+      animation: zg-toastIn 0.25s ease both;
+    }
+  `}</style>
+);
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+const Toast = ({ message }: { message: string }) => (
+  <div
+    className="zg-toast fixed bottom-20 left-1/2 z-50 px-4 py-2 rounded-full text-[12px] font-semibold text-white shadow-lg"
+    style={{ background: "#1a0f07", transform: "translateX(-50%)" }}
+  >
+    {message}
+  </div>
+);
+
+// ─── Hash simples e determinístico (para variações "vivas" por produto) ──────
+const hashId = (id: string) => {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return h;
+};
 
 // ─── Lazy Image ───────────────────────────────────────────────────────────────
 const LazyImg = ({ src, alt }: { src: string | null; alt: string }) => {
@@ -30,7 +85,7 @@ const LazyImg = ({ src, alt }: { src: string | null; alt: string }) => {
   return (
     <div ref={wrapRef} className="relative w-full overflow-hidden aspect-square" style={{ background: "#ffffff" }}>
       {(!visible || !loaded) && (
-        <div className="absolute inset-0 animate-pulse" style={{ background: "linear-gradient(135deg, #f7f5f2 0%, #ededeb 100%)" }} />
+        <div className="absolute inset-0 zg-shimmer" />
       )}
       {visible && src && (
         <img
@@ -81,13 +136,14 @@ const StarRating = ({ rating }: { rating: number }) => {
 
 // ─── Card ─────────────────────────────────────────────────────────────────────
 const ProductCard = ({
-  p, displayUrl, isTrending, isFav, onFav, onClick,
+  p, displayUrl, isTrending, isFav, onFav, onClick, index, tick,
 }: {
   p: any; displayUrl: string | null; isTrending: boolean;
   isFav: boolean; onFav: (e: React.MouseEvent) => void;
-  onClick: () => void;
+  onClick: () => void; index: number; tick: number;
 }) => {
   const [pressed, setPressed] = useState(false);
+  const [heartPop, setHeartPop] = useState(false);
 
   const customBadge = !p.discount_percent ? getBadgeStyle(p.badge) : null;
   const showHotFallback = isTrending && !p.discount_percent && !customBadge;
@@ -95,18 +151,35 @@ const ProductCard = ({
   const hasRating = p.rating != null && Number(p.rating) > 0;
   const hasSales = p.sales_count != null && Number(p.sales_count) > 0;
 
+  // ── Sinal de urgência: visualizações "em tempo real" (determinístico + leve variação) ──
+  const hash = hashId(String(p.id));
+  const viewerBase = 3 + (hash % 25); // 3..27
+  const viewerCount = Math.max(1, viewerBase + (((tick + hash) % 5) - 2));
+  const showViewers = isTrending || hasSales;
+
+  // ── Estoque baixo (só exibe se o campo existir e for baixo) ──
+  const stockQty = p.stock_quantity ?? p.stock ?? null;
+  const lowStock = stockQty != null && Number(stockQty) > 0 && Number(stockQty) <= 5;
+
+  const handleFav = (e: React.MouseEvent) => {
+    setHeartPop(true);
+    setTimeout(() => setHeartPop(false), 350);
+    onFav(e);
+  };
+
   return (
     <div
       onClick={onClick}
       onPointerDown={() => setPressed(true)}
       onPointerUp={() => setPressed(false)}
       onPointerLeave={() => setPressed(false)}
-      className="w-full cursor-pointer select-none overflow-hidden"
+      className="zg-card-enter w-full cursor-pointer select-none overflow-hidden"
       style={{
         borderRadius: "3px",
         background: "#ffffff",
         transform: pressed ? "scale(0.974)" : "scale(1)",
         transition: "transform 0.13s ease",
+        animationDelay: `${(index % 10) * 40}ms`,
       }}
     >
       <div className="relative">
@@ -142,12 +215,12 @@ const ProductCard = ({
         )}
 
         <button
-          onClick={onFav}
+          onClick={handleFav}
           className="absolute bottom-2 right-2 w-7 h-7 rounded-full flex items-center justify-center z-10"
           style={{ background: "rgba(253,248,244,0.93)", boxShadow: "0 1px 5px rgba(107,58,31,0.18)" }}
         >
           <Heart
-            className="w-3.5 h-3.5 transition-all"
+            className={`w-3.5 h-3.5 transition-all ${heartPop ? "zg-heart-pop" : ""}`}
             style={{ color: isFav ? "#b84c1e" : "#c8a882", fill: isFav ? "#b84c1e" : "none" }}
           />
         </button>
@@ -189,6 +262,24 @@ const ProductCard = ({
           </div>
         )}
 
+        {showViewers && (
+          <div className="flex items-center gap-0.5 mb-1">
+            <Eye className="w-2.5 h-2.5" style={{ color: "#7fa87f" }} />
+            <span className="text-[9px] font-medium" style={{ color: "#5a8a5a" }}>
+              {viewerCount} pessoas a ver agora
+            </span>
+          </div>
+        )}
+
+        {lowStock && (
+          <div className="flex items-center gap-0.5 mb-1">
+            <AlertTriangle className="w-2.5 h-2.5" style={{ color: "#e53935" }} />
+            <span className="text-[9px] font-bold" style={{ color: "#e53935" }}>
+              Só restam {stockQty}!
+            </span>
+          </div>
+        )}
+
         <div className="flex items-baseline gap-1.5 flex-wrap">
           <span className="font-black leading-none" style={{ fontSize: "14px", color: "#1a0f07" }}>
             {Number(p.price).toLocaleString("pt-AO")} Kz
@@ -206,12 +297,12 @@ const ProductCard = ({
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 const Skeleton = () => (
-  <div className="w-full overflow-hidden animate-pulse" style={{ borderRadius: "3px", background: "#ffffff" }}>
-    <div style={{ aspectRatio: "1/1", background: "linear-gradient(135deg, #f7f5f2 0%, #ededeb 100%)" }} />
+  <div className="w-full overflow-hidden" style={{ borderRadius: "3px", background: "#ffffff" }}>
+    <div className="zg-shimmer" style={{ aspectRatio: "1/1" }} />
     <div className="px-2 pt-1.5 pb-2 space-y-1.5">
-      <div className="h-3 rounded w-4/5" style={{ background: "#f0e6da" }} />
-      <div className="h-3 rounded w-3/5" style={{ background: "#f0e6da" }} />
-      <div className="h-3.5 rounded w-2/5 mt-1" style={{ background: "#f0e6da" }} />
+      <div className="h-3 rounded w-4/5 zg-shimmer" />
+      <div className="h-3 rounded w-3/5 zg-shimmer" />
+      <div className="h-3.5 rounded w-2/5 mt-1 zg-shimmer" />
     </div>
   </div>
 );
@@ -222,6 +313,15 @@ const InfiniteProducts = () => {
   const { user } = useAuth();
   const { isFavorite, toggleFavorite } = useFavorites();
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Tick global leve — dá vida aos contadores de "visualizações" ──────────
+  useEffect(() => {
+    const interval = setInterval(() => setTick((t) => t + 1), 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   // ── Query principal (paginada) ────────────────────────────────────────────
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
@@ -277,10 +377,18 @@ const InfiniteProducts = () => {
     return () => obs.disconnect();
   }, [handleObserver]);
 
+  const showToast = (msg: string) => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setToast(msg);
+    toastTimeoutRef.current = setTimeout(() => setToast(null), 1800);
+  };
+
   const makeFav = (id: string) => (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!user) { navigate("/auth"); return; }
+    const willBeFav = !isFavorite(id);
     toggleFavorite(id);
+    showToast(willBeFav ? "Adicionado aos favoritos ❤️" : "Removido dos favoritos");
   };
 
   // ── Trending ──────────────────────────────────────────────────────────────
@@ -303,6 +411,7 @@ const InfiniteProducts = () => {
   // ── Render ────────────────────────────────────────────────────────────────
   if (isLoading) return (
     <section className="px-2 md:px-4 pt-3 pb-4" style={{ background: "#ffffff" }}>
+      <AnimationStyles />
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 md:gap-3">
         {[0, 1, 2, 3, 4, 5].map(i => <Skeleton key={i} />)}
       </div>
@@ -313,13 +422,15 @@ const InfiniteProducts = () => {
 
   return (
     <section className="px-2 md:px-4 pt-3 pb-4" style={{ background: "#ffffff" }}>
+      <AnimationStyles />
+
       <div className="flex items-center justify-between mb-2 px-0.5">
         <h2 className="text-sm font-bold" style={{ color: "#1a0f07" }}>Para si</h2>
         <span className="text-[10px]" style={{ color: "#9a7060" }}>{allProducts.length} produtos</span>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 md:gap-3" style={{ background: "#ffffff" }}>
-        {allProducts.map((p: any) => (
+        {allProducts.map((p: any, i: number) => (
           <ProductCard
             key={p.id}
             p={p}
@@ -328,6 +439,8 @@ const InfiniteProducts = () => {
             isFav={isFavorite(p.id)}
             onFav={makeFav(p.id)}
             onClick={() => navigate(`/produto/${p.id}`)}
+            index={i}
+            tick={tick}
           />
         ))}
         {isFetchingNextPage && [0, 1, 2, 3, 4].map(i => <Skeleton key={`skeleton-${i}`} />)}
@@ -335,6 +448,8 @@ const InfiniteProducts = () => {
 
       {/* Sentinel invisível */}
       <div ref={sentinelRef} className="h-2" />
+
+      {toast && <Toast message={toast} />}
     </section>
   );
 };
