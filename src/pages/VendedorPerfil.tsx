@@ -21,7 +21,7 @@ const VendedorPerfil = () => {
   const queryClient = useQueryClient();
 
   const { data: seller, isLoading } = useSeller(id || "");
-  const { data: salesCount = 0 } = useSellerSalesCount(id);
+  const { data: salesCount = 0, refetch: refetchSalesCount } = useSellerSalesCount(id);
 
   // Real review stats
   const { data: reviewStats } = useQuery({
@@ -133,6 +133,41 @@ const VendedorPerfil = () => {
         if (error) console.error("Visit increment error:", error.message);
       });
   }, [id]);
+
+  // ── Tempo real: enquanto o visitante está nesta página, se OUTRA pessoa
+  // seguir este vendedor, ou se uma encomenda com produtos deste vendedor
+  // avançar de estado, os números actualizam-se sozinhos, sem recarregar.
+  useEffect(() => {
+    if (!id) return;
+    const channel = supabase
+      .channel(`vendedor_perfil_realtime_${id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "seller_follows", filter: `seller_id=eq.${id}` },
+        () => {
+          refetchFollowersCount();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "order_items", filter: `seller_id=eq.${id}` },
+        () => {
+          refetchSalesCount();
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "orders" },
+        () => {
+          refetchSalesCount();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [id, refetchFollowersCount, refetchSalesCount]);
 
   if (isLoading) {
     return (
