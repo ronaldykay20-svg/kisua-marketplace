@@ -1,8 +1,8 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ChevronLeft, Package, ShoppingBag, ImageOff, MapPin, Phone, Store, Building2,
-  ArrowRight, Truck, Send, X, Loader2, User, Boxes,
+  ArrowRight, Truck, Send, X, Loader2, User, Boxes, CheckCircle, XCircle, FileCheck,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,6 +18,12 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
 
 const SUPPLIER_STATUS_LABELS: Record<string, string> = {
   pending: "Pendente", confirmed: "Confirmado", shipped: "Enviado", delivered: "Entregue",
+};
+
+const PAY_METHOD_LABELS: Record<string, string> = {
+  cash_on_delivery: "Pagamento na entrega",
+  bank_transfer: "Transferência bancária",
+  multicaixa_express: "Multicaixa Express",
 };
 
 const statusColor = (s: string) => {
@@ -79,12 +85,57 @@ const ItemImage = ({ url, alt }: { url: string | null; alt: string }) => (
   )
 );
 
+// ─── Miniatura do comprovativo — gera um link temporário seguro (bucket privado) ─
+const ProofThumbnail = ({ path }: { path: string }) => {
+  const { data: signedUrl, isLoading } = useQuery({
+    queryKey: ["payment_proof_signed_url", path],
+    queryFn: async () => {
+      const { data, error } = await supabase.storage.from("payment-proofs").createSignedUrl(path, 60 * 60);
+      if (error) throw error;
+      return data.signedUrl;
+    },
+    staleTime: 55 * 60 * 1000,
+  });
+
+  if (isLoading || !signedUrl) {
+    return (
+      <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const isPdf = path.toLowerCase().endsWith(".pdf");
+  if (isPdf) {
+    return (
+      <a
+        href={signedUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="w-16 h-16 rounded-lg bg-muted flex flex-col items-center justify-center gap-0.5 flex-shrink-0"
+      >
+        <FileCheck className="w-5 h-5 text-primary" />
+        <span className="text-[8px] font-bold text-muted-foreground">Ver PDF</span>
+      </a>
+    );
+  }
+
+  return (
+    <a href={signedUrl} target="_blank" rel="noopener noreferrer" className="flex-shrink-0">
+      <img src={signedUrl} alt="Comprovativo de pagamento" className="w-16 h-16 rounded-lg object-cover" />
+    </a>
+  );
+};
+
 // ════════════════════════════════════════════════════════════════════════════
 // SECÇÃO 1 — Pedidos normais (orders / order_items: vendedor individual ou loja)
 // ════════════════════════════════════════════════════════════════════════════
 const NormalOrdersSection = () => {
   const queryClient = useQueryClient();
   const [notifyTarget, setNotifyTarget] = useState<any>(null);
+  const [searchParams] = useSearchParams();
+  const highlightId = searchParams.get("pedido");
+  const highlightRef = useRef<HTMLDivElement>(null);
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ["admin_full_orders_normal"],
@@ -150,6 +201,13 @@ const NormalOrdersSection = () => {
     refetchInterval: 20000,
   });
 
+  // Rola até ao pedido indicado na notificação (?pedido=ID) assim que a lista carrega
+  useEffect(() => {
+    if (highlightId && orders.length > 0 && highlightRef.current) {
+      highlightRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlightId, orders.length]);
+
   const sendNotification = useMutation({
     mutationFn: async ({ userId, message }: { userId: string; message: string }) => {
       const { error } = await supabase.from("notifications").insert({
@@ -169,6 +227,84 @@ const NormalOrdersSection = () => {
     onError: (e: any) => toast.error(e.message),
   });
 
+  // Aprova o comprovativo: marca o pedido como verificado e só agora notifica
+  // os vendedores/lojas envolvidos (isto não acontecia antes da aprovação).
+  const approvePayment = useMutation({
+    mutationFn: async (order: any) => {
+      const { error } = await supabase
+        .from("orders")
+        .update({ payment_verified: true })
+        .eq("id", order.id);
+      if (error) throw error;
+
+      const groups = new Map<string, { userId: string; label: string; items: any[] }>();
+      order.items.forEach((item: any) => {
+        const p = item.product;
+        const entity = p?.seller
+          ? { userId: p.seller.user_id, label: p.seller.name }
+          : p?.company
+          ? { userId: p.company.created_by, label: p.company.name }
+          : null;
+        if (!entity?.userId) return;
+        if (!groups.has(entity.userId)) groups.set(entity.userId, { ...entity, items: [] });
+        groups.get(entity.userId)!.items.push(item);
+      });
+
+      const payLabel = PAY_METHOD_LABELS[order.payment_method] || order.payment_method;
+
+      const sellerNotifications = Array.from(groups.values()).map((g) => {
+        const totalItems = g.items.reduce((n: number, it: any) => n + it.quantity, 0);
+        const preview = g.items
+          .slice(0, 3)
+          .map((it: any) => `• ${it.quantity}× ${it.product?.title || "Produto"}`)
+          .join("\n");
+        const extra = g.items.length > 3 ? `\n…e mais ${g.items.length - 3} artigo(s)` : "";
+        return {
+          user_id: g.userId,
+          title: `🛒 Pagamento confirmado — Pedido #${(order.order_number || order.id.slice(0, 8)).toString().toUpperCase()}`,
+          message:
+            `Comprador: ${order.shipping_name} (${order.shipping_phone})\n` +
+            `Entrega: ${order.shipping_city}, ${order.shipping_province}\n` +
+            `Pagamento: ${payLabel} — confirmado pela administração\n` +
+            `${totalItems} item(s)\n\n${preview}${extra}\n\n` +
+            `Abra o pedido para aceitar e preparar o envio.`,
+          type: "order",
+          link_url: `/pedido/${order.id}`,
+          is_read: false,
+        };
+      });
+
+      if (sellerNotifications.length > 0) {
+        await supabase.from("notifications").insert(sellerNotifications as any);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin_full_orders_normal"] });
+      toast.success("Pagamento aprovado — vendedores notificados");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const rejectPayment = useMutation({
+    mutationFn: async (order: any) => {
+      const { error } = await supabase.from("orders").update({ status: "cancelled" }).eq("id", order.id);
+      if (error) throw error;
+      await supabase.from("notifications").insert({
+        user_id: order.user_id,
+        title: `Pagamento não confirmado — Pedido #${(order.order_number || order.id.slice(0, 8)).toString().toUpperCase()}`,
+        message: "Não conseguimos confirmar o seu comprovativo de pagamento. Por favor contacte o suporte ou envie um novo comprovativo.",
+        type: "order",
+        link_url: `/pedido/${order.id}`,
+        is_read: false,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin_full_orders_normal"] });
+      toast.success("Pedido rejeitado");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>;
 
   if (orders.length === 0) {
@@ -177,70 +313,117 @@ const NormalOrdersSection = () => {
 
   return (
     <div className="space-y-3">
-      {orders.map((o: any) => (
-        <div key={o.id} className="bg-card rounded-xl border border-border p-3">
-          <div className="flex items-start justify-between gap-2 mb-2">
-            <div>
-              <p className="text-sm font-bold text-foreground">#{o.order_number || o.id.slice(0, 8)}</p>
-              <p className="text-[10px] text-muted-foreground">{new Date(o.created_at).toLocaleString("pt-AO")}</p>
+      {orders.map((o: any) => {
+        const pendingProof = !!o.payment_proof_url && !o.payment_verified;
+        const isHighlighted = o.id === highlightId;
+        return (
+          <div
+            key={o.id}
+            ref={isHighlighted ? highlightRef : undefined}
+            className={`bg-card rounded-xl border p-3 transition ${
+              isHighlighted ? "border-primary ring-2 ring-primary/30" : "border-border"
+            }`}
+          >
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <div>
+                <p className="text-sm font-bold text-foreground">#{o.order_number || o.id.slice(0, 8)}</p>
+                <p className="text-[10px] text-muted-foreground">{new Date(o.created_at).toLocaleString("pt-AO")}</p>
+              </div>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${statusColor(o.status)}`}>
+                {ORDER_STATUS_LABELS[o.status] || o.status}
+              </span>
             </div>
-            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${statusColor(o.status)}`}>
-              {ORDER_STATUS_LABELS[o.status] || o.status}
-            </span>
-          </div>
 
-          {/* Comprador */}
-          <div className="rounded-lg bg-muted/50 p-2.5 mb-2 space-y-0.5">
-            <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
-              <User className="w-3.5 h-3.5 text-muted-foreground" /> {o.shipping_name || "—"}
-            </p>
-            <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
-              <Phone className="w-3 h-3" /> {o.shipping_phone || "—"}
-            </p>
-            <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
-              <MapPin className="w-3 h-3 flex-shrink-0" /> {o.shipping_address}, {o.shipping_city}, {o.shipping_province}
-            </p>
-          </div>
+            {/* Comprador */}
+            <div className="rounded-lg bg-muted/50 p-2.5 mb-2 space-y-0.5">
+              <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                <User className="w-3.5 h-3.5 text-muted-foreground" /> {o.shipping_name || "—"}
+              </p>
+              <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                <Phone className="w-3 h-3" /> {o.shipping_phone || "—"}
+              </p>
+              <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                <MapPin className="w-3 h-3 flex-shrink-0" /> {o.shipping_address}, {o.shipping_city}, {o.shipping_province}
+              </p>
+            </div>
 
-          {/* Itens + vendedor de cada um */}
-          <div className="space-y-2 mb-2">
-            {o.items.map((item: any) => {
-              const p = item.product;
-              const entity = p?.seller ? { type: "Vendedor", name: p.seller.name, userId: p.seller.user_id }
-                : p?.company ? { type: "Loja", name: p.company.name, userId: p.company.created_by }
-                : null;
-              return (
-                <div key={item.id} className="flex items-center gap-2.5">
-                  <ItemImage url={p?.cover_url || null} alt={p?.title || "Produto"} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-foreground line-clamp-1">{p?.title || "Produto removido"}</p>
-                    <p className="text-[10px] text-muted-foreground">Qtd: {item.quantity} • {formatPrice(item.unit_price)}</p>
-                    {entity && (
-                      <p className="text-[10px] font-bold text-primary flex items-center gap-1 mt-0.5">
-                        {entity.type === "Loja" ? <Building2 className="w-3 h-3" /> : <Store className="w-3 h-3" />}
-                        {entity.type}: {entity.name}
-                        {entity.userId && (
-                          <button
-                            onClick={() => setNotifyTarget({ userId: entity.userId, label: entity.name })}
-                            className="ml-1 text-[9px] underline text-muted-foreground hover:text-foreground"
-                          >
-                            avisar
-                          </button>
-                        )}
-                      </p>
-                    )}
-                  </div>
+            {/* Comprovativo por aprovar */}
+            {pendingProof && (
+              <div className="rounded-lg border border-amber-400/40 bg-amber-500/5 p-2.5 mb-2 flex items-center gap-3">
+                <ProofThumbnail path={o.payment_proof_url} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-amber-600">Comprovativo por aprovar</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {PAY_METHOD_LABELS[o.payment_method] || o.payment_method} — confirme antes de liberar ao vendedor.
+                  </p>
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            )}
 
-          <div className="flex justify-between text-xs pt-2 border-t border-border">
-            <span className="text-muted-foreground">{o.payment_method === "cash_on_delivery" ? "Pagamento na entrega" : o.payment_method === "bank_transfer" ? "Transferência" : "Multicaixa Express"}</span>
-            <span className="font-bold text-foreground">{formatPrice(o.total)}</span>
+            {/* Itens + vendedor de cada um */}
+            <div className="space-y-2 mb-2">
+              {o.items.map((item: any) => {
+                const p = item.product;
+                const entity = p?.seller ? { type: "Vendedor", name: p.seller.name, userId: p.seller.user_id }
+                  : p?.company ? { type: "Loja", name: p.company.name, userId: p.company.created_by }
+                  : null;
+                return (
+                  <div key={item.id} className="flex items-center gap-2.5">
+                    <ItemImage url={p?.cover_url || null} alt={p?.title || "Produto"} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-foreground line-clamp-1">{p?.title || "Produto removido"}</p>
+                      <p className="text-[10px] text-muted-foreground">Qtd: {item.quantity} • {formatPrice(item.unit_price)}</p>
+                      {entity && (
+                        <p className="text-[10px] font-bold text-primary flex items-center gap-1 mt-0.5">
+                          {entity.type === "Loja" ? <Building2 className="w-3 h-3" /> : <Store className="w-3 h-3" />}
+                          {entity.type}: {entity.name}
+                          {entity.userId && (
+                            <button
+                              onClick={() => setNotifyTarget({ userId: entity.userId, label: entity.name })}
+                              className="ml-1 text-[9px] underline text-muted-foreground hover:text-foreground"
+                            >
+                              avisar
+                            </button>
+                          )}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Aprovar / Rejeitar pagamento */}
+            {pendingProof && (
+              <div className="flex gap-2 mb-2">
+                <button
+                  onClick={() => approvePayment.mutate(o)}
+                  disabled={approvePayment.isPending}
+                  className="flex-1 py-2 rounded-lg bg-green-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  {approvePayment.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                  Aprovar pagamento
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirm("Rejeitar este pagamento? O pedido será cancelado.")) rejectPayment.mutate(o);
+                  }}
+                  disabled={rejectPayment.isPending}
+                  className="flex-1 py-2 rounded-lg bg-red-500/10 text-red-600 text-xs font-bold flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  {rejectPayment.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <XCircle className="w-3.5 h-3.5" />}
+                  Rejeitar
+                </button>
+              </div>
+            )}
+
+            <div className="flex justify-between text-xs pt-2 border-t border-border">
+              <span className="text-muted-foreground">{PAY_METHOD_LABELS[o.payment_method] || o.payment_method}</span>
+              <span className="font-bold text-foreground">{formatPrice(o.total)}</span>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
 
       {notifyTarget && (
         <NotifyModal
@@ -462,7 +645,7 @@ const AdminFullOrders = () => {
           <Truck className="w-5 h-5 text-primary" /> Pedidos Completos
         </h1>
         <p className="text-xs text-muted-foreground mb-4">
-          Acompanhe todos os pedidos da plataforma e a rota completa de cada produto. Apenas Admin e Moderadores têm acesso.
+          Acompanhe todos os pedidos da plataforma, valide comprovativos de pagamento e veja a rota completa de cada produto. Apenas Admin e Moderadores têm acesso.
         </p>
 
         <div className="grid grid-cols-2 gap-2 mb-4">
