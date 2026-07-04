@@ -1,17 +1,18 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Search, CheckCircle, Star, ShoppingCart, ShoppingBag, MapPin, Users, Eye } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 const filters = ["Todas", "Verificadas", "Melhor Avaliação", "Mais Visitas", "Mais Seguidores"];
 
 const Empresas = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const { data: empresas = [], isLoading } = useQuery({
+  const { data: empresas = [], isLoading, refetch: refetchEmpresas } = useQuery({
     queryKey: ["empresas_list"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -82,6 +83,25 @@ const Empresas = () => {
       }));
     },
   });
+
+  // ── Tempo real: assim que alguém segue/deixa de seguir qualquer empresa
+  // desta lista, os números actualizam-se sozinhos, sem recarregar a página.
+  useEffect(() => {
+    const channel = supabase
+      .channel("empresas_lista_realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "company_follows" },
+        () => {
+          refetchEmpresas();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [refetchEmpresas]);
 
   const filtered = empresas.filter((e: any) => {
     if (searchQuery && !e.name.toLowerCase().includes(searchQuery.toLowerCase()) && !e.category.toLowerCase().includes(searchQuery.toLowerCase())) return false;
