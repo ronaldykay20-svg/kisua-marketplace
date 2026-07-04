@@ -66,19 +66,54 @@ const EmpresaPerfil = () => {
     enabled: !!id && !!user,
   });
 
+  // Followers count
+  const { data: followersCount = 0, refetch: refetchFollowersCount } = useQuery({
+    queryKey: ["company_followers_count", id],
+    queryFn: async () => {
+      const { count } = await supabase.from("company_follows").select("id", { count: "exact", head: true }).eq("company_id", id!);
+      return count || 0;
+    },
+    enabled: !!id,
+  });
+
   const toggleFollow = useMutation({
     mutationFn: async () => {
       if (!user) { window.location.href = "/auth"; return; }
       if (isFollowing) {
-        await supabase.from("company_follows").delete().eq("company_id", id!).eq("user_id", user.id);
+        const { error } = await supabase.from("company_follows").delete().eq("company_id", id!).eq("user_id", user.id);
+        if (error) throw error;
       } else {
-        await supabase.from("company_follows").insert({ company_id: id!, user_id: user.id });
+        const { error } = await supabase.from("company_follows").insert({ company_id: id!, user_id: user.id });
+        if (error) throw error;
       }
     },
+    // ── FIX: actualiza a UI imediatamente, sem esperar pela resposta do servidor.
+    // Antes só se invalidava "company_profile", nunca "company_followers_count",
+    // por isso o número só mudava quando a página recarregava sozinha.
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ["company_followers_count", id] });
+      await queryClient.cancelQueries({ queryKey: ["company_follow", id, user?.id] });
+      const prevCount = queryClient.getQueryData<number>(["company_followers_count", id]);
+      const prevFollowing = queryClient.getQueryData<boolean>(["company_follow", id, user?.id]);
+      queryClient.setQueryData(["company_follow", id, user?.id], !isFollowing);
+      queryClient.setQueryData(["company_followers_count", id], (old: number = 0) => isFollowing ? Math.max(0, old - 1) : old + 1);
+      return { prevCount, prevFollowing };
+    },
+    onError: (err: any, _vars, context) => {
+      // Reverte se der erro (ex: falha de rede)
+      if (context) {
+        queryClient.setQueryData(["company_followers_count", id], context.prevCount);
+        queryClient.setQueryData(["company_follow", id, user?.id], context.prevFollowing);
+      }
+      toast.error(err?.message || "Não foi possível atualizar. Tenta novamente.");
+    },
     onSuccess: () => {
-      refetchFollow();
-      queryClient.invalidateQueries({ queryKey: ["company_profile", id] });
       toast.success(isFollowing ? "Deixou de seguir" : "A seguir!");
+    },
+    onSettled: () => {
+      refetchFollow();
+      refetchFollowersCount();
+      queryClient.invalidateQueries({ queryKey: ["company_profile", id] });
     },
   });
 
@@ -94,16 +129,6 @@ const EmpresaPerfil = () => {
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
-    },
-    enabled: !!id,
-  });
-
-  // Followers count
-  const { data: followersCount = 0 } = useQuery({
-    queryKey: ["company_followers_count", id],
-    queryFn: async () => {
-      const { count } = await supabase.from("company_follows").select("id", { count: "exact", head: true }).eq("company_id", id!);
-      return count || 0;
     },
     enabled: !!id,
   });
@@ -164,7 +189,7 @@ const EmpresaPerfil = () => {
         </div>
 
         <div className="flex items-center gap-2 mt-3">
-          <button onClick={() => toggleFollow.mutate()} className={`px-5 py-2 rounded-card text-xs font-bold transition flex items-center gap-1.5 ${isFollowing ? "bg-muted text-foreground border border-border" : "bg-primary text-primary-foreground"}`}>
+          <button onClick={() => toggleFollow.mutate()} disabled={toggleFollow.isPending} className={`px-5 py-2 rounded-card text-xs font-bold transition flex items-center gap-1.5 disabled:opacity-60 ${isFollowing ? "bg-muted text-foreground border border-border" : "bg-primary text-primary-foreground"}`}>
             {isFollowing ? <UserCheck className="w-3.5 h-3.5" /> : <UserPlus className="w-3.5 h-3.5" />}
             {isFollowing ? "A seguir" : "Seguir"}
           </button>
