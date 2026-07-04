@@ -58,7 +58,6 @@ import FornecedorDashboard from "./pages/FornecedorDashboard.tsx";
 import CriarLoja from "./pages/CriarLoja.tsx";
 import DropshipDashboard from "./pages/DropshipDashboard.tsx";
 import CatalogoFornecedores from "./pages/CatalogoFornecedores.tsx";
-import ShoppingAssistant from "./components/ShoppingAssistant";
 
 const queryClient = new QueryClient();
 
@@ -83,7 +82,6 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
       )}
       {children}
       {!hideBottomNav && <BottomNav />}
-      <ShoppingAssistant />
     </div>
   );
 };
