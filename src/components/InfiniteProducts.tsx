@@ -64,11 +64,11 @@ const getBadgeStyle = (badge: string | null | undefined) => {
 const StarRating = ({ rating }: { rating: number }) => {
   const rounded = Math.round(rating);
   return (
-    <div className="flex items-center gap-[1px]">
+    <div className="flex items-center gap-[2px] flex-nowrap">
       {[1, 2, 3, 4, 5].map((i) => (
         <Star
           key={i}
-          className="w-2.5 h-2.5"
+          className="w-3 h-3 flex-shrink-0"
           style={{
             color: i <= rounded ? "#f5a623" : "#e0d5c8",
             fill: i <= rounded ? "#f5a623" : "none",
@@ -154,7 +154,7 @@ const ProductCard = ({
       </div>
 
       <div className="px-2 pt-1.5 pb-2">
-        <p className="font-bold line-clamp-2 leading-tight" style={{ color: "#6b3a1f", margin: 0, fontSize: "16px" }}>
+        <p className="font-bold line-clamp-2 leading-tight" style={{ color: "#6b3a1f", margin: 0, fontSize: "19px" }}>
           {p.title}
         </p>
 
