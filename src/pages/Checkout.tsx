@@ -292,10 +292,53 @@ const Checkout = () => {
         await supabase.from("order_freight").insert(freightRows);
       }
 
-      // Se o pagamento precisa de confirmação manual, o vendedor NÃO é notificado
-      // agora — só depois do Adm/Moderador aprovar o comprovativo. Se for
-      // pagamento na entrega, segue o fluxo normal de notificação imediata.
-      if (!requiresProof) {
+      const payLabel =
+        paymentMethod === "cash_on_delivery" ? "Pagamento na entrega" :
+        paymentMethod === "bank_transfer" ? "Transferência bancária" :
+        paymentMethod === "multicaixa_express" ? "Multicaixa Express" :
+        paymentMethod;
+
+      if (requiresProof) {
+        // Pagamento por comprovativo: o vendedor só é notificado depois da
+        // aprovação do Admin/Moderador (feita em /admin/pedidos-completos).
+        // Aqui notificamos quem tem de validar o comprovativo, com todos os
+        // dados necessários para decidir e cobrar com precisão.
+        const { data: reviewers } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .in("role", ["admin", "moderator"]);
+
+        if (reviewers && reviewers.length > 0) {
+          const productLines = cartGroups
+            .map((g: any) => {
+              const entityLabel = g.isCompany ? "Loja" : "Vendedor";
+              const itemLines = g.items
+                .map((it: any) => `   • ${it.quantity}× ${it.name} — ${formatPrice(it.price * it.quantity)}`)
+                .join("\n");
+              return `${entityLabel}: ${g.seller.sellerName}\n${itemLines}`;
+            })
+            .join("\n\n");
+
+          const reviewNotifications = reviewers.map((r: any) => ({
+            user_id: r.user_id,
+            title: `📄 Comprovativo por aprovar — Pedido #${order.id.slice(0, 8).toUpperCase()}`,
+            message:
+              `Comprador: ${address.name} (${address.phone})\n` +
+              `Entrega: ${address.municipalityName}, ${address.provinceName}\n` +
+              `Método: ${payLabel}\n` +
+              `Total: ${formatPrice(total)}\n\n` +
+              `${productLines}\n\n` +
+              `Abra o pedido para ver o comprovativo e aprovar o pagamento.`,
+            type: "payment_proof",
+            link_url: `/admin/pedidos-completos?pedido=${order.id}`,
+            image_path: paymentProofPath,
+            is_read: false,
+          }));
+
+          await supabase.from("notifications").insert(reviewNotifications as any);
+        }
+      } else {
+        // Pagamento na entrega: segue o fluxo normal, notifica o vendedor já.
         const sellerGroups = cartGroups.filter((g: any) => !g.isCompany);
         const sellerIds = sellerGroups.map((g: any) => g.seller.sellerId);
 
@@ -304,12 +347,6 @@ const Checkout = () => {
             .from("sellers")
             .select("id, user_id")
             .in("id", sellerIds);
-
-          const payLabel =
-            paymentMethod === "cash_on_delivery" ? "Pagamento na entrega" :
-            paymentMethod === "bank_transfer" ? "Transferência bancária" :
-            paymentMethod === "multicaixa_express" ? "Multicaixa Express" :
-            paymentMethod;
 
           const notifications = (sellers || [])
             .map((s: any) => {
