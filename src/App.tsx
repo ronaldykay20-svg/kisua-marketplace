@@ -83,6 +83,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
       )}
       {children}
       {!hideBottomNav && <BottomNav />}
+      <ShoppingAssistant />
     </div>
   );
 };
