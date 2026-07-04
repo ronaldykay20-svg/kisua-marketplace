@@ -18,6 +18,7 @@ const VendedorPerfil = () => {
   const [activeTab, setActiveTab] = useState("Produtos");
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   const { data: seller, isLoading } = useSeller(id || "");
   const { data: salesCount = 0 } = useSellerSalesCount(id);
@@ -68,24 +69,60 @@ const VendedorPerfil = () => {
     enabled: !!id && !!user,
   });
 
-  const queryClient = useQueryClient();
+  // ── FIX: antes usava a coluna seller.followers_count, que só muda se
+  // existir um gatilho no banco a manter essa coluna sincronizada — não havia.
+  // Agora contamos em tempo real na tabela seller_follows, tal como a página
+  // da empresa já fazia, e actualizamos na hora ao seguir/deixar de seguir.
+  const { data: followersCount = 0, refetch: refetchFollowersCount } = useQuery({
+    queryKey: ["seller_followers_count", id],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("seller_follows")
+        .select("id", { count: "exact", head: true })
+        .eq("seller_id", id!);
+      if (error) throw error;
+      return count || 0;
+    },
+    enabled: !!id,
+  });
 
   const toggleFollow = useMutation({
     mutationFn: async () => {
       if (!user) { window.location.href = "/auth"; return; }
       if (isFollowing) {
-        await supabase.from("seller_follows").delete().eq("seller_id", id!).eq("user_id", user.id);
+        const { error } = await supabase.from("seller_follows").delete().eq("seller_id", id!).eq("user_id", user.id);
+        if (error) throw error;
       } else {
-        await supabase.from("seller_follows").insert({ seller_id: id!, user_id: user.id });
+        const { error } = await supabase.from("seller_follows").insert({ seller_id: id!, user_id: user.id });
+        if (error) throw error;
       }
     },
+    // Actualiza a UI na hora, sem esperar pelo refetch (mesma lógica da página da empresa)
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ["seller_followers_count", id] });
+      await queryClient.cancelQueries({ queryKey: ["seller_follow", id, user?.id] });
+      const prevCount = queryClient.getQueryData<number>(["seller_followers_count", id]);
+      const prevFollowing = queryClient.getQueryData<boolean>(["seller_follow", id, user?.id]);
+      queryClient.setQueryData(["seller_follow", id, user?.id], !isFollowing);
+      queryClient.setQueryData(["seller_followers_count", id], (old: number = 0) => isFollowing ? Math.max(0, old - 1) : old + 1);
+      return { prevCount, prevFollowing };
+    },
+    onError: (err: any, _vars, context) => {
+      if (context) {
+        queryClient.setQueryData(["seller_followers_count", id], context.prevCount);
+        queryClient.setQueryData(["seller_follow", id, user?.id], context.prevFollowing);
+      }
+      toast.error(err?.message || "Não foi possível atualizar. Tenta novamente.");
+    },
     onSuccess: () => {
-      refetchFollow();
-      queryClient.invalidateQueries({ queryKey: ["seller", id] });
-      queryClient.invalidateQueries({ queryKey: ["sellers"] });
       toast.success(isFollowing ? "Deixou de seguir" : "A seguir!");
     },
-    onError: (e: any) => toast.error(e.message),
+    onSettled: () => {
+      refetchFollow();
+      refetchFollowersCount();
+      queryClient.invalidateQueries({ queryKey: ["seller", id] });
+      queryClient.invalidateQueries({ queryKey: ["sellers"] });
+    },
   });
 
   // Increment visits on page load
@@ -158,7 +195,7 @@ const VendedorPerfil = () => {
             </div>
             <div className="flex items-center gap-1">
               <Users className="w-3.5 h-3.5" />
-              <span>{seller.followers_count || 0} seguidores</span>
+              <span>{followersCount} seguidores</span>
             </div>
             <div className="flex items-center gap-1">
               <Eye className="w-3.5 h-3.5" />
@@ -170,7 +207,7 @@ const VendedorPerfil = () => {
             <button
               onClick={() => toggleFollow.mutate()}
               disabled={toggleFollow.isPending}
-              className={`flex-1 py-2 rounded-card text-xs font-bold transition flex items-center justify-center gap-1 ${
+              className={`flex-1 py-2 rounded-card text-xs font-bold transition flex items-center justify-center gap-1 disabled:opacity-60 ${
                 isFollowing
                   ? "bg-muted text-foreground border border-border hover:bg-muted/80"
                   : "bg-primary text-primary-foreground hover:bg-primary/90"
