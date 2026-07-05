@@ -4,6 +4,7 @@ import SellerProductForm from "@/components/seller/SellerProductForm";
 import CouponManagerTab from "@/components/coupons/CouponManagerTab";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { triggerImageEmbeddings } from "@/lib/imageEmbedding";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -226,8 +227,9 @@ const CompanyDashboard = () => {
           is_cover: m.is_cover,
           sort_order: i,
         }));
-        const { error } = await supabase.from("product_media").insert(mediaRows);
+        const { data: insertedMedia, error } = await supabase.from("product_media").insert(mediaRows).select("id, type");
         if (error) throw error;
+        if (insertedMedia) triggerImageEmbeddings(insertedMedia);
       }
 
       if (variants && variants.length > 0 && productId) {
