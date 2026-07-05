@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft, MapPin, CreditCard, Truck, CheckCircle, Loader2, ShieldCheck, ImageOff, Upload, FileCheck, X, Building2, Smartphone, Tag } from "lucide-react";
 import { useCart } from "@/hooks/useSupabaseData";
-import { useClearCart } from "@/hooks/useCartActions";
+import { useClearCart, useRemoveCartItem } from "@/hooks/useCartActions";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -53,16 +53,22 @@ const Checkout = () => {
   const location = useLocation();
   const { user } = useAuth();
   const clearCart = useClearCart();
+  const removeCartItem = useRemoveCartItem();
   const queryClient = useQueryClient();
   const { provinces, getMunicipalitiesByProvince } = useFreight();
 
-  // ── Modo da compra: "solo" (Comprar agora) ou "cart" (Carrinho) ──────────
-  // Se veio state.soloProduct, IGNORAMOS totalmente o carrinho: não o lemos
-  // para montar o pedido, e não o limpamos no final.
+  // ── Modo da compra ────────────────────────────────────────────────────────
+  // "solo"      → veio do botão "Comprar agora" (ignora totalmente o carrinho)
+  // "selection" → veio do carrinho, mas só com os itens que o utilizador
+  //               marcou como seleccionados (o resto do carrinho fica intacto)
+  // "cart"      → fallback: usa o carrinho completo (compatibilidade)
   const soloProduct = (location.state as { soloProduct?: SoloProductState } | null)?.soloProduct;
   const isSoloCheckout = !!soloProduct;
 
-  // Carrinho real — só é buscado/usado quando NÃO é compra avulsa
+  const selectedCartItems = (location.state as { selectedCartItems?: any[] } | null)?.selectedCartItems;
+  const isSelectionCheckout = !isSoloCheckout && Array.isArray(selectedCartItems) && selectedCartItems.length > 0;
+
+  // Carrinho real — só é buscado quando NÃO é compra avulsa nem por selecção
   const { data: realCartItems = [], isLoading: realCartLoading } = useCart();
 
   // Produto avulso — só é buscado quando É compra avulsa
@@ -100,7 +106,8 @@ const Checkout = () => {
   });
 
   // ── "cartItems" unificado: a partir daqui, TODO o resto da página usa
-  // esta variável e nem sabe se veio do carrinho ou de "Comprar agora".
+  // esta variável e nem sabe se veio do carrinho completo, de uma selecção
+  // parcial do carrinho, ou de "Comprar agora".
   const cartItems = isSoloCheckout
     ? (soloProductData
         ? [{
@@ -111,9 +118,11 @@ const Checkout = () => {
             products: soloProductData,
           }]
         : [])
-    : realCartItems;
+    : isSelectionCheckout
+      ? selectedCartItems!
+      : realCartItems;
 
-  const cartLoading = isSoloCheckout ? soloLoading : realCartLoading;
+  const cartLoading = isSoloCheckout ? soloLoading : (isSelectionCheckout ? false : realCartLoading);
 
   const [step, setStep] = useState<Step>("address");
   const [address, setAddress] = useState({
@@ -561,10 +570,21 @@ const Checkout = () => {
         }
       }
 
-      // ── Só limpamos o carrinho REAL quando o pedido veio do carrinho.
-      // Numa compra avulsa ("Comprar agora"), o carrinho do usuário nem foi
-      // tocado e deve continuar exatamente como estava antes.
-      if (!isSoloCheckout) {
+      // ── Limpeza do carrinho após o pedido ───────────────────────────────
+      // - Compra avulsa ("Comprar agora"): o carrinho nunca foi tocado, não
+      //   mexemos em nada.
+      // - Checkout por selecção: removemos SÓ os itens que foram comprados,
+      //   preservando no carrinho tudo o que o utilizador deixou de fora.
+      // - Checkout do carrinho completo (fallback): limpa tudo, como antes.
+      if (isSelectionCheckout) {
+        for (const item of cartItems as any[]) {
+          try {
+            await removeCartItem.mutateAsync(item.id);
+          } catch (removeErr) {
+            console.error("Falha ao remover item comprado do carrinho:", removeErr);
+          }
+        }
+      } else if (!isSoloCheckout) {
         await clearCart.mutateAsync();
       }
       return order;
@@ -890,7 +910,8 @@ const Checkout = () => {
               </p>
             </div>
 
-            {/* Cupom de desconto — desconta apenas os produtos, nunca o frete */}
+            {/* Cupom de desconto — desconta apenas os produtos, nunca o frete.
+                Vive só aqui no checkout (o carrinho não tem campo de cupom). */}
             <div className="bg-card rounded-card border border-border p-4">
               <div className="flex items-center gap-2 mb-3">
                 <Tag className="w-4 h-4 text-primary" />
@@ -994,6 +1015,11 @@ const Checkout = () => {
                 <Truck className="w-4 h-4 text-primary" />
                 <h3 className="text-sm font-bold text-foreground">Itens ({cartItems.length})</h3>
               </div>
+              {isSelectionCheckout && (
+                <p className="text-[11px] text-muted-foreground -mt-1 mb-2">
+                  Os restantes itens do seu carrinho continuam guardados para depois.
+                </p>
+              )}
               <div className="space-y-2">
                 {cartItems.map((item: any) => {
                   const imageUrl = getItemImageUrl(item);
