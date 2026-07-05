@@ -146,15 +146,15 @@ const App = () => (
             <Route path="/admin/contas-pagamento" element={<Layout><ProtectedRoute requiredRole="moderator"><AdminPaymentAccounts /></ProtectedRoute></Layout>} />
             <Route path="/admin/encomendas" element={<Layout><ProtectedRoute requiredRole="admin"><AdminFullOrders /></ProtectedRoute></Layout>} />
             <Route path="/central-pedidos" element={<Layout><ProtectedRoute><CentralDePedidos /></ProtectedRoute></Layout>} />
-            <Route path="/moderador" element={<Layout><ProtectedRoute requiredRole="moderator"><ModeratorPanel /></ProtectedRoute></Layout>} />
+            <Route path="/painel-moderador" element={<Layout><ProtectedRoute requiredRole="moderator"><ModeratorPanel /></ProtectedRoute></Layout>} />
             <Route path="/carrinho" element={<Layout><ProtectedRoute><Carrinho /></ProtectedRoute></Layout>} />
             <Route path="/checkout" element={<Layout><ProtectedRoute><Checkout /></ProtectedRoute></Layout>} />
-            <Route path="/vendedor-dashboard" element={<Layout><ProtectedRoute><SellerDashboard /></ProtectedRoute></Layout>} />
-            <Route path="/empresa-dashboard" element={<Layout><ProtectedRoute><CompanyDashboard /></ProtectedRoute></Layout>} />
+            <Route path="/painel-vendedor" element={<Layout><ProtectedRoute><SellerDashboard /></ProtectedRoute></Layout>} />
+            <Route path="/painel-empresa" element={<Layout><ProtectedRoute><CompanyDashboard /></ProtectedRoute></Layout>} />
             <Route path="/seja-fornecedor" element={<Layout><SejFornecedor /></Layout>} />
-            <Route path="/fornecedor-dashboard" element={<Layout><ProtectedRoute><FornecedorDashboard /></ProtectedRoute></Layout>} />
+            <Route path="/painel-fornecedor" element={<Layout><ProtectedRoute><FornecedorDashboard /></ProtectedRoute></Layout>} />
             <Route path="/criar-loja" element={<Layout><ProtectedRoute><CriarLoja /></ProtectedRoute></Layout>} />
-            <Route path="/dropship-dashboard" element={<Layout><ProtectedRoute><DropshipDashboard /></ProtectedRoute></Layout>} />
+            <Route path="/painel-dropship" element={<Layout><ProtectedRoute><DropshipDashboard /></ProtectedRoute></Layout>} />
             <Route path="/catalogo-fornecedores" element={<Layout><ProtectedRoute><CatalogoFornecedores /></ProtectedRoute></Layout>} />
             <Route path="*" element={<Layout><NotFound /></Layout>} />
           </Routes>
