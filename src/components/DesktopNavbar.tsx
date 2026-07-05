@@ -7,8 +7,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCategories } from "@/hooks/useSupabaseData";
 import {
   Search, ShoppingCart, Bell, User, ChevronDown,
-  Gavel, Radio, Zap, Store, Users, LogOut, X,
+  Gavel, Radio, Zap, Store, Users, LogOut, X, Camera,
 } from "lucide-react";
+import { fileToImageSearchPayload } from "@/lib/photoSearch";
 
 const staticCategories = [
   { name: "Electrónicos", image: "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=60&h=60&fit=crop" },
@@ -138,6 +139,26 @@ const DesktopNavbar = () => {
       navigate(`/pesquisa?q=${encodeURIComponent(search.trim())}`);
       setSearch("");
     }
+  };
+
+  // Pesquisa por foto (câmera ou galeria) — sem "capture" para o browser
+  // mostrar as duas opções quando aplicável.
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const [pesquisandoFoto, setPesquisandoFoto] = useState(false);
+  const handleCameraClick = () => cameraInputRef.current?.click();
+  const handleCameraChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setPesquisandoFoto(true);
+    try {
+      const { base64, mimeType } = await fileToImageSearchPayload(file);
+      navigate("/pesquisa?modo=imagem", { state: { imageBase64: base64, mimeType } });
+    } catch (err) {
+      console.error("Erro ao preparar foto para pesquisa:", err);
+      alert("Não foi possível ler a foto. Tenta novamente.");
+    }
+    setPesquisandoFoto(false);
   };
 
   const navItems = [
@@ -278,7 +299,27 @@ const DesktopNavbar = () => {
             className="flex-1 py-2.5 px-3 bg-transparent focus:outline-none"
             style={{ color: brown, fontSize: "16px" }}
           />
+          <button
+            type="button"
+            onClick={handleCameraClick}
+            disabled={pesquisandoFoto}
+            className="w-10 h-9 flex items-center justify-center flex-shrink-0 rounded-xl m-0.5"
+            style={{
+              background: `linear-gradient(135deg, ${sandDark}, ${sand})`,
+              opacity: pesquisandoFoto ? 0.6 : 1,
+            }}
+            title="Pesquisar por foto"
+          >
+            <Camera className="w-4 h-4 text-white" />
+          </button>
         </form>
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleCameraChange}
+          className="hidden"
+        />
 
         <div className="hidden md:flex lg:hidden items-center gap-1.5 flex-shrink-0 px-3 py-1.5 rounded-xl"
           style={{ background: brownLight, border: `1px solid rgba(74,46,10,0.18)` }}>
