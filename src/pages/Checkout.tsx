@@ -533,7 +533,13 @@ const Checkout = () => {
         try {
           await redeemCouponCode(appliedCoupon.code, eligibleSubtotal, order.id);
           if (appliedCoupon.coupon_id) {
-            await markWalletCouponUsed(appliedCoupon.coupon_id, order.id).catch(() => {});
+            // Não engolir o erro em silêncio: list_display_coupons também usa
+            // user_coupons.is_used como sinal de "já esgotado por este user".
+            // Se isto falhar sem deixar rasto, o cupom pode voltar a aparecer
+            // como "Apanhar cupom" para quem já o gastou.
+            await markWalletCouponUsed(appliedCoupon.coupon_id, order.id).catch((walletErr) => {
+              console.error("Falha ao marcar cupom da carteira como usado:", walletErr);
+            });
           }
         } catch (couponErr) {
           console.error("Falha ao registar resgate do cupom:", couponErr);
