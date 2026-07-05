@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Ticket, Plus, Trash2, Eye, EyeOff, X, Copy, AlertTriangle } from "lucide-react";
+import { Ticket, Plus, Trash2, Eye, EyeOff, X, Copy, AlertTriangle, Gift } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -10,6 +10,7 @@ import {
   fetchDropshipMarginCap,
   createCoupon,
   toggleCouponActive,
+  toggleCouponWelcomePopup,
   deleteCoupon,
   validateCouponRules,
   DiscountType,
@@ -18,7 +19,6 @@ import {
 interface CouponManagerTabProps {
   scope: CouponScope;
   ownerId: string | null;
-  // Título mostrado no topo (ex: "Cupons da Loja", "Cupons de Lançamento")
   heading?: string;
 }
 
@@ -32,6 +32,7 @@ const emptyForm = {
   usage_limit: "",
   usage_limit_per_user: "1",
   expires_at: "",
+  show_in_welcome_popup: false,
 };
 
 const CouponManagerTab = ({ scope, ownerId, heading }: CouponManagerTabProps) => {
@@ -44,8 +45,6 @@ const CouponManagerTab = ({ scope, ownerId, heading }: CouponManagerTabProps) =>
     queryFn: fetchCouponSettings,
   });
 
-  // Só se aplica a lojas de dropship — calcula o teto real a partir da margem
-  // (preço de venda da loja − preço de custo do fornecedor) dos produtos activos.
   const { data: dropshipCap, isLoading: loadingCap } = useQuery({
     queryKey: ["dropship_margin_cap", ownerId],
     queryFn: () => fetchDropshipMarginCap(ownerId!),
@@ -84,6 +83,7 @@ const CouponManagerTab = ({ scope, ownerId, heading }: CouponManagerTabProps) =>
         usage_limit: form.usage_limit ? Number(form.usage_limit) : null,
         usage_limit_per_user: form.usage_limit_per_user ? Number(form.usage_limit_per_user) : 1,
         expires_at: form.expires_at ? new Date(form.expires_at).toISOString() : null,
+        show_in_welcome_popup: scope === "platform" ? form.show_in_welcome_popup : false,
       });
     },
     onSuccess: () => {
@@ -102,6 +102,15 @@ const CouponManagerTab = ({ scope, ownerId, heading }: CouponManagerTabProps) =>
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["coupons", scope, ownerId] });
       toast.success("Estado alterado");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const togglePopup = useMutation({
+    mutationFn: ({ id, show }: { id: string; show: boolean }) => toggleCouponWelcomePopup(id, show),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["coupons", scope, ownerId] });
+      toast.success("Popup de boas-vindas actualizado");
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -286,6 +295,19 @@ const CouponManagerTab = ({ scope, ownerId, heading }: CouponManagerTabProps) =>
             />
           </div>
 
+          {scope === "platform" && (
+            <label className="flex items-center gap-2 text-[12px] font-semibold text-foreground bg-muted/50 rounded-xl p-3">
+              <input
+                type="checkbox"
+                checked={form.show_in_welcome_popup}
+                onChange={(e) => setForm({ ...form, show_in_welcome_popup: e.target.checked })}
+                className="w-4 h-4"
+              />
+              <Gift className="w-3.5 h-3.5 text-primary" />
+              Mostrar no popup de boas-vindas (novos utilizadores)
+            </label>
+          )}
+
           <button
             onClick={() => create.mutate()}
             disabled={create.isPending || (isDropship && !dropshipCap)}
@@ -320,6 +342,15 @@ const CouponManagerTab = ({ scope, ownerId, heading }: CouponManagerTabProps) =>
                   {c.code} <Copy className="w-3 h-3 text-muted-foreground" />
                 </button>
                 <div className="flex gap-1">
+                  {scope === "platform" && (
+                    <button
+                      onClick={() => togglePopup.mutate({ id: c.id, show: !c.show_in_welcome_popup })}
+                      title="Mostrar no popup de boas-vindas"
+                      className={`p-1.5 rounded-lg ${c.show_in_welcome_popup ? "text-amber-500 bg-amber-500/10" : "text-muted-foreground bg-muted"}`}
+                    >
+                      <Gift className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                   <button
                     onClick={() => toggle.mutate({ id: c.id, active: !c.is_active })}
                     className={`p-1.5 rounded-lg ${c.is_active ? "text-green-500 bg-green-500/10" : "text-muted-foreground bg-muted"}`}
@@ -342,6 +373,7 @@ const CouponManagerTab = ({ scope, ownerId, heading }: CouponManagerTabProps) =>
                 {c.min_purchase_amount > 0 && <span>• min. {Number(c.min_purchase_amount).toLocaleString("pt-AO")} Kz</span>}
                 {c.usage_limit != null && <span>• {c.times_used}/{c.usage_limit} usados</span>}
                 {c.expires_at && <span>• expira {new Date(c.expires_at).toLocaleDateString("pt-AO")}</span>}
+                {c.show_in_welcome_popup && <span className="text-amber-500 font-bold">• No popup de boas-vindas</span>}
                 {expired && <span className="text-destructive font-bold">Expirado</span>}
                 {exhausted && !expired && <span className="text-destructive font-bold">Esgotado</span>}
               </div>
