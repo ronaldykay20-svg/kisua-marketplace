@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { Minus, Plus, Trash2, ShoppingCart, Loader2, Star, Heart, ImageOff, Check, Pencil, X } from "lucide-react";
 import { useCart } from "@/hooks/useSupabaseData";
 import { useUpdateCartItem, useRemoveCartItem, useAddToCart } from "@/hooks/useCartActions";
+import FreeShippingBar from "@/components/FreeShippingBar";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -316,6 +317,9 @@ const Carrinho = () => {
                 Seleccionar tudo ({selectedIds.length}/{totalItemsCount})
               </span>
             </button>
+
+            {/* ── Barra de frete grátis ── */}
+            <FreeShippingBar subtotal={subtotal} />
 
             {/* ── Itens ── */}
             <div className="space-y-3">
