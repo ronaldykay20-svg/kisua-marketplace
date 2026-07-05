@@ -194,6 +194,70 @@ export async function validateCouponCode(code: string): Promise<ValidateCouponRe
   return data as ValidateCouponResult;
 }
 
+// ─── Cupom Wallet (estilo Shein) ────────────────────────────────────────────
+// Fluxo: list_display_coupons mostra o que dá para "apanhar" num grupo de
+// produtos → collect_coupon grava na carteira do utilizador → list_wallet_coupons
+// devolve o que está por usar (com o code, só para o dono da carteira) →
+// Checkout aplica automaticamente o melhor → mark_wallet_coupon_used fecha o ciclo.
+
+export interface DisplayCoupon {
+  id: string;
+  title: string | null;
+  discount_type: DiscountType;
+  discount_value: number;
+  scope: CouponScope;
+  owner_id: string | null;
+  min_purchase_amount: number;
+  max_discount_amount: number | null;
+  expires_at: string | null;
+}
+
+export interface WalletCoupon extends DisplayCoupon {
+  wallet_id: string;
+  coupon_id: string;
+  code: string;
+}
+
+export interface CollectCouponResult {
+  success: boolean;
+  reason?: string;
+}
+
+// Cupons "apanháveis" para os produtos dados (usado no grid/InfiniteProducts)
+export async function fetchDisplayCoupons(productIds: string[]): Promise<DisplayCoupon[]> {
+  if (productIds.length === 0) return [];
+  const { data, error } = await (supabase as any).rpc("list_display_coupons", {
+    p_product_ids: productIds,
+  });
+  if (error) throw error;
+  return data || [];
+}
+
+// Grava o cupom na carteira do utilizador autenticado
+export async function collectCoupon(couponId: string): Promise<CollectCouponResult> {
+  const { data, error } = await (supabase as any).rpc("collect_coupon", {
+    p_coupon_id: couponId,
+  });
+  if (error) throw error;
+  return data as CollectCouponResult;
+}
+
+// Carteira do utilizador — cupons por usar, prontos para o checkout aplicar
+export async function fetchWalletCoupons(): Promise<WalletCoupon[]> {
+  const { data, error } = await (supabase as any).rpc("list_wallet_coupons");
+  if (error) throw error;
+  return data || [];
+}
+
+// Fecha o ciclo: marca o cupom da carteira como usado após o pedido confirmado
+export async function markWalletCouponUsed(couponId: string, orderId: string): Promise<void> {
+  const { error } = await (supabase as any).rpc("mark_wallet_coupon_used", {
+    p_coupon_id: couponId,
+    p_order_id: orderId,
+  });
+  if (error) throw error;
+}
+
 // ─── Resgatar/aplicar o cupom no fecho da compra ────────────────────────────
 // eligibleSubtotal = subtotal apenas dos itens do carrinho que pertencem ao
 // dono do cupom (loja/empresa/store) — ou o carrinho todo, se for cupom de plataforma.
