@@ -17,7 +17,7 @@ import AdminPaymentReviewTab from "@/components/admin/AdminPaymentReviewTab";
 import CouponManagerTab from "@/components/coupons/CouponManagerTab";
 import AdminAnalyticsTab from "@/components/admin/AdminAnalyticsTab";
 import { toast } from "sonner";
-import { convertToWebP } from "@/lib/imageToWebp";
+import { convertToWebP, getFileExtension } from "@/lib/imageToWebp";
 
 const roleBadge: Record<string, { label: string; color: string; icon: any }> = {
   admin: { label: "Admin", color: "bg-red-500/10 text-red-500 border-red-500/20", icon: Crown },
@@ -105,7 +105,7 @@ const AdForm = ({ onClose }: { onClose: () => void }) => {
         mediaType = isVideo ? "video" : "image";
         // Converte para WebP antes de enviar (só imagens; vídeos passam direto)
         const uploadFile = isVideo ? file : await convertToWebP(file, 0.8, 1600);
-        const ext = isVideo ? file.name.split(".").pop() : "webp";
+        const ext = isVideo ? file.name.split(".").pop() : getFileExtension(uploadFile);
         const path = `ads/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
         const { error: upErr } = await (supabase as any).storage.from("ads").upload(path, uploadFile, { upsert: true });
         if (upErr) throw upErr;
@@ -347,7 +347,8 @@ const AdminLeiloesTab = () => {
     try {
       // Converte para WebP antes de enviar
       const webpFile = await convertToWebP(file, 0.8, 1600);
-      const path = `hero-${Date.now()}.webp`;
+      const ext = getFileExtension(webpFile);
+      const path = `hero-${Date.now()}.${ext}`;
       const { error: upErr } = await (supabase as any).storage
         .from("auction-hero")
         .upload(path, webpFile, { upsert: true });
