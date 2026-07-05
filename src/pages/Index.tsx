@@ -4,12 +4,16 @@ import FeaturedSellers from "@/components/FeaturedSellers";
 import PromoProductCards from "@/components/PromoProductCards";
 import GroupedVideoStories from "@/components/GroupedVideoStories";
 import InfiniteProducts from "@/components/InfiniteProducts";
+import FlashSaleBar from "@/components/FlashSaleBar";
+import LiveActivityTicker from "@/components/LiveActivityTicker";
 import { useDeviceLayout } from "@/hooks/useDeviceLayout";
 
 // ─── LazySection ─────────────────────────────────────────────────────────────
 // Adia o render dos filhos até o elemento estar a ~300px do viewport.
 // Enquanto não está visível, reserva o espaço com um placeholder da altura estimada.
 // Isto impede que todos os componentes disparem as suas queries ao mesmo tempo.
+// Quando entra em cena, a secção aparece com um fade + subida suave (em vez de
+// simplesmente "aparecer" de repente).
 const LazySection = ({
   children,
   estimatedHeight = 200,
@@ -21,6 +25,7 @@ const LazySection = ({
 }) => {
   const ref = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
+  const [entered, setEntered] = useState(false);
 
   useEffect(() => {
     const el = ref.current;
@@ -38,9 +43,28 @@ const LazySection = ({
     return () => obs.disconnect();
   }, [rootMargin]);
 
+  // Só liga a transição um frame depois de montar, para o CSS animar a entrada
+  useEffect(() => {
+    if (!visible) return;
+    const raf = requestAnimationFrame(() => setEntered(true));
+    return () => cancelAnimationFrame(raf);
+  }, [visible]);
+
   return (
     <div ref={ref}>
-      {visible ? children : <div style={{ minHeight: estimatedHeight }} />}
+      {visible ? (
+        <div
+          style={{
+            opacity: entered ? 1 : 0,
+            transform: entered ? "translateY(0)" : "translateY(16px)",
+            transition: "opacity 0.5s cubic-bezier(0.22,1,0.36,1), transform 0.5s cubic-bezier(0.22,1,0.36,1)",
+          }}
+        >
+          {children}
+        </div>
+      ) : (
+        <div style={{ minHeight: estimatedHeight }} />
+      )}
     </div>
   );
 };
@@ -51,6 +75,8 @@ const LazySection = ({
 
 const MobileLayout = () => (
   <>
+    <FlashSaleBar />
+    <LiveActivityTicker />
     {/* Acima da dobra — carrega imediatamente */}
     <HomeBannerSlot slot={1} device="mobile" />
     <HomeBannerSlot slot={2} device="mobile" />
@@ -114,6 +140,8 @@ const MobileLayout = () => (
 
 const TabletLayout = () => (
   <div className="max-w-screen-lg mx-auto px-4">
+    <FlashSaleBar />
+    <LiveActivityTicker />
     {/* Acima da dobra */}
     <HomeBannerSlot slot={201} device="tablet" />
     <HomeBannerSlot slot={202} device="tablet" />
@@ -178,6 +206,8 @@ const TabletLayout = () => (
 
 const DesktopLayout = () => (
   <div className="max-w-screen-xl mx-auto px-6">
+    <FlashSaleBar />
+    <LiveActivityTicker />
     {/* Acima da dobra */}
     <HomeBannerSlot slot={301} device="desktop" />
 
