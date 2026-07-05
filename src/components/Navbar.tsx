@@ -1,4 +1,4 @@
-import { Search, Menu, ShoppingCart, User, MapPin, X, ChevronRight, Gavel, Radio, Store, Users, Zap, LogOut, Bell, Mic, ArrowLeft } from "lucide-react";
+import { Search, Menu, ShoppingCart, User, MapPin, X, ChevronRight, Gavel, Radio, Store, Users, Zap, LogOut, Bell, Camera, ArrowLeft } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -8,6 +8,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCategories } from "@/hooks/useSupabaseData";
 import { classifyNotification } from "@/lib/notificationStyle";
+import { fileToImageSearchPayload } from "@/lib/photoSearch";
 
 const staticCategories = [
   { name: "Electrónicos", image: "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=100&h=100&fit=crop" },
@@ -51,27 +52,6 @@ const useCartCount = (userId?: string) =>
     enabled: !!userId,
     refetchInterval: 15000,
   });
-
-const useSpeechRecognition = (onResult: (text: string) => void) => {
-  const [listening, setListening] = useState(false);
-  const recognitionRef = useRef<any>(null);
-  const startListening = useCallback(() => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) { alert("O seu dispositivo nao suporta pesquisa por voz."); return; }
-    const recognition = new SpeechRecognition();
-    recognitionRef.current = recognition;
-    recognition.lang = "pt-AO";
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
-    recognition.onstart = () => setListening(true);
-    recognition.onend = () => setListening(false);
-    recognition.onerror = () => setListening(false);
-    recognition.onresult = (event: any) => { onResult(event.results[0][0].transcript); };
-    recognition.start();
-  }, [onResult]);
-  const stopListening = useCallback(() => { recognitionRef.current?.stop(); setListening(false); }, []);
-  return { listening, startListening, stopListening };
-};
 
 const Navbar = () => {
   const [menuOpen, setMenuOpen]                           = useState(false);
@@ -219,12 +199,27 @@ const Navbar = () => {
     }
   };
 
-  const { listening, startListening, stopListening } = useSpeechRecognition((text) => {
-    navigate(`/pesquisa?q=${encodeURIComponent(text)}`);
-    setSearchBarOpen(false);
-    setCategorySearchVisible(false);
-  });
-  const handleMicClick = () => { if (listening) stopListening(); else startListening(); };
+  // Pesquisa por foto (câmera ou galeria) — sem "capture" no input para o
+  // telemóvel mostrar as duas opções (tirar foto / escolher da galeria).
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const [pesquisandoFoto, setPesquisandoFoto] = useState(false);
+  const handleCameraClick = () => cameraInputRef.current?.click();
+  const handleCameraChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setPesquisandoFoto(true);
+    try {
+      const { base64, mimeType } = await fileToImageSearchPayload(file);
+      setSearchBarOpen(false);
+      setCategorySearchVisible(false);
+      navigate("/pesquisa?modo=imagem", { state: { imageBase64: base64, mimeType } });
+    } catch (err) {
+      console.error("Erro ao preparar foto para pesquisa:", err);
+      alert("Não foi possível ler a foto. Tenta novamente.");
+    }
+    setPesquisandoFoto(false);
+  };
 
   const sand       = "#D4B896";
   const sandDark   = "#B8956A";
@@ -391,16 +386,16 @@ const Navbar = () => {
                 />
                 <button
                   type="button"
-                  onClick={handleMicClick}
+                  onClick={handleCameraClick}
+                  disabled={pesquisandoFoto}
                   className="w-10 h-9 flex items-center justify-center flex-shrink-0 rounded-xl m-0.5"
                   style={{
-                    background: listening ? "#E53935" : `linear-gradient(135deg, ${sandDark}, ${sand})`,
-                    boxShadow: listening ? "0 0 0 4px rgba(229,57,53,0.25)" : "none",
-                    animation: listening ? "pulse 1.2s ease-in-out infinite" : "none",
+                    background: `linear-gradient(135deg, ${sandDark}, ${sand})`,
+                    opacity: pesquisandoFoto ? 0.6 : 1,
                   }}
-                  title={listening ? "A ouvir... clique para parar" : "Pesquisar por voz"}
+                  title="Pesquisar por foto"
                 >
-                  <Mic className="w-4 h-4 text-white" />
+                  <Camera className="w-4 h-4 text-white" />
                 </button>
               </form>
             </div>
@@ -434,19 +429,29 @@ const Navbar = () => {
                 />
                 <button
                   type="button"
-                  onClick={handleMicClick}
+                  onClick={handleCameraClick}
+                  disabled={pesquisandoFoto}
                   className="w-10 h-9 flex items-center justify-center flex-shrink-0 rounded-xl m-0.5"
                   style={{
-                    background: listening ? "#E53935" : `linear-gradient(135deg, ${sandDark}, ${sand})`,
-                    boxShadow: listening ? "0 0 0 4px rgba(229,57,53,0.25)" : "none",
-                    animation: listening ? "pulse 1.2s ease-in-out infinite" : "none",
+                    background: `linear-gradient(135deg, ${sandDark}, ${sand})`,
+                    opacity: pesquisandoFoto ? 0.6 : 1,
                   }}
+                  title="Pesquisar por foto"
                 >
-                  <Mic className="w-4 h-4 text-white" />
+                  <Camera className="w-4 h-4 text-white" />
                 </button>
               </form>
             </div>
           )}
+
+          {/* Input escondido partilhado pelos botões de pesquisa por foto acima */}
+          <input
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleCameraChange}
+            className="hidden"
+          />
 
           {/* ══ PÍLULA LOCALIZAÇÃO ══ */}
           {!isCategoriasPage && !isPesquisaPage && !isCategoriaDetalhePage && (
