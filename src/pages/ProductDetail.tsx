@@ -2,7 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Heart, Share2, ShoppingCart, Star, Truck, Shield,
   MapPin, ChevronRight, Minus, Plus, ZoomIn, Store, MessageCircle,
-  Send, Loader2, ShieldCheck, X, Building2, Check,
+  Send, Loader2, ShieldCheck, X, Building2, Check, Eye,
 } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { allProducts } from "@/data/products";
@@ -12,6 +12,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAddToCart } from "@/hooks/useCartActions";
 import { useFavorites } from "@/hooks/useFavorites";
+import { useProductViewers } from "@/hooks/useProductViewers";
 import { toast } from "sonner";
 
 const N = {
@@ -136,6 +137,9 @@ const ProductDetail = () => {
   const isUuid = id && id.length > 10;
 
   const { data: dbProduct, isLoading: loadingProduct } = useProduct(id || "");
+  // Presença real: esta pessoa passa a contar como "a ver agora" enquanto
+  // estiver nesta página (track: true). Nada de números inventados.
+  const liveViewerCount = useProductViewers(isUuid ? id : null, { track: true, enabled: !!isUuid });
   const { data: dbMedia = [] } = useQuery({ queryKey: ["product_media_detail", id], queryFn: async () => { const { data } = await supabase.from("product_media").select("*").eq("product_id", id!).order("sort_order"); return data || []; }, enabled: !!isUuid });
   const { data: dbVariants = [] } = useQuery({ queryKey: ["product_variants", id], queryFn: async () => { const { data } = await supabase.from("product_variants").select("*").eq("product_id", id!).eq("is_active", true).order("sort_order"); return data || []; }, enabled: !!isUuid });
 
@@ -551,6 +555,31 @@ const ProductDetail = () => {
               </div>
             ) : (
               <p className="text-xs text-gray-400 mt-0.5">Sem avaliações ainda</p>
+            )}
+
+            {/* Pessoas a ver agora — contagem real via presença, não inventada.
+                Só aparece quando há de facto mais alguém além do próprio visitante. */}
+            {liveViewerCount > 1 && (
+              <div className="flex items-center gap-1 mt-1">
+                <span
+                  className="rounded-full"
+                  style={{
+                    width: 6, height: 6, background: "#5a8a5a",
+                    animation: "kw-live-pulse 1.6s infinite",
+                  }}
+                />
+                <Eye className="w-3 h-3" style={{ color: "#7fa87f" }} />
+                <span className="text-[11px] font-semibold" style={{ color: "#5a8a5a" }}>
+                  {liveViewerCount} pessoas a ver agora
+                </span>
+                <style>{`
+                  @keyframes kw-live-pulse {
+                    0%   { box-shadow: 0 0 0 0 rgba(90,138,90,0.55); }
+                    70%  { box-shadow: 0 0 0 5px rgba(90,138,90,0); }
+                    100% { box-shadow: 0 0 0 0 rgba(90,138,90,0); }
+                  }
+                `}</style>
+              </div>
             )}
 
             {/* Preço */}
