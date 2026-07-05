@@ -236,6 +236,15 @@ export async function fetchWelcomeCoupons(): Promise<DisplayCoupon[]> {
   return data || [];
 }
 
+// IDs de cupons já resgatados pelo utilizador atual em algum momento —
+// independentemente de já terem sido usados (is_used) ou não. Usado para
+// decidir elegibilidade por conta (não por dispositivo), ex: no popup de boas-vindas.
+export async function fetchCollectedCouponIds(): Promise<string[]> {
+  const { data, error } = await (supabase as any).rpc("list_collected_coupon_ids");
+  if (error) throw error;
+  return (data || []).map((row: { coupon_id: string }) => row.coupon_id);
+}
+
 export async function collectCoupon(couponId: string): Promise<CollectCouponResult> {
   const { data, error } = await (supabase as any).rpc("collect_coupon", {
     p_coupon_id: couponId,
