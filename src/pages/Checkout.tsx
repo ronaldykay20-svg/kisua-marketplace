@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { ArrowLeft, MapPin, CreditCard, Truck, CheckCircle, Loader2, ShieldCheck, ImageOff, Upload, FileCheck, X, Building2, Smartphone } from "lucide-react";
+import { ArrowLeft, MapPin, CreditCard, Truck, CheckCircle, Loader2, ShieldCheck, ImageOff, Upload, FileCheck, X, Building2, Smartphone, Tag } from "lucide-react";
 import { useCart } from "@/hooks/useSupabaseData";
 import { useClearCart } from "@/hooks/useCartActions";
 import { useAuth } from "@/contexts/AuthContext";
@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import FreightCalculator from "@/components/freight/FreightCalculator";
 import { useFreight } from "@/hooks/useFreight";
+import { validateCouponCode, redeemCouponCode, ValidateCouponResult } from "@/lib/coupons";
 
 const formatPrice = (price: number) =>
   price.toLocaleString("pt-AO").replace(/,/g, ".") + " Kz";
@@ -23,6 +24,28 @@ type SoloProductState = {
   productId: string;
   quantity: number;
   variantId: string | null;
+};
+
+// Traduz os motivos devolvidos por validate_coupon (RPC) para mensagens amigáveis.
+// A RPC é a fonte da verdade; aqui só cobrimos os casos mais comuns e caímos
+// num texto genérico para qualquer motivo que não reconheçamos.
+const couponErrorMessage = (reason?: string): string => {
+  switch (reason) {
+    case "not_found":
+      return "Cupom não encontrado.";
+    case "inactive":
+      return "Este cupom já não está activo.";
+    case "expired":
+      return "Este cupom expirou.";
+    case "usage_limit_reached":
+      return "Este cupom atingiu o limite de utilizações.";
+    case "user_limit_reached":
+      return "Já utilizou este cupom o número máximo de vezes.";
+    case "min_purchase":
+      return "O valor da compra não atinge o mínimo exigido por este cupom.";
+    default:
+      return "Cupom inválido ou expirado.";
+  }
 };
 
 const Checkout = () => {
@@ -111,6 +134,14 @@ const Checkout = () => {
   const [proofPreviewUrl, setProofPreviewUrl] = useState<string | null>(null);
   const [uploadingProof, setUploadingProof] = useState(false);
   const [proofError, setProofError] = useState("");
+
+  // ── Cupom de desconto ──
+  // O cupom é um desconto que o vendedor/empresa/dropshipper assume — nunca
+  // desconta o frete, que é calculado e cobrado à parte pela plataforma.
+  const [couponInput, setCouponInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<ValidateCouponResult | null>(null);
+  const [couponError, setCouponError] = useState("");
+  const [validatingCoupon, setValidatingCoupon] = useState(false);
 
   const handleFreightChange = useCallback((selections: any[], total: number) => {
     setFreightSelections(selections);
@@ -243,7 +274,77 @@ const Checkout = () => {
     return sum + (item.products?.price || 0) * item.quantity;
   }, 0);
 
-  const total = subtotal + freightTotal;
+  // ── Cálculo do desconto do cupom ──────────────────────────────────────────
+  // eligibleSubtotal = só a parte do carrinho que pertence ao dono do cupom
+  // (vendedor/empresa/loja de dropship), ou o carrinho todo se for cupom de
+  // plataforma. O desconto NUNCA é aplicado sobre o frete.
+  const getEligibleSubtotal = (c: ValidateCouponResult | null): number => {
+    if (!c || !c.valid) return 0;
+    if (c.scope === "platform") return subtotal;
+    const group = cartGroups.find((g: any) => g.seller.sellerId === c.owner_id);
+    return group ? group.subtotal : 0;
+  };
+
+  const eligibleSubtotal = getEligibleSubtotal(appliedCoupon);
+
+  const discountAmount = (() => {
+    if (!appliedCoupon || eligibleSubtotal <= 0) return 0;
+    if (appliedCoupon.discount_type === "percent") {
+      const raw = eligibleSubtotal * ((appliedCoupon.discount_value || 0) / 100);
+      const capped = appliedCoupon.max_discount_amount
+        ? Math.min(raw, appliedCoupon.max_discount_amount)
+        : raw;
+      return Math.min(capped, eligibleSubtotal);
+    }
+    // fixo — nunca pode exceder o subtotal elegível (não desconta frete)
+    return Math.min(appliedCoupon.discount_value || 0, eligibleSubtotal);
+  })();
+
+  // Frete fica sempre de fora do cálculo do desconto.
+  const total = subtotal - discountAmount + freightTotal;
+
+  const handleApplyCoupon = async () => {
+    const code = couponInput.trim();
+    if (!code) return;
+    setCouponError("");
+    setValidatingCoupon(true);
+    try {
+      const result = await validateCouponCode(code);
+      if (!result.valid) {
+        setAppliedCoupon(null);
+        setCouponError(couponErrorMessage(result.reason));
+        return;
+      }
+      const elig = result.scope === "platform"
+        ? subtotal
+        : (cartGroups.find((g: any) => g.seller.sellerId === result.owner_id)?.subtotal ?? 0);
+
+      if (elig <= 0) {
+        setAppliedCoupon(null);
+        setCouponError("Este cupom não se aplica a nenhum produto no seu carrinho.");
+        return;
+      }
+      if (result.min_purchase_amount && elig < result.min_purchase_amount) {
+        setAppliedCoupon(null);
+        setCouponError(`Este cupom exige uma compra mínima de ${formatPrice(result.min_purchase_amount)} nos produtos elegíveis.`);
+        return;
+      }
+
+      setAppliedCoupon(result);
+      toast.success("Cupom aplicado!");
+    } catch (e: any) {
+      setAppliedCoupon(null);
+      setCouponError("Não foi possível validar o cupom. Tente novamente.");
+    } finally {
+      setValidatingCoupon(false);
+    }
+  };
+
+  const removeCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponInput("");
+    setCouponError("");
+  };
 
   // ── Seleção e validação do ficheiro de comprovativo ──
   const handleProofSelect = (file: File | undefined | null) => {
@@ -312,7 +413,7 @@ const Checkout = () => {
           total: total,
           subtotal: subtotal,
           shipping_cost: freightTotal,
-          discount_amount: 0,
+          discount_amount: discountAmount,
           status: "pending",
           shipping_name: address.name,
           shipping_phone: address.phone,
@@ -356,6 +457,17 @@ const Checkout = () => {
           source: s.source,
         }));
         await supabase.from("order_freight").insert(freightRows);
+      }
+
+      // Regista o resgate do cupom (contabiliza uso, actualiza times_used).
+      // Feito depois do pedido criado — se falhar por qualquer razão, não
+      // travamos o pedido, só reportamos no console para investigação.
+      if (appliedCoupon?.code && discountAmount > 0) {
+        try {
+          await redeemCouponCode(appliedCoupon.code, eligibleSubtotal, order.id);
+        } catch (couponErr) {
+          console.error("Falha ao registar resgate do cupom:", couponErr);
+        }
       }
 
       const payLabel =
@@ -778,6 +890,57 @@ const Checkout = () => {
               </p>
             </div>
 
+            {/* Cupom de desconto — desconta apenas os produtos, nunca o frete */}
+            <div className="bg-card rounded-card border border-border p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Tag className="w-4 h-4 text-primary" />
+                <h3 className="text-sm font-bold text-foreground">Cupom de desconto</h3>
+              </div>
+
+              {!appliedCoupon ? (
+                <>
+                  <div className="flex gap-2">
+                    <input
+                      value={couponInput}
+                      onChange={e => setCouponInput(e.target.value.toUpperCase())}
+                      placeholder="Código do cupom"
+                      className="flex-1 px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground font-mono"
+                    />
+                    <button
+                      onClick={handleApplyCoupon}
+                      disabled={!couponInput.trim() || validatingCoupon}
+                      className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-bold disabled:opacity-50 flex items-center justify-center gap-1 min-w-[84px]"
+                    >
+                      {validatingCoupon ? <Loader2 className="w-4 h-4 animate-spin" /> : "Aplicar"}
+                    </button>
+                  </div>
+                  {couponError && <p className="text-xs text-red-500 mt-2">{couponError}</p>}
+                </>
+              ) : (
+                <div className="flex items-center justify-between p-3 rounded-lg border border-primary/30 bg-primary/5">
+                  <div>
+                    <p className="text-sm font-bold text-foreground font-mono">{appliedCoupon.code}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {appliedCoupon.discount_type === "percent"
+                        ? `-${appliedCoupon.discount_value}%`
+                        : `-${formatPrice(appliedCoupon.discount_value || 0)}`}
+                      {" "}• poupa {formatPrice(discountAmount)}
+                    </p>
+                  </div>
+                  <button
+                    onClick={removeCoupon}
+                    className="w-8 h-8 rounded-full flex items-center justify-center bg-destructive/10 text-destructive flex-shrink-0"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
+              <p className="text-[10px] text-muted-foreground mt-2">
+                O desconto aplica-se apenas ao valor dos produtos — o custo do frete não é afectado.
+              </p>
+            </div>
+
             {/* Upload do comprovativo — obrigatório para transferência/Multicaixa */}
             {requiresProof && (
               <div className="bg-card rounded-card border border-border p-4">
@@ -872,6 +1035,12 @@ const Checkout = () => {
                   <span>Subtotal</span>
                   <span>{formatPrice(subtotal)}</span>
                 </div>
+                {discountAmount > 0 && (
+                  <div className="flex justify-between text-xs text-green-500">
+                    <span>Desconto ({appliedCoupon?.code})</span>
+                    <span>-{formatPrice(discountAmount)}</span>
+                  </div>
+                )}
                 {freightTotal > 0 && (
                   <div className="flex justify-between text-xs text-muted-foreground">
                     <span>Frete</span>
