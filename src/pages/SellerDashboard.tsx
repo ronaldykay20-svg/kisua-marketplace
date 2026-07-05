@@ -12,7 +12,6 @@ import SellerStoriesTab from "@/components/seller/SellerStoriesTab";
 import SellerAuctionsTab from "@/components/seller/SellerAuctionsTab";
 import SellerFreightSettings from "@/components/seller/SellerFreightSettings";
 import CouponManagerTab from "@/components/coupons/CouponManagerTab";
-import { triggerImageEmbeddings } from "@/lib/imageEmbedding";
 
 type Tab = "produtos" | "pedidos" | "stories" | "leiloes" | "entregas" | "cupons" | "perfil";
 
@@ -101,9 +100,8 @@ const SellerDashboard = () => {
         const mediaRows = media.map((m: any, i: number) => ({
           product_id: productId, url: m.url, type: m.type, is_cover: m.is_cover, sort_order: i,
         }));
-        const { data: insertedMedia, error } = await supabase.from("product_media").insert(mediaRows).select("id, type");
+        const { error } = await supabase.from("product_media").insert(mediaRows);
         if (error) throw error;
-        if (insertedMedia) triggerImageEmbeddings(insertedMedia);
       }
 
       if (variants && variants.length > 0 && productId) {
