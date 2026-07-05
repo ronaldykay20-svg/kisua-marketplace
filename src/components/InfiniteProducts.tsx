@@ -7,6 +7,7 @@ import { useFavorites } from "@/hooks/useFavorites";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAddToCart } from "@/hooks/useCartActions";
 import { fetchDisplayCoupons, collectCoupon, fetchWalletCoupons, DisplayCoupon } from "@/lib/coupons";
+import { useProductViewers } from "@/hooks/useProductViewers";
 import { getRemainingToMidnight } from "@/lib/flashTime";
 
 const PAGE_SIZE = 20;
@@ -280,9 +281,16 @@ const ProductCard = ({
   const hasRating = p.rating != null && Number(p.rating) > 0;
   const hasSales = p.sales_count != null && Number(p.sales_count) > 0;
 
-  const hash = hashId(String(p.id));
-  const viewerBase = 3 + (hash % 25);
-  const viewerCount = Math.max(1, viewerBase + (((tick + hash) % 5) - 2));
+  // Contagem REAL de pessoas na página de detalhe deste produto agora mesmo
+  // (Supabase Presence). Só liga a ligação em tempo real enquanto o card
+  // está mesmo visível no ecrã — evita abrir dezenas de canais de uma vez
+  // enquanto a pessoa faz scroll no feed.
+  const [cardInView, setCardInView] = useState(false);
+  const liveViewerCount = useProductViewers(String(p.id), { track: false, enabled: cardInView });
+  const handleOwnViewportChange = useCallback((cardId: string, inView: boolean, imageCount: number) => {
+    setCardInView(inView);
+    onViewportChange(cardId, inView, imageCount);
+  }, [onViewportChange]);
 
   const stockQty = p.stock_quantity ?? p.stock ?? null;
   const lowStock = stockQty != null && Number(stockQty) > 0 && Number(stockQty) <= 5;
@@ -348,18 +356,20 @@ const ProductCard = ({
       ),
     });
   }
-  infoCandidates.push({
-    key: "viewers",
-    node: (
-      <span className="flex items-center gap-1">
-        <span className="zg-live-dot" />
-        <Eye className="w-2.5 h-2.5" style={{ color: "#7fa87f" }} />
-        <span className="zg-live-number text-[9.5px] font-semibold" style={{ color: "#5a8a5a" }}>
-          {viewerCount} pessoas a ver agora
+  if (liveViewerCount > 1) {
+    infoCandidates.push({
+      key: "viewers",
+      node: (
+        <span className="flex items-center gap-1">
+          <span className="zg-live-dot" />
+          <Eye className="w-2.5 h-2.5" style={{ color: "#7fa87f" }} />
+          <span className="zg-live-number text-[9.5px] font-semibold" style={{ color: "#5a8a5a" }}>
+            {liveViewerCount} pessoas a ver agora
+          </span>
         </span>
-      </span>
-    ),
-  });
+      ),
+    });
+  }
   if (lowStock) {
     infoCandidates.push({
       key: "stock",
@@ -400,7 +410,7 @@ const ProductCard = ({
       }}
     >
       <div className="relative">
-        <ImageSwiper images={images} alt={p.title} id={String(p.id)} isSpotlight={isSpotlight} onViewportChange={onViewportChange} />
+        <ImageSwiper images={images} alt={p.title} id={String(p.id)} isSpotlight={isSpotlight} onViewportChange={handleOwnViewportChange} />
 
         {p.discount_percent > 0 && (
           <span className="absolute top-2 left-2 px-1.5 py-0.5 text-[10px] font-black text-white z-10"
