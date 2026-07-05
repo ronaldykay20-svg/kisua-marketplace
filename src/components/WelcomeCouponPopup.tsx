@@ -4,7 +4,7 @@ import { X, Gift } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { fetchWelcomeCoupons, fetchWalletCoupons, collectCoupon, DisplayCoupon } from "@/lib/coupons";
+import { fetchWelcomeCoupons, fetchCollectedCouponIds, collectCoupon, DisplayCoupon } from "@/lib/coupons";
 
 const SHOWN_KEY = "zg_welcome_popup_last_shown";
 const COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24h — controla só a frequência de exibição, não a elegibilidade
@@ -26,23 +26,23 @@ const WelcomeCouponPopup = () => {
     queryFn: fetchWelcomeCoupons,
   });
 
-  // Carteira de cupões do utilizador — fonte da verdade sobre o que já foi
-  // resgatado. Ligada à conta, não ao dispositivo/navegador.
-  const { data: walletCoupons = [], isLoading: walletLoading } = useQuery({
-    queryKey: ["wallet_coupons_check", user?.id],
-    queryFn: fetchWalletCoupons,
+  // IDs de cupons já resgatados pelo utilizador alguma vez (usados ou não).
+  // Ligado à conta, não ao dispositivo/navegador.
+  const { data: collectedIdsArray = [], isLoading: collectedLoading } = useQuery({
+    queryKey: ["collected_coupon_ids", user?.id],
+    queryFn: fetchCollectedCouponIds,
     enabled: !!user,
   });
 
-  const collectedIds = new Set(walletCoupons.map((w) => w.coupon_id));
+  const collectedIds = new Set(collectedIdsArray);
 
   // Se não há sessão, ainda não sabemos o que foi resgatado (só saberemos após
   // login), por isso mostramos todos os cupões de boas-vindas disponíveis.
   const pendingCoupons = user ? coupons.filter((c) => !collectedIds.has(c.id)) : coupons;
 
   useEffect(() => {
-    // Enquanto a carteira do utilizador logado ainda não carregou, não decide nada
-    if (user && walletLoading) return;
+    // Enquanto ainda não sabemos o que o utilizador logado já resgatou, não decide nada
+    if (user && collectedLoading) return;
     if (pendingCoupons.length === 0) return;
 
     const lastShown = Number(localStorage.getItem(SHOWN_KEY) || 0);
@@ -51,7 +51,7 @@ const WelcomeCouponPopup = () => {
     setVisible(true);
     localStorage.setItem(SHOWN_KEY, String(Date.now()));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingCoupons.length, user, walletLoading]);
+  }, [pendingCoupons.length, user, collectedLoading]);
 
   if (!visible || pendingCoupons.length === 0) return null;
 
@@ -71,8 +71,8 @@ const WelcomeCouponPopup = () => {
       }
       if (okCount > 0) {
         toast.success(`${okCount} cupão(ões) adicionados à tua carteira!`);
-        // Atualiza a carteira para refletir os novos cupões resgatados
-        queryClient.invalidateQueries({ queryKey: ["wallet_coupons_check", user.id] });
+        // Atualiza o estado de "já resgatados" e a carteira visível noutros ecrãs
+        queryClient.invalidateQueries({ queryKey: ["collected_coupon_ids", user.id] });
         queryClient.invalidateQueries({ queryKey: ["wallet_coupons"] });
       } else {
         toast.error("Não foi possível resgatar os cupões agora.");
