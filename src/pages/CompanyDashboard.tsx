@@ -300,6 +300,12 @@ const CompanyDashboard = () => {
 
   const deleteProduct = useMutation({
     mutationFn: async (id: string) => {
+      // A tabela product_media tem uma FK para products sem ON DELETE CASCADE,
+      // por isso é preciso apagar os media associados antes de apagar o produto,
+      // senão a BD recusa com "violates foreign key constraint product_media_product_id_fkey".
+      const { error: mediaError } = await supabase.from("product_media").delete().eq("product_id", id);
+      if (mediaError) throw mediaError;
+
       const { error } = await supabase.from("products").delete().eq("id", id);
       if (error) throw error;
     },
