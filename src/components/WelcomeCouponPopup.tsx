@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchWelcomeCoupons, fetchCollectedCouponIds, collectCoupon, DisplayCoupon } from "@/lib/coupons";
 
-const SHOWN_KEY = "zg_welcome_popup_last_shown";
+const SHOWN_KEY_PREFIX = "zg_welcome_popup_last_shown";
 const COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24h — controla só a frequência de exibição, não a elegibilidade
 
 const formatDiscount = (c: DisplayCoupon) =>
@@ -45,11 +45,12 @@ const WelcomeCouponPopup = () => {
     if (user && collectedLoading) return;
     if (pendingCoupons.length === 0) return;
 
-    const lastShown = Number(localStorage.getItem(SHOWN_KEY) || 0);
+    const shownKey = `${SHOWN_KEY_PREFIX}:${user?.id ?? "guest"}`;
+    const lastShown = Number(localStorage.getItem(shownKey) || 0);
     if (Date.now() - lastShown < COOLDOWN_MS) return;
 
     setVisible(true);
-    localStorage.setItem(SHOWN_KEY, String(Date.now()));
+    localStorage.setItem(shownKey, String(Date.now()));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingCoupons.length, user, collectedLoading]);
 
