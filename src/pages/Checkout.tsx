@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import FreightCalculator from "@/components/freight/FreightCalculator";
 import { useFreight } from "@/hooks/useFreight";
 import { validateCouponCode, redeemCouponCode, fetchWalletCoupons, markWalletCouponUsed, ValidateCouponResult, WalletCoupon } from "@/lib/coupons";
+import { trackEvent } from "@/lib/analytics";
 
 const formatPrice = (price: number) =>
   price.toLocaleString("pt-AO").replace(/,/g, ".") + " Kz";
@@ -501,6 +502,19 @@ const Checkout = () => {
       const { error: itemsError } = await supabase.from("order_items").insert(items);
       if (itemsError) throw itemsError;
 
+      // Regista o evento de compra no analytics. Feito como "fire and forget"
+      // (mesma convenção do useCartActions): se falhar, não deve travar o
+      // pedido, que já está criado nas duas linhas acima.
+      trackEvent("purchase", {
+        metadata: {
+          order_id: order.id,
+          total,
+          items_count: items.length,
+          payment_method: paymentMethod,
+          discount_amount: discountAmount,
+        },
+      });
+
       if (freightSelections.length > 0) {
         const freightRows = freightSelections.map((s: any) => ({
           order_id: order.id,
@@ -974,7 +988,7 @@ const Checkout = () => {
                       value={couponInput}
                       onChange={e => setCouponInput(e.target.value.toUpperCase())}
                       placeholder="Código do cupom"
-                      className="flex-1 px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground font-mono"
+                      className="flex-1 px-3 py-2 rounded-lg bg-background border border-border text-base md:text-sm text-foreground font-mono"
                     />
                     <button
                       onClick={handleApplyCoupon}
