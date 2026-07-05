@@ -1,11 +1,12 @@
 import { useEffect, useRef, useCallback, useState } from "react";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { Heart, Flame, Star, Truck, Users, Eye, Clock, Ticket, ShoppingBag } from "lucide-react";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAddToCart } from "@/hooks/useCartActions";
+import { fetchDisplayCoupons, collectCoupon, fetchWalletCoupons, DisplayCoupon } from "@/lib/coupons";
 
 const PAGE_SIZE = 20;
 
@@ -213,12 +214,14 @@ const StarRating = ({ rating }: { rating: number }) => {
 
 // ─── Card ─────────────────────────────────────────────────────────────────────
 const ProductCard = ({
-  p, images, isTrending, isFav, onFav, onClick, onAddToCart, index, tick, flashRemaining,
+  p, images, isTrending, isFav, onFav, onClick, onAddToCart, index, tick, flashRemaining, coupon, couponCollected, onCollectCoupon,
 }: {
   p: any; images: string[]; isTrending: boolean;
   isFav: boolean; onFav: (e: React.MouseEvent) => void;
   onClick: () => void; onAddToCart: (e: React.MouseEvent) => void;
   index: number; tick: number; flashRemaining: string;
+  coupon: DisplayCoupon | null; couponCollected: boolean;
+  onCollectCoupon: (e: React.MouseEvent) => void;
 }) => {
   const [pressed, setPressed] = useState(false);
   const [heartPop, setHeartPop] = useState(false);
@@ -237,10 +240,6 @@ const ProductCard = ({
   const lowStock = stockQty != null && Number(stockQty) > 0 && Number(stockQty) <= 5;
 
   const isFlash = Number(p.discount_percent) > 0;
-  // Cupom extra ilustrativo: aparece em parte dos produtos com desconto (baseado em id, não é aleatório).
-  // Para virar real, ligar a uma tabela/coluna de cupons e substituir esta condição.
-  const hasCoupon = isFlash && hash % 3 === 0;
-  const couponPercent = 5 + (hash % 3) * 2; // 5, 7 ou 9%
 
   const handleFav = (e: React.MouseEvent) => {
     setHeartPop(true);
@@ -401,11 +400,24 @@ const ProductCard = ({
           </div>
         )}
 
-        {hasCoupon && (
-          <div className="flex items-center gap-1 mb-1 px-1.5 py-0.5 w-fit" style={{ background: "#fdf0e5", borderRadius: "4px", border: "1px dashed #d99a5c" }}>
-            <Ticket className="w-2.5 h-2.5" style={{ color: "#b8681e" }} />
-            <span className="text-[9px] font-bold" style={{ color: "#b8681e" }}>
-              Cupom: -{couponPercent}% extra
+        {coupon && (
+          <div
+            onClick={(e) => { e.stopPropagation(); if (!couponCollected) onCollectCoupon(e); }}
+            className="flex items-center gap-1 mb-1 px-1.5 py-0.5 w-fit"
+            style={{
+              background: couponCollected ? "#f2f7ee" : "#fdf0e5",
+              borderRadius: "4px",
+              border: `1px dashed ${couponCollected ? "#5a8a5a" : "#d99a5c"}`,
+              cursor: couponCollected ? "default" : "pointer",
+            }}
+          >
+            <Ticket className="w-2.5 h-2.5" style={{ color: couponCollected ? "#5a8a5a" : "#b8681e" }} />
+            <span className="text-[9px] font-bold" style={{ color: couponCollected ? "#5a8a5a" : "#b8681e" }}>
+              {couponCollected
+                ? "Cupom guardado ✓"
+                : coupon.discount_type === "percent"
+                  ? `Apanhar cupom: -${coupon.discount_value}%`
+                  : `Apanhar cupom: -${Number(coupon.discount_value).toLocaleString("pt-AO")} Kz`}
             </span>
           </div>
         )}
@@ -441,6 +453,7 @@ const Skeleton = () => (
 const InfiniteProducts = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const { isFavorite, toggleFavorite } = useFavorites();
   const { mutate: addToCart } = useAddToCart();
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -506,6 +519,50 @@ const InfiniteProducts = () => {
     });
 
   const allProducts = data?.pages.flat() || [];
+  const productIds = allProducts.map((p: any) => p.id);
+
+  // ── Cupons reais "apanháveis" para os produtos já carregados ──────────────
+  const { data: displayCoupons = [] } = useQuery({
+    queryKey: ["display_coupons", productIds],
+    queryFn: () => fetchDisplayCoupons(productIds),
+    enabled: productIds.length > 0,
+  });
+
+  // ── Carteira do utilizador — para saber o que já foi apanhado ─────────────
+  const { data: walletCoupons = [] } = useQuery({
+    queryKey: ["wallet_coupons", user?.id],
+    queryFn: fetchWalletCoupons,
+    enabled: !!user,
+  });
+  const collectedCouponIds = new Set((walletCoupons as any[]).map((w) => w.coupon_id));
+
+  // Cupom de plataforma aplica-se a qualquer produto; seller/company só ao seu dono
+  const getCouponForProduct = (p: any): DisplayCoupon | null => {
+    const matches = (displayCoupons as DisplayCoupon[]).filter((c) => {
+      if (c.scope === "platform") return true;
+      if (c.scope === "seller") return c.owner_id === p.seller_id;
+      if (c.scope === "company") return c.owner_id === p.company_id;
+      return false;
+    });
+    if (matches.length === 0) return null;
+    // Prioriza o de maior desconto percentual
+    return matches.sort((a, b) => Number(b.discount_value) - Number(a.discount_value))[0];
+  };
+
+  const { mutate: doCollectCoupon } = useMutation({
+    mutationFn: (couponId: string) => collectCoupon(couponId),
+    onSuccess: (result) => {
+      if (result.success) {
+        queryClient.invalidateQueries({ queryKey: ["wallet_coupons", user?.id] });
+        showToast("Cupom guardado 🎟️ — aplica-se sozinho no checkout");
+      } else if (result.reason === "login_required") {
+        navigate("/auth");
+      } else {
+        showToast("Este cupom já não está disponível");
+      }
+    },
+    onError: () => showToast("Não foi possível guardar o cupom"),
+  });
 
   // ── Sentinel — carregar mais páginas ─────────────────────────────────────
   const handleObserver = useCallback(
@@ -550,6 +607,12 @@ const InfiniteProducts = () => {
     );
   };
 
+  const makeCollectCoupon = (couponId: string) => (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user) { navigate("/auth"); return; }
+    doCollectCoupon(couponId);
+  };
+
   // ── Trending ──────────────────────────────────────────────────────────────
   const { data: trendingIds = new Set<string>() } = useQuery({
     queryKey: ["trending_ids"],
@@ -589,21 +652,27 @@ const InfiniteProducts = () => {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 md:gap-3" style={{ background: "#ffffff" }}>
-        {allProducts.map((p: any, i: number) => (
-          <ProductCard
-            key={p.id}
-            p={p}
-            images={p.images}
-            isTrending={(trendingIds as Set<string>).has(p.id)}
-            isFav={isFavorite(p.id)}
-            onFav={makeFav(p.id)}
-            onAddToCart={makeAddToCart(p)}
-            onClick={() => navigate(`/produto/${p.id}`)}
-            index={i}
-            tick={tick}
-            flashRemaining={flashRemaining}
-          />
-        ))}
+        {allProducts.map((p: any, i: number) => {
+          const coupon = getCouponForProduct(p);
+          return (
+            <ProductCard
+              key={p.id}
+              p={p}
+              images={p.images}
+              isTrending={(trendingIds as Set<string>).has(p.id)}
+              isFav={isFavorite(p.id)}
+              onFav={makeFav(p.id)}
+              onAddToCart={makeAddToCart(p)}
+              onClick={() => navigate(`/produto/${p.id}`)}
+              index={i}
+              tick={tick}
+              flashRemaining={flashRemaining}
+              coupon={coupon}
+              couponCollected={coupon ? collectedCouponIds.has(coupon.id) : false}
+              onCollectCoupon={coupon ? makeCollectCoupon(coupon.id) : () => {}}
+            />
+          );
+        })}
         {isFetchingNextPage && [0, 1, 2, 3, 4].map(i => <Skeleton key={`skeleton-${i}`} />)}
       </div>
 
