@@ -4,11 +4,26 @@
  * - Ignora GIFs (para não perder a animação).
  * - Se algo falhar (ex: browser antigo sem suporte a WebP), devolve o
  *   ficheiro original em vez de bloquear o upload.
+ * - Pela spec do canvas.toBlob, se o navegador não conseguir codificar em
+ *   WebP ele devolve PNG *silenciosamente*, sem erro. Por isso confirmamos
+ *   sempre o tipo real do blob devolvido antes de nomear o ficheiro — nunca
+ *   assumimos "pedi WebP, logo recebi WebP". Isto evita ficheiros com
+ *   extensão .webp mas conteúdo GIF/PNG por baixo.
  *
  * @param file      Ficheiro de imagem original
  * @param quality   Qualidade da compressão WebP (0 a 1). 0.8 é um bom equilíbrio.
  * @param maxWidth  Largura máxima em px. Redimensiona mantendo a proporção.
  */
+const EXT_BY_MIME: Record<string, string> = {
+  "image/webp": "webp",
+  "image/png": "png",
+  "image/jpeg": "jpg",
+};
+
+function extFromFile(file: File): string {
+  return file.name.split(".").pop() || "bin";
+}
+
 export async function convertToWebP(
   file: File,
   quality: number = 0.8,
@@ -51,10 +66,14 @@ export async function convertToWebP(
             resolve(file);
             return;
           }
-          const newName = file.name.replace(/\.[^/.]+$/, ".webp");
+          // Confirma o tipo real devolvido pelo navegador — pode não ser
+          // WebP se o browser não suportar essa codificação (fallback
+          // silencioso para PNG, definido na spec do toBlob).
+          const realExt = EXT_BY_MIME[blob.type] ?? extFromFile(file);
+          const newName = file.name.replace(/\.[^/.]+$/, `.${realExt}`);
           resolve(
             new File([blob], newName, {
-              type: "image/webp",
+              type: blob.type,
               lastModified: Date.now(),
             })
           );
@@ -69,4 +88,13 @@ export async function convertToWebP(
 
     reader.readAsDataURL(file);
   });
+}
+
+/**
+ * Extensão real do ficheiro devolvido por convertToWebP — usar isto em vez
+ * de assumir "webp" ao montar o caminho de upload, exactamente para cobrir
+ * os casos (GIF, fallback do browser) em que a conversão não aconteceu.
+ */
+export function getFileExtension(file: File): string {
+  return extFromFile(file);
 }
