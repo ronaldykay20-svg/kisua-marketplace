@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { STORAGE_BUCKETS } from "@/lib/storage";
+import { triggerImageEmbeddings } from "@/lib/imageEmbedding";
 import Footer from "@/components/Footer";
 import {
   Play, Upload, X, Loader2, Star, ShoppingBag, Check,
@@ -465,7 +466,7 @@ const NewProductInline = ({
       if (error) throw new Error(error.message);
 
       if (media.length > 0) {
-        await (supabase as any).from("product_media").insert(
+        const { data: insertedMedia } = await (supabase as any).from("product_media").insert(
           media.map((m, i) => ({
             product_id: row.id,
             url: m.url,
@@ -473,7 +474,8 @@ const NewProductInline = ({
             is_cover: m.is_cover,
             sort_order: i,
           }))
-        );
+        ).select("id, type");
+        if (insertedMedia) triggerImageEmbeddings(insertedMedia);
       }
 
       if (variants.length > 0) {
