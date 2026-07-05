@@ -19,6 +19,7 @@ export interface Coupon {
   starts_at: string;
   expires_at: string | null;
   is_active: boolean;
+  show_in_welcome_popup: boolean;
   created_by: string;
   created_at: string;
 }
@@ -70,13 +71,9 @@ export async function fetchCoupons(scope: CouponScope, ownerId: string | null): 
 }
 
 // ─── Margem real de uma loja de dropship (teto do cupom dela) ──────────────
-// Calculada a partir do produto com MENOR margem entre selling_price (da loja)
-// e cost_price (do fornecedor), nos produtos ACTIVOS da loja. É conservador de
-// propósito: garante que o cupom nunca faz o dropshipper vender abaixo do custo,
-// seja qual for o produto que o cliente comprar.
 export interface DropshipMarginCap {
-  minMarginPercent: number; // ex: 18.5 (%)
-  minMarginAmount: number;  // ex: 3200 (Kz)
+  minMarginPercent: number;
+  minMarginAmount: number;
 }
 
 export async function fetchDropshipMarginCap(storeId: string): Promise<DropshipMarginCap | null> {
@@ -118,10 +115,9 @@ export interface CreateCouponInput {
   usage_limit?: number | null;
   usage_limit_per_user?: number;
   expires_at?: string | null;
+  show_in_welcome_popup?: boolean;
 }
 
-// Valida no cliente antes de enviar (a base de dados também valida via trigger,
-// isto é só para dar feedback imediato sem esperar pelo erro do servidor).
 export function validateCouponRules(
   input: Pick<CreateCouponInput, "discount_type" | "discount_value" | "scope">,
   settings: CouponSettings,
@@ -173,12 +169,18 @@ export async function createCoupon(input: CreateCouponInput) {
     usage_limit: input.usage_limit ?? null,
     usage_limit_per_user: input.usage_limit_per_user ?? 1,
     expires_at: input.expires_at ?? null,
+    show_in_welcome_popup: input.show_in_welcome_popup ?? false,
   });
   if (error) throw error;
 }
 
 export async function toggleCouponActive(id: string, active: boolean) {
   const { error } = await (supabase as any).from("coupons").update({ is_active: active }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function toggleCouponWelcomePopup(id: string, show: boolean) {
+  const { error } = await (supabase as any).from("coupons").update({ show_in_welcome_popup: show }).eq("id", id);
   if (error) throw error;
 }
 
@@ -195,11 +197,6 @@ export async function validateCouponCode(code: string): Promise<ValidateCouponRe
 }
 
 // ─── Cupom Wallet (estilo Shein) ────────────────────────────────────────────
-// Fluxo: list_display_coupons mostra o que dá para "apanhar" num grupo de
-// produtos → collect_coupon grava na carteira do utilizador → list_wallet_coupons
-// devolve o que está por usar (com o code, só para o dono da carteira) →
-// Checkout aplica automaticamente o melhor → mark_wallet_coupon_used fecha o ciclo.
-
 export interface DisplayCoupon {
   id: string;
   title: string | null;
@@ -223,7 +220,6 @@ export interface CollectCouponResult {
   reason?: string;
 }
 
-// Cupons "apanháveis" para os produtos dados (usado no grid/InfiniteProducts)
 export async function fetchDisplayCoupons(productIds: string[]): Promise<DisplayCoupon[]> {
   if (productIds.length === 0) return [];
   const { data, error } = await (supabase as any).rpc("list_display_coupons", {
@@ -233,7 +229,13 @@ export async function fetchDisplayCoupons(productIds: string[]): Promise<Display
   return data || [];
 }
 
-// Grava o cupom na carteira do utilizador autenticado
+// Cupons do popup de boas-vindas (novos usuários / campanhas gerais da plataforma)
+export async function fetchWelcomeCoupons(): Promise<DisplayCoupon[]> {
+  const { data, error } = await (supabase as any).rpc("list_welcome_coupons");
+  if (error) throw error;
+  return data || [];
+}
+
 export async function collectCoupon(couponId: string): Promise<CollectCouponResult> {
   const { data, error } = await (supabase as any).rpc("collect_coupon", {
     p_coupon_id: couponId,
@@ -242,14 +244,12 @@ export async function collectCoupon(couponId: string): Promise<CollectCouponResu
   return data as CollectCouponResult;
 }
 
-// Carteira do utilizador — cupons por usar, prontos para o checkout aplicar
 export async function fetchWalletCoupons(): Promise<WalletCoupon[]> {
   const { data, error } = await (supabase as any).rpc("list_wallet_coupons");
   if (error) throw error;
   return data || [];
 }
 
-// Fecha o ciclo: marca o cupom da carteira como usado após o pedido confirmado
 export async function markWalletCouponUsed(couponId: string, orderId: string): Promise<void> {
   const { error } = await (supabase as any).rpc("mark_wallet_coupon_used", {
     p_coupon_id: couponId,
@@ -258,9 +258,6 @@ export async function markWalletCouponUsed(couponId: string, orderId: string): P
   if (error) throw error;
 }
 
-// ─── Resgatar/aplicar o cupom no fecho da compra ────────────────────────────
-// eligibleSubtotal = subtotal apenas dos itens do carrinho que pertencem ao
-// dono do cupom (loja/empresa/store) — ou o carrinho todo, se for cupom de plataforma.
 export async function redeemCouponCode(
   code: string,
   eligibleSubtotal: number,
