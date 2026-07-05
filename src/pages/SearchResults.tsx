@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Search, SlidersHorizontal, ChevronDown, Star, CheckCircle, ChevronLeft, ChevronRight, Camera } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -31,26 +31,69 @@ const aggregateRatings = (reviews: { entity_id: string; rating: number }[]): Rec
   return result;
 };
 
-// A análise da imagem é feita numa Edge Function do Supabase (`image-search`)
-// que guarda a chave da API em segredo no servidor. NUNCA colocar a chave da
-// Gemini no cliente — ela ficaria visível para qualquer visitante.
-const analisarImagemComGemini = async (base64: string): Promise<string[]> => {
+// A pesquisa por foto é feita numa Edge Function do Supabase
+// (`image-search`) que gera o "código visual" (embedding) da imagem e
+// compara com os embeddings já guardados dos produtos — a mesma técnica
+// da Shein. A chave da Gemini nunca sai do servidor.
+const buscarProdutosPorImagem = async (
+  base64: string,
+  mimeType: string
+): Promise<string[]> => {
   const { data, error } = await supabase.functions.invoke("image-search", {
-    body: { image_base64: base64 },
+    body: { image_base64: base64, mime_type: mimeType },
   });
   if (error) throw new Error(error.message || "Erro na pesquisa por imagem");
-  if (!data?.terms || !Array.isArray(data.terms)) {
+  if (!data?.product_ids || !Array.isArray(data.product_ids)) {
     throw new Error("Resposta inválida do serviço de pesquisa por imagem");
   }
-  return data.terms as string[];
+  return data.product_ids as string[];
+};
+
+// Junta a foto de capa e a nota média do vendedor a uma lista de produtos
+// já carregada — usado tanto pela pesquisa por texto como pela pesquisa
+// por imagem, para os dois caminhos mostrarem os cartões da mesma forma.
+const enrichProducts = async (rows: any[]): Promise<any[]> => {
+  if (!rows.length) return [];
+  const ids = rows.map((p: any) => p.id);
+  const sellerIds = [...new Set(rows.map((p: any) => p.seller_id).filter(Boolean))];
+
+  const coverMap: Record<string, string> = {};
+  const { data: media } = await supabase
+    .from("product_media")
+    .select("product_id, url")
+    .in("product_id", ids)
+    .eq("is_cover", true);
+  (media || []).forEach((m: any) => { coverMap[m.product_id] = m.url; });
+
+  let sellerRatingMap: Record<string, number> = {};
+  if (sellerIds.length > 0) {
+    const { data: sReviews } = await supabase
+      .from("seller_reviews")
+      .select("seller_id, rating")
+      .in("seller_id", sellerIds);
+    sellerRatingMap = aggregateRatings(
+      (sReviews || []).map((r: any) => ({ entity_id: r.seller_id, rating: r.rating }))
+    );
+  }
+
+  return rows.map((p: any) => ({
+    ...p,
+    cover_url: coverMap[p.id],
+    real_rating: (p.seller_id && sellerRatingMap[p.seller_id]) || p.rating || 0,
+  }));
 };
 
 const SearchResults = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const query = searchParams.get("q") || "";
   const modoImagem = searchParams.get("modo") === "imagem";
-  const imgBase64 = searchParams.get("img") || "";
+  // A foto viaja pelo `state` do router, nunca pela URL — uma foto de
+  // telemóvel em base64 facilmente tem milhões de caracteres, muito além
+  // do que qualquer browser aceita numa query string.
+  const imagemBase64 = (location.state as any)?.imageBase64 as string | undefined;
+  const imagemMimeType = ((location.state as any)?.mimeType as string | undefined) || "image/jpeg";
 
   const [searchQuery, setSearchQuery] = useState(query);
   const [activeTab, setActiveTab] = useState("Produtos");
@@ -64,60 +107,58 @@ const SearchResults = () => {
   const [imagemResultados, setImagemResultados] = useState<any[]>([]);
   const [carregandoImagem, setCarregandoImagem] = useState(false);
   const [erroImagem, setErroImagem] = useState("");
-  const [termosDetectados, setTermosDetectados] = useState<string[]>([]);
 
   const effectiveQuery = query.trim();
 
-  // Pesquisa visual via Gemini
+  // Pesquisa visual: gera o embedding da foto e compara com os produtos
   useEffect(() => {
-    if (!modoImagem || !imgBase64) return;
+    if (!modoImagem) return;
+
+    if (!imagemBase64) {
+      // Acontece se a página for recarregada ou aberta por um link direto
+      // — o `state` do router não sobrevive a isso. Pedimos para repetir
+      // a foto em vez de mostrar um erro genérico ou rebentar.
+      setErroImagem("A foto já não está disponível. Toca no botão da câmera para tentar de novo.");
+      setImagemResultados([]);
+      setCarregandoImagem(false);
+      return;
+    }
+
     setCarregandoImagem(true);
     setErroImagem("");
     setImagemResultados([]);
 
-    analisarImagemComGemini(imgBase64)
-      .then(async (termos) => {
-        setTermosDetectados(termos);
-
-        if (termos.length === 0) {
+    buscarProdutosPorImagem(imagemBase64, imagemMimeType)
+      .then(async (productIds) => {
+        if (productIds.length === 0) {
           setImagemResultados([]);
           setCarregandoImagem(false);
           return;
         }
 
-        // Pesquisa por cada termo, do mais específico ao mais geral
-        // Junta todos os resultados únicos por ordem de relevância
-        const vistos = new Set<string>();
-        const resultados: any[] = [];
+        const { data, error } = await supabase
+          .from("products")
+          .select("*")
+          .in("id", productIds)
+          .eq("is_active", true);
+        if (error) throw error;
 
-        for (const termo of termos) {
-          const { data } = await supabase
-            .from("products")
-            .select("*")
-            .eq("is_active", true)
-            .or(`title.ilike.%${termo}%,description.ilike.%${termo}%,category.ilike.%${termo}%`)
-            .limit(20);
+        const enriquecidos = await enrichProducts(data || []);
 
-          for (const p of data || []) {
-            if (!vistos.has(p.id)) {
-              vistos.add(p.id);
-              resultados.push(p);
-            }
-          }
+        // .in() não preserva ordem — reordenamos pela relevância que a
+        // função devolveu (mais parecido primeiro).
+        const porId = new Map(enriquecidos.map((p: any) => [p.id, p]));
+        const ordenados = productIds.map((id) => porId.get(id)).filter(Boolean);
 
-          // Se já temos 20+ resultados, chega
-          if (resultados.length >= 20) break;
-        }
-
-        setImagemResultados(resultados);
+        setImagemResultados(ordenados);
         setCarregandoImagem(false);
       })
       .catch((err) => {
         console.error(err);
-        setErroImagem("Não foi possível analisar a imagem. Tente novamente.");
+        setErroImagem("Não foi possível analisar a imagem. Tenta novamente.");
         setCarregandoImagem(false);
       });
-  }, [modoImagem, imgBase64]);
+  }, [modoImagem, imagemBase64, imagemMimeType]);
 
   // Pesquisa normal por texto
   const { data: dbProducts = [], isLoading: loadingProducts } = useQuery({
@@ -137,35 +178,7 @@ const SearchResults = () => {
       const { data, error } = await q;
       if (error) throw error;
 
-      const ids = (data || []).map((p: any) => p.id);
-      const sellerIds = [...new Set((data || []).map((p: any) => p.seller_id).filter(Boolean))];
-
-      const coverMap: Record<string, string> = {};
-      if (ids.length > 0) {
-        const { data: media } = await supabase
-          .from("product_media")
-          .select("product_id, url")
-          .in("product_id", ids)
-          .eq("is_cover", true);
-        (media || []).forEach((m: any) => { coverMap[m.product_id] = m.url; });
-      }
-
-      let sellerRatingMap: Record<string, number> = {};
-      if (sellerIds.length > 0) {
-        const { data: sReviews } = await supabase
-          .from("seller_reviews")
-          .select("seller_id, rating")
-          .in("seller_id", sellerIds);
-        sellerRatingMap = aggregateRatings(
-          (sReviews || []).map((r: any) => ({ entity_id: r.seller_id, rating: r.rating }))
-        );
-      }
-
-      const result = (data || []).map((p: any) => ({
-        ...p,
-        cover_url: coverMap[p.id],
-        real_rating: (p.seller_id && sellerRatingMap[p.seller_id]) || p.rating || 0,
-      }));
+      const result = await enrichProducts(data || []);
 
       if (sortBy === "Melhor avaliação") result.sort((a: any, b: any) => b.real_rating - a.real_rating);
       return result;
@@ -271,7 +284,7 @@ const SearchResults = () => {
           <div className="flex-1 flex items-center gap-2 px-3 py-2 bg-card border border-border rounded-full">
             <Camera className="w-4 h-4 text-muted-foreground flex-shrink-0" />
             <span className="text-sm text-muted-foreground">
-              {carregandoImagem ? "A analisar imagem..." : termosDetectados.length > 0 ? termosDetectados[0] : "Pesquisa por imagem"}
+              {carregandoImagem ? "A analisar imagem..." : "Pesquisa por imagem"}
             </span>
           </div>
         ) : (
