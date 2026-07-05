@@ -8,11 +8,12 @@ import {
   Store, Package, ShoppingBag, DollarSign,
   BarChart3, ArrowLeft, Plus, Trash2, Eye,
   EyeOff, TrendingUp, Star, AlertCircle,
-  ExternalLink, Settings,
+  ExternalLink, Settings, Ticket,
 } from "lucide-react";
 import SellerProfileEditor from "@/components/seller/SellerProfileEditor";
+import CouponManagerTab from "@/components/coupons/CouponManagerTab";
 
-type Tab = "visao" | "produtos" | "pedidos" | "ganhos" | "perfil";
+type Tab = "visao" | "produtos" | "pedidos" | "ganhos" | "cupons" | "perfil";
 
 export default function DropshipDashboard() {
   const { user } = useAuth();
@@ -165,6 +166,7 @@ export default function DropshipDashboard() {
     { key: "produtos", label: "Produtos",    icon: Package     },
     { key: "pedidos",  label: "Pedidos",     icon: ShoppingBag },
     { key: "ganhos",   label: "Ganhos",      icon: DollarSign  },
+    { key: "cupons",   label: "Cupons",      icon: Ticket      },
     { key: "perfil",   label: "Perfil",      icon: Settings    },
   ];
 
@@ -519,6 +521,11 @@ export default function DropshipDashboard() {
               </p>
             </div>
           </div>
+        )}
+
+        {/* ── CUPONS ── */}
+        {tab === "cupons" && (
+          <CouponManagerTab scope="dropship_store" ownerId={store.id} heading="Cupons da Loja" />
         )}
 
         {/* ── PERFIL ── */}
