@@ -382,7 +382,24 @@ const SearchResults = () => {
 
         {(modoImagem || activeTab === "Produtos") && (
           <>
-            {isLoading ? (
+            {isLoading && modoImagem && imagemBase64 ? (
+              <div className="flex flex-col items-center py-10 gap-4">
+                <div className="relative w-48 h-48 rounded-2xl overflow-hidden border border-border shadow-sm">
+                  <img
+                    src={`data:${imagemMimeType};base64,${imagemBase64}`}
+                    alt="Foto pesquisada"
+                    className="w-full h-full object-cover"
+                  />
+                  {/* Faixa de scan animada, tipo "radar" */}
+                  <div className="absolute inset-x-0 h-1/3 bg-gradient-to-b from-transparent via-primary/40 to-transparent animate-scan-line" />
+                  {/* Grelha subtil por cima, para reforçar a ideia de "análise" */}
+                  <div className="absolute inset-0 bg-[linear-gradient(transparent_0%,transparent_calc(50%-1px),theme(colors.primary/25)_50%,transparent_calc(50%+1px),transparent_100%)] opacity-0" />
+                  <div className="absolute inset-0 ring-2 ring-primary/30 rounded-2xl animate-pulse" />
+                </div>
+                <p className="text-sm font-semibold text-foreground">A comparar com os produtos da loja...</p>
+                <p className="text-xs text-muted-foreground -mt-2">Isto pode demorar alguns segundos</p>
+              </div>
+            ) : isLoading ? (
               <div className="flex flex-col items-center py-16 gap-3">
                 <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
                 <p className="text-sm text-muted-foreground">A identificar produto na imagem...</p>
