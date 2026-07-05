@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "sdk_version": "0.20.0",
+  "path": "/functions/v1/mcp",
+  "auth": {
+    "type": "none"
+  },
+  "mcp": {
+    "server": {
+      "name": "angoexpress-mcp",
+      "version": "0.1.0",
+      "title": "AngoExpress Marketplace"
+    },
+    "tools": [
+      {
+        "name": "search_products",
+        "title": "Pesquisar produtos",
+        "description": "Pesquisa produtos activos no marketplace AngoExpress por palavras-chave, categoria e preço máximo (em Kz).",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Palavras-chave a procurar no título/descrição."
+            },
+            "category": {
+              "type": "string",
+              "description": "Nome da categoria a filtrar."
+            },
+            "maxPrice": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Preço máximo em Kwanzas."
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20,
+              "default": 10
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_product",
+        "title": "Obter produto",
+        "description": "Devolve detalhes completos de um produto do AngoExpress pelo seu ID.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "ID do produto."
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_categories",
+        "title": "Listar categorias",
+        "description": "Lista todas as categorias distintas dos produtos activos no AngoExpress.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
