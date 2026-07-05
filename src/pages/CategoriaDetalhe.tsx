@@ -1,62 +1,19 @@
 import { useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import {
-  SlidersHorizontal, ChevronDown, ShoppingCart, Star, Loader2, Plus, X,
-  CheckCircle, Store, Building2, Heart,
-} from "lucide-react";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { CheckCircle, Store, Building2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCategories } from "@/hooks/useSupabaseData";
 import { useAddToCart } from "@/hooks/useCartActions";
+import {
+  ProductBrowser, ProductBrowserGlobalStyle, BrowserProduct,
+  bg, surface, ink, inkSoft, brandDeep, line, fontBody, formatPrice,
+} from "@/components/category/ProductBrowser";
 
 /* ════════════════════════════════════════════════════════════
-   TOKENS — mesma identidade da página Categorias
+   Tokens partilhados com Categorias.tsx vêm agora de
+   ProductBrowser.tsx — mudar lá muda as duas páginas juntas.
    ════════════════════════════════════════════════════════════ */
-const bg        = "#FAF5EE";
-const surface   = "#FFFFFF";
-const ink       = "#23150B";
-const inkSoft   = "#7A6249";
-const brand     = "#A9835C";
-const brandDeep = "#8F6C49";
-const promo     = "#C23B2B";
-const dealGreen = "#1E7A3C";
-const saveBg    = "#E3F2E6";
-const gold      = "#C8932F";
-const line      = "rgba(35,21,11,0.10)";
-const lineSoft  = "rgba(35,21,11,0.06)";
-const shadowSm  = "0 1px 3px rgba(35,21,11,0.08)";
-const shadowMd  = "0 4px 16px rgba(35,21,11,0.10)";
-
-const fontBody = "'Manrope', system-ui, sans-serif";
-
-/* Mapa de nome→hex para exibir amostras de cor no filtro. Cobre nomes
-   comuns em PT-BR/PT-PT; qualquer cor extra que apareça nos produtos é
-   mostrada com o próprio hex ou um cinza neutro. */
-const colorNameToHex: Record<string, string> = {
-  "Preto": "#000000", "Branco": "#FFFFFF", "Rosa": "#EC4899",
-  "Azul": "#3B82F6", "Cinza": "#6B7280", "Verde": "#22C55E",
-  "Vermelho": "#EF4444", "Amarelo": "#EAB308", "Cáqui": "#D97706",
-  "Marrom": "#78350F", "Castanho": "#78350F", "Roxo": "#A855F7",
-  "Laranja": "#F97316", "Bege": "#D6B893", "Dourado": "#C8932F",
-  "Prateado": "#C0C0C0",
-};
-
-const sortOptions = ["Recomendado", "Menor preço", "Maior preço", "Mais vendidos", "Mais recentes"];
-
-const hexClose = (a: string, b: string, tolerance = 60) => {
-  const parse = (h: string) => {
-    const s = h.replace("#", "");
-    return [parseInt(s.slice(0, 2), 16), parseInt(s.slice(2, 4), 16), parseInt(s.slice(4, 6), 16)];
-  };
-  try {
-    const [r1, g1, b1] = parse(a);
-    const [r2, g2, b2] = parse(b);
-    return Math.abs(r1 - r2) + Math.abs(g1 - g2) + Math.abs(b1 - b2) <= tolerance;
-  } catch { return false; }
-};
-
-const formatPrice = (n: number) => n.toLocaleString("pt-AO").replace(/,/g, ".") + " Kz";
 
 /* ── Hook: empresas e vendedores patrocinados pelo Admin — lê `ads`
      (type = "empresa" | "vendedor", is_active = true) e depois busca os
@@ -146,19 +103,16 @@ const useSponsoredEntities = () =>
   });
 
 /* ── Hook: produtos da categoria ── */
-const useCategoryProducts = (categoryId: string | undefined, sortBy: string) =>
+const useCategoryProducts = (categoryId: string | undefined) =>
   useQuery({
-    queryKey: ["category_products", categoryId, sortBy],
+    queryKey: ["category_products", categoryId],
     queryFn: async () => {
       let query = supabase
         .from("products")
         .select("*, product_media(url, is_cover), product_variants(variant_type, value, name)")
-        .eq("is_active", true);
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
       if (categoryId) query = query.eq("category_id", categoryId);
-      if (sortBy === "Menor preço") query = query.order("price", { ascending: true });
-      else if (sortBy === "Maior preço") query = query.order("price", { ascending: false });
-      else if (sortBy === "Mais vendidos") query = query.order("sales_count", { ascending: false });
-      else query = query.order("created_at", { ascending: false });
       const { data, error } = await query;
       if (error) throw error;
       return data || [];
@@ -168,24 +122,7 @@ const useCategoryProducts = (categoryId: string | undefined, sortBy: string) =>
 
 const GlobalStyle = () => (
   <style>{`
-    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800;900&display=swap');
     .cd-scroll::-webkit-scrollbar { display: none; }
-    .cd-prod-card { transition: transform .15s ease, box-shadow .15s ease; }
-    .cd-prod-card:hover { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(35,21,11,0.14) !important; }
-    .cd-cart-btn:active { transform: scale(0.97); }
-    .cd-heart-btn:active { transform: scale(0.88); }
-    .cd-sub-btn { transition: background .15s ease; }
-    .cd-chip { transition: border-color .15s ease, background .15s ease; }
-    .cd-product-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 14px 12px;
-    }
-    @media (min-width: 640px)  { .cd-product-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-    @media (min-width: 900px)  { .cd-product-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
-    @media (min-width: 1200px) { .cd-product-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
-    @media (min-width: 1500px) { .cd-product-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
-    @keyframes cd-spin { to { transform: rotate(360deg); } }
   `}</style>
 );
 
@@ -249,157 +186,27 @@ const TrustedEntitiesStrip = ({ navigate }: { navigate: any }) => {
   );
 };
 
-/* ── Estrelas ── */
-const RatingRow = ({ rating, reviews }: { rating: number; reviews: number }) => (
-  <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}>
-    <div style={{ display: "flex", gap: 1 }}>
-      {[1, 2, 3, 4, 5].map((i) => (
-        <Star key={i} style={{ width: 11, height: 11 }}
-          fill={i <= Math.round(rating) ? gold : "none"}
-          stroke={i <= Math.round(rating) ? gold : "#C8BBA8"} strokeWidth={1.5} />
-      ))}
-    </div>
-    {reviews > 0 && (
-      <span style={{ fontFamily: fontBody, fontSize: 10, color: inkSoft, fontWeight: 600 }}>
-        {reviews.toLocaleString("pt-AO")}
-      </span>
-    )}
-  </div>
-);
-
-/* ── Cartão de produto — densidade Walmart, igual ao usado em Categorias ── */
-const ProductCard = ({ product, navigate, addToCart }: { product: any; navigate: any; addToCart: any }) => {
-  const [liked, setLiked] = useState(false);
-
-  return (
-    <div className="cd-prod-card" style={{ width: "100%" }}>
-      <div style={{ position: "relative" }}>
-        <button
-          onClick={() => navigate(`/produto/${product.id}`)}
-          style={{ display: "block", width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer" }}
-        >
-          <div style={{
-            width: "100%", aspectRatio: "1/1", borderRadius: 12, overflow: "hidden",
-            background: surface, border: `1px solid ${line}`,
-          }}>
-            <img src={product.image} alt={product.title} loading="lazy"
-              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-          </div>
-        </button>
-
-        {product.discount && (
-          <span style={{
-            position: "absolute", top: 8, left: 0,
-            background: promo, color: surface,
-            fontFamily: fontBody, fontSize: 10.5, fontWeight: 800,
-            padding: "3px 9px", borderRadius: "0 6px 6px 0",
-          }}>
-            {product.discount}
-          </span>
-        )}
-        {product.freeShipping && (
-          <span style={{
-            position: "absolute", bottom: 8, left: 8,
-            background: "rgba(35,21,11,0.75)", color: surface,
-            fontFamily: fontBody, fontSize: 9, fontWeight: 700,
-            padding: "3px 8px", borderRadius: 20,
-          }}>
-            Frete grátis
-          </span>
-        )}
-
-        <button
-          className="cd-heart-btn"
-          onClick={(e) => { e.stopPropagation(); setLiked((v) => !v); }}
-          style={{
-            position: "absolute", top: 8, right: 8,
-            width: 26, height: 26, borderRadius: "50%", border: "none", cursor: "pointer",
-            background: surface, boxShadow: shadowSm,
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}
-        >
-          <Heart style={{ width: 13, height: 13 }} fill={liked ? promo : "none"} stroke={liked ? promo : ink} strokeWidth={1.8} />
-        </button>
-      </div>
-
-      <button
-        className="cd-cart-btn"
-        onClick={() => addToCart.mutate({ productId: product.id, quantity: 1 })}
-        disabled={addToCart.isPending}
-        style={{
-          width: "100%", marginTop: 9, padding: "8px 0", borderRadius: 20, border: "none", cursor: "pointer",
-          background: brandDeep, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-        }}
-      >
-        {addToCart.isPending
-          ? <Loader2 style={{ width: 13, height: 13, color: surface }} className="animate-spin" />
-          : <ShoppingCart style={{ width: 12, height: 12, color: surface }} />}
-        <span style={{ fontFamily: fontBody, fontSize: 12, fontWeight: 800, color: surface }}>Adicionar</span>
-      </button>
-
-      <div style={{ marginTop: 7 }}>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
-          <span style={{ fontFamily: fontBody, fontSize: 16, fontWeight: 800, color: dealGreen, fontVariantNumeric: "tabular-nums" }}>
-            {product.priceFormatted}
-          </span>
-        </div>
-        {product.oldPriceFormatted && (
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 1, flexWrap: "wrap" }}>
-            <span style={{ fontFamily: fontBody, fontSize: 11, color: inkSoft, textDecoration: "line-through", fontWeight: 600 }}>
-              {product.oldPriceFormatted}
-            </span>
-            {product.discount && (
-              <span style={{
-                fontFamily: fontBody, fontSize: 9.5, fontWeight: 800, color: dealGreen,
-                background: saveBg, borderRadius: 4, padding: "1px 5px",
-              }}>
-                {product.discount}
-              </span>
-            )}
-          </div>
-        )}
-
-        <p style={{
-          margin: "5px 0 0", fontFamily: fontBody, fontSize: 12, fontWeight: 600, color: ink,
-          lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
-        }}>
-          {product.title}
-        </p>
-
-        {product.rating > 0 && <RatingRow rating={product.rating} reviews={product.reviews} />}
-      </div>
-    </div>
-  );
-};
-
 const CategoriaDetalhe = () => {
   const { nome } = useParams();
   const navigate = useNavigate();
   const categoryName = decodeURIComponent(nome || "");
-  const [sortBy, setSortBy] = useState("Recomendado");
-  const [showSort, setShowSort] = useState(false);
-  const [showMobileFilters, setShowMobileFilters] = useState(false);
-  const [selectedSub, setSelectedSub] = useState<string | null>(null);
-  const [selectedColors, setSelectedColors] = useState<string[]>([]);
-  const [selectedPrice, setSelectedPrice] = useState<string | null>(null);
-  const isMobile = useIsMobile();
   const addToCart = useAddToCart();
 
   const { data: dbCategories } = useCategories();
   const category = (dbCategories || []).find((c: any) => c.name === categoryName);
   const categoryId = category?.id;
 
-  const { data: dbProducts, isLoading } = useCategoryProducts(categoryId, sortBy);
+  const { data: dbProducts, isLoading } = useCategoryProducts(categoryId);
 
-  const allProducts = useMemo(() =>
+  const products: BrowserProduct[] = useMemo(() =>
     (dbProducts || []).map((p: any) => {
       const cover = p.product_media?.find((m: any) => m.is_cover)?.url
         || p.image_url
         || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&h=600&fit=crop";
 
-      const productColorHexes: string[] = (p.product_variants || [])
+      const colors = (p.product_variants || [])
         .filter((v: any) => v.variant_type === "color" && v.value)
-        .map((v: any) => v.value as string);
+        .map((v: any) => ({ name: (v.name && String(v.name).trim()) || v.value, hex: v.value as string }));
 
       const price = Number(p.price);
       const oldPriceNum = p.old_price ? Number(p.old_price) : null;
@@ -416,358 +223,30 @@ const CategoriaDetalhe = () => {
         reviews: p.total_reviews || 0,
         freeShipping: p.free_shipping,
         salesCount: p.sales_count || 0,
-        colorHexes: productColorHexes,
-        subcategory: p.subcategory || null,
+        colors,
+        groupLabel: p.subcategory || null,
       };
     }),
   [dbProducts]);
 
-  /* ─── Filtros derivados de dados reais dos produtos da categoria ─── */
-  const availableSubs = useMemo(() => {
-    const set = new Set<string>();
-    allProducts.forEach((p) => { if (p.subcategory) set.add(p.subcategory); });
-    return Array.from(set).sort();
-  }, [allProducts]);
-
-  const availableColors = useMemo(() => {
-    const map = new Map<string, { name: string; hex: string }>();
-    (dbProducts || []).forEach((p: any) => {
-      (p.product_variants || [])
-        .filter((v: any) => v.variant_type === "color" && v.value)
-        .forEach((v: any) => {
-          const name = (v.name && String(v.name).trim()) || v.value;
-          if (!map.has(name)) {
-            map.set(name, { name, hex: colorNameToHex[name] || v.value });
-          }
-        });
-    });
-    return Array.from(map.values());
-  }, [dbProducts]);
-
-  const priceRanges = useMemo(() => {
-    if (allProducts.length === 0) return [] as { label: string; min: number; max: number }[];
-    const base = [
-      { label: "Até 10.000 Kz",       min: 0,      max: 10000  },
-      { label: "10.000 - 50.000 Kz",  min: 10000,  max: 50000  },
-      { label: "50.000 - 200.000 Kz", min: 50000,  max: 200000 },
-      { label: "200.000+",            min: 200000, max: Infinity },
-    ];
-    return base.filter((r) => allProducts.some((p) => p.price >= r.min && p.price < r.max));
-  }, [allProducts]);
-
-  const products = useMemo(() => {
-    let list = allProducts;
-    if (selectedSub) list = list.filter((p) => p.subcategory === selectedSub);
-    if (selectedColors.length > 0) {
-      list = list.filter((p) => {
-        if (p.colorHexes.length === 0) return false;
-        return selectedColors.some((colorName) => {
-          const filterHex = availableColors.find((c) => c.name === colorName)?.hex;
-          if (!filterHex) return false;
-          return p.colorHexes.some((h: string) => hexClose(h, filterHex));
-        });
-      });
-    }
-    if (selectedPrice) {
-      const range = priceRanges.find((r) => r.label === selectedPrice);
-      if (range) list = list.filter((p) => p.price >= range.min && p.price < range.max);
-    }
-    return list;
-  }, [allProducts, selectedColors, selectedPrice, selectedSub, availableColors, priceRanges]);
-
-  const subs = availableSubs;
-  const toggleColor = (c: string) =>
-    setSelectedColors((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
-
-  const activeFiltersCount = (selectedSub ? 1 : 0) + selectedColors.length + (selectedPrice ? 1 : 0);
-  const clearFilters = () => { setSelectedSub(null); setSelectedColors([]); setSelectedPrice(null); };
-
-  const FiltersPanel = () => (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {activeFiltersCount > 0 && (
-        <button
-          onClick={clearFilters}
-          style={{
-            display: "flex", alignItems: "center", gap: 4, alignSelf: "flex-start",
-            fontFamily: fontBody, fontSize: 10.5, fontWeight: 800,
-            padding: "5px 10px", borderRadius: 20, cursor: "pointer",
-            background: lineSoft, color: brandDeep, border: `1px solid ${line}`,
-          }}
-        >
-          <X style={{ width: 11, height: 11 }} /> Limpar filtros ({activeFiltersCount})
-        </button>
-      )}
-
-      {subs.length > 0 && (
-        <div>
-          <h3 style={{ fontFamily: fontBody, fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6, color: inkSoft, margin: "0 0 8px" }}>
-            Subcategoria
-          </h3>
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            {subs.map((sub) => {
-              const active = selectedSub === sub;
-              return (
-                <button
-                  key={sub}
-                  className="cd-sub-btn"
-                  onClick={() => setSelectedSub(active ? null : sub)}
-                  style={{
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    width: "100%", textAlign: "left", padding: "7px 8px", borderRadius: 9, border: "none",
-                    cursor: "pointer", background: active ? lineSoft : "transparent",
-                  }}
-                >
-                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{
-                      width: 15, height: 15, borderRadius: "50%", border: `2px solid ${active ? brandDeep : "#CBBFA9"}`,
-                      display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-                    }}>
-                      {active && <span style={{ width: 7, height: 7, borderRadius: "50%", background: brandDeep }} />}
-                    </span>
-                    <span style={{ fontFamily: fontBody, fontSize: 12.5, color: active ? ink : inkSoft, fontWeight: active ? 700 : 500 }}>
-                      {sub}
-                    </span>
-                  </span>
-                  <Plus style={{ width: 12, height: 12, color: brandDeep }} />
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {availableColors.length > 0 && (
-        <div>
-          <h3 style={{ fontFamily: fontBody, fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6, color: inkSoft, margin: "0 0 8px" }}>
-            Cor
-          </h3>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6 }}>
-            {availableColors.map((c) => {
-              const active = selectedColors.includes(c.name);
-              return (
-                <button
-                  key={c.name}
-                  onClick={() => toggleColor(c.name)}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 7, padding: "5px 6px", borderRadius: 9,
-                    cursor: "pointer", fontFamily: fontBody, fontSize: 11.5,
-                    background: active ? lineSoft : "transparent",
-                    color: active ? ink : inkSoft, fontWeight: active ? 700 : 500,
-                    border: active ? `1px solid ${line}` : "1px solid transparent",
-                  }}
-                >
-                  <span style={{
-                    width: 15, height: 15, borderRadius: "50%", flexShrink: 0,
-                    background: c.hex, border: c.hex === "#FFFFFF" ? `1px solid ${line}` : "none",
-                  }} />
-                  {c.name}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {priceRanges.length > 0 && (
-        <div>
-          <h3 style={{ fontFamily: fontBody, fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6, color: inkSoft, margin: "0 0 8px" }}>
-            Preço
-          </h3>
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            {priceRanges.map((r) => {
-              const active = selectedPrice === r.label;
-              return (
-                <button
-                  key={r.label}
-                  onClick={() => setSelectedPrice(active ? null : r.label)}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left",
-                    padding: "7px 8px", borderRadius: 9, border: "none", cursor: "pointer",
-                    background: active ? lineSoft : "transparent",
-                    fontFamily: fontBody, fontSize: 12.5, color: active ? ink : inkSoft, fontWeight: active ? 700 : 500,
-                  }}
-                >
-                  <span style={{
-                    width: 15, height: 15, borderRadius: 4, border: `2px solid ${active ? brandDeep : "#CBBFA9"}`,
-                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-                  }}>
-                    {active && <span style={{ width: 7, height: 7, borderRadius: 2, background: brandDeep }} />}
-                  </span>
-                  {r.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-
   return (
     <div style={{ position: "relative", minHeight: "100vh", background: bg, fontFamily: fontBody, paddingBottom: 56 }}>
+      <ProductBrowserGlobalStyle />
       <GlobalStyle />
-
-      {/* ── Faixa de contexto removida por pedido do utilizador ── */}
 
       {/* ── Empresas / vendedores patrocinados ── */}
       <TrustedEntitiesStrip navigate={navigate} />
 
-      {/* ── Subcategorias — chips horizontais ── */}
-      {subs.length > 0 && (
-        <div className="cd-scroll" style={{ display: "flex", gap: 8, padding: "12px 14px", background: surface, overflowX: "auto", scrollbarWidth: "none", borderBottom: `1px solid ${line}` }}>
-          {subs.map((sub) => {
-            const active = selectedSub === sub;
-            return (
-              <button
-                key={sub}
-                className="cd-chip"
-                onClick={() => setSelectedSub(active ? null : sub)}
-                style={{
-                  flexShrink: 0, padding: "8px 14px", borderRadius: 20, cursor: "pointer",
-                  background: active ? brandDeep : surface,
-                  border: `1.5px solid ${active ? brandDeep : line}`,
-                  fontFamily: fontBody, fontSize: 12.5, fontWeight: 700,
-                  color: active ? surface : brandDeep,
-                }}
-              >
-                {sub}
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* ── Barra de ordenação ── */}
-      <div style={{ position: "sticky", top: 0, zIndex: 30, background: surface, borderBottom: `1px solid ${line}` }}>
-        <div style={{ padding: "10px 14px", display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ position: "relative", flex: 1 }}>
-            <button onClick={() => setShowSort(!showSort)} style={{
-              display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", padding: 0,
-              fontFamily: fontBody, fontSize: 12.5, fontWeight: 600, color: ink,
-            }}>
-              Ordenar por <span style={{ fontWeight: 800, color: brandDeep }}>{sortBy}</span>
-              <ChevronDown style={{ width: 13, height: 13, color: brandDeep }} />
-            </button>
-            {showSort && (
-              <div style={{
-                position: "absolute", top: "100%", left: 0, marginTop: 4, minWidth: 180, zIndex: 40,
-                background: surface, border: `1px solid ${line}`, borderRadius: 12, boxShadow: shadowMd, overflow: "hidden",
-              }}>
-                {sortOptions.map((opt) => (
-                  <button key={opt} onClick={() => { setSortBy(opt); setShowSort(false); }} style={{
-                    display: "block", width: "100%", textAlign: "left", padding: "9px 12px", border: "none", cursor: "pointer",
-                    background: opt === sortBy ? lineSoft : "transparent",
-                    fontFamily: fontBody, fontSize: 12.5, color: opt === sortBy ? brandDeep : ink, fontWeight: opt === sortBy ? 800 : 500,
-                  }}>
-                    {opt}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {isMobile && (
-            <button onClick={() => setShowMobileFilters(true)} style={{
-              display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 20, cursor: "pointer",
-              background: activeFiltersCount > 0 ? brandDeep : lineSoft,
-              border: `1.5px solid ${activeFiltersCount > 0 ? brandDeep : line}`,
-              fontFamily: fontBody, fontSize: 11.5, fontWeight: 800,
-              color: activeFiltersCount > 0 ? surface : ink,
-            }}>
-              <SlidersHorizontal style={{ width: 13, height: 13 }} />
-              Filtro{activeFiltersCount > 0 ? ` (${activeFiltersCount})` : ""}
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* ── Drawer de filtros (mobile) ── */}
-      {isMobile && showMobileFilters && (
-        <div onClick={() => setShowMobileFilters(false)} style={{
-          position: "fixed", inset: 0, zIndex: 50, background: "rgba(35,21,11,0.45)", backdropFilter: "blur(2px)",
-        }}>
-          <div onClick={(e) => e.stopPropagation()} style={{
-            position: "absolute", left: 0, top: 0, bottom: 0, width: 280, overflowY: "auto",
-            background: bg, padding: 16,
-          }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-              <h2 style={{ margin: 0, fontFamily: fontBody, fontSize: 14, fontWeight: 800, color: ink }}>Filtros</h2>
-              <button onClick={() => setShowMobileFilters(false)} style={{
-                width: 28, height: 28, borderRadius: "50%", border: "none", cursor: "pointer",
-                background: lineSoft, display: "flex", alignItems: "center", justifyContent: "center",
-              }}>
-                <X style={{ width: 15, height: 15, color: ink }} />
-              </button>
-            </div>
-            <FiltersPanel />
-          </div>
-        </div>
-      )}
-
-      {/* ── Layout principal ── */}
-      <div style={{ display: "flex", gap: 16, padding: "0 14px" }}>
-        {!isMobile && (
-          <aside style={{
-            width: 220, flexShrink: 0, alignSelf: "flex-start", position: "sticky", top: 60,
-            marginTop: 16, padding: "16px 14px", borderRadius: 16,
-            background: surface, border: `1px solid ${line}`, boxShadow: shadowSm,
-          }}>
-            <FiltersPanel />
-          </aside>
-        )}
-
-        <div style={{ flex: 1, padding: "12px 0" }}>
-          {isLoading ? (
-            <div style={{ display: "flex", justifyContent: "center", padding: "40px 0" }}>
-              <div style={{
-                width: 28, height: 28, borderRadius: "50%", border: `3px solid ${line}`, borderTopColor: brand,
-                animation: "cd-spin 0.8s linear infinite",
-              }} />
-            </div>
-          ) : (
-            <>
-              <p style={{ margin: "0 0 12px", fontFamily: fontBody, fontSize: 12, fontWeight: 600, color: inkSoft }}>
-                {products.length} resultado{products.length !== 1 ? "s" : ""} em "{categoryName}"
-                {activeFiltersCount > 0 && (
-                  <button onClick={clearFilters} style={{
-                    marginLeft: 8, background: "none", border: "none", cursor: "pointer",
-                    fontFamily: fontBody, fontSize: 12, color: brandDeep, textDecoration: "underline", fontWeight: 700,
-                  }}>
-                    limpar filtros
-                  </button>
-                )}
-              </p>
-
-              {products.length === 0 ? (
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "48px 0", gap: 10 }}>
-                  <div style={{
-                    width: 52, height: 52, borderRadius: "50%", background: lineSoft,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                  }}>
-                    <SlidersHorizontal style={{ width: 22, height: 22, color: brandDeep }} />
-                  </div>
-                  <p style={{ margin: 0, fontFamily: fontBody, fontSize: 13.5, fontWeight: 700, color: ink }}>Sem resultados</p>
-                  <p style={{ margin: 0, fontFamily: fontBody, fontSize: 12, color: inkSoft, textAlign: "center", maxWidth: 200 }}>
-                    Tente ajustar os filtros para encontrar o que procura.
-                  </p>
-                  {activeFiltersCount > 0 && (
-                    <button onClick={clearFilters} style={{
-                      marginTop: 4, padding: "9px 18px", borderRadius: 20, border: "none", cursor: "pointer",
-                      background: brandDeep, color: surface, fontFamily: fontBody, fontSize: 12, fontWeight: 800,
-                    }}>
-                      Limpar filtros
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <div className="cd-product-grid">
-                  {products.map((p: any) => <ProductCard key={p.id} product={p} navigate={navigate} addToCart={addToCart} />)}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </div>
+      {/* ── Estrutura partilhada com Categorias.tsx: chips + ordenação +
+           filtros + grelha — ver src/components/category/ProductBrowser.tsx ── */}
+      <ProductBrowser
+        products={products}
+        isLoading={isLoading}
+        groupFilterLabel="Subcategoria"
+        resultsContext={`em "${categoryName}"`}
+        navigate={navigate}
+        addToCart={addToCart}
+      />
     </div>
   );
 };
