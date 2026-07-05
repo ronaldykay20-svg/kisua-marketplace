@@ -10,6 +10,7 @@ import DesktopNavbar from "@/components/DesktopNavbar";
 import BottomNav from "@/components/BottomNav";
 import CookieConsentBanner from "@/components/CookieConsentBanner";
 import WelcomeCouponPopup from "@/components/WelcomeCouponPopup";
+import AbandonedCartPopup from "@/components/AbandonedCartPopup";
 import { trackPageView } from "@/lib/analytics";
 import Index from "./pages/Index.tsx";
 import ProductDetail from "./pages/ProductDetail.tsx";
@@ -93,6 +94,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
       {!hideBottomNav && <BottomNav />}
       <CookieConsentBanner />
       <WelcomeCouponPopup />
+      <AbandonedCartPopup />
     </div>
   );
 };
