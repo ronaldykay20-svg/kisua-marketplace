@@ -461,15 +461,18 @@ const Checkout = () => {
       const primaryGroup = cartGroups[0];
       const primarySellerId = primaryGroup?.isCompany ? null : primaryGroup?.seller?.sellerId ?? null;
 
+      // NOTA: total, subtotal, discount_amount, freight_amount e
+      // payment_verified NÃO são mandados aqui de propósito. Esses valores
+      // são calculados e validados no servidor (triggers no Supabase), a
+      // partir do preço real dos produtos e do payment_method — o valor
+      // que o browser mandar para esses campos é ignorado. Buscamos os
+      // valores reais de volta com .select() para usar no resto do fluxo
+      // (notificações, analytics), em vez de confiar no cálculo local.
       const { data: order, error: orderError } = await supabase
         .from("orders")
         .insert({
           user_id: user!.id,
           seller_id: primarySellerId,
-          total: total,
-          subtotal: subtotal,
-          shipping_cost: freightTotal,
-          discount_amount: discountAmount,
           status: "pending",
           shipping_name: address.name,
           shipping_phone: address.phone,
@@ -478,25 +481,20 @@ const Checkout = () => {
           shipping_address: address.street,
           shipping_municipality_code: address.municipalityCode,
           payment_method: paymentMethod,
-          total_amount: total,
-          subtotal_amount: subtotal,
-          freight_amount: freightTotal,
-          // Comprovativo: se o método não exige (pagamento na entrega), fica null
-          // e payment_verified é marcado true de imediato (não há nada a confirmar).
           payment_proof_url: paymentProofPath,
-          payment_verified: !requiresProof,
         })
-        .select("id")
+        .select("id, total, subtotal, discount_amount, freight_amount, payment_verified")
         .single();
 
       if (orderError) throw orderError;
 
+      // unit_price também não é mandado: o servidor busca o preço real do
+      // produto/variante no momento do insert e ignora o que vier daqui.
       const items = cartItems.map((item: any) => ({
         order_id: order.id,
         product_id: item.product_id,
         variant_id: item.variant_id || null,
         quantity: item.quantity,
-        unit_price: item.products?.price || 0,
       }));
 
       const { error: itemsError } = await supabase.from("order_items").insert(items);
@@ -508,10 +506,10 @@ const Checkout = () => {
       trackEvent("purchase", {
         metadata: {
           order_id: order.id,
-          total,
+          total: order.total,
           items_count: items.length,
           payment_method: paymentMethod,
-          discount_amount: discountAmount,
+          discount_amount: order.discount_amount,
         },
       });
 
@@ -576,7 +574,7 @@ const Checkout = () => {
               `Comprador: ${address.name} (${address.phone})\n` +
               `Entrega: ${address.municipalityName}, ${address.provinceName}\n` +
               `Método: ${payLabel}\n` +
-              `Total: ${formatPrice(total)}\n\n` +
+              `Total: ${formatPrice(order.total)}\n\n` +
               `${productLines}\n\n` +
               `Abra o pedido para ver o comprovativo e aprovar o pagamento.`,
             type: "payment_proof",
