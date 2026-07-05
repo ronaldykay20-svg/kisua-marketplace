@@ -6,7 +6,6 @@ import GroupedVideoStories from "@/components/GroupedVideoStories";
 import InfiniteProducts from "@/components/InfiniteProducts";
 import FlashSaleBar from "@/components/FlashSaleBar";
 import LiveActivityTicker from "@/components/LiveActivityTicker";
-import CookieConsentBanner from "@/components/CookieConsentBanner";
 import { useDeviceLayout } from "@/hooks/useDeviceLayout";
 
 // ─── LazySection ─────────────────────────────────────────────────────────────
@@ -291,7 +290,6 @@ const Index = () => {
   const device = useDeviceLayout();
   return (
     <>
-      <CookieConsentBanner />
       {device === "desktop" ? <DesktopLayout /> : device === "tablet" ? <TabletLayout /> : <MobileLayout />}
     </>
   );
