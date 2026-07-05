@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { trackEvent } from "@/lib/analytics";
 
 export const useAddToCart = () => {
   const { user } = useAuth();
@@ -11,7 +12,6 @@ export const useAddToCart = () => {
     mutationFn: async ({ productId, quantity, variantId }: { productId: string; quantity: number; variantId?: string }) => {
       if (!user) throw new Error("Login necessário");
 
-      // Check if already in cart
       const { data: existing } = await supabase
         .from("cart_items")
         .select("id, quantity")
@@ -36,9 +36,10 @@ export const useAddToCart = () => {
         if (error) throw error;
       }
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["cart"] });
       toast.success("Adicionado ao carrinho!");
+      trackEvent("add_to_cart", { productId: variables.productId, metadata: { quantity: variables.quantity } });
     },
     onError: (err: any) => {
       toast.error(err.message || "Erro ao adicionar ao carrinho");
@@ -72,6 +73,7 @@ export const useRemoveCartItem = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["cart"] });
       toast.success("Removido do carrinho");
+      trackEvent("remove_from_cart");
     },
   });
 };
