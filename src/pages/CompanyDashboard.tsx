@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
-import { Building2, Package, Plus, Edit, Trash2, Eye, EyeOff, Users, UserPlus, Save, X, Crown, ShieldCheck, Image as ImageIcon, Camera, Search, ShoppingCart, AlertTriangle } from "lucide-react";
+import { Building2, Package, Plus, Edit, Trash2, Eye, EyeOff, Users, UserPlus, Save, X, Crown, ShieldCheck, Image as ImageIcon, Camera, Search, ShoppingCart, AlertTriangle, Ticket } from "lucide-react";
 import SellerProductForm from "@/components/seller/SellerProductForm";
+import CouponManagerTab from "@/components/coupons/CouponManagerTab";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -9,7 +10,7 @@ import { toast } from "sonner";
 const CompanyDashboard = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState<"produtos" | "membros" | "perfil">("produtos");
+  const [tab, setTab] = useState<"produtos" | "membros" | "cupons" | "perfil">("produtos");
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [memberSearch, setMemberSearch] = useState("");
@@ -473,23 +474,31 @@ const CompanyDashboard = () => {
         )}
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-4">
+        <div className="flex gap-2 mb-4 overflow-x-auto no-scrollbar">
           <button
             onClick={() => setTab("produtos")}
-            className={`flex-1 py-2 text-xs font-bold rounded-lg border ${tab === "produtos" ? "bg-primary text-primary-foreground border-primary" : "bg-card text-foreground border-border"}`}
+            className={`flex-1 py-2 text-xs font-bold rounded-lg border whitespace-nowrap px-3 ${tab === "produtos" ? "bg-primary text-primary-foreground border-primary" : "bg-card text-foreground border-border"}`}
           >
             <Package className="w-4 h-4 inline mr-1" /> Produtos ({products.length})
           </button>
           <button
             onClick={() => setTab("membros")}
-            className={`flex-1 py-2 text-xs font-bold rounded-lg border ${tab === "membros" ? "bg-primary text-primary-foreground border-primary" : "bg-card text-foreground border-border"}`}
+            className={`flex-1 py-2 text-xs font-bold rounded-lg border whitespace-nowrap px-3 ${tab === "membros" ? "bg-primary text-primary-foreground border-primary" : "bg-card text-foreground border-border"}`}
           >
             <Users className="w-4 h-4 inline mr-1" /> Membros ({members.length})
           </button>
+          {canManageMembers && (
+            <button
+              onClick={() => setTab("cupons")}
+              className={`flex-1 py-2 text-xs font-bold rounded-lg border whitespace-nowrap px-3 ${tab === "cupons" ? "bg-primary text-primary-foreground border-primary" : "bg-card text-foreground border-border"}`}
+            >
+              <Ticket className="w-4 h-4 inline mr-1" /> Cupons
+            </button>
+          )}
           {isOwner && (
             <button
               onClick={() => setTab("perfil")}
-              className={`flex-1 py-2 text-xs font-bold rounded-lg border ${tab === "perfil" ? "bg-primary text-primary-foreground border-primary" : "bg-card text-foreground border-border"}`}
+              className={`flex-1 py-2 text-xs font-bold rounded-lg border whitespace-nowrap px-3 ${tab === "perfil" ? "bg-primary text-primary-foreground border-primary" : "bg-card text-foreground border-border"}`}
             >
               <Edit className="w-4 h-4 inline mr-1" /> Perfil
               {!company.municipality_code && (
@@ -678,6 +687,11 @@ const CompanyDashboard = () => {
               </div>
             )}
           </div>
+        )}
+
+        {/* ═══ CUPONS ═══ */}
+        {tab === "cupons" && canManageMembers && (
+          <CouponManagerTab scope="company" ownerId={company.id} heading="Cupons da Empresa" />
         )}
 
         {/* ═══ PERFIL ═══ */}
