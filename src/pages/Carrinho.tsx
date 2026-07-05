@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { Minus, Plus, Trash2, ShoppingCart, Loader2, Star, Heart, ImageOff, Check, Pencil, X } from "lucide-react";
 import { useCart } from "@/hooks/useSupabaseData";
-import { useUpdateCartItem, useRemoveCartItem } from "@/hooks/useCartActions";
+import { useUpdateCartItem, useRemoveCartItem, useAddToCart } from "@/hooks/useCartActions";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,6 +34,7 @@ const Carrinho = () => {
   const { data: cartItems = [], isLoading } = useCart();
   const updateItem = useUpdateCartItem();
   const removeItem = useRemoveCartItem();
+  const addToCart = useAddToCart();
   const [favorites, setFavorites] = useState<string[]>([]);
 
   // ── Selecção de itens (estilo Shein) ─────────────────────────────────────
@@ -121,6 +122,30 @@ const Carrinho = () => {
     () => (cartItems as any[]).map((i: any) => i.products?.id).filter(Boolean),
     [cartItems]
   );
+
+  // Nome real de quem vende cada produto (vendedor, empresa ou dropshipper).
+  // A entrega em si é sempre feita por parceiros logísticos da Zangu, nunca
+  // pelo vendedor directamente — por isso separamos as duas informações.
+  const { data: cartProductSellers = [] } = useQuery({
+    queryKey: ["cart_product_sellers", cartProductIds.join(",")],
+    queryFn: async () => {
+      if (!cartProductIds.length) return [];
+      const { data } = await supabase
+        .from("products")
+        .select("id, seller_id, company_id, sellers(id, name), companies(id, name)")
+        .in("id", cartProductIds);
+      return data || [];
+    },
+    enabled: cartProductIds.length > 0,
+  });
+
+  const getSellerName = (item: any): string => {
+    const prod = cartProductSellers.find((p: any) => p.id === item.products?.id);
+    if (!prod) return "Zangu";
+    const sellerRel: any = Array.isArray(prod.sellers) ? prod.sellers[0] : prod.sellers;
+    const companyRel: any = Array.isArray(prod.companies) ? prod.companies[0] : prod.companies;
+    return sellerRel?.name || companyRel?.name || "Zangu";
+  };
 
   const categoryIds = useMemo(
     () =>
@@ -359,8 +384,11 @@ const Carrinho = () => {
                         )}
                       </div>
 
-                      <p className="text-[11px] mt-1 px-2 py-0.5 rounded-full inline-block" style={{ background: brownLight, color: sandDark }}>
-                        🛡 Vendido e entregue por Ango Express
+                      <p className="text-[11px] mt-1 leading-tight" style={{ color: sandDark }}>
+                        Vendido por <span className="font-semibold" style={{ color: brown }}>{getSellerName(item)}</span>
+                      </p>
+                      <p className="text-[10px] flex items-center gap-1" style={{ color: sandDark }}>
+                        🛡 Entregue por parceiros confiáveis da Zangu
                       </p>
 
                       <div className="flex items-center justify-between mt-2">
@@ -440,7 +468,11 @@ const Carrinho = () => {
                   </button>
                 </div>
 
-                <div className="flex gap-3 overflow-x-auto px-3 py-3 pb-4 scrollbar-hide">
+                {/* Grelha 2 colunas — mesmo modelo de exibição usado pela Shein
+                    na secção "You may also like" do carrinho: cartão vertical,
+                    imagem em retrato, coração para wishlist, botão de "+" para
+                    adicionar rápido, preço em destaque e avaliação por baixo. */}
+                <div className="grid grid-cols-2 gap-2.5 px-3 py-3">
                   {suggestions.slice(0, 20).map((p: any) => {
                     const imgUrl: string | null = p.cover_url || p.image_url || null;
                     const isFav = favorites.includes(p.id);
@@ -450,22 +482,21 @@ const Carrinho = () => {
                     return (
                       <div
                         key={p.id}
-                        className="flex-shrink-0 w-36 rounded-2xl overflow-hidden cursor-pointer"
+                        className="rounded-xl overflow-hidden cursor-pointer bg-white"
                         style={{ border: `1px solid ${sand}` }}
                         onClick={() => navigate(`/produto/${p.id}`)}
                       >
-                        <div className="relative">
+                        <div className="relative w-full" style={{ aspectRatio: "3 / 4" }}>
                           {imgUrl ? (
                             <img
                               src={imgUrl}
                               alt={p.title}
-                              className="w-full h-32 object-cover"
+                              className="w-full h-full object-cover"
                               onError={e => {
                                 const el = e.currentTarget as HTMLImageElement;
                                 el.style.display = "none";
                                 const wrap = el.parentElement;
                                 if (wrap) {
-                                  wrap.style.height = "128px";
                                   wrap.style.background = brownLight;
                                   wrap.style.display = "flex";
                                   wrap.style.alignItems = "center";
@@ -474,11 +505,13 @@ const Carrinho = () => {
                               }}
                             />
                           ) : (
-                            <div className="w-full h-32 flex flex-col items-center justify-center" style={{ background: brownLight }}>
+                            <div className="w-full h-full flex flex-col items-center justify-center" style={{ background: brownLight }}>
                               <ImageOff className="w-6 h-6 mb-1" style={{ color: sandDark }} />
                               <span className="text-[9px]" style={{ color: sandDark }}>Sem foto</span>
                             </div>
                           )}
+
+                          {/* Coração de wishlist — canto superior direito */}
                           <button
                             onClick={e => {
                               e.stopPropagation();
@@ -488,8 +521,8 @@ const Carrinho = () => {
                                   : [...fav, p.id]
                               );
                             }}
-                            className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center"
-                            style={{ background: "rgba(255,255,255,0.88)" }}
+                            className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center"
+                            style={{ background: "rgba(255,255,255,0.9)" }}
                           >
                             <Heart
                               className="w-3.5 h-3.5"
@@ -499,17 +532,35 @@ const Carrinho = () => {
                               }}
                             />
                           </button>
+
+                          {/* Botão de adição rápida — canto inferior direito, tal como na Shein */}
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              addToCart.mutate({ productId: p.id, quantity: 1 });
+                            }}
+                            disabled={addToCart.isPending && addToCart.variables?.productId === p.id}
+                            className="absolute bottom-1.5 right-1.5 w-7 h-7 rounded-full flex items-center justify-center shadow-sm disabled:opacity-70"
+                            style={{ background: brown }}
+                            aria-label="Adicionar ao carrinho"
+                          >
+                            {addToCart.isPending && addToCart.variables?.productId === p.id ? (
+                              <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
+                            ) : (
+                              <Plus className="w-4 h-4 text-white" strokeWidth={2.5} />
+                            )}
+                          </button>
                         </div>
 
-                        <div className="p-2" style={{ background: "#fff" }}>
-                          <p className="text-[11px] font-semibold line-clamp-2 leading-tight" style={{ color: brown }}>
+                        <div className="p-2">
+                          <p className="text-[11px] font-medium line-clamp-2 leading-tight" style={{ color: brown }}>
                             {p.title}
                           </p>
-                          <p className="text-xs font-black mt-1" style={{ color: brown }}>
+                          <p className="text-sm font-black mt-1" style={{ color: brown }}>
                             {formatPrice(p.price)}
                           </p>
                           {hasReviews && (
-                            <div className="flex items-center gap-1 mt-1">
+                            <div className="flex items-center gap-1 mt-0.5">
                               <Star className="w-3 h-3" style={{ color: "#F9A825", fill: "#F9A825" }} />
                               <span className="text-[10px] font-semibold" style={{ color: sandDark }}>
                                 {p.rating} ({p.total_reviews})
