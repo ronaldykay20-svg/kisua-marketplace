@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Store, Package, Plus, Edit, Trash2, Eye, EyeOff, ShoppingCart, Settings, Image as ImageIcon, ClipboardList, Gavel, Truck } from "lucide-react";
+import { Store, Package, Plus, Edit, Trash2, Eye, EyeOff, ShoppingCart, Settings, Image as ImageIcon, ClipboardList, Gavel, Truck, Ticket } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -11,8 +11,9 @@ import SellerOrdersTab from "@/components/seller/SellerOrdersTab";
 import SellerStoriesTab from "@/components/seller/SellerStoriesTab";
 import SellerAuctionsTab from "@/components/seller/SellerAuctionsTab";
 import SellerFreightSettings from "@/components/seller/SellerFreightSettings";
+import CouponManagerTab from "@/components/coupons/CouponManagerTab";
 
-type Tab = "produtos" | "pedidos" | "stories" | "leiloes" | "entregas" | "perfil";
+type Tab = "produtos" | "pedidos" | "stories" | "leiloes" | "entregas" | "cupons" | "perfil";
 
 const SellerDashboard = () => {
   const { user } = useAuth();
@@ -179,6 +180,7 @@ const SellerDashboard = () => {
     { key: "stories",   label: "Stories",   icon: Eye },
     ...(hasLeiloesAccess ? [{ key: "leiloes" as Tab, label: "Leilões", icon: Gavel }] : []),
     { key: "entregas",  label: "Entregas",  icon: Truck },
+    { key: "cupons",    label: "Cupons",    icon: Ticket },
     { key: "perfil",    label: "Perfil",    icon: Settings },
   ];
 
@@ -318,6 +320,7 @@ const SellerDashboard = () => {
         {tab === "stories"  && <SellerStoriesTab sellerId={seller.id} />}
         {tab === "leiloes" && hasLeiloesAccess && <SellerAuctionsTab sellerId={seller.id} />}
         {tab === "entregas" && <SellerFreightSettings sellerId={seller.id} />}
+        {tab === "cupons"   && <CouponManagerTab scope="seller" ownerId={seller.id} heading="Cupons da Loja" />}
         {tab === "perfil"   && <SellerProfileEditor seller={seller} />}
 
       </div>
