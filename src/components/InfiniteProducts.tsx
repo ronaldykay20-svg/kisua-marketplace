@@ -7,6 +7,7 @@ import { useFavorites } from "@/hooks/useFavorites";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAddToCart } from "@/hooks/useCartActions";
 import { fetchDisplayCoupons, collectCoupon, fetchWalletCoupons, DisplayCoupon } from "@/lib/coupons";
+import { getRemainingToMidnight } from "@/lib/flashTime";
 
 const PAGE_SIZE = 20;
 
@@ -90,27 +91,21 @@ const hashId = (id: string) => {
   return h;
 };
 
-// ─── Contagem decrescente até à meia-noite (flash sale diária) ───────────────
-const getRemainingToMidnight = () => {
-  const now = new Date();
-  const end = new Date(now);
-  end.setHours(23, 59, 59, 999);
-  const diff = Math.max(0, end.getTime() - now.getTime());
-  const h = Math.floor(diff / 3600000);
-  const m = Math.floor((diff % 3600000) / 60000);
-  const s = Math.floor((diff % 60000) / 1000);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${pad(h)}:${pad(m)}:${pad(s)}`;
-};
-
 // ─── Swipe de imagens no card ─────────────────────────────────────────────────
+// Troca automática de fotos (estilo Shein): avança sozinho a cada ~2.6s
+// enquanto o card está visível no ecrã, para se o utilizador arrastar
+// manualmente, e retoma uns segundos depois de ele soltar.
 const ImageSwiper = ({ images, alt }: { images: string[]; alt: string }) => {
   const wrapRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [active, setActive] = useState(0);
+  const [inViewport, setInViewport] = useState(false);
+  const [userInteracting, setUserInteracting] = useState(false);
+  const resumeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Carregamento preguiçoso (dispara uma vez, com margem, e desliga-se)
   useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
@@ -122,13 +117,53 @@ const ImageSwiper = ({ images, alt }: { images: string[]; alt: string }) => {
     return () => obs.disconnect();
   }, []);
 
+  // Presença real no ecrã (liga/desliga conforme o scroll — usado só para pausar o autoplay)
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([e]) => setInViewport(e.isIntersecting),
+      { threshold: 0.6 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  const list = images.length > 0 ? images : [null];
+
+  // Ciclo automático das fotos
+  useEffect(() => {
+    if (list.length <= 1 || !visible || !inViewport || userInteracting) return;
+    const interval = setInterval(() => {
+      setActive((prev) => {
+        const next = (prev + 1) % list.length;
+        const el = scrollRef.current;
+        if (el && el.clientWidth > 0) {
+          el.scrollTo({ left: next * el.clientWidth, behavior: "smooth" });
+        }
+        return next;
+      });
+    }, 2600);
+    return () => clearInterval(interval);
+  }, [list.length, visible, inViewport, userInteracting]);
+
+  useEffect(() => () => { if (resumeTimeoutRef.current) clearTimeout(resumeTimeoutRef.current); }, []);
+
   const handleScroll = () => {
     const el = scrollRef.current;
     if (!el || el.clientWidth === 0) return;
     setActive(Math.round(el.scrollLeft / el.clientWidth));
   };
 
-  const list = images.length > 0 ? images : [null];
+  // Ao tocar/arrastar manualmente, o autoplay pára e só retoma 4s depois de soltar
+  const pauseAutoplay = () => {
+    setUserInteracting(true);
+    if (resumeTimeoutRef.current) clearTimeout(resumeTimeoutRef.current);
+  };
+  const scheduleResume = () => {
+    if (resumeTimeoutRef.current) clearTimeout(resumeTimeoutRef.current);
+    resumeTimeoutRef.current = setTimeout(() => setUserInteracting(false), 4000);
+  };
 
   return (
     <div ref={wrapRef} className="relative w-full overflow-hidden aspect-square" style={{ background: "#ffffff" }}>
@@ -138,6 +173,11 @@ const ImageSwiper = ({ images, alt }: { images: string[]; alt: string }) => {
         <div
           ref={scrollRef}
           onScroll={handleScroll}
+          onPointerDown={pauseAutoplay}
+          onPointerUp={scheduleResume}
+          onPointerLeave={scheduleResume}
+          onTouchStart={pauseAutoplay}
+          onTouchEnd={scheduleResume}
           className="zg-no-scrollbar flex w-full h-full overflow-x-auto snap-x snap-mandatory"
           style={{ scrollBehavior: "smooth" }}
         >
