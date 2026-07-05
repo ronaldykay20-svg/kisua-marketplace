@@ -92,18 +92,25 @@ const hashId = (id: string) => {
 };
 
 // ─── Swipe de imagens no card ─────────────────────────────────────────────────
-// Troca automática de fotos (estilo Shein): avança sozinho a cada ~2.6s
-// enquanto o card está visível no ecrã, para se o utilizador arrastar
-// manualmente, e retoma uns segundos depois de ele soltar.
-const ImageSwiper = ({ images, alt }: { images: string[]; alt: string }) => {
+// Troca automática de fotos (estilo Shein): SÓ o(s) card(s) que o pai marcar
+// como "spotlight" (1-2 de cada vez, escolhidos entre os visíveis no ecrã)
+// avançam sozinhos, devagar. Os outros ficam parados — isto evita o efeito
+// de "tudo a mexer ao mesmo tempo".
+const ImageSwiper = ({
+  images, alt, id, isSpotlight, onViewportChange,
+}: {
+  images: string[]; alt: string; id: string; isSpotlight: boolean;
+  onViewportChange: (id: string, inView: boolean, imageCount: number) => void;
+}) => {
   const wrapRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [active, setActive] = useState(0);
-  const [inViewport, setInViewport] = useState(false);
   const [userInteracting, setUserInteracting] = useState(false);
   const resumeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const list = images.length > 0 ? images : [null];
 
   // Carregamento preguiçoso (dispara uma vez, com margem, e desliga-se)
   useEffect(() => {
@@ -117,23 +124,23 @@ const ImageSwiper = ({ images, alt }: { images: string[]; alt: string }) => {
     return () => obs.disconnect();
   }, []);
 
-  // Presença real no ecrã (liga/desliga conforme o scroll — usado só para pausar o autoplay)
+  // Reporta ao componente pai se este card está mesmo visível no ecrã —
+  // o pai é que decide, entre todos os visíveis, quais 1-2 ficam "spotlight".
   useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
     const obs = new IntersectionObserver(
-      ([e]) => setInViewport(e.isIntersecting),
+      ([e]) => onViewportChange(id, e.isIntersecting, list.length),
       { threshold: 0.6 }
     );
     obs.observe(el);
-    return () => obs.disconnect();
-  }, []);
+    return () => { obs.disconnect(); onViewportChange(id, false, list.length); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, list.length]);
 
-  const list = images.length > 0 ? images : [null];
-
-  // Ciclo automático das fotos
+  // Ciclo automático das fotos — só quando este card está em spotlight
   useEffect(() => {
-    if (list.length <= 1 || !visible || !inViewport || userInteracting) return;
+    if (list.length <= 1 || !visible || !isSpotlight || userInteracting) return;
     const interval = setInterval(() => {
       setActive((prev) => {
         const next = (prev + 1) % list.length;
@@ -143,9 +150,9 @@ const ImageSwiper = ({ images, alt }: { images: string[]; alt: string }) => {
         }
         return next;
       });
-    }, 2600);
+    }, 3800);
     return () => clearInterval(interval);
-  }, [list.length, visible, inViewport, userInteracting]);
+  }, [list.length, visible, isSpotlight, userInteracting]);
 
   useEffect(() => () => { if (resumeTimeoutRef.current) clearTimeout(resumeTimeoutRef.current); }, []);
 
@@ -254,7 +261,7 @@ const StarRating = ({ rating }: { rating: number }) => {
 
 // ─── Card ─────────────────────────────────────────────────────────────────────
 const ProductCard = ({
-  p, images, isTrending, isFav, onFav, onClick, onAddToCart, index, tick, flashRemaining, coupon, couponCollected, onCollectCoupon,
+  p, images, isTrending, isFav, onFav, onClick, onAddToCart, index, tick, flashRemaining, coupon, couponCollected, onCollectCoupon, isSpotlight, onViewportChange,
 }: {
   p: any; images: string[]; isTrending: boolean;
   isFav: boolean; onFav: (e: React.MouseEvent) => void;
@@ -262,6 +269,7 @@ const ProductCard = ({
   index: number; tick: number; flashRemaining: string;
   coupon: DisplayCoupon | null; couponCollected: boolean;
   onCollectCoupon: (e: React.MouseEvent) => void;
+  isSpotlight: boolean; onViewportChange: (id: string, inView: boolean, imageCount: number) => void;
 }) => {
   const [pressed, setPressed] = useState(false);
   const [heartPop, setHeartPop] = useState(false);
@@ -313,6 +321,69 @@ const ProductCard = ({
     onAddToCart(e);
   };
 
+  // Linha rotativa por baixo do título/preço — só troca de conteúdo nos
+  // cards em spotlight; nos restantes mostra sempre o primeiro item, parado.
+  const infoCandidates: { key: string; node: React.ReactNode }[] = [];
+  if (hasRating || hasSales) {
+    infoCandidates.push({
+      key: "rating",
+      node: (
+        <span className="flex items-center gap-1 flex-wrap">
+          {hasRating && (
+            <span className="flex items-center gap-1">
+              <StarRating rating={Number(p.rating)} />
+              <span className="text-[9px]" style={{ color: "#b09080" }}>
+                {Number(p.rating).toFixed(1)}
+                {p.total_reviews > 0 ? ` (${p.total_reviews})` : ""}
+              </span>
+            </span>
+          )}
+          {hasRating && hasSales && <span className="text-[9px]" style={{ color: "#d4c4b4" }}>•</span>}
+          {hasSales && (
+            <span className="flex items-center gap-0.5 text-[9px]" style={{ color: "#b09080" }}>
+              <Users className="w-2 h-2" /> {p.sales_count}+ vendidos
+            </span>
+          )}
+        </span>
+      ),
+    });
+  }
+  infoCandidates.push({
+    key: "viewers",
+    node: (
+      <span className="flex items-center gap-1">
+        <span className="zg-live-dot" />
+        <Eye className="w-2.5 h-2.5" style={{ color: "#7fa87f" }} />
+        <span className="zg-live-number text-[9.5px] font-semibold" style={{ color: "#5a8a5a" }}>
+          {viewerCount} pessoas a ver agora
+        </span>
+      </span>
+    ),
+  });
+  if (lowStock) {
+    infoCandidates.push({
+      key: "stock",
+      node: <span className="text-[9px] font-bold" style={{ color: "#e53935" }}>⚠ Só restam {stockQty}!</span>,
+    });
+  }
+
+  const [infoIndex, setInfoIndex] = useState(0);
+  const [infoFade, setInfoFade] = useState(true);
+
+  useEffect(() => {
+    if (!isSpotlight) { setInfoIndex(0); return; }
+    if (infoCandidates.length <= 1) return;
+    const interval = setInterval(() => {
+      setInfoFade(false);
+      setTimeout(() => {
+        setInfoIndex((i) => (i + 1) % infoCandidates.length);
+        setInfoFade(true);
+      }, 250);
+    }, 3500);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSpotlight, infoCandidates.length]);
+
   return (
     <div
       onClick={onClick}
@@ -329,7 +400,7 @@ const ProductCard = ({
       }}
     >
       <div className="relative">
-        <ImageSwiper images={images} alt={p.title} />
+        <ImageSwiper images={images} alt={p.title} id={String(p.id)} isSpotlight={isSpotlight} onViewportChange={onViewportChange} />
 
         {p.discount_percent > 0 && (
           <span className="absolute top-2 left-2 px-1.5 py-0.5 text-[10px] font-black text-white z-10"
@@ -402,41 +473,16 @@ const ProductCard = ({
           </p>
         )}
 
-        {(hasRating || hasSales) && (
-          <div className="flex items-center gap-1 mb-1 flex-wrap">
-            {hasRating && (
-              <span className="flex items-center gap-1">
-                <StarRating rating={Number(p.rating)} />
-                <span className="text-[9px]" style={{ color: "#b09080" }}>
-                  {Number(p.rating).toFixed(1)}
-                  {p.total_reviews > 0 ? ` (${p.total_reviews})` : ""}
-                </span>
-              </span>
-            )}
-            {hasRating && hasSales && (
-              <span className="text-[9px]" style={{ color: "#d4c4b4" }}>•</span>
-            )}
-            {hasSales && (
-              <span className="flex items-center gap-0.5 text-[9px]" style={{ color: "#b09080" }}>
-                <Users className="w-2 h-2" /> {p.sales_count}+ vendidos
-              </span>
-            )}
-          </div>
-        )}
-
-        <div className="flex items-center gap-1 mb-1">
-          <span className="zg-live-dot" />
-          <Eye className="w-2.5 h-2.5" style={{ color: "#7fa87f" }} />
-          <span className="zg-live-number text-[9.5px] font-semibold" style={{ color: "#5a8a5a" }}>
-            {viewerCount} pessoas a ver agora
-          </span>
-        </div>
-
-        {lowStock && (
-          <div className="flex items-center gap-0.5 mb-1">
-            <span className="text-[9px] font-bold" style={{ color: "#e53935" }}>
-              ⚠ Só restam {stockQty}!
-            </span>
+        {infoCandidates.length > 0 && (
+          <div
+            className="mb-1"
+            style={{
+              minHeight: "14px",
+              opacity: isSpotlight ? (infoFade ? 1 : 0) : 1,
+              transition: "opacity 0.25s ease",
+            }}
+          >
+            {infoCandidates[infoIndex % infoCandidates.length].node}
           </div>
         )}
 
@@ -560,6 +606,31 @@ const InfiniteProducts = () => {
 
   const allProducts = data?.pages.flat() || [];
   const productIds = allProducts.map((p: any) => p.id);
+
+  // ── Coordenador de "spotlight" — só 1 ou 2 cards animam de cada vez ────────
+  // Cada ImageSwiper reporta se está visível no ecrã (e quantas fotos tem);
+  // a cada 7s escolhemos, entre os visíveis com mais de 1 foto, até 2 para
+  // ficarem "vivos" (imagem a trocar + linha de info a rodar). Os restantes
+  // ficam parados — isto evita o efeito de "tudo a mexer ao mesmo tempo".
+  const visibleMultiImageIdsRef = useRef<Set<string>>(new Set());
+  const [spotlightIds, setSpotlightIds] = useState<string[]>([]);
+
+  const handleViewportChange = useCallback((id: string, inView: boolean, imageCount: number) => {
+    if (inView && imageCount > 1) visibleMultiImageIdsRef.current.add(id);
+    else visibleMultiImageIdsRef.current.delete(id);
+  }, []);
+
+  useEffect(() => {
+    const pickSpotlight = () => {
+      const candidates = Array.from(visibleMultiImageIdsRef.current);
+      if (candidates.length === 0) { setSpotlightIds([]); return; }
+      const shuffled = [...candidates].sort(() => Math.random() - 0.5);
+      setSpotlightIds(shuffled.slice(0, 2));
+    };
+    pickSpotlight();
+    const interval = setInterval(pickSpotlight, 7000);
+    return () => clearInterval(interval);
+  }, []);
 
   // ── Cupons reais "apanháveis" para os produtos já carregados ──────────────
   const { data: displayCoupons = [] } = useQuery({
@@ -710,6 +781,8 @@ const InfiniteProducts = () => {
               coupon={coupon}
               couponCollected={coupon ? collectedCouponIds.has(coupon.id) : false}
               onCollectCoupon={coupon ? makeCollectCoupon(coupon.id) : () => {}}
+              isSpotlight={spotlightIds.includes(String(p.id))}
+              onViewportChange={handleViewportChange}
             />
           );
         })}
