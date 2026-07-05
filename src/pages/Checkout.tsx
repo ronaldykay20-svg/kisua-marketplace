@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft, MapPin, CreditCard, Truck, CheckCircle, Loader2, ShieldCheck, ImageOff, Upload, FileCheck, X, Building2, Smartphone, Tag } from "lucide-react";
 import { useCart } from "@/hooks/useSupabaseData";
@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import FreightCalculator from "@/components/freight/FreightCalculator";
 import { useFreight } from "@/hooks/useFreight";
-import { validateCouponCode, redeemCouponCode, ValidateCouponResult } from "@/lib/coupons";
+import { validateCouponCode, redeemCouponCode, fetchWalletCoupons, markWalletCouponUsed, ValidateCouponResult, WalletCoupon } from "@/lib/coupons";
 
 const formatPrice = (price: number) =>
   price.toLocaleString("pt-AO").replace(/,/g, ".") + " Kz";
@@ -151,6 +151,7 @@ const Checkout = () => {
   const [appliedCoupon, setAppliedCoupon] = useState<ValidateCouponResult | null>(null);
   const [couponError, setCouponError] = useState("");
   const [validatingCoupon, setValidatingCoupon] = useState(false);
+  const [autoApplyDismissed, setAutoApplyDismissed] = useState(false);
 
   const handleFreightChange = useCallback((selections: any[], total: number) => {
     setFreightSelections(selections);
@@ -312,6 +313,50 @@ const Checkout = () => {
   // Frete fica sempre de fora do cálculo do desconto.
   const total = subtotal - discountAmount + freightTotal;
 
+  // ── Carteira de cupons (estilo Shein): aplica sozinho o melhor cupom elegível ──
+  const { data: walletCoupons = [] } = useQuery({
+    queryKey: ["wallet_coupons", user?.id],
+    queryFn: fetchWalletCoupons,
+    enabled: !!user,
+  });
+
+  useEffect(() => {
+    if (appliedCoupon || autoApplyDismissed) return;
+    if ((walletCoupons as WalletCoupon[]).length === 0) return;
+    if (cartGroups.length === 0 || subtotal <= 0) return;
+
+    let best: { coupon: WalletCoupon; elig: number; discount: number } | null = null;
+    for (const wc of walletCoupons as WalletCoupon[]) {
+      const elig = wc.scope === "platform"
+        ? subtotal
+        : (cartGroups.find((g: any) => g.seller.sellerId === wc.owner_id)?.subtotal ?? 0);
+      if (elig <= 0) continue;
+      if (wc.min_purchase_amount && elig < wc.min_purchase_amount) continue;
+
+      const raw = wc.discount_type === "percent"
+        ? elig * ((wc.discount_value || 0) / 100)
+        : (wc.discount_value || 0);
+      const discount = Math.min(
+        wc.max_discount_amount ? Math.min(raw, wc.max_discount_amount) : raw,
+        elig
+      );
+      if (!best || discount > best.discount) best = { coupon: wc, elig, discount };
+    }
+
+    if (best) {
+      validateCouponCode(best.coupon.code)
+        .then((result) => {
+          if (result.valid) {
+            setAppliedCoupon(result);
+            toast.success(`Cupom aplicado automaticamente da tua carteira 🎟️`);
+          }
+        })
+        .catch(() => {/* silencioso — não bloqueia o checkout */});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walletCoupons, cartGroups.length, subtotal, appliedCoupon, autoApplyDismissed]);
+
+
   const handleApplyCoupon = async () => {
     const code = couponInput.trim();
     if (!code) return;
@@ -353,6 +398,7 @@ const Checkout = () => {
     setAppliedCoupon(null);
     setCouponInput("");
     setCouponError("");
+    setAutoApplyDismissed(true);
   };
 
   // ── Seleção e validação do ficheiro de comprovativo ──
@@ -474,6 +520,9 @@ const Checkout = () => {
       if (appliedCoupon?.code && discountAmount > 0) {
         try {
           await redeemCouponCode(appliedCoupon.code, eligibleSubtotal, order.id);
+          if (appliedCoupon.coupon_id) {
+            await markWalletCouponUsed(appliedCoupon.coupon_id, order.id).catch(() => {});
+          }
         } catch (couponErr) {
           console.error("Falha ao registar resgate do cupom:", couponErr);
         }
