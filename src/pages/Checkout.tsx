@@ -804,7 +804,7 @@ const Checkout = () => {
               <div className="space-y-2">
                 {[
                   { id: "cash_on_delivery", label: "Pagamento na entrega", desc: "Pague em dinheiro ao receber" },
-                  { id: "bank_transfer", label: "Transferência bancária", desc: "Transfira para a conta do Ango Express" },
+                  { id: "bank_transfer", label: "Transferência bancária", desc: "Transfira para a conta da Zangu" },
                   { id: "multicaixa_express", label: "Multicaixa Express", desc: "Pague via Multicaixa Express" },
                 ].map(method => (
                   <button
