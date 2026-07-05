@@ -254,6 +254,29 @@ export function useFreight() {
   };
 }
 
+// ─── useFreeShippingThreshold ─────────────────────────────────────────────────
+// Hook leve — só busca o valor de frete grátis, sem carregar províncias/
+// municípios. Usado na barra de progresso do carrinho.
+
+export function useFreeShippingThreshold() {
+  const [threshold, setThreshold] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchSettingsSafe()
+      .then((s) => {
+        if (!cancelled) setThreshold(s?.free_shipping_threshold ?? null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  return { threshold, loading };
+}
+
 // ─── useCheckoutFreight ───────────────────────────────────────────────────────
 // Corrigido: usa calculateFreightStatic directamente, sem depender de useFreight
 
