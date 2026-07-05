@@ -15,6 +15,7 @@ import AdminFreightTab from "@/components/admin/AdminFreightTab";
 import AdminSuppliersTab from "@/components/admin/AdminSuppliersTab";
 import AdminPaymentReviewTab from "@/components/admin/AdminPaymentReviewTab";
 import CouponManagerTab from "@/components/coupons/CouponManagerTab";
+import AdminAnalyticsTab from "@/components/admin/AdminAnalyticsTab";
 import { toast } from "sonner";
 import { convertToWebP } from "@/lib/imageToWebp";
 
@@ -24,7 +25,7 @@ const roleBadge: Record<string, { label: string; color: string; icon: any }> = {
   user: { label: "Utilizador", color: "bg-primary/10 text-primary border-primary/20", icon: Users },
 };
 
-type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos" | "encomendas" | "categorias" | "banners" | "definicoes" | "leiloes" | "publicidade" | "frete" | "fornecedores" | "pagamentos" | "cupons";
+type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos" | "encomendas" | "categorias" | "banners" | "definicoes" | "leiloes" | "publicidade" | "frete" | "fornecedores" | "pagamentos" | "cupons" | "analytics";
 
 const AD_TYPES = [
   { value: "banner",           label: "Banner (imagem/vídeo)",   icon: ImageIcon,   desc: "Upload direto de imagem ou vídeo" },
@@ -161,7 +162,7 @@ const AdForm = ({ onClose }: { onClose: () => void }) => {
         <>
           <button onClick={() => setStep("type")} className="text-xs text-primary mb-3 flex items-center gap-1">← Mudar tipo</button>
           <input placeholder="Título do anúncio (opcional)" value={title} onChange={e => setTitle(e.target.value)}
-            className="w-full px-3 py-2 rounded-xl bg-muted border border-border text-sm text-foreground mb-3" />
+            className="w-full px-3 py-2 rounded-xl bg-muted border border-border text-base md:text-sm text-foreground mb-3" />
 
           {needsMedia && (
             <div className="mb-3">
@@ -207,7 +208,7 @@ const AdForm = ({ onClose }: { onClose: () => void }) => {
             </div>
           )}
 
-          {!isAuto && <input placeholder="URL de destino ao clicar (opcional)" value={destinationUrl} onChange={e => setDestinationUrl(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-muted border border-border text-sm text-foreground mb-3" />}
+          {!isAuto && <input placeholder="URL de destino ao clicar (opcional)" value={destinationUrl} onChange={e => setDestinationUrl(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-muted border border-border text-base md:text-sm text-foreground mb-3" />}
 
           <button onClick={() => uploadAndCreate.mutate()} disabled={!canSubmit || uploadAndCreate.isPending || uploading}
             className="w-full py-2.5 bg-primary text-primary-foreground text-xs font-bold rounded-xl disabled:opacity-50 flex items-center justify-center gap-2">
@@ -545,7 +546,7 @@ const AdminLeiloesTab = () => {
             <select
               value={methodForm.type}
               onChange={e => setMethodForm({ ...methodForm, type: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground"
+              className="w-full px-3 py-2 rounded-lg bg-background border border-border text-base md:text-sm text-foreground"
             >
               <option value="xpress">Xpress</option>
               <option value="iban">IBAN / TPA</option>
@@ -556,7 +557,7 @@ const AdminLeiloesTab = () => {
                 placeholder="Nome do método"
                 value={methodForm.label}
                 onChange={e => setMethodForm({ ...methodForm, label: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground"
+                className="w-full px-3 py-2 rounded-lg bg-background border border-border text-base md:text-sm text-foreground"
               />
             )}
             <input
@@ -569,13 +570,13 @@ const AdminLeiloesTab = () => {
               }
               value={methodForm.value}
               onChange={e => setMethodForm({ ...methodForm, value: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground"
+              className="w-full px-3 py-2 rounded-lg bg-background border border-border text-base md:text-sm text-foreground"
             />
             <input
               placeholder="Titular da conta"
               value={methodForm.holder}
               onChange={e => setMethodForm({ ...methodForm, holder: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground"
+              className="w-full px-3 py-2 rounded-lg bg-background border border-border text-base md:text-sm text-foreground"
             />
             <button
               onClick={() => addMethod.mutate()}
@@ -1008,6 +1009,7 @@ const AdminPanel = () => {
 
   const tabs: { key: Tab; label: string; icon: any }[] = [
     { key: "utilizadores", label: "Utilizadores", icon: UsersRound },
+    { key: "analytics",    label: "Analytics",    icon: TrendingUp },
     { key: "categorias",   label: "Categorias",   icon: FolderTree },
     { key: "cargos",       label: "Cargos",        icon: Crown },
     { key: "vendedores",   label: "Vendedores",    icon: Store },
@@ -1049,6 +1051,7 @@ const AdminPanel = () => {
         </div>
 
         {tab === "utilizadores" && <AdminUsersTab />}
+        {tab === "analytics"    && <AdminAnalyticsTab />}
         {tab === "categorias"   && <AdminCategoriesTab />}
         {tab === "publicidade"  && <AdminAdsTab />}
         {tab === "encomendas"   && <AdminOrdersTab />}
@@ -1085,7 +1088,7 @@ const AdminPanel = () => {
                   placeholder="Procurar utilizador..."
                   value={searchTerm}
                   onChange={e => setSearchTerm(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground"
+                  className="w-full pl-9 pr-3 py-2 rounded-lg bg-muted border border-border text-base md:text-sm text-foreground"
                 />
               </div>
               {searchTerm && profiles.length > 0 && (
@@ -1261,19 +1264,19 @@ const AdminPanel = () => {
                         .replace(/[^a-z0-9-]/g, ""),
                     })
                   }
-                  className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground"
+                  className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-base md:text-sm text-foreground"
                 />
                 <input
                   placeholder="Slug"
                   value={companyForm.slug}
                   onChange={e => setCompanyForm({ ...companyForm, slug: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground"
+                  className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-base md:text-sm text-foreground"
                 />
                 <textarea
                   placeholder="Descrição"
                   value={companyForm.description}
                   onChange={e => setCompanyForm({ ...companyForm, description: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground h-16 resize-none"
+                  className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-base md:text-sm text-foreground h-16 resize-none"
                 />
                 <button
                   onClick={() => createCompany.mutate()}
