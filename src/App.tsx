@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
+import { useEffect } from "react";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -7,6 +8,9 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import NewNavbar from "@/components/NewNavbar";
 import DesktopNavbar from "@/components/DesktopNavbar";
 import BottomNav from "@/components/BottomNav";
+import CookieConsentBanner from "@/components/CookieConsentBanner";
+import WelcomeCouponPopup from "@/components/WelcomeCouponPopup";
+import { trackPageView } from "@/lib/analytics";
 import Index from "./pages/Index.tsx";
 import ProductDetail from "./pages/ProductDetail.tsx";
 import NotFound from "./pages/NotFound.tsx";
@@ -72,6 +76,11 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
   const hideHeader = HIDE_HEADER_PATHS.some((pattern) =>
     pattern.test(location.pathname)
   );
+
+  useEffect(() => {
+    trackPageView(location.pathname);
+  }, [location.pathname]);
+
   return (
     <div className={`min-h-screen bg-background ${hideBottomNav ? "" : "pb-14 md:pb-0"}`}>
       {!hideHeader && (
@@ -82,14 +91,16 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
       )}
       {children}
       {!hideBottomNav && <BottomNav />}
+      <CookieConsentBanner />
+      <WelcomeCouponPopup />
     </div>
   );
 };
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <TooltipProvider>
+    <TooltipProvider>
+      <AuthProvider>
         <Toaster />
         <Sonner />
         <BrowserRouter>
@@ -131,23 +142,23 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/admin" element={<Layout><ProtectedRoute requiredRole="admin"><AdminPanel /></ProtectedRoute></Layout>} />
             <Route path="/admin/contas-pagamento" element={<Layout><ProtectedRoute requiredRole="moderator"><AdminPaymentAccounts /></ProtectedRoute></Layout>} />
-            <Route path="/admin/pedidos-completos" element={<Layout><ProtectedRoute requiredRole="moderator"><AdminFullOrders /></ProtectedRoute></Layout>} />
-            <Route path="/central-de-pedidos" element={<Layout><ProtectedRoute><CentralDePedidos /></ProtectedRoute></Layout>} />
-            <Route path="/painel-vendedor" element={<Layout><ProtectedRoute><SellerDashboard /></ProtectedRoute></Layout>} />
-            <Route path="/painel-empresa" element={<Layout><ProtectedRoute><CompanyDashboard /></ProtectedRoute></Layout>} />
-            <Route path="/painel-moderador" element={<Layout><ProtectedRoute requiredRole="moderator"><ModeratorPanel /></ProtectedRoute></Layout>} />
-            <Route path="/carrinho" element={<Layout><Carrinho /></Layout>} />
+            <Route path="/admin/encomendas" element={<Layout><ProtectedRoute requiredRole="admin"><AdminFullOrders /></ProtectedRoute></Layout>} />
+            <Route path="/central-pedidos" element={<Layout><ProtectedRoute><CentralDePedidos /></ProtectedRoute></Layout>} />
+            <Route path="/moderador" element={<Layout><ProtectedRoute requiredRole="moderator"><ModeratorPanel /></ProtectedRoute></Layout>} />
+            <Route path="/carrinho" element={<Layout><ProtectedRoute><Carrinho /></ProtectedRoute></Layout>} />
             <Route path="/checkout" element={<Layout><ProtectedRoute><Checkout /></ProtectedRoute></Layout>} />
-            <Route path="/seja-fornecedor" element={<Layout><ProtectedRoute><SejFornecedor /></ProtectedRoute></Layout>} />
-            <Route path="/painel-fornecedor" element={<Layout><ProtectedRoute><FornecedorDashboard /></ProtectedRoute></Layout>} />
+            <Route path="/vendedor-dashboard" element={<Layout><ProtectedRoute><SellerDashboard /></ProtectedRoute></Layout>} />
+            <Route path="/empresa-dashboard" element={<Layout><ProtectedRoute><CompanyDashboard /></ProtectedRoute></Layout>} />
+            <Route path="/seja-fornecedor" element={<Layout><SejFornecedor /></Layout>} />
+            <Route path="/fornecedor-dashboard" element={<Layout><ProtectedRoute><FornecedorDashboard /></ProtectedRoute></Layout>} />
             <Route path="/criar-loja" element={<Layout><ProtectedRoute><CriarLoja /></ProtectedRoute></Layout>} />
-            <Route path="/painel-dropship" element={<Layout><ProtectedRoute><DropshipDashboard /></ProtectedRoute></Layout>} />
+            <Route path="/dropship-dashboard" element={<Layout><ProtectedRoute><DropshipDashboard /></ProtectedRoute></Layout>} />
             <Route path="/catalogo-fornecedores" element={<Layout><ProtectedRoute><CatalogoFornecedores /></ProtectedRoute></Layout>} />
             <Route path="*" element={<Layout><NotFound /></Layout>} />
           </Routes>
         </BrowserRouter>
-      </TooltipProvider>
-    </AuthProvider>
+      </AuthProvider>
+    </TooltipProvider>
   </QueryClientProvider>
 );
 
