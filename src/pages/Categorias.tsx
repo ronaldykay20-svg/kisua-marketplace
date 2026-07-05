@@ -8,29 +8,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCategories } from "@/hooks/useSupabaseData";
 import { useAddToCart } from "@/hooks/useCartActions";
 import { useProductRanking } from "@/hooks/useSalesCount";
+import {
+  ProductBrowser, ProductBrowserGlobalStyle, BrowserProduct,
+  bg, surface, ink, inkSoft, brand, brandDeep, promo, dealGreen, saveBg, gold, line, shadowSm,
+  fontBody, formatPrice,
+} from "@/components/category/ProductBrowser";
 
 /* ════════════════════════════════════════════════════════════
-   TOKENS
+   Tokens partilhados com CategoriaDetalhe.tsx vêm agora de
+   ProductBrowser.tsx — mudar lá muda as duas páginas juntas.
    ════════════════════════════════════════════════════════════ */
-const bg            = "#FAF5EE";
-const surface       = "#FFFFFF";
-const ink           = "#23150B";
-const inkSoft       = "#7A6249";
-const brand         = "#A9835C";
-const brandDeep     = "#8F6C49";
-const brandDarkest  = "#5E4730";
-const promo         = "#C23B2B";
-const dealGreen     = "#1E7A3C";
-const saveBg        = "#E3F2E6";
-const gold          = "#C8932F";
-const line          = "rgba(35,21,11,0.10)";
-const shadowSm      = "0 1px 3px rgba(35,21,11,0.08)";
-
-const fontBody = "'Manrope', system-ui, sans-serif";
-
-/* ── Helpers ── */
-const formatPrice = (price: number) =>
-  price.toLocaleString("pt-AO").replace(/,/g, ".") + " Kz";
 
 /* ── Imagens fallback para categorias ── */
 const staticImages: Record<string, string> = {
@@ -117,6 +104,26 @@ const useSponsoredProducts = () =>
     },
   });
 
+/* ── Hook: todos os produtos activos do site, para a mesma estrutura de
+     grelha + filtros + ordenação da CategoriaDetalhe.tsx. Limitado a 200
+     por chamada — buscar o catálogo inteiro sem limite fica lento à medida
+     que o site cresce; os filtros/ordenação continuam a funcionar dentro
+     deste lote. ── */
+const useAllProducts = () =>
+  useQuery({
+    queryKey: ["all_products_browser"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("products")
+        .select("*, product_media(url, is_cover), product_variants(variant_type, value, name)")
+        .eq("is_active", true)
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
 /* ── Estilos globais ── */
 const GlobalStyle = () => (
   <style>{`
@@ -131,12 +138,6 @@ const GlobalStyle = () => (
     .cgr-prod-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(35,21,11,0.14) !important; }
     .cgr-heart-btn:active { transform: scale(0.88); }
     .cgr-cta:active { transform: scale(0.97); }
-    .cgr-cat-carousel {
-      display: flex; overflow-x: auto; scroll-snap-type: x mandatory;
-      -webkit-overflow-scrolling: touch; scrollbar-width: none;
-    }
-    .cgr-cat-carousel::-webkit-scrollbar { display: none; }
-    .cgr-cat-slide { scroll-snap-align: start; }
     @keyframes cgr-spin { to { transform: rotate(360deg); } }
   `}</style>
 );
@@ -305,8 +306,45 @@ const Categorias = () => {
   const { data: dbCategories } = useCategories();
   const { data: rankingProducts, isLoading: loadingRanking } = useProductRanking();
   const { data: sponsoredProducts, isLoading: loadingSponsored } = useSponsoredProducts();
+  const { data: dbAllProducts, isLoading: loadingAllProducts } = useAllProducts();
   const addToCart = useAddToCart();
-  
+
+  const categoryNameById = useMemo(() => {
+    const map: Record<string, string> = {};
+    (dbCategories || []).forEach((c: any) => { map[c.id] = c.name; });
+    return map;
+  }, [dbCategories]);
+
+  const allProductsForBrowser: BrowserProduct[] = useMemo(() =>
+    (dbAllProducts || []).map((p: any) => {
+      const cover = p.product_media?.find((m: any) => m.is_cover)?.url
+        || p.image_url
+        || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&h=600&fit=crop";
+
+      const colors = (p.product_variants || [])
+        .filter((v: any) => v.variant_type === "color" && v.value)
+        .map((v: any) => ({ name: (v.name && String(v.name).trim()) || v.value, hex: v.value as string }));
+
+      const price = Number(p.price);
+      const oldPriceNum = p.old_price ? Number(p.old_price) : null;
+
+      return {
+        id: p.id,
+        title: p.title,
+        price,
+        priceFormatted: formatPrice(price),
+        oldPriceFormatted: oldPriceNum ? formatPrice(oldPriceNum) : undefined,
+        discount: p.discount_percent ? `-${p.discount_percent}%` : undefined,
+        image: cover,
+        rating: p.rating || 0,
+        reviews: p.total_reviews || 0,
+        freeShipping: p.free_shipping,
+        salesCount: p.sales_count || 0,
+        colors,
+        groupLabel: (p.category_id && categoryNameById[p.category_id]) || null,
+      };
+    }),
+  [dbAllProducts, categoryNameById]);
 
   const categories: any[] = useMemo(() => {
     const base = dbCategories && dbCategories.length > 0 ? dbCategories : null;
@@ -319,13 +357,6 @@ const Categorias = () => {
     }
     return Object.keys(staticImages).map((name) => ({ name, id: null, image: staticImages[name] }));
   }, [dbCategories]);
-
-  // agrupa as categorias em blocos de 4 para o carrossel arrastável
-  const categoryPages = useMemo(() => {
-    const pages: any[][] = [];
-    for (let i = 0; i < categories.length; i += 4) pages.push(categories.slice(i, i + 4));
-    return pages;
-  }, [categories]);
 
   const top12Ranking = (rankingProducts || []).slice(0, 12);
 
@@ -352,7 +383,8 @@ const Categorias = () => {
 
       <div style={{ height: 1, background: line }} />
 
-      {/* Filtros fictícios removidos — filtros reais estão na página de detalhe da categoria */}
+      {/* Filtros reais agora vivem dentro do ProductBrowser, mais abaixo
+          ("Todos os Produtos") — partilhados com a página de categoria. */}
 
 
 
@@ -449,40 +481,22 @@ const Categorias = () => {
         </>
       )}
 
-      {/* ── Todas as Categorias — carrossel arrastável, 4 por página ── */}
-      <div style={{ background: surface, padding: "16px 14px 24px" }}>
-        <h2 style={{ margin: "0 0 14px", fontFamily: fontBody, fontSize: 21, fontWeight: 800, color: ink, letterSpacing: -0.3 }}>
-          Todas as Categorias
+      {/* ── Catálogo completo — mesma estrutura partilhada com
+           CategoriaDetalhe.tsx: chips + ordenação + filtros + grelha.
+           Ver src/components/category/ProductBrowser.tsx ── */}
+      <ProductBrowserGlobalStyle />
+      <div style={{ background: surface, padding: "16px 0 0" }}>
+        <h2 style={{ margin: "0 14px 0", fontFamily: fontBody, fontSize: 21, fontWeight: 800, color: ink, letterSpacing: -0.3 }}>
+          Todos os Produtos
         </h2>
-        <div className="cgr-cat-carousel">
-          {categoryPages.map((page, pageIdx) => (
-            <div
-              key={pageIdx}
-              className="cgr-cat-slide"
-              style={{
-                flex: "0 0 100%", display: "grid", gridTemplateColumns: "repeat(4, 1fr)",
-                gap: 14, paddingRight: 4,
-              }}
-            >
-              {page.map((cat: any) => (
-                <CategoryIconCard
-                  key={cat.name}
-                  name={cat.name}
-                  image={cat.image}
-                  size={72}
-                  onClick={() => navigate(`/categoria/${encodeURIComponent(cat.name)}`)}
-                />
-              ))}
-            </div>
-          ))}
-        </div>
-        {categoryPages.length > 1 && (
-          <div style={{ display: "flex", justifyContent: "center", gap: 5, marginTop: 12 }}>
-            {categoryPages.map((_, i) => (
-              <div key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: i === 0 ? brandDeep : line }} />
-            ))}
-          </div>
-        )}
+        <ProductBrowser
+          products={allProductsForBrowser}
+          isLoading={loadingAllProducts}
+          groupFilterLabel="Categoria"
+          resultsContext="em todo o catálogo"
+          navigate={navigate}
+          addToCart={addToCart}
+        />
       </div>
 
       <div style={{ height: 20 }} />
