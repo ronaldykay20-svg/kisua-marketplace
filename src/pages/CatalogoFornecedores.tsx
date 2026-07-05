@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { triggerImageEmbeddings } from "@/lib/imageEmbedding";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -126,8 +127,9 @@ export default function CatalogoFornecedores() {
         if (productError) throw productError;
         if (selected.images?.length && product?.id) {
           const mediaRows = selected.images.map((url: string, i: number) => ({ product_id: product.id, url, type: "image", is_cover: i === 0, sort_order: i }));
-          const { error: mediaError } = await supabase.from("product_media").insert(mediaRows);
+          const { data: insertedMedia, error: mediaError } = await supabase.from("product_media").insert(mediaRows).select("id, type");
           if (mediaError) throw mediaError;
+          if (insertedMedia) triggerImageEmbeddings(insertedMedia);
         }
       }
     },
