@@ -107,6 +107,21 @@ const ProductDetail = () => {
   const { trackEvent } = useProductTracking();
   const { isFavorite, toggleFavorite } = useFavorites();
 
+  // Contagem de itens no carrinho (para o badge do ícone no header)
+  const { data: cartCount = 0 } = useQuery({
+    queryKey: ["cart_count", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return 0;
+      const { count } = await supabase
+        .from("cart_items")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id);
+      return count || 0;
+    },
+    enabled: !!user?.id,
+    refetchInterval: 15000,
+  });
+
   const [qty, setQty] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
   const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
@@ -440,8 +455,16 @@ const ProductDetail = () => {
             style={{ background: isFavorited ? N.brown : "#fff", borderColor: isFavorited ? N.brown : "#ddd" }}>
             <Heart className="w-4 h-4" style={{ color: isFavorited ? "#fff" : "#333", fill: isFavorited ? "#fff" : "none" }} />
           </button>
-          <button onClick={() => navigate("/carrinho")} className="w-9 h-9 rounded-full flex items-center justify-center border border-gray-200 bg-white">
+          <button onClick={() => navigate("/carrinho")} className="relative w-9 h-9 rounded-full flex items-center justify-center border border-gray-200 bg-white">
             <ShoppingCart className="w-4 h-4 text-gray-700" />
+            {cartCount > 0 && (
+              <span
+                className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center text-[10px] font-bold text-white leading-none"
+                style={{ background: N.brown }}
+              >
+                {cartCount > 99 ? "99+" : cartCount}
+              </span>
+            )}
           </button>
           <button onClick={handleShare} className="w-9 h-9 rounded-full flex items-center justify-center border border-gray-200 bg-white">
             <Share2 className="w-4 h-4 text-gray-700" />
