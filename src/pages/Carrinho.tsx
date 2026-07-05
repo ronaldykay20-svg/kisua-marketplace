@@ -1,17 +1,18 @@
 import { useNavigate } from "react-router-dom";
-import { Minus, Plus, Trash2, ShoppingCart, Loader2, MapPin, Tag, ShieldCheck, RotateCcw, Headphones, Star, Heart, ImageOff } from "lucide-react";
+import { Minus, Plus, Trash2, ShoppingCart, Loader2, Star, Heart, ImageOff, Check, Pencil, X } from "lucide-react";
 import { useCart } from "@/hooks/useSupabaseData";
 import { useUpdateCartItem, useRemoveCartItem } from "@/hooks/useCartActions";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 
 const sand       = "#D4B896";
 const sandDark   = "#B8956A";
 const cream      = "#F7F0E6";
 const brown      = "#4A2E0A";
 const brownLight = "rgba(74,46,10,0.10)";
+const danger     = "#E53935";
 
 const formatPrice = (price: number) =>
   price.toLocaleString("pt-AO").replace(/,/g, " ") + " Kz";
@@ -33,9 +34,59 @@ const Carrinho = () => {
   const { data: cartItems = [], isLoading } = useCart();
   const updateItem = useUpdateCartItem();
   const removeItem = useRemoveCartItem();
-  const [coupon, setCoupon] = useState("");
-  const [couponOpen, setCouponOpen] = useState(false);
   const [favorites, setFavorites] = useState<string[]>([]);
+
+  // ── Selecção de itens (estilo Shein) ─────────────────────────────────────
+  // Por padrão todos os itens vêm seleccionados — o utilizador desmarca o
+  // que não quer levar já. Só os itens seleccionados entram no checkout.
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [editMode, setEditMode] = useState(false);
+  const [removingBulk, setRemovingBulk] = useState(false);
+
+  // Mantém a selecção sincronizada quando o carrinho muda (novo item entra
+  // já seleccionado; item removido sai da lista de seleccionados sozinho).
+  useEffect(() => {
+    const ids = (cartItems as any[]).map((i: any) => i.id);
+    setSelectedIds(prev => {
+      const kept = prev.filter(id => ids.includes(id));
+      const newOnes = ids.filter(id => !prev.includes(id));
+      return [...kept, ...newOnes];
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [(cartItems as any[]).map((i: any) => i.id).join(",")]);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const allSelected = (cartItems as any[]).length > 0 && selectedIds.length === (cartItems as any[]).length;
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds((cartItems as any[]).map((i: any) => i.id));
+    }
+  };
+
+  const selectedItems = useMemo(
+    () => (cartItems as any[]).filter((i: any) => selectedIds.includes(i.id)),
+    [cartItems, selectedIds]
+  );
+
+  const handleBulkRemove = async () => {
+    if (selectedIds.length === 0) return;
+    setRemovingBulk(true);
+    try {
+      for (const id of selectedIds) {
+        await removeItem.mutateAsync(id);
+      }
+      setSelectedIds([]);
+      setEditMode(false);
+    } finally {
+      setRemovingBulk(false);
+    }
+  };
 
   // ── Optimistic quantity update ──────────────────────────────────────────────
   const handleQuantity = (item: any, delta: number) => {
@@ -124,8 +175,18 @@ const Carrinho = () => {
   });
 
   /* ── Totais (sem frete — calculado no checkout) ── */
-  const subtotal = (cartItems as any[]).reduce((sum: number, item: any) =>
+  // Apenas os itens SELECCIONADOS entram no subtotal e no checkout —
+  // tal como na Shein, o carrinho pode ter mais itens do que os que o
+  // utilizador quer comprar agora.
+  const subtotal = selectedItems.reduce((sum: number, item: any) =>
     sum + (item.products?.price || 0) * item.quantity, 0);
+
+  const totalItemsCount = (cartItems as any[]).length;
+
+  const handleCheckout = () => {
+    if (selectedItems.length === 0) return;
+    navigate("/checkout", { state: { selectedCartItems: selectedItems } });
+  };
 
   /* ── Não autenticado ── */
   if (!user) {
@@ -154,7 +215,7 @@ const Carrinho = () => {
 
       {/* ── Cabeçalho ── */}
       <div
-        className="sticky top-0 z-40 px-4 py-3 flex items-center gap-3"
+        className="sticky top-0 z-40 px-4 py-3 flex items-center justify-between gap-3"
         style={{
           background: "rgba(242,234,224,0.97)",
           backdropFilter: "blur(10px)",
@@ -163,15 +224,30 @@ const Carrinho = () => {
       >
         <div>
           <h1 className="text-lg font-black leading-tight" style={{ color: brown }}>Meu carrinho</h1>
-          {(cartItems as any[]).length > 0 && (
+          {totalItemsCount > 0 && (
             <span
               className="text-xs font-semibold px-2 py-0.5 rounded-full"
               style={{ background: brownLight, color: sandDark }}
             >
-              {(cartItems as any[]).length} {(cartItems as any[]).length === 1 ? "item" : "itens"}
+              {totalItemsCount} {totalItemsCount === 1 ? "item" : "itens"}
             </span>
           )}
         </div>
+
+        {totalItemsCount > 0 && (
+          <button
+            onClick={() => {
+              setEditMode(v => !v);
+            }}
+            className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-xl"
+            style={editMode
+              ? { background: danger, color: "#fff" }
+              : { background: brownLight, color: sandDark }}
+          >
+            {editMode ? <X className="w-3.5 h-3.5" /> : <Pencil className="w-3.5 h-3.5" />}
+            {editMode ? "Concluir" : "Editar"}
+          </button>
+        )}
       </div>
 
       <div className="px-3 py-3 max-w-2xl mx-auto space-y-3">
@@ -180,7 +256,7 @@ const Carrinho = () => {
           <div className="flex justify-center py-24">
             <Loader2 className="w-7 h-7 animate-spin" style={{ color: sandDark }} />
           </div>
-        ) : (cartItems as any[]).length === 0 ? (
+        ) : totalItemsCount === 0 ? (
           <div className="text-center py-24">
             <div className="w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-5" style={{ background: brownLight }}>
               <ShoppingCart className="w-10 h-10" style={{ color: sandDark }} />
@@ -197,19 +273,58 @@ const Carrinho = () => {
           </div>
         ) : (
           <>
+            {/* ── Seleccionar tudo ── */}
+            <button
+              onClick={toggleSelectAll}
+              className="w-full rounded-2xl px-3 py-2.5 flex items-center gap-2.5"
+              style={{ background: "#fff", border: `1px solid ${sand}` }}
+            >
+              <div
+                className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
+                style={allSelected
+                  ? { background: brown, border: `1.5px solid ${brown}` }
+                  : { background: "#fff", border: `1.5px solid ${sand}` }}
+              >
+                {allSelected && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+              </div>
+              <span className="text-xs font-bold" style={{ color: brown }}>
+                Seleccionar tudo ({selectedIds.length}/{totalItemsCount})
+              </span>
+            </button>
+
             {/* ── Itens ── */}
             <div className="space-y-3">
               {(cartItems as any[]).map((item: any) => {
                 const product = item.products;
                 if (!product) return null;
                 const coverUrl: string | null = product.cover_url || product.image_url || null;
+                const isSelected = selectedIds.includes(item.id);
 
                 return (
                   <div
                     key={item.id}
                     className="rounded-2xl p-3 flex gap-3"
-                    style={{ background: "#fff", border: `1px solid ${sand}` }}
+                    style={{
+                      background: "#fff",
+                      border: `1px solid ${isSelected ? brown : sand}`,
+                      opacity: isSelected ? 1 : 0.6,
+                    }}
                   >
+                    <button
+                      onClick={() => toggleSelect(item.id)}
+                      className="flex items-start pt-1 flex-shrink-0"
+                      aria-label="Seleccionar item"
+                    >
+                      <div
+                        className="w-5 h-5 rounded-full flex items-center justify-center"
+                        style={isSelected
+                          ? { background: brown, border: `1.5px solid ${brown}` }
+                          : { background: "#fff", border: `1.5px solid ${sand}` }}
+                      >
+                        {isSelected && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                      </div>
+                    </button>
+
                     {coverUrl ? (
                       <img
                         src={coverUrl}
@@ -225,13 +340,24 @@ const Carrinho = () => {
                     )}
 
                     <div className="flex-1 min-w-0">
-                      <p
-                        className="text-sm font-bold line-clamp-2 cursor-pointer"
-                        style={{ color: brown }}
-                        onClick={() => navigate(`/produto/${product.id}`)}
-                      >
-                        {product.title}
-                      </p>
+                      <div className="flex items-start justify-between gap-2">
+                        <p
+                          className="text-sm font-bold line-clamp-2 cursor-pointer"
+                          style={{ color: brown }}
+                          onClick={() => navigate(`/produto/${product.id}`)}
+                        >
+                          {product.title}
+                        </p>
+                        {editMode && (
+                          <button
+                            onClick={() => removeItem.mutate(item.id)}
+                            className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
+                            style={{ background: "rgba(229,57,53,0.08)", color: danger }}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
 
                       <p className="text-[11px] mt-1 px-2 py-0.5 rounded-full inline-block" style={{ background: brownLight, color: sandDark }}>
                         🛡 Vendido e entregue por Ango Express
@@ -241,32 +367,23 @@ const Carrinho = () => {
                         <p className="text-base font-black" style={{ color: brown }}>
                           {formatPrice(product.price)}
                         </p>
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center rounded-xl overflow-hidden" style={{ border: `1.5px solid ${sand}` }}>
-                            <button
-                              onClick={() => handleQuantity(item, -1)}
-                              className="w-8 h-8 flex items-center justify-center"
-                              style={{ color: sandDark }}
-                            >
-                              <Minus className="w-3 h-3" />
-                            </button>
-                            <span className="w-8 text-center text-sm font-black" style={{ color: brown }}>
-                              {item.quantity}
-                            </span>
-                            <button
-                              onClick={() => handleQuantity(item, +1)}
-                              className="w-8 h-8 flex items-center justify-center"
-                              style={{ color: sandDark }}
-                            >
-                              <Plus className="w-3 h-3" />
-                            </button>
-                          </div>
+                        <div className="flex items-center rounded-xl overflow-hidden" style={{ border: `1.5px solid ${sand}` }}>
                           <button
-                            onClick={() => removeItem.mutate(item.id)}
-                            className="w-8 h-8 flex items-center justify-center rounded-xl"
-                            style={{ background: "rgba(229,57,53,0.08)", color: "#E53935" }}
+                            onClick={() => handleQuantity(item, -1)}
+                            className="w-8 h-8 flex items-center justify-center"
+                            style={{ color: sandDark }}
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Minus className="w-3 h-3" />
+                          </button>
+                          <span className="w-8 text-center text-sm font-black" style={{ color: brown }}>
+                            {item.quantity}
+                          </span>
+                          <button
+                            onClick={() => handleQuantity(item, +1)}
+                            className="w-8 h-8 flex items-center justify-center"
+                            style={{ color: sandDark }}
+                          >
+                            <Plus className="w-3 h-3" />
                           </button>
                         </div>
                       </div>
@@ -276,81 +393,28 @@ const Carrinho = () => {
               })}
             </div>
 
-            {/* ── Cupom ── */}
-            <button
-              onClick={() => setCouponOpen(v => !v)}
-              className="w-full rounded-2xl p-3 flex items-center gap-2 text-left"
-              style={{ background: "#fff", border: `1px solid ${sand}` }}
-            >
-              <Tag className="w-4 h-4 flex-shrink-0" style={{ color: sandDark }} />
-              <div>
-                <p className="text-xs font-bold" style={{ color: brown }}>Tem um cupom?</p>
-                <p className="text-[11px] font-semibold" style={{ color: sandDark }}>Adicionar cupom</p>
-              </div>
-            </button>
-
-            {couponOpen && (
-              <div className="rounded-2xl p-3 flex gap-2" style={{ background: "#fff", border: `1px solid ${sand}` }}>
-                <input
-                  type="text"
-                  value={coupon}
-                  onChange={e => setCoupon(e.target.value)}
-                  placeholder="Digite o código do cupom"
-                  className="flex-1 text-sm px-3 py-2 rounded-xl outline-none"
-                  style={{ background: brownLight, color: brown }}
-                />
-                <button
-                  className="px-4 py-2 rounded-xl text-sm font-bold text-white"
-                  style={{ background: `linear-gradient(135deg, ${sandDark}, ${brown})` }}
-                >
-                  Aplicar
-                </button>
+            {/* ── Resumo do pedido ── */}
+            {!editMode && (
+              <div className="rounded-2xl p-4" style={{ background: "#fff", border: `1px solid ${sand}` }}>
+                <h3 className="text-sm font-black mb-3" style={{ color: brown }}>Resumo do pedido</h3>
+                <div className="space-y-2 mb-3">
+                  <div className="flex justify-between text-sm">
+                    <span style={{ color: sandDark }}>
+                      Subtotal ({selectedItems.length} {selectedItems.length === 1 ? "item seleccionado" : "itens seleccionados"})
+                    </span>
+                    <span className="font-bold" style={{ color: brown }}>{formatPrice(subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span style={{ color: sandDark }}>Frete e cupões</span>
+                    <span className="font-semibold text-xs" style={{ color: sandDark }}>No checkout</span>
+                  </div>
+                </div>
+                <div className="border-t pt-3 flex justify-between" style={{ borderColor: sand }}>
+                  <span className="text-base font-black" style={{ color: brown }}>Subtotal</span>
+                  <span className="text-base font-black" style={{ color: brown }}>{formatPrice(subtotal)}</span>
+                </div>
               </div>
             )}
-
-            {/* ── Resumo do pedido ── */}
-            <div className="rounded-2xl p-4" style={{ background: "#fff", border: `1px solid ${sand}` }}>
-              <h3 className="text-sm font-black mb-3" style={{ color: brown }}>Resumo do pedido</h3>
-              <div className="space-y-2 mb-3">
-                <div className="flex justify-between text-sm">
-                  <span style={{ color: sandDark }}>
-                    Subtotal ({(cartItems as any[]).length} {(cartItems as any[]).length === 1 ? "item" : "itens"})
-                  </span>
-                  <span className="font-bold" style={{ color: brown }}>{formatPrice(subtotal)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span style={{ color: sandDark }}>Frete</span>
-                  <span className="font-semibold text-xs" style={{ color: sandDark }}>Calculado no checkout</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span style={{ color: sandDark }}>Descontos</span>
-                  <span className="font-bold" style={{ color: brown }}>0 Kz</span>
-                </div>
-              </div>
-              <div className="border-t pt-3 flex justify-between" style={{ borderColor: sand }}>
-                <span className="text-base font-black" style={{ color: brown }}>Subtotal</span>
-                <span className="text-base font-black" style={{ color: brown }}>{formatPrice(subtotal)}</span>
-              </div>
-
-              {/* Garantias */}
-              <div className="mt-4 space-y-2.5">
-                {[
-                  { icon: ShieldCheck, label: "Compra 100% segura",  sub: "Seus dados protegidos" },
-                  { icon: RotateCcw,   label: "Devolução garantida", sub: "Até 7 dias após o recebimento" },
-                  { icon: Headphones,  label: "Atendimento 24/7",    sub: "Suporte sempre disponível" },
-                ].map(g => (
-                  <div key={g.label} className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: brownLight }}>
-                      <g.icon className="w-4 h-4" style={{ color: sandDark }} />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold" style={{ color: brown }}>{g.label}</p>
-                      <p className="text-[11px]" style={{ color: sandDark }}>{g.sub}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
 
             {/* ── Sugestões ── */}
             {suggestions.length > 0 && (
@@ -430,8 +494,8 @@ const Carrinho = () => {
                             <Heart
                               className="w-3.5 h-3.5"
                               style={{
-                                color: isFav ? "#E53935" : sandDark,
-                                fill: isFav ? "#E53935" : "none",
+                                color: isFav ? danger : sandDark,
+                                fill: isFav ? danger : "none",
                               }}
                             />
                           </button>
@@ -464,7 +528,7 @@ const Carrinho = () => {
       </div>
 
       {/* ── Botão fixo ── */}
-      {(cartItems as any[]).length > 0 && (
+      {totalItemsCount > 0 && (
         <div
           className="fixed bottom-14 md:bottom-0 left-0 right-0 z-50 px-4 py-3"
           style={{
@@ -474,17 +538,32 @@ const Carrinho = () => {
           }}
         >
           <div className="max-w-2xl mx-auto flex items-center gap-4">
-            <div>
-              <p className="text-[11px]" style={{ color: sandDark }}>Subtotal</p>
-              <p className="text-lg font-black" style={{ color: brown }}>{formatPrice(subtotal)}</p>
-            </div>
-            <button
-              onClick={() => navigate("/checkout")}
-              className="flex-1 py-3.5 rounded-2xl font-black text-sm text-white flex items-center justify-center gap-2"
-              style={{ background: `linear-gradient(135deg, ${sandDark} 0%, ${brown} 100%)` }}
-            >
-              ⚡ Finalizar compra
-            </button>
+            {editMode ? (
+              <button
+                onClick={handleBulkRemove}
+                disabled={selectedIds.length === 0 || removingBulk}
+                className="flex-1 py-3.5 rounded-2xl font-black text-sm text-white flex items-center justify-center gap-2 disabled:opacity-50"
+                style={{ background: danger }}
+              >
+                {removingBulk ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                Remover ({selectedIds.length})
+              </button>
+            ) : (
+              <>
+                <div>
+                  <p className="text-[11px]" style={{ color: sandDark }}>Subtotal</p>
+                  <p className="text-lg font-black" style={{ color: brown }}>{formatPrice(subtotal)}</p>
+                </div>
+                <button
+                  onClick={handleCheckout}
+                  disabled={selectedItems.length === 0}
+                  className="flex-1 py-3.5 rounded-2xl font-black text-sm text-white flex items-center justify-center gap-2 disabled:opacity-50"
+                  style={{ background: `linear-gradient(135deg, ${sandDark} 0%, ${brown} 100%)` }}
+                >
+                  ⚡ Finalizar compra {selectedItems.length > 0 ? `(${selectedItems.length})` : ""}
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
