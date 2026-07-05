@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { STORAGE_BUCKETS } from "@/lib/storage";
 import { getSlotsForDevice, SIDEBAR_SLOTS, getHomeSlotLabel } from "@/lib/bannerSlots";
+import { convertToWebP, getFileExtension } from "@/lib/imageToWebp";
 
 type Device = "mobile" | "tablet" | "desktop";
 
@@ -103,15 +104,33 @@ interface BannerRow {
   device: Device | null;
   split_side: "left" | "right" | null;
   split_layout: string | null;
+  banner_group_id: string | null;
   created_at: string;
 }
 
+/**
+ * Os slots de cada device são posicionalmente equivalentes: mobile 1 ↔
+ * tablet 201 ↔ desktop 301, mobile 2 ↔ tablet 202 ↔ desktop 302, etc.
+ * Isto permite "traduzir" a posição de um banner de um device para outro
+ * quando o Admin marca "mostrar também em Tablet/Desktop". Slots da
+ * sidebar (101-103, só existem no desktop) não têm equivalente.
+ */
+const DEVICE_OFFSET: Record<Device, number> = { mobile: 0, tablet: 200, desktop: 300 };
+
+function equivalentSlot(fromDevice: Device, slotValue: number, toDevice: Device): number | null {
+  if (SIDEBAR_SLOTS.includes(slotValue)) return null; // sem equivalente noutros devices
+  const basePosition = slotValue - DEVICE_OFFSET[fromDevice];
+  if (basePosition < 1 || basePosition > 16) return null;
+  return basePosition + DEVICE_OFFSET[toDevice];
+}
+
 async function uploadBannerImage(file: File): Promise<string> {
-  const ext = file.name.split(".").pop();
+  const uploadFile = await convertToWebP(file, 0.8, 1600);
+  const ext = getFileExtension(uploadFile);
   const path = `banners/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
   const { error } = await supabase.storage
     .from(STORAGE_BUCKETS.banners)
-    .upload(path, file, { upsert: true });
+    .upload(path, uploadFile, { upsert: true });
   if (error) throw new Error("Upload falhou: " + error.message);
   const { data } = supabase.storage.from(STORAGE_BUCKETS.banners).getPublicUrl(path);
   return data.publicUrl;
@@ -275,6 +294,7 @@ type ImgEntry = { file?: File; preview: string; link: string };
 
 type FormState = {
   device: Device;
+  extraDevices: Device[];
   sort_order: number;
   format: string;
   title: string;
@@ -299,7 +319,7 @@ type FormState = {
 };
 
 const emptyForm = (): FormState => ({
-  device: "mobile", sort_order: 1, format: "hero",
+  device: "mobile", extraDevices: [], sort_order: 1, format: "hero",
   title: "", subtitle: "", cta_text: "", cta_link: "", image_url: "",
   text_position: "bottom-left", text_color: "#ffffff",
   text_bg_color: "#000000", text_bg_enabled: false,
@@ -325,7 +345,7 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
         return allImgs.map((url, i) => ({ preview: url, link: links[i] || "" }));
       };
       return {
-        device: ref.device || "mobile", sort_order: ref.sort_order, format: "split",
+        device: ref.device || "mobile", extraDevices: [], sort_order: ref.sort_order, format: "split",
         title: ref.title || "", subtitle: ref.subtitle || "",
         cta_text: ref.cta_text || "", cta_link: ref.cta_link || "", image_url: "",
         text_position: ref.text_position || "bottom-left",
@@ -341,8 +361,13 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
       };
     }
     if (!initial) return emptyForm();
+    const siblingDevices = initial.banner_group_id
+      ? existingBanners
+          .filter(b => b.banner_group_id === initial.banner_group_id && b.id !== initial.id)
+          .map(b => b.device || "mobile")
+      : [];
     return {
-      device: initial.device || "mobile", sort_order: initial.sort_order, format: initial.format,
+      device: initial.device || "mobile", extraDevices: siblingDevices, sort_order: initial.sort_order, format: initial.format,
       title: initial.title || "", subtitle: initial.subtitle || "",
       cta_text: initial.cta_text || "", cta_link: initial.cta_link || "",
       image_url: initial.image_url || "", text_position: initial.text_position || "bottom-left",
@@ -432,25 +457,63 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
         const existingExtras = (initial?.extra_images || []).filter(u => form.extraImgPreviews.includes(u));
         const newExtras = await Promise.all(form.extraImgFiles.map(uploadBannerImage));
         const allExtras = [...existingExtras, ...newExtras];
-        const payload: Record<string, any> = {
+
+        // Só criamos/mantemos um group_id se houver pelo menos um device
+        // extra marcado. Reaproveita o group_id existente ao editar, para
+        // não perder a ligação aos clones já criados.
+        const groupId = form.extraDevices.length > 0
+          ? (initial?.banner_group_id || crypto.randomUUID())
+          : null;
+
+        const basePayload: Record<string, any> = {
           title: form.title || "", subtitle: form.subtitle || "",
           cta_text: form.cta_text || "Compre agora", cta_link: form.cta_link || "#",
           image_url: imageUrl, extra_images: allExtras.length ? allExtras : [],
           extra_links: form.extra_links.filter(Boolean), format: form.format,
-          bg_color: form.bg_color, sort_order: form.sort_order, is_active: form.is_active,
+          bg_color: form.bg_color, is_active: form.is_active,
           text_position: form.text_position, text_color: form.text_color,
           text_bg_color: form.text_bg_enabled ? form.text_bg_color : null,
-          category_id: form.category_id, device: form.device, split_side: null, split_layout: null,
+          category_id: form.category_id, split_side: null, split_layout: null,
         };
+        const primaryPayload = { ...basePayload, device: form.device, sort_order: form.sort_order, banner_group_id: groupId };
+
+        let primaryId = initial?.id as string | undefined;
         if (isEdit && initial) {
-          const { error } = await supabase.from("banners" as any).update(payload).eq("id", initial.id);
+          const { error } = await supabase.from("banners" as any).update(primaryPayload).eq("id", initial.id);
           if (error) throw new Error(error.message);
-          toast.success("Banner atualizado!");
         } else {
-          const { error } = await supabase.from("banners" as any).insert(payload);
+          const { data, error } = await supabase.from("banners" as any).insert(primaryPayload).select("id").single();
           if (error) throw new Error(error.message);
-          toast.success("Banner criado!");
+          primaryId = (data as any).id;
         }
+
+        // Os clones de outros devices são sempre recriados de raiz — mais
+        // simples e seguro do que tentar sincronizar campo a campo.
+        if (initial?.banner_group_id) {
+          await supabase.from("banners" as any).delete()
+            .eq("banner_group_id", initial.banner_group_id)
+            .neq("id", primaryId as string);
+        }
+
+        const skippedDevices: string[] = [];
+        for (const targetDevice of form.extraDevices) {
+          const targetSlot = equivalentSlot(form.device, form.sort_order, targetDevice);
+          if (targetSlot === null) { skippedDevices.push(DEVICES.find(d => d.value === targetDevice)!.label); continue; }
+          const occupied = existingBanners.some(b =>
+            b.id !== primaryId && b.banner_group_id !== groupId && b.format !== "split" &&
+            (b.device || "mobile") === targetDevice && b.sort_order === targetSlot
+          );
+          if (occupied) { skippedDevices.push(`${DEVICES.find(d => d.value === targetDevice)!.label} (posição ocupada)`); continue; }
+          const { error } = await supabase.from("banners" as any).insert({
+            ...basePayload, device: targetDevice, sort_order: targetSlot, banner_group_id: groupId,
+          });
+          if (error) throw new Error(error.message);
+        }
+
+        if (skippedDevices.length > 0) {
+          toast.error(`Não foi possível duplicar para: ${skippedDevices.join(", ")}. Ajusta manualmente na aba desse device.`);
+        }
+        toast.success(isEdit ? "Banner atualizado!" : "Banner criado!");
       }
       onSaved(); onClose();
     } catch (e: any) {
@@ -473,12 +536,40 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
           <div className="flex gap-2">
             {DEVICES.map(d => (
               <button type="button" key={d.value}
-                onClick={() => { set("device", d.value); set("sort_order", getSlotsForDevice(d.value)[0].value); }}
+                onClick={() => {
+                  set("device", d.value);
+                  set("sort_order", getSlotsForDevice(d.value)[0].value);
+                  set("extraDevices", form.extraDevices.filter(x => x !== d.value));
+                }}
                 className={`flex-1 py-2 rounded-lg text-xs font-bold border transition ${form.device === d.value ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-foreground hover:bg-muted"}`}>
                 {d.label}
               </button>
             ))}
           </div>
+          {!isSplit && (
+            <div className="mt-2">
+              <p className="text-[10px] text-muted-foreground mb-1.5">
+                Também mostrar (mesmo conteúdo, posição equivalente):
+              </p>
+              <div className="flex gap-2">
+                {DEVICES.filter(d => d.value !== form.device).map(d => {
+                  const checked = form.extraDevices.includes(d.value);
+                  return (
+                    <button type="button" key={d.value}
+                      onClick={() => set("extraDevices", checked
+                        ? form.extraDevices.filter(x => x !== d.value)
+                        : [...form.extraDevices, d.value])}
+                      className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-bold border transition ${checked ? "bg-primary/10 text-primary border-primary" : "bg-background border-border text-muted-foreground hover:bg-muted"}`}>
+                      <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center ${checked ? "bg-primary border-primary" : "border-border"}`}>
+                        {checked && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
+                      </span>
+                      {d.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         <div>
@@ -500,7 +591,7 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
 
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Formato</label>
-          <select value={form.format} onChange={e => set("format", e.target.value)}
+          <select value={form.format} onChange={e => { set("format", e.target.value); if (e.target.value === "split") set("extraDevices", []); }}
             className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground">
             {FORMATS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
           </select>
@@ -711,8 +802,8 @@ const SplitBannerCard = ({ leftBanner, rightBanner, onEdit, onToggle, onDelete }
   );
 };
 
-const BannerCard = ({ banner, onEdit, onToggle, onDelete }: {
-  banner: BannerRow; onEdit: () => void; onToggle: () => void; onDelete: () => void;
+const BannerCard = ({ banner, otherDevices, onEdit, onToggle, onDelete }: {
+  banner: BannerRow; otherDevices: Device[]; onEdit: () => void; onToggle: () => void; onDelete: () => void;
 }) => {
   const deviceColor: Record<string, string> = { mobile: "bg-blue-500/10 text-blue-500", tablet: "bg-purple-500/10 text-purple-500", desktop: "bg-green-500/10 text-green-500" };
   const fmt = FORMATS.find(f => f.value === banner.format);
@@ -729,6 +820,11 @@ const BannerCard = ({ banner, onEdit, onToggle, onDelete }: {
         <div className="flex items-start justify-between gap-2 mb-1.5">
           <div className="flex flex-wrap gap-1">
             <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${deviceColor[banner.device || "mobile"] || deviceColor.mobile}`}>{banner.device || "mobile"}</span>
+            {otherDevices.length > 0 && (
+              <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground" title="Mesmo banner, mostrado também nestes devices">
+                + {otherDevices.join(", ")}
+              </span>
+            )}
             <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{fmt?.label || banner.format}</span>
             <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500">{getHomeSlotLabel(banner.sort_order)}</span>
           </div>
@@ -767,16 +863,25 @@ const AdminBannersTab = () => {
   const invalidate = () => { queryClient.invalidateQueries({ queryKey: ["admin_banners"] }); queryClient.invalidateQueries({ queryKey: ["banners"] }); };
 
   const toggleBanner = useMutation({
-    mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
-      const { error } = await supabase.from("banners" as any).update({ is_active: active }).eq("id", id);
+    mutationFn: async ({ id, active, groupId }: { id: string; active: boolean; groupId?: string | null }) => {
+      // Se pertence a um grupo (mostrado em vários devices), activa/desactiva
+      // todos os clones juntos — senão ficaria inconsistente entre devices.
+      const query = groupId
+        ? supabase.from("banners" as any).update({ is_active: active }).eq("banner_group_id", groupId)
+        : supabase.from("banners" as any).update({ is_active: active }).eq("id", id);
+      const { error } = await query;
       if (error) throw new Error(error.message);
     },
     onSuccess: invalidate, onError: (e: any) => toast.error(e.message),
   });
 
   const deleteBanner = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("banners" as any).delete().eq("id", id);
+    mutationFn: async ({ id, groupId }: { id: string; groupId?: string | null }) => {
+      // O mesmo raciocínio do toggle: eliminar um elimina o grupo todo.
+      const query = groupId
+        ? supabase.from("banners" as any).delete().eq("banner_group_id", groupId)
+        : supabase.from("banners" as any).delete().eq("id", id);
+      const { error } = await query;
       if (error) throw new Error(error.message);
     },
     onSuccess: () => { invalidate(); toast.success("Banner eliminado"); },
@@ -867,14 +972,17 @@ const AdminBannersTab = () => {
             <SplitBannerCard key={key} leftBanner={group.left} rightBanner={group.right}
               onEdit={() => { setEditSplitPair(group); setShowForm(false); setEditBanner(null); window.scrollTo({ top: 0, behavior: "smooth" }); }}
               onToggle={() => { const ids = [group.left?.id, group.right?.id].filter(Boolean) as string[]; const active = !(group.left || group.right)?.is_active; ids.forEach(id => toggleBanner.mutate({ id, active })); }}
-              onDelete={() => { if (!confirm("Eliminar este bloco split?")) return; const ids = [group.left?.id, group.right?.id].filter(Boolean) as string[]; ids.forEach(id => deleteBanner.mutate(id)); }}
+              onDelete={() => { if (!confirm("Eliminar este bloco split?")) return; const ids = [group.left?.id, group.right?.id].filter(Boolean) as string[]; ids.forEach(id => deleteBanner.mutate({ id })); }}
             />
           ))}
           {filteredNonSplit.map(b => (
             <BannerCard key={b.id} banner={b}
+              otherDevices={b.banner_group_id
+                ? banners.filter(x => x.banner_group_id === b.banner_group_id && x.id !== b.id).map(x => x.device || "mobile")
+                : []}
               onEdit={() => { setEditBanner(b); setShowForm(false); setEditSplitPair(null); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-              onToggle={() => toggleBanner.mutate({ id: b.id, active: !b.is_active })}
-              onDelete={() => { if (confirm("Eliminar este banner?")) deleteBanner.mutate(b.id); }}
+              onToggle={() => toggleBanner.mutate({ id: b.id, active: !b.is_active, groupId: b.banner_group_id })}
+              onDelete={() => { if (confirm(b.banner_group_id ? "Este banner também aparece noutro(s) device(s) — eliminar vai remover todas as cópias. Continuar?" : "Eliminar este banner?")) deleteBanner.mutate({ id: b.id, groupId: b.banner_group_id }); }}
             />
           ))}
         </div>
