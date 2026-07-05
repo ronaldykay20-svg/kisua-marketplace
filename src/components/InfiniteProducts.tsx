@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { Heart, Flame, Star, Truck, Users, Eye, Clock, Ticket, ShoppingBag } from "lucide-react";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAddToCart } from "@/hooks/useCartActions";
 
 const PAGE_SIZE = 20;
 
@@ -441,6 +442,7 @@ const InfiniteProducts = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { isFavorite, toggleFavorite } = useFavorites();
+  const { mutate: addToCart } = useAddToCart();
   const sentinelRef = useRef<HTMLDivElement>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
@@ -537,9 +539,15 @@ const InfiniteProducts = () => {
   };
 
   const makeAddToCart = (p: any) => (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (!user) { navigate("/auth"); return; }
-    // TODO: ligar aqui à mutação real do carrinho (ex: useCart().addItem(p.id))
-    showToast("Adicionado ao carrinho 🛒");
+    addToCart(
+      { productId: p.id, quantity: 1 },
+      {
+        onSuccess: () => showToast("Adicionado ao carrinho 🛒"),
+        onError: () => showToast("Erro ao adicionar ao carrinho"),
+      }
+    );
   };
 
   // ── Trending ──────────────────────────────────────────────────────────────
