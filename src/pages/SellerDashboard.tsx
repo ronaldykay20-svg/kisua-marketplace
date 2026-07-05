@@ -158,11 +158,28 @@ const SellerDashboard = () => {
 
   const deleteProduct = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("products").delete().eq("id", id);
+      const { data, error } = await supabase.from("products").delete().eq("id", id).select("id");
       if (error) throw error;
+      // Se a RLS bloquear a eliminação sem dar erro explícito, o Supabase
+      // devolve sucesso mas 0 linhas afetadas — sem isto, o botão parecia
+      // "não fazer nada".
+      if (!data || data.length === 0) {
+        throw new Error(
+          "Não foi possível remover este produto. Pode ter pedidos associados, ou não tens permissão para o remover."
+        );
+      }
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["seller_products"] }); toast.success("Produto removido"); },
+    onError: (err: any) => {
+      toast.error(err?.message || "Erro ao remover produto. Tenta novamente.");
+    },
   });
+
+  const handleDeleteProduct = (id: string, nome: string) => {
+    if (window.confirm(`Tens a certeza que queres remover "${nome}"? Esta ação não pode ser desfeita.`)) {
+      deleteProduct.mutate(id);
+    }
+  };
 
   if (!seller) {
     return (
@@ -306,7 +323,7 @@ const SellerDashboard = () => {
                       <button onClick={() => toggleActive.mutate({ id: p.id, active: !p.is_active })} className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground">
                         {p.is_active ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                       </button>
-                      <button onClick={() => deleteProduct.mutate(p.id)} className="p-1.5 rounded-lg hover:bg-destructive/10 text-destructive"><Trash2 className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => handleDeleteProduct(p.id, p.title)} className="p-1.5 rounded-lg hover:bg-destructive/10 text-destructive"><Trash2 className="w-3.5 h-3.5" /></button>
                     </div>
                   </div>
                 );
