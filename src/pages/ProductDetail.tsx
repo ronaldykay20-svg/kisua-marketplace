@@ -15,6 +15,7 @@ import { useAddToCart } from "@/hooks/useCartActions";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useProductViewers } from "@/hooks/useProductViewers";
 import { toast } from "sonner";
+import { trackViewedProduct } from "@/lib/recentBrowsing";
 
 const N = {
   brown:     "#4A2E0A",
@@ -142,6 +143,11 @@ const ProductDetail = () => {
   const touchStartX = useRef<number | null>(null);
   const viewTracked = useRef(false);
   const isUuid = id && id.length > 10;
+
+  // Guarda em localStorage para alimentar "Recomendado para si"
+  useEffect(() => {
+    if (isUuid && id) trackViewedProduct(id);
+  }, [isUuid, id]);
 
   const { data: dbProduct, isLoading: loadingProduct } = useProduct(id || "");
   // Presença real: esta pessoa passa a contar como "a ver agora" enquanto

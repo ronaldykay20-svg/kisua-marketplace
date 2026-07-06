@@ -3,6 +3,7 @@ import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Search, SlidersHorizontal, ChevronDown, Star, CheckCircle, ChevronLeft, ChevronRight, Camera } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { trackSearchQuery } from "@/lib/recentBrowsing";
 import ProductCard, { type Product } from "@/components/ProductCard";
 import MobileSearchProductCard from "@/components/MobileSearchProductCard";
 
@@ -109,6 +110,11 @@ const SearchResults = () => {
   const [erroImagem, setErroImagem] = useState("");
 
   const effectiveQuery = query.trim();
+
+  // Regista pesquisa para "Recomendado para si"
+  useEffect(() => {
+    if (effectiveQuery) trackSearchQuery(effectiveQuery);
+  }, [effectiveQuery]);
 
   // Pesquisa visual: gera o embedding da foto e compara com os produtos
   useEffect(() => {
