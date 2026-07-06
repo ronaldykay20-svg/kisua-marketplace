@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { useState, useRef } from "react";
+import { useRef } from "react";
 import { Sparkles, Star, Heart } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFavorites } from "@/hooks/useFavorites";
+import { getViewedProducts, getSearchQueries } from "@/lib/recentBrowsing";
 
 interface RecommendedProduct {
   id: string;
@@ -22,16 +23,19 @@ interface RecommendedProduct {
   seller_id: string;
   category_id: string | null;
   cover_image_url: string | null;
-  reason: "categoria_favorita" | "loja_favorita" | "popular";
+  reason?: string;
 }
 
 const FALLBACK_IMG = "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop";
-const MIN_TO_SHOW = 4;
+const MIN_TO_SHOW = 10;
+const MAX_TO_SHOW = 18;
 
-// "Recomendado para si" — só aparece para quem já tem histórico real de
-// navegação/compra (get_recommended_products devolve [] para quem nunca viu
-// nada), e só se houver pelo menos 4 produtos para mostrar. Carrossel
-// arrastável, igual ao das Promoções.
+// "Recomendado para si" — combina várias fontes para garantir sempre 10-18 produtos:
+//   1. RPC get_recommended_products (categorias/lojas favoritas)
+//   2. Produtos vistos recentemente (localStorage)
+//   3. Produtos que combinam com pesquisas recentes (localStorage)
+//   4. Fallback: produtos populares (por vendas/rating)
+// Deduplica e limita a MAX_TO_SHOW.
 const RecommendedProducts = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -39,14 +43,72 @@ const RecommendedProducts = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const { data: products = [] } = useQuery({
-    queryKey: ["recommended_products_home", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_recommended_products", { p_limit: 20 });
-      if (error) throw error;
-      return (data || []) as RecommendedProduct[];
-    },
+    queryKey: ["recommended_products_home_mixed", user?.id],
     enabled: !!user,
-    staleTime: 1000 * 60 * 5, // 5 min — não precisa de recalcular a cada render
+    staleTime: 1000 * 60 * 2,
+    queryFn: async (): Promise<RecommendedProduct[]> => {
+      const seen = new Set<string>();
+      const out: RecommendedProduct[] = [];
+
+      const pushMany = (rows: any[]) => {
+        for (const r of rows || []) {
+          if (!r?.id || seen.has(r.id)) continue;
+          if (out.length >= MAX_TO_SHOW) return;
+          seen.add(r.id);
+          out.push(normalize(r));
+        }
+      };
+
+      // 1) RPC personalizada
+      try {
+        const { data } = await supabase.rpc("get_recommended_products", { p_limit: MAX_TO_SHOW });
+        pushMany((data as any[]) || []);
+      } catch { /* ignora — segue para as outras fontes */ }
+
+      // 2) Produtos vistos recentemente
+      if (out.length < MAX_TO_SHOW) {
+        const viewedIds = getViewedProducts().filter((id) => !seen.has(id)).slice(0, 15);
+        if (viewedIds.length) {
+          const { data } = await supabase
+            .from("products")
+            .select("*, product_media(url, is_cover, sort_order)")
+            .in("id", viewedIds)
+            .eq("is_active", true);
+          // preserva a ordem de "mais recente primeiro"
+          const byId = new Map((data || []).map((p: any) => [p.id, p]));
+          pushMany(viewedIds.map((id) => byId.get(id)).filter(Boolean));
+        }
+      }
+
+      // 3) Pesquisas recentes → produtos que combinam
+      if (out.length < MAX_TO_SHOW) {
+        const queries = getSearchQueries().slice(0, 3);
+        for (const q of queries) {
+          if (out.length >= MAX_TO_SHOW) break;
+          const { data } = await supabase
+            .from("products")
+            .select("*, product_media(url, is_cover, sort_order)")
+            .ilike("title", `%${q}%`)
+            .eq("is_active", true)
+            .order("sales_count", { ascending: false })
+            .limit(MAX_TO_SHOW);
+          pushMany(data || []);
+        }
+      }
+
+      // 4) Fallback: produtos populares para completar
+      if (out.length < MIN_TO_SHOW) {
+        const { data } = await supabase
+          .from("products")
+          .select("*, product_media(url, is_cover, sort_order)")
+          .eq("is_active", true)
+          .order("sales_count", { ascending: false })
+          .limit(MAX_TO_SHOW * 2);
+        pushMany(data || []);
+      }
+
+      return out.slice(0, MAX_TO_SHOW);
+    },
   });
 
   if (!user || products.length < MIN_TO_SHOW) return null;
@@ -54,14 +116,6 @@ const RecommendedProducts = () => {
   const handleHeart = (e: React.MouseEvent, productId: string) => {
     e.stopPropagation();
     toggleFavorite(productId);
-  };
-
-  const scrollByCards = (dir: 1 | -1) => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const firstCard = el.firstElementChild as HTMLElement;
-    const cardWidth = (firstCard?.offsetWidth || 150) + 10;
-    el.scrollBy({ left: dir * cardWidth * 2, behavior: "smooth" });
   };
 
   return (
@@ -73,7 +127,7 @@ const RecommendedProducts = () => {
           </div>
           <div>
             <h2 className="text-base font-bold text-foreground">Recomendado para si</h2>
-            <p className="text-[11px] text-muted-foreground">Baseado no que costuma ver e comprar</p>
+            <p className="text-[11px] text-muted-foreground">Baseado no que costuma ver, procurar e comprar</p>
           </div>
         </div>
       </div>
@@ -144,5 +198,37 @@ const RecommendedProducts = () => {
     </section>
   );
 };
+
+// Normaliza tanto rows da RPC (que já têm cover_image_url) como rows da tabela
+// products (que trazem product_media[] em vez de cover_image_url).
+function normalize(r: any): RecommendedProduct {
+  let cover = r.cover_image_url ?? null;
+  if (!cover && Array.isArray(r.product_media) && r.product_media.length) {
+    const media = [...r.product_media].sort((a: any, b: any) => {
+      if (a.is_cover && !b.is_cover) return -1;
+      if (!a.is_cover && b.is_cover) return 1;
+      return (a.sort_order ?? 0) - (b.sort_order ?? 0);
+    });
+    cover = media[0]?.url ?? null;
+  }
+  return {
+    id: r.id,
+    title: r.title,
+    price: r.price,
+    old_price: r.old_price ?? null,
+    discount_percent: r.discount_percent ?? null,
+    currency: r.currency ?? "Kz",
+    rating: r.rating ?? null,
+    total_reviews: r.total_reviews ?? null,
+    sales_count: r.sales_count ?? null,
+    stock: r.stock ?? null,
+    badge: r.badge ?? null,
+    is_featured: r.is_featured ?? false,
+    seller_id: r.seller_id,
+    category_id: r.category_id ?? null,
+    cover_image_url: cover,
+    reason: r.reason,
+  };
+}
 
 export default RecommendedProducts;
