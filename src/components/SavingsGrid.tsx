@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import { useRef, useState, useEffect } from "react";
 import { Heart, ArrowDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -29,6 +30,17 @@ const SavingsGrid = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { isFavorite, toggleFavorite } = useFavorites();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [scrollPct, setScrollPct] = useState(0); // 0 a 1 — posição do scroll horizontal
+  const [thumbWidthPct, setThumbWidthPct] = useState(30); // largura da barra, em % da faixa
+
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const maxScroll = el.scrollWidth - el.clientWidth;
+    setThumbWidthPct(Math.min(100, (el.clientWidth / el.scrollWidth) * 100));
+    setScrollPct(maxScroll > 0 ? el.scrollLeft / maxScroll : 0);
+  };
 
   const { data: products = [] } = useQuery({
     queryKey: ["savings_grid_home"],
@@ -57,6 +69,11 @@ const SavingsGrid = () => {
     },
   });
 
+  useEffect(() => {
+    handleScroll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [products.length]);
+
   if (products.length === 0) return null;
 
   const handleHeart = (e: React.MouseEvent, productId: string) => {
@@ -80,7 +97,11 @@ const SavingsGrid = () => {
         à coluna seguinte, por isso ao arrastar para o lado aparecem sempre
         pares de produtos novos — não é um grid estático de N colunas.
       */}
-      <div className="grid grid-rows-2 grid-flow-col auto-cols-[44vw] sm:auto-cols-[200px] lg:auto-cols-[220px] gap-3 overflow-x-auto snap-x snap-mandatory scrollbar-hide pb-1">
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="grid grid-rows-2 grid-flow-col auto-cols-[44vw] sm:auto-cols-[200px] lg:auto-cols-[220px] gap-3 overflow-x-auto snap-x snap-mandatory scrollbar-hide pb-1"
+      >
         {products.map((p) => {
           const img = p.cover_url || FALLBACK_IMG;
           const fav = isFavorite(p.id);
@@ -128,6 +149,17 @@ const SavingsGrid = () => {
             </div>
           );
         })}
+      </div>
+
+      {/* Barra de progresso do scroll horizontal, na cor de destaque da marca */}
+      <div className="w-full h-1 rounded-full bg-muted mt-2 overflow-hidden">
+        <div
+          className="h-full rounded-full bg-[#8B6343] transition-transform duration-100 ease-out"
+          style={{
+            width: `${thumbWidthPct}%`,
+            transform: `translateX(${scrollPct * (100 / thumbWidthPct - 1) * 100}%)`,
+          }}
+        />
       </div>
     </section>
   );
