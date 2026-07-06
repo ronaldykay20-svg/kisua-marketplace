@@ -74,7 +74,13 @@ const SavingsGrid = () => {
         </button>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+      {/*
+        Scroll horizontal em 2 linhas fixas (igual ao print da Walmart):
+        grid-flow-col preenche a 1ª coluna (linha 1 + linha 2) antes de passar
+        à coluna seguinte, por isso ao arrastar para o lado aparecem sempre
+        pares de produtos novos — não é um grid estático de N colunas.
+      */}
+      <div className="grid grid-rows-2 grid-flow-col auto-cols-[44vw] sm:auto-cols-[200px] lg:auto-cols-[220px] gap-3 overflow-x-auto snap-x snap-mandatory scrollbar-hide pb-1">
         {products.map((p) => {
           const img = p.cover_url || FALLBACK_IMG;
           const fav = isFavorite(p.id);
@@ -84,7 +90,7 @@ const SavingsGrid = () => {
             <div
               key={p.id}
               onClick={() => navigate(`/produto/${p.id}`)}
-              className="flex flex-col cursor-pointer"
+              className="flex flex-col cursor-pointer snap-start"
             >
               <div className="relative aspect-square rounded-lg overflow-hidden bg-muted mb-2">
                 <img src={img} alt={p.title} className="w-full h-full object-cover" loading="lazy" />
