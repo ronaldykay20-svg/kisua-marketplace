@@ -98,6 +98,8 @@ interface BannerRow {
   sort_order: number;
   is_active: boolean;
   text_position: string | null;
+  text_layout: "before" | "over" | "after";
+  text_align: "left" | "center" | "right";
   text_color: string | null;
   text_bg_color: string | null;
   category_id: string | null;
@@ -303,6 +305,8 @@ type FormState = {
   cta_link: string;
   image_url: string;
   text_position: string;
+  text_layout: "before" | "over" | "after";
+  text_align: "left" | "center" | "right";
   text_color: string;
   text_bg_color: string;
   text_bg_enabled: boolean;
@@ -321,7 +325,8 @@ type FormState = {
 const emptyForm = (): FormState => ({
   device: "mobile", extraDevices: [], sort_order: 1, format: "hero",
   title: "", subtitle: "", cta_text: "", cta_link: "", image_url: "",
-  text_position: "bottom-left", text_color: "#ffffff",
+  text_position: "bottom-left", text_layout: "over", text_align: "center",
+  text_color: "#ffffff",
   text_bg_color: "#000000", text_bg_enabled: false,
   is_active: true, category_id: null, bg_color: "#F0F9FF",
   extraImgFiles: [], extraImgPreviews: [], extra_links: [],
@@ -349,6 +354,8 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
         title: ref.title || "", subtitle: ref.subtitle || "",
         cta_text: ref.cta_text || "", cta_link: ref.cta_link || "", image_url: "",
         text_position: ref.text_position || "bottom-left",
+        text_layout: (ref as any).text_layout || "over",
+        text_align: (ref as any).text_align || "center",
         text_color: (ref as any).text_color || "#ffffff",
         text_bg_color: (ref as any).text_bg_color || "#000000",
         text_bg_enabled: !!(ref as any).text_bg_color,
@@ -371,6 +378,8 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
       title: initial.title || "", subtitle: initial.subtitle || "",
       cta_text: initial.cta_text || "", cta_link: initial.cta_link || "",
       image_url: initial.image_url || "", text_position: initial.text_position || "bottom-left",
+      text_layout: (initial as any).text_layout || "over",
+      text_align: (initial as any).text_align || "center",
       text_color: (initial as any).text_color || "#ffffff",
       text_bg_color: (initial as any).text_bg_color || "#000000",
       text_bg_enabled: !!(initial as any).text_bg_color,
@@ -440,6 +449,7 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
             extra_links: extraLinks.filter(Boolean),
             format: "split", bg_color: form.bg_color, sort_order: form.sort_order,
             is_active: form.is_active, text_position: form.text_position,
+            text_layout: form.text_layout, text_align: form.text_align,
             text_color: form.text_color,
             text_bg_color: form.text_bg_enabled ? form.text_bg_color : null,
             category_id: form.category_id, device: form.device,
@@ -471,7 +481,8 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
           image_url: imageUrl, extra_images: allExtras.length ? allExtras : [],
           extra_links: form.extra_links.filter(Boolean), format: form.format,
           bg_color: form.bg_color, is_active: form.is_active,
-          text_position: form.text_position, text_color: form.text_color,
+          text_position: form.text_position, text_layout: form.text_layout, text_align: form.text_align,
+          text_color: form.text_color,
           text_bg_color: form.text_bg_enabled ? form.text_bg_color : null,
           category_id: form.category_id, split_side: null, split_layout: null,
         };
@@ -686,16 +697,55 @@ const BannerForm = ({ initial, initialSplitPair, existingBanners, onClose, onSav
         </div>
 
         <div>
-          <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Posição do texto</label>
+          <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Onde fica o texto</label>
           <div className="grid grid-cols-3 gap-1.5">
-            {TEXT_POSITIONS.map(p => (
-              <button type="button" key={p.value} onClick={() => set("text_position", p.value)}
-                className={`py-2 rounded-lg text-[10px] font-bold border transition text-center ${form.text_position === p.value ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-foreground hover:bg-muted"}`}>
-                {p.label}
+            {[
+              { value: "before", label: "Antes (por cima)" },
+              { value: "over",   label: "Sobre a imagem" },
+              { value: "after",  label: "Depois (por baixo)" },
+            ].map(o => (
+              <button type="button" key={o.value} onClick={() => set("text_layout", o.value as any)}
+                className={`py-2 rounded-lg text-[10px] font-bold border transition text-center ${form.text_layout === o.value ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-foreground hover:bg-muted"}`}>
+                {o.label}
               </button>
             ))}
           </div>
+          <p className="text-[10px] text-muted-foreground mt-1.5">
+            {form.text_layout === "over"
+              ? "O texto fica sobreposto à imagem — escolhe o canto ou centro abaixo. A imagem mantém-se nítida; só o texto ganha contraste."
+              : "O texto fica no seu próprio espaço, fora da imagem — a imagem em si nunca é tapada."}
+          </p>
         </div>
+
+        {form.text_layout === "over" ? (
+          <div>
+            <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Posição do texto sobre a imagem</label>
+            <div className="grid grid-cols-3 gap-1.5">
+              {TEXT_POSITIONS.map(p => (
+                <button type="button" key={p.value} onClick={() => set("text_position", p.value)}
+                  className={`py-2 rounded-lg text-[10px] font-bold border transition text-center ${form.text_position === p.value ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-foreground hover:bg-muted"}`}>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div>
+            <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Alinhamento do texto</label>
+            <div className="grid grid-cols-3 gap-1.5">
+              {[
+                { value: "left",   label: "Esquerda" },
+                { value: "center", label: "Centro" },
+                { value: "right",  label: "Direita" },
+              ].map(o => (
+                <button type="button" key={o.value} onClick={() => set("text_align", o.value as any)}
+                  className={`py-2 rounded-lg text-[10px] font-bold border transition text-center ${form.text_align === o.value ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border text-foreground hover:bg-muted"}`}>
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Cor do texto</label>
