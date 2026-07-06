@@ -10,6 +10,7 @@ import { useProduct } from "@/hooks/useSupabaseData";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { hasAnalyticsConsent } from "@/lib/analytics";
 import { useAddToCart } from "@/hooks/useCartActions";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useProductViewers } from "@/hooks/useProductViewers";
@@ -51,16 +52,22 @@ const useProductTracking = () => {
     eventType: "view"|"card_tap"|"add_to_cart"|"buy_now"|"favorite"|"share"|"image_zoom"|"variant_select"|"review_read"|"seller_view",
     metadata: Record<string, any> = {}
   ) => {
+    // Respeita a escolha de cookies da pessoa — se ela rejeitou analytics,
+    // não gravamos nada, tal como o resto do site já faz.
+    if (!hasAnalyticsConsent()) return;
     try {
       const sessionId = sessionStorage.getItem("kw_session_id") || (() => {
         const id = `sess_${Date.now()}_${Math.random().toString(36).slice(2)}`;
         sessionStorage.setItem("kw_session_id", id); return id;
       })();
-      await (supabase as any).from("product_tracking_events").insert({
+      const { error } = await (supabase as any).from("product_tracking_events").insert({
         product_id: productId, event_type: eventType, user_id: user?.id || null, session_id: sessionId,
         metadata: { ...metadata, user_agent: navigator.userAgent, screen_width: window.innerWidth, platform: /Mobi|Android/i.test(navigator.userAgent) ? "mobile" : "desktop", timestamp: new Date().toISOString(), url: window.location.href },
       });
-    } catch (_) {}
+      if (error) console.error("Falha ao gravar evento de tracking:", error);
+    } catch (err) {
+      console.error("Falha ao gravar evento de tracking:", err);
+    }
   }, [user?.id]);
   return { trackEvent };
 };
