@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 const SESSION_KEY = "zg_session_id";
 const CONSENT_KEY = "zg_cookie_consent";
 
-function hasAnalyticsConsent(): boolean {
+export function hasAnalyticsConsent(): boolean {
   try {
     const raw = localStorage.getItem(CONSENT_KEY);
     if (!raw) return false;
