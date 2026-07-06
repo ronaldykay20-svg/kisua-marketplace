@@ -3,6 +3,7 @@ import HomeBannerSlot from "@/components/HomeBannerSlot";
 import FeaturedSellers from "@/components/FeaturedSellers";
 import RecommendedProducts from "@/components/RecommendedProducts";
 import PromoProductCards from "@/components/PromoProductCards";
+import SavingsGrid from "@/components/SavingsGrid";
 import GroupedVideoStories from "@/components/GroupedVideoStories";
 import InfiniteProducts from "@/components/InfiniteProducts";
 import FlashSaleBar from "@/components/FlashSaleBar";
@@ -93,6 +94,9 @@ const MobileLayout = () => (
       <HomeBannerSlot slot={5} device="mobile" />
     </LazySection>
     <LazySection estimatedHeight={420}>
+      <SavingsGrid />
+    </LazySection>
+    <LazySection estimatedHeight={420}>
       <FeaturedSellers />
     </LazySection>
     <LazySection estimatedHeight={420}>
@@ -153,6 +157,11 @@ const TabletLayout = () => (
     {/* Abaixo da dobra */}
     <LazySection estimatedHeight={280}>
       <HomeBannerSlot slot={203} device="tablet" />
+    </LazySection>
+    <LazySection estimatedHeight={420} rootMargin="80px">
+      <div className="mt-4">
+        <SavingsGrid />
+      </div>
     </LazySection>
     <LazySection estimatedHeight={480} rootMargin="80px">
       <div className="mt-4">
@@ -227,6 +236,11 @@ const DesktopLayout = () => (
         <HomeBannerSlot slot={303} device="desktop" />
 
         {/* Abaixo da dobra */}
+        <LazySection estimatedHeight={420} rootMargin="80px">
+          <div className="mt-4">
+            <SavingsGrid />
+          </div>
+        </LazySection>
         <LazySection estimatedHeight={480} rootMargin="80px">
           <div className="mt-4">
             <FeaturedSellers layout="desktop" />
