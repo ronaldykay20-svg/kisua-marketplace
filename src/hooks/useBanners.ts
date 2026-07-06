@@ -15,6 +15,8 @@ export interface Banner {
   sort_order: number;
   is_active: boolean;
   text_position?: string;
+  text_layout?: "before" | "over" | "after";
+  text_align?: "left" | "center" | "right";
   text_color?: string | null;
   text_bg_color?: string | null;
   extra_links?: string[];
