@@ -10,63 +10,112 @@ interface HomeBannerSlotProps {
   sidebar?: boolean;
 }
 
-const positionClasses: Record<string, { wrapper: string; align: string }> = {
-  "top-left":     { wrapper: "justify-start items-start", align: "text-left" },
-  "top-right":    { wrapper: "justify-start items-end",   align: "text-right" },
-  "bottom-left":  { wrapper: "justify-end items-start",   align: "text-left" },
-  "bottom-right": { wrapper: "justify-end items-end",     align: "text-right" },
+const positionClasses: Record<string, { wrapper: string; align: string; items: string }> = {
+  "top-left":      { wrapper: "justify-start items-start", align: "text-left",   items: "items-start" },
+  "top-center":    { wrapper: "justify-start items-center", align: "text-center", items: "items-center" },
+  "top-right":     { wrapper: "justify-start items-end",   align: "text-right",  items: "items-end" },
+  "middle-left":   { wrapper: "justify-center items-start", align: "text-left",   items: "items-start" },
+  "middle-center": { wrapper: "justify-center items-center", align: "text-center", items: "items-center" },
+  "middle-right":  { wrapper: "justify-center items-end",   align: "text-right",  items: "items-end" },
+  "bottom-left":   { wrapper: "justify-end items-start",   align: "text-left",   items: "items-start" },
+  "bottom-center": { wrapper: "justify-end items-center", align: "text-center", items: "items-center" },
+  "bottom-right":  { wrapper: "justify-end items-end",     align: "text-right",  items: "items-end" },
 };
 const getPos = (p?: string) =>
   positionClasses[p || "bottom-left"] || positionClasses["bottom-left"];
 
-const gradientDir = (p?: string) => {
-  if (p === "top-left")     return "bg-gradient-to-br from-black/80 via-black/30 to-transparent";
-  if (p === "top-right")    return "bg-gradient-to-bl from-black/80 via-black/30 to-transparent";
-  if (p === "bottom-right") return "bg-gradient-to-tl from-black/80 via-black/30 to-transparent";
-  return "bg-gradient-to-t from-black/80 via-black/30 to-transparent";
+const alignToFlex = (a?: string) => (a === "left" ? "items-start" : a === "right" ? "items-end" : "items-center");
+const alignToText = (a?: string) => (a === "left" ? "text-left" : a === "right" ? "text-right" : "text-center");
+
+/**
+ * Conteúdo de texto de um banner (selo/etiqueta, título, botão CTA) — usado
+ * nas 3 disposições possíveis (antes, sobre, depois da imagem). Cada peça
+ * tem a sua própria "caixa" de contraste (fundo semi-transparente atrás do
+ * título, selo com cor sólida, botão sólido) em vez de escurecer a imagem
+ * inteira — assim a imagem de fundo fica sempre nítida, e é o texto que
+ * garante a sua própria legibilidade.
+ */
+const BannerTextContent = ({ banner, boxed }: { banner: any; boxed: boolean }) => {
+  const textColor = banner.text_color || (boxed ? "#FFFDFA" : "#23150B");
+  const badgeBg = banner.text_bg_color || "#C23B2B";
+  // A caixa atrás do título só aparece se o Admin ligou "Fundo do texto" e
+  // escolheu uma cor — caso contrário o título fica só com sombra, sem caixa.
+  const hasTitleBox = boxed && !!banner.text_bg_color;
+
+  return (
+    <>
+      {banner.subtitle && (
+        <span
+          className="inline-block text-[10px] sm:text-xs font-extrabold uppercase tracking-wide px-2.5 py-1 rounded-full w-fit"
+          style={{ background: badgeBg, color: "#FFFDFA", fontFamily: "'Manrope', system-ui, sans-serif" }}
+        >
+          {banner.subtitle}
+        </span>
+      )}
+      <h2
+        className={`text-lg sm:text-2xl md:text-3xl font-black leading-tight whitespace-pre-line ${hasTitleBox ? "px-3 py-1.5 rounded-lg w-fit" : ""}`}
+        style={{
+          color: textColor, fontFamily: "'Manrope', system-ui, sans-serif",
+          background: hasTitleBox ? banner.text_bg_color : "transparent",
+          textShadow: boxed && !hasTitleBox ? "0 1px 5px rgba(0,0,0,0.5)" : "none",
+        }}
+      >
+        {banner.title}
+      </h2>
+      {banner.cta_text && (
+        <span
+          className="inline-flex items-center w-fit px-4 py-2 rounded-full text-xs sm:text-sm font-extrabold shadow-md"
+          style={{ background: "#8F6C49", color: "#FFFDFA", fontFamily: "'Manrope', system-ui, sans-serif" }}
+        >
+          {banner.cta_text}
+        </span>
+      )}
+    </>
+  );
 };
 
 /**
- * Texto real (não cozido na imagem) sobreposto ao banner: selo/etiqueta
- * (subtítulo), título a negrito, e botão CTA em pílula — inspirado na
- * estrutura da Walmart (texto em HTML por cima da imagem, selo chamativo,
- * botão de alto contraste), mas com as cores da própria Kisua em vez das
- * cores da marca Walmart. Só aparece se o banner tiver título — banners
- * puramente visuais (sem título preenchido no Admin) continuam a mostrar
- * só a imagem, como sempre.
+ * Texto real (não cozido na imagem) do banner — inspirado na estrutura da
+ * Walmart (texto em HTML, selo chamativo, botão de alto contraste), mas
+ * com as cores da própria Kisua. O Admin escolhe onde o texto vive:
+ *  - "over"   → sobreposto à imagem, numa das 9 posições. A imagem em si
+ *               nunca é escurecida; cada elemento de texto tem a sua
+ *               própria caixa de contraste.
+ *  - "before" / "after" → bloco de texto próprio, fora da imagem,
+ *               alinhado à esquerda/centro/direita — a imagem fica 100%
+ *               intacta, sem nada sobreposto.
+ * Só aparece se o banner tiver título — banners puramente visuais (sem
+ * título preenchido no Admin) continuam a mostrar só a imagem, como sempre.
  */
 const BannerTextOverlay = ({ banner }: { banner: any }) => {
   if (!banner.title) return null;
+  const layout = banner.text_layout || "over";
+  if (layout !== "over") return null; // "before"/"after" são renderizados fora da imagem, ver BannerTextBlock
   const pos = getPos(banner.text_position);
-  const textColor = banner.text_color || "#FFFDFA";
-  const badgeBg = banner.text_bg_color || "#C23B2B";
 
   return (
-    <div className={`absolute inset-0 flex ${pos.wrapper} ${gradientDir(banner.text_position)} pointer-events-none`}>
-      <div className={`flex flex-col gap-2 p-4 sm:p-6 max-w-[75%] sm:max-w-[60%] ${pos.align}`} style={{ alignItems: banner.text_position?.includes("right") ? "flex-end" : "flex-start" }}>
-        {banner.subtitle && (
-          <span
-            className="inline-block text-[10px] sm:text-xs font-extrabold uppercase tracking-wide px-2.5 py-1 rounded-full w-fit"
-            style={{ background: badgeBg, color: "#FFFDFA", fontFamily: "'Manrope', system-ui, sans-serif" }}
-          >
-            {banner.subtitle}
-          </span>
-        )}
-        <h2
-          className="text-lg sm:text-2xl md:text-3xl font-black leading-tight whitespace-pre-line"
-          style={{ color: textColor, fontFamily: "'Manrope', system-ui, sans-serif", textShadow: "0 1px 6px rgba(0,0,0,0.35)" }}
-        >
-          {banner.title}
-        </h2>
-        {banner.cta_text && (
-          <span
-            className="inline-flex items-center w-fit px-4 py-2 rounded-full text-xs sm:text-sm font-extrabold shadow-md"
-            style={{ background: "#8F6C49", color: "#FFFDFA", fontFamily: "'Manrope', system-ui, sans-serif" }}
-          >
-            {banner.cta_text}
-          </span>
-        )}
+    <div className={`absolute inset-0 flex ${pos.wrapper} pointer-events-none`}>
+      <div className={`flex flex-col gap-2 p-4 sm:p-6 max-w-[75%] sm:max-w-[60%] ${pos.align} ${pos.items}`}>
+        <BannerTextContent banner={banner} boxed />
       </div>
+    </div>
+  );
+};
+
+/**
+ * Bloco de texto fora da imagem — para "before" (por cima) e "after" (por
+ * baixo). A imagem nunca é tapada; o texto vive no seu próprio espaço,
+ * com fundo à parte (bg_color do banner, se definido) e alinhamento
+ * escolhido pelo Admin.
+ */
+const BannerTextBlock = ({ banner, slot }: { banner: any; slot: "before" | "after" }) => {
+  if (!banner.title || banner.text_layout !== slot) return null;
+  return (
+    <div
+      className={`flex flex-col gap-2 px-4 py-3 sm:px-6 sm:py-4 ${alignToFlex(banner.text_align)} ${alignToText(banner.text_align)}`}
+      style={{ background: banner.bg_color || "transparent" }}
+    >
+      <BannerTextContent banner={banner} boxed={false} />
     </div>
   );
 };
@@ -273,6 +322,7 @@ const HomeBannerSlot = ({
     return withCategoryProducts(
       <section className={sectionCls}>
         <div className="block rounded-card overflow-hidden border border-border">
+          <BannerTextBlock banner={banner} slot="before" />
           <div
             className={`relative ${h}`}
             onTouchStart={images.length > 1 ? handleSlideTouch : undefined}
@@ -289,6 +339,7 @@ const HomeBannerSlot = ({
               />
             )}
           </div>
+          <BannerTextBlock banner={banner} slot="after" />
         </div>
       </section>,
     );
@@ -305,12 +356,14 @@ const HomeBannerSlot = ({
           className="relative overflow-hidden rounded-card border border-border transition-shadow hover:shadow-md"
           onTouchStart={images.length > 1 ? handleSlideTouch : undefined}
         >
+          <BannerTextBlock banner={banner} slot="before" />
           <a href={href} className="block">
             <div className={aspectCls}>
               <img src={image} alt="Banner" className="h-full w-full object-cover transition-opacity duration-500" loading="lazy" />
             </div>
           </a>
           <BannerTextOverlay banner={banner} />
+          <BannerTextBlock banner={banner} slot="after" />
           {images.length > 1 && (
             <SlideDots
               total={images.length}
