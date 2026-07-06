@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useFavorites } from "@/hooks/useFavorites";
 
 const FALLBACK_IMG = "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop";
+const MIN_TO_SHOW = 4; // mesmo mínimo do RecommendedProducts — abaixo disto não vale a pena mostrar
 
 interface SavingsProduct {
   id: string;
@@ -14,18 +15,20 @@ interface SavingsProduct {
   price: number;
   old_price: number | null;
   discount_percent: number | null;
-  cover_url?: string;
+  currency: string | null;
+  cover_image_url: string | null;
+  reason: "categoria_favorita" | "loja_favorita" | "popular";
 }
 
-// Limite de itens a mostrar consoante o layout do site (2 col no telemóvel,
-// mais colunas conforme o ecrã cresce — ver className da grid abaixo).
-const LIMIT = 12;
-
 // ─── SavingsGrid ─────────────────────────────────────────────────────────────
-// Réplica do módulo "1,000s of savings — on now" da app da Walmart:
-// grid 2x N no telemóvel, badge "Preço reduzido" (contorno) ou "Baixa" (cheio,
-// com seta) consoante o desconto, coração para favoritos no canto superior
-// direito, preço "Agora" a verde e preço antigo riscado por baixo.
+// Visual igual ao módulo "1,000s of savings — on now" da Walmart (scroll
+// horizontal em 2 linhas fixas, badge de desconto, coração, preço "Agora"),
+// mas os dados vêm do MESMO motor de recomendação que o RecommendedProducts:
+// a RPC get_recommended_products, que olha para categorias/lojas favoritas
+// e histórico de navegação do próprio user (produtos que já viu/comprou) e
+// devolve os que combinam com esse perfil — exatamente como o "recomendado
+// para si" das grandes plataformas. Só aparece para quem está autenticado e
+// já tem histórico suficiente (get_recommended_products devolve [] senão).
 const SavingsGrid = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -43,30 +46,14 @@ const SavingsGrid = () => {
   };
 
   const { data: products = [] } = useQuery({
-    queryKey: ["savings_grid_home"],
+    queryKey: ["savings_grid_recommended", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("products")
-        .select("id, title, price, old_price, discount_percent")
-        .eq("is_active", true)
-        .not("discount_percent", "is", null)
-        .gt("discount_percent", 0)
-        .order("discount_percent", { ascending: false })
-        .limit(LIMIT);
+      const { data, error } = await supabase.rpc("get_recommended_products", { p_limit: 20 });
       if (error) throw error;
-
-      const ids = (data || []).map((p: any) => p.id);
-      let coverMap: Record<string, string> = {};
-      if (ids.length > 0) {
-        const { data: media } = await supabase
-          .from("product_media")
-          .select("product_id, url")
-          .in("product_id", ids)
-          .eq("is_cover", true);
-        (media || []).forEach((m: any) => { coverMap[m.product_id] = m.url; });
-      }
-      return (data || []).map((p: any) => ({ ...p, cover_url: coverMap[p.id] })) as SavingsProduct[];
+      return (data || []) as SavingsProduct[];
     },
+    enabled: !!user,
+    staleTime: 1000 * 60 * 5, // 5 min — igual ao RecommendedProducts, não recalcula a cada render
   });
 
   useEffect(() => {
@@ -74,21 +61,20 @@ const SavingsGrid = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [products.length]);
 
-  if (products.length === 0) return null;
+  if (!user || products.length < MIN_TO_SHOW) return null;
 
   const handleHeart = (e: React.MouseEvent, productId: string) => {
     e.stopPropagation();
-    if (!user) { navigate("/auth"); return; }
     toggleFavorite(productId);
   };
 
   return (
     <section className="container mx-auto px-3 pt-4">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-[17px] font-bold text-foreground">Milhares de poupanças — já disponíveis</h2>
-        <button onClick={() => navigate("/promocoes")} className="text-sm font-semibold text-primary underline underline-offset-2 whitespace-nowrap">
-          Ver tudo
-        </button>
+        <div>
+          <h2 className="text-[17px] font-bold text-foreground">Recomendado para si</h2>
+          <p className="text-[11px] text-muted-foreground">Baseado no que costuma ver e comprar</p>
+        </div>
       </div>
 
       {/*
@@ -103,7 +89,7 @@ const SavingsGrid = () => {
         className="grid grid-rows-2 grid-flow-col auto-cols-[44vw] sm:auto-cols-[200px] lg:auto-cols-[220px] gap-3 overflow-x-auto snap-x snap-mandatory scrollbar-hide pb-1"
       >
         {products.map((p) => {
-          const img = p.cover_url || FALLBACK_IMG;
+          const img = p.cover_image_url || FALLBACK_IMG;
           const fav = isFavorite(p.id);
           const isBigDrop = (p.discount_percent || 0) >= 25;
 
@@ -116,15 +102,17 @@ const SavingsGrid = () => {
               <div className="relative aspect-square rounded-lg overflow-hidden bg-muted mb-2">
                 <img src={img} alt={p.title} className="w-full h-full object-cover" loading="lazy" />
 
-                {isBigDrop ? (
-                  <span className="absolute top-2 left-2 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold text-white bg-red-600">
-                    <ArrowDown className="w-3 h-3" /> Baixa
-                  </span>
-                ) : (
-                  <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded border border-primary bg-background/90 text-[10px] font-semibold text-primary">
-                    Preço reduzido
-                  </span>
-                )}
+                {p.discount_percent ? (
+                  isBigDrop ? (
+                    <span className="absolute top-2 left-2 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold text-white bg-red-600">
+                      <ArrowDown className="w-3 h-3" /> Baixa
+                    </span>
+                  ) : (
+                    <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded border border-primary bg-background/90 text-[10px] font-semibold text-primary">
+                      Preço reduzido
+                    </span>
+                  )
+                ) : null}
 
                 <button
                   onClick={(e) => handleHeart(e, p.id)}
@@ -137,12 +125,12 @@ const SavingsGrid = () => {
               <div className="flex items-baseline gap-1.5 flex-wrap">
                 <span className="text-[13px] text-muted-foreground font-medium">Agora</span>
                 <span className="text-[17px] font-black text-green-600">
-                  {Number(p.price).toLocaleString("pt-AO")} Kz
+                  {Number(p.price).toLocaleString("pt-AO")} {p.currency || "Kz"}
                 </span>
               </div>
               {p.old_price && (
                 <span className="text-[12px] text-muted-foreground line-through">
-                  {Number(p.old_price).toLocaleString("pt-AO")} Kz
+                  {Number(p.old_price).toLocaleString("pt-AO")} {p.currency || "Kz"}
                 </span>
               )}
               <p className="text-[12px] text-foreground line-clamp-2 leading-snug mt-0.5">{p.title}</p>
