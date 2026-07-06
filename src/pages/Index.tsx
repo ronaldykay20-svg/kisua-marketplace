@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState, memo } from "react";
 import HomeBannerSlot from "@/components/HomeBannerSlot";
 import FeaturedSellers from "@/components/FeaturedSellers";
+import RecommendedProducts from "@/components/RecommendedProducts";
 import PromoProductCards from "@/components/PromoProductCards";
 import GroupedVideoStories from "@/components/GroupedVideoStories";
 import InfiniteProducts from "@/components/InfiniteProducts";
@@ -94,6 +95,9 @@ const MobileLayout = () => (
     <LazySection estimatedHeight={420}>
       <FeaturedSellers />
     </LazySection>
+    <LazySection estimatedHeight={420}>
+      <RecommendedProducts />
+    </LazySection>
     <LazySection estimatedHeight={280}>
       <HomeBannerSlot slot={6} device="mobile" />
     </LazySection>
@@ -153,6 +157,11 @@ const TabletLayout = () => (
     <LazySection estimatedHeight={480} rootMargin="80px">
       <div className="mt-4">
         <FeaturedSellers layout="tablet" />
+      </div>
+    </LazySection>
+    <LazySection estimatedHeight={420} rootMargin="80px">
+      <div className="mt-4">
+        <RecommendedProducts />
       </div>
     </LazySection>
     <LazySection estimatedHeight={280}>
@@ -221,6 +230,11 @@ const DesktopLayout = () => (
         <LazySection estimatedHeight={480} rootMargin="80px">
           <div className="mt-4">
             <FeaturedSellers layout="desktop" />
+          </div>
+        </LazySection>
+        <LazySection estimatedHeight={420} rootMargin="80px">
+          <div className="mt-4">
+            <RecommendedProducts />
           </div>
         </LazySection>
         <LazySection estimatedHeight={280}>
