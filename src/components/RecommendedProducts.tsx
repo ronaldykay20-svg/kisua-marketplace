@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import { useState, useRef } from "react";
 import { Sparkles, Star, Heart } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -25,48 +26,62 @@ interface RecommendedProduct {
 }
 
 const FALLBACK_IMG = "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop";
+const MIN_TO_SHOW = 4;
 
-// "Recomendado para si" — busca produtos já pensados para esta pessoa em
-// concreto (get_recommended_products olha só para o perfil dela, na hora).
-// Funciona também para quem não tem sessão (mostra produtos populares).
+// "Recomendado para si" — só aparece para quem já tem histórico real de
+// navegação/compra (get_recommended_products devolve [] para quem nunca viu
+// nada), e só se houver pelo menos 4 produtos para mostrar. Carrossel
+// arrastável, igual ao das Promoções.
 const RecommendedProducts = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { isFavorite, toggleFavorite } = useFavorites();
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const { data: products = [] } = useQuery({
-    queryKey: ["recommended_products_home", user?.id || "anon"],
+    queryKey: ["recommended_products_home", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_recommended_products", { p_limit: 12 });
+      const { data, error } = await supabase.rpc("get_recommended_products", { p_limit: 20 });
       if (error) throw error;
       return (data || []) as RecommendedProduct[];
     },
+    enabled: !!user,
     staleTime: 1000 * 60 * 5, // 5 min — não precisa de recalcular a cada render
   });
 
-  if (products.length === 0) return null;
+  if (!user || products.length < MIN_TO_SHOW) return null;
 
   const handleHeart = (e: React.MouseEvent, productId: string) => {
     e.stopPropagation();
-    if (!user) { navigate("/auth"); return; }
     toggleFavorite(productId);
+  };
+
+  const scrollByCards = (dir: 1 | -1) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const firstCard = el.firstElementChild as HTMLElement;
+    const cardWidth = (firstCard?.offsetWidth || 150) + 10;
+    el.scrollBy({ left: dir * cardWidth * 2, behavior: "smooth" });
   };
 
   return (
     <section className="container mx-auto px-3 pt-4">
-      <div className="flex items-center gap-2 mb-3">
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-primary/10">
-          <Sparkles className="w-5 h-5 text-primary" />
-        </div>
-        <div>
-          <h2 className="text-base font-bold text-foreground">Recomendado para si</h2>
-          <p className="text-[11px] text-muted-foreground">
-            {user ? "Baseado no que costuma ver e comprar" : "Os produtos mais procurados"}
-          </p>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-primary/10">
+            <Sparkles className="w-5 h-5 text-primary" />
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-foreground">Recomendado para si</h2>
+            <p className="text-[11px] text-muted-foreground">Baseado no que costuma ver e comprar</p>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+      <div
+        ref={scrollRef}
+        className="flex gap-2.5 overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-1"
+      >
         {products.map((p) => {
           const img = p.cover_image_url || FALLBACK_IMG;
           const fav = isFavorite(p.id);
@@ -74,7 +89,7 @@ const RecommendedProducts = () => {
             <div
               key={p.id}
               onClick={() => navigate(`/produto/${p.id}`)}
-              className="bg-background border border-border rounded-xl overflow-hidden cursor-pointer flex flex-col"
+              className="flex-shrink-0 w-[140px] sm:w-[160px] snap-start bg-background border border-border rounded-xl overflow-hidden cursor-pointer flex flex-col"
             >
               <div className="relative aspect-square bg-muted">
                 <img src={img} alt={p.title} className="w-full h-full object-cover" loading="lazy" />
@@ -122,6 +137,10 @@ const RecommendedProducts = () => {
           );
         })}
       </div>
+
+      <p className="text-center text-[10px] text-muted-foreground mt-1.5">
+        ↔ Arraste para ver mais
+      </p>
     </section>
   );
 };
