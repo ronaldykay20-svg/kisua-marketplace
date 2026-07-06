@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Shield, Users, Search, Plus, Trash2, Crown, Building2, Store, CheckCircle, XCircle, ShieldCheck, UserCheck, UsersRound, FolderTree, ImageIcon, ShoppingBag, Settings, Star, Gavel, Upload, Eye, EyeOff, Copy, Megaphone, Play, TrendingUp, Users as UsersIcon, X, Loader2, Truck, Banknote, Ticket } from "lucide-react";
+import { Shield, Users, Search, Plus, Trash2, Crown, Building2, Store, CheckCircle, XCircle, ShieldCheck, UserCheck, UsersRound, FolderTree, ImageIcon, ShoppingBag, Settings, Star, Gavel, Upload, Eye, EyeOff, Copy, Megaphone, Play, TrendingUp, Users as UsersIcon, X, Loader2, Truck, Banknote, Ticket, MousePointerClick } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,6 +16,7 @@ import AdminSuppliersTab from "@/components/admin/AdminSuppliersTab";
 import AdminPaymentReviewTab from "@/components/admin/AdminPaymentReviewTab";
 import CouponManagerTab from "@/components/coupons/CouponManagerTab";
 import AdminAnalyticsTab from "@/components/admin/AdminAnalyticsTab";
+import AdminPageInteractionsTab from "@/components/admin/AdminPageInteractionsTab";
 import { toast } from "sonner";
 import { convertToWebP, getFileExtension } from "@/lib/imageToWebp";
 
@@ -25,7 +26,7 @@ const roleBadge: Record<string, { label: string; color: string; icon: any }> = {
   user: { label: "Utilizador", color: "bg-primary/10 text-primary border-primary/20", icon: Users },
 };
 
-type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos" | "encomendas" | "categorias" | "banners" | "definicoes" | "leiloes" | "publicidade" | "frete" | "fornecedores" | "pagamentos" | "cupons" | "analytics";
+type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos" | "encomendas" | "categorias" | "banners" | "definicoes" | "leiloes" | "publicidade" | "frete" | "fornecedores" | "pagamentos" | "cupons" | "analytics" | "interacoes";
 
 const AD_TYPES = [
   { value: "banner",           label: "Banner (imagem/vídeo)",   icon: ImageIcon,   desc: "Upload direto de imagem ou vídeo" },
@@ -1011,6 +1012,7 @@ const AdminPanel = () => {
   const tabs: { key: Tab; label: string; icon: any }[] = [
     { key: "utilizadores", label: "Utilizadores", icon: UsersRound },
     { key: "analytics",    label: "Analytics",    icon: TrendingUp },
+    { key: "interacoes",   label: "Interações",    icon: MousePointerClick },
     { key: "categorias",   label: "Categorias",   icon: FolderTree },
     { key: "cargos",       label: "Cargos",        icon: Crown },
     { key: "vendedores",   label: "Vendedores",    icon: Store },
@@ -1053,6 +1055,7 @@ const AdminPanel = () => {
 
         {tab === "utilizadores" && <AdminUsersTab />}
         {tab === "analytics"    && <AdminAnalyticsTab />}
+        {tab === "interacoes"   && <AdminPageInteractionsTab />}
         {tab === "categorias"   && <AdminCategoriesTab />}
         {tab === "publicidade"  && <AdminAdsTab />}
         {tab === "encomendas"   && <AdminOrdersTab />}
