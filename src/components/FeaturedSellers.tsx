@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { ChevronLeft, ChevronRight, CheckCircle, ShoppingCart } from "lucide-react";
+import { ChevronLeft, ChevronRight, CheckCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 interface FeaturedSellersProps {
@@ -243,20 +243,21 @@ const FeaturedSellers = ({ layout = "mobile" }: FeaturedSellersProps) => {
                       )}
                     </div>
                     <div className="p-1.5">
-                      <p className="text-[11px] font-semibold text-foreground line-clamp-2 leading-tight mb-1">
+                      {/* Botão "Ver em loja" — mesma posição do "Add"/"Options" da Walmart */}
+                      <button
+                        onClick={e => { e.stopPropagation(); navigate(`/vendedor/${seller.id}`); }}
+                        className="w-full mb-1.5 rounded-full border border-primary text-primary text-[10px] font-semibold py-1 text-center hover:bg-primary hover:text-primary-foreground transition-colors"
+                      >
+                        Ver em loja
+                      </button>
+
+                      <span className="block text-[12px] font-black text-primary mb-0.5">
+                        {Number(p.price).toLocaleString("pt-AO")} Kz
+                      </span>
+
+                      <p className="text-[11px] font-semibold text-foreground line-clamp-2 leading-tight">
                         {p.title}
                       </p>
-                      <div className="flex items-center justify-between">
-                        <span className="text-[12px] font-black text-primary">
-                          {Number(p.price).toLocaleString("pt-AO")} Kz
-                        </span>
-                        <button
-                          onClick={e => { e.stopPropagation(); navigate(`/produto/${p.id}`); }}
-                          className="w-6 h-6 rounded-lg flex items-center justify-center bg-primary/10 hover:bg-primary/20 transition"
-                        >
-                          <ShoppingCart className="w-3 h-3 text-primary" />
-                        </button>
-                      </div>
                     </div>
                   </div>
                 );
