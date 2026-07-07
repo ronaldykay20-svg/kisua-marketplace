@@ -4,6 +4,7 @@
 
 const VIEWED_KEY = "recent_viewed_products";
 const SEARCH_KEY = "recent_search_queries";
+const CATEGORY_KEY = "recent_viewed_categories";
 const MAX = 30;
 
 function readList(key: string): string[] {
@@ -34,6 +35,21 @@ export function trackViewedProduct(productId: string) {
 
 export function getViewedProducts(): string[] {
   return readList(VIEWED_KEY);
+}
+
+// Última categoria vista (menu de categorias OU detalhe de produto).
+// Serve de reserva para "Recomendado para si" quando o utilizador ainda
+// não tem sessão (a versão com sessão fica gravada na BD, ver
+// useCategoryTracking.ts + get_products_by_last_viewed_category).
+export function trackViewedCategory(categoryId: string) {
+  if (!categoryId) return;
+  const list = readList(CATEGORY_KEY).filter((id) => id !== categoryId);
+  list.unshift(categoryId);
+  writeList(CATEGORY_KEY, list);
+}
+
+export function getViewedCategories(): string[] {
+  return readList(CATEGORY_KEY);
 }
 
 export function trackSearchQuery(query: string) {
