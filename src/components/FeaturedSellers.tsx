@@ -246,7 +246,7 @@ const FeaturedSellers = ({ layout = "mobile" }: FeaturedSellersProps) => {
                       {/* Botão "Ver em loja" — mesma posição do "Add"/"Options" da Walmart */}
                       <button
                         onClick={e => { e.stopPropagation(); navigate(`/vendedor/${seller.id}`); }}
-                        className="w-full mb-1.5 rounded-full border border-primary text-primary text-[10px] font-semibold py-1 text-center hover:bg-primary hover:text-primary-foreground transition-colors"
+                        className="w-full mb-1.5 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold py-1 text-center hover:brightness-110 transition"
                       >
                         Ver em loja
                       </button>
