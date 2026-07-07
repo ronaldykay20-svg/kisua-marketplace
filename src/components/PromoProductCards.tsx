@@ -1,29 +1,32 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-import { Zap, Star, Truck, Heart, ArrowRight, ChevronRight, Flame, Trophy } from "lucide-react";
+import { Truck, Star, Heart, ArrowRight, ChevronRight, ChevronLeft, Flame, Trophy } from "lucide-react";
 import { useState, useRef } from "react";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFreight } from "@/hooks/useFreight";
+import { getFreeShippingLabel } from "@/lib/freeShipping";
 
 const PromoProductCards = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { isFavorite, toggleFavorite } = useFavorites();
+  const { provinces, municipalities } = useFreight();
   const [activeIndex, setActiveIndex] = useState(0);
   const [itemsPerView, setItemsPerView] = useState(1);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const { data: products = [] } = useQuery({
-    queryKey: ["promo_products_home"],
+    queryKey: ["free_shipping_products_home"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
         .select("*")
         .eq("is_active", true)
-        .not("discount_percent", "is", null)
-        .gt("discount_percent", 0)
-        .order("discount_percent", { ascending: false })
+        .eq("free_shipping", true)
+        .neq("free_shipping_scope", "nenhum")
+        .order("sales_count", { ascending: false })
         .limit(20);
       if (error) throw error;
 
@@ -68,11 +71,11 @@ const PromoProductCards = () => {
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "var(--promo-gradient)" }}>
-            <Zap className="w-5 h-5 text-white" />
+            <Truck className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-foreground">Promoções imperdíveis</h2>
-            <p className="text-[11px] text-muted-foreground">Os melhores descontos do momento</p>
+            <h2 className="text-base font-bold text-foreground">Frete grátis</h2>
+            <p className="text-[11px] text-muted-foreground">Produtos com envio grátis para si</p>
           </div>
         </div>
         <button onClick={() => navigate("/promocoes")} className="flex items-center gap-1 text-sm font-semibold text-primary">
@@ -142,14 +145,16 @@ const PromoProductCards = () => {
                     <span className="text-[11px] text-muted-foreground line-through mb-1">{Number(p.old_price).toLocaleString("pt-AO")} Kz</span>
                   )}
 
-                  {p.free_shipping && (
-                    <div className="flex items-center gap-2 mb-2 text-[10px]">
-                      <span className="flex items-center gap-1 text-green-600 font-semibold">
-                        <Truck className="w-3 h-3" /> Frete grátis
-                      </span>
-                      <span className="text-muted-foreground">• Entrega rápida</span>
-                    </div>
-                  )}
+                  {(() => {
+                    const label = getFreeShippingLabel(p, municipalities, provinces);
+                    if (!label) return null;
+                    return (
+                      <div className="flex items-center gap-1.5 mb-2 text-[10px] text-green-600 font-semibold">
+                        <Truck className="w-3 h-3 shrink-0" />
+                        <span className="line-clamp-1">{label}</span>
+                      </div>
+                    );
+                  })()}
 
                   <div className="flex items-center gap-2 mt-auto">
                     <button
@@ -168,15 +173,41 @@ const PromoProductCards = () => {
           })}
         </div>
 
-        <div className="flex justify-center gap-1.5 mt-3">
-          {Array.from({ length: totalPages }).map((_, i) => (
-            <div key={i} className={`h-1.5 rounded-full transition-all duration-300 ${i === activePage ? "w-5 bg-primary" : "w-1.5 bg-muted-foreground/30"}`} />
-          ))}
-        </div>
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-3 mt-3">
+            <button
+              onClick={() => {
+                const el = scrollRef.current;
+                if (!el) return;
+                const firstCard = el.firstElementChild as HTMLElement;
+                el.scrollBy({ left: -(firstCard?.offsetWidth || el.offsetWidth), behavior: "smooth" });
+              }}
+              disabled={activePage === 0}
+              className="w-7 h-7 rounded-full bg-muted flex items-center justify-center disabled:opacity-30 transition hover:bg-border"
+            >
+              <ChevronLeft className="w-4 h-4 text-foreground" />
+            </button>
 
-        <p className="text-center text-[10px] text-muted-foreground mt-1.5 flex items-center justify-center gap-1">
-          ↔ Arraste para ver mais ofertas
-        </p>
+            <div className="flex gap-1.5">
+              {Array.from({ length: totalPages }).map((_, i) => (
+                <div key={i} className={`h-1.5 rounded-full transition-all duration-300 ${i === activePage ? "w-5 bg-primary" : "w-1.5 bg-muted-foreground/30"}`} />
+              ))}
+            </div>
+
+            <button
+              onClick={() => {
+                const el = scrollRef.current;
+                if (!el) return;
+                const firstCard = el.firstElementChild as HTMLElement;
+                el.scrollBy({ left: firstCard?.offsetWidth || el.offsetWidth, behavior: "smooth" });
+              }}
+              disabled={activePage === totalPages - 1}
+              className="w-7 h-7 rounded-full bg-muted flex items-center justify-center disabled:opacity-30 transition hover:bg-border"
+            >
+              <ChevronRight className="w-4 h-4 text-foreground" />
+            </button>
+          </div>
+        )}
       </div>
     </section>
   );
