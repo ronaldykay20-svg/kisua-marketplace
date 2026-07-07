@@ -45,7 +45,7 @@ const SavingsGrid = () => {
     setScrollPct(maxScroll > 0 ? el.scrollLeft / maxScroll : 0);
   };
 
-  const { data: products = [] } = useQuery({
+  const { data: allProducts = [] } = useQuery({
     queryKey: ["savings_grid_recommended", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_recommended_products", { p_limit: 20 });
@@ -55,6 +55,9 @@ const SavingsGrid = () => {
     enabled: !!user,
     staleTime: 1000 * 60 * 5, // 5 min — igual ao RecommendedProducts, não recalcula a cada render
   });
+
+  // Só produtos com desconto real entram nesta secção (agora "Produtos com desconto")
+  const products = allProducts.filter((p) => (p.discount_percent || 0) > 0);
 
   useEffect(() => {
     handleScroll();
@@ -72,8 +75,8 @@ const SavingsGrid = () => {
     <section className="container mx-auto px-3 pt-4">
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h2 className="text-[17px] font-bold text-foreground">Recomendado para si</h2>
-          <p className="text-[11px] text-muted-foreground">Baseado no que costuma ver e comprar</p>
+          <h2 className="text-[17px] font-bold text-foreground">Produtos com desconto</h2>
+          <p className="text-[11px] text-muted-foreground">Aproveite as promoções em destaque</p>
         </div>
       </div>
 
@@ -108,7 +111,7 @@ const SavingsGrid = () => {
                       <ArrowDown className="w-3 h-3" /> Baixa
                     </span>
                   ) : (
-                    <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded border border-primary bg-background/90 text-[10px] font-semibold text-primary">
+                    <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded border border-red-600 bg-background/90 text-[10px] font-semibold text-red-600">
                       Preço reduzido
                     </span>
                   )
@@ -124,7 +127,7 @@ const SavingsGrid = () => {
 
               <div className="flex items-baseline gap-1.5 flex-wrap">
                 <span className="text-[13px] text-muted-foreground font-medium">Agora</span>
-                <span className="text-[17px] font-black text-green-600">
+                <span className="text-[17px] font-black text-red-600">
                   {Number(p.price).toLocaleString("pt-AO")} {p.currency || "Kz"}
                 </span>
               </div>
