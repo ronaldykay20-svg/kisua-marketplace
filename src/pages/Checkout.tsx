@@ -11,6 +11,7 @@ import FreightCalculator from "@/components/freight/FreightCalculator";
 import { useFreight } from "@/hooks/useFreight";
 import { validateCouponCode, redeemCouponCode, fetchWalletCoupons, markWalletCouponUsed, ValidateCouponResult, WalletCoupon } from "@/lib/coupons";
 import { trackEvent } from "@/lib/analytics";
+import { isFreeShippingEligible } from "@/lib/freeShipping";
 
 const formatPrice = (price: number) =>
   price.toLocaleString("pt-AO").replace(/,/g, ".") + " Kz";
@@ -56,7 +57,7 @@ const Checkout = () => {
   const clearCart = useClearCart();
   const removeCartItem = useRemoveCartItem();
   const queryClient = useQueryClient();
-  const { provinces, getMunicipalitiesByProvince } = useFreight();
+  const { provinces, municipalities: allMunicipalities, getMunicipalitiesByProvince } = useFreight();
 
   // ── Modo da compra ────────────────────────────────────────────────────────
   // "solo"      → veio do botão "Comprar agora" (ignora totalmente o carrinho)
@@ -174,6 +175,7 @@ const Checkout = () => {
         .from("products")
         .select(`
           id, title, price, image_url, seller_id, company_id,
+          free_shipping, free_shipping_scope, free_shipping_province_id, free_shipping_municipality_ids,
           sellers(id, name, municipality_code),
           companies(id, name, municipality_code)
         `)
@@ -275,11 +277,34 @@ const Checkout = () => {
         quantity: item.quantity,
         price: prod.price,
         imageUrl: coverMediaMap[prod.id] || prod.image_url,
+        freeShipping: {
+          free_shipping_scope: prod.free_shipping_scope,
+          free_shipping_province_id: prod.free_shipping_province_id,
+          free_shipping_municipality_ids: prod.free_shipping_municipality_ids,
+        },
       });
       group.subtotal += prod.price * item.quantity;
     }
     return Array.from(map.values());
   })();
+
+  // Município de destino seleccionado (id, não código) — usado para saber se
+  // algum produto do carrinho tem frete grátis para essa zona.
+  const destMunicipalityId = address.municipalityCode
+    ? (allMunicipalities.find((m: any) => m.code === address.municipalityCode)?.id ?? null)
+    : null;
+
+  // Um grupo (vendedor/empresa) só fica com frete grátis se TODOS os seus
+  // itens no carrinho tiverem frete grátis para o município de destino —
+  // caso contrário o frete continua a ser calculado normalmente.
+  for (const group of cartGroups as any[]) {
+    group.freeShippingEligible =
+      destMunicipalityId !== null &&
+      group.items.length > 0 &&
+      group.items.every((it: any) =>
+        isFreeShippingEligible(it.freeShipping ?? {}, destMunicipalityId, allMunicipalities)
+      );
+  }
 
   const subtotal = cartItems.reduce((sum: number, item: any) => {
     return sum + (item.products?.price || 0) * item.quantity;
