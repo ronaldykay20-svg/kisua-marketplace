@@ -40,6 +40,8 @@ interface CartGroup {
   }[];
   subtotal: number;
   freeShippingEligible?: boolean;
+  freeShippingPartial?: boolean;
+  freeShippingEligibleItemNames?: string[];
 }
 
 interface FreightSelection {
@@ -441,6 +443,22 @@ function SellerFreightRow({
       )}
 
       <div className="p-4 space-y-3">
+        {group.freeShippingPartial && (
+          <div className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+            <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+            <p className="text-xs text-amber-700/90">
+              <span className="font-semibold">
+                {group.freeShippingEligibleItemNames && group.freeShippingEligibleItemNames.length === 1
+                  ? group.freeShippingEligibleItemNames[0]
+                  : `${group.freeShippingEligibleItemNames?.length ?? 0} produtos`}
+              </span>{" "}
+              deste vendedor têm frete grátis para o teu município, mas os
+              restantes itens não — por isso o frete abaixo continua a ser
+              cobrado normalmente para o pedido todo.
+            </p>
+          </div>
+        )}
+
         {group.freeShippingEligible ? (
           <div className="flex items-center gap-3 rounded-lg border border-green-500/30 bg-green-500/5 p-3">
             <Gift className="w-5 h-5 text-green-500 shrink-0" />
