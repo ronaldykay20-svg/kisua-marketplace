@@ -16,6 +16,7 @@ import { useFavorites } from "@/hooks/useFavorites";
 import { useProductViewers } from "@/hooks/useProductViewers";
 import { toast } from "sonner";
 import { trackViewedProduct } from "@/lib/recentBrowsing";
+import { useCategoryTracking } from "@/hooks/useCategoryTracking";
 
 const N = {
   brown:     "#4A2E0A",
@@ -115,6 +116,7 @@ const ProductDetail = () => {
   const addToCart = useAddToCart();
   const { trackEvent } = useProductTracking();
   const { isFavorite, toggleFavorite } = useFavorites();
+  const { trackCategoryView } = useCategoryTracking();
 
   // Contagem de itens no carrinho (para o badge do ícone no header)
   const { data: cartCount = 0 } = useQuery({
@@ -184,6 +186,12 @@ const ProductDetail = () => {
   const publisher: any = sellerFull || companyFull || null;
 
   const { data: categoryName } = useQuery({ queryKey: ["category_name_detail", categoryId], queryFn: async () => { const { data } = await supabase.from("categories").select("name").eq("id", categoryId!).maybeSingle(); return data?.name || null; }, enabled: !!categoryId });
+
+  // Regista a categoria deste produto como "a última vista" — alimenta o
+  // "Recomendado para si" na home (ver useCategoryTracking.ts).
+  useEffect(() => {
+    if (categoryId) trackCategoryView(categoryId, "product");
+  }, [categoryId]);
 
   // Resolve a "família" de categorias: se o produto está numa subcategoria (ex: Roupa > Vestidos),
   // a família inclui o pai (Roupa) e todas as subcategorias irmãs (Vestidos, Calças, Camisas...).
