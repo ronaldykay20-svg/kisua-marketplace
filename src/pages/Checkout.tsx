@@ -298,12 +298,21 @@ const Checkout = () => {
   // itens no carrinho tiverem frete grátis para o município de destino —
   // caso contrário o frete continua a ser calculado normalmente.
   for (const group of cartGroups as any[]) {
+    const eligibleItems = group.items.filter((it: any) =>
+      isFreeShippingEligible(it.freeShipping ?? {}, destMunicipalityId, allMunicipalities)
+    );
     group.freeShippingEligible =
       destMunicipalityId !== null &&
       group.items.length > 0 &&
-      group.items.every((it: any) =>
-        isFreeShippingEligible(it.freeShipping ?? {}, destMunicipalityId, allMunicipalities)
-      );
+      eligibleItems.length === group.items.length;
+    // "Parcial" = há pelo menos um produto com frete grátis para este
+    // município, mas não todos — o frete continua a ser cobrado, e por isso
+    // mostramos um aviso a explicar porquê.
+    group.freeShippingPartial =
+      destMunicipalityId !== null &&
+      eligibleItems.length > 0 &&
+      eligibleItems.length < group.items.length;
+    group.freeShippingEligibleItemNames = eligibleItems.map((it: any) => it.name);
   }
 
   const subtotal = cartItems.reduce((sum: number, item: any) => {
