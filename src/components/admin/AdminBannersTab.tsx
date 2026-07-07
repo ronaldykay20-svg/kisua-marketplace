@@ -132,7 +132,14 @@ async function uploadBannerImage(file: File): Promise<string> {
   const path = `banners/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
   const { error } = await supabase.storage
     .from(STORAGE_BUCKETS.banners)
-    .upload(path, uploadFile, { upsert: true });
+    .upload(path, uploadFile, {
+      upsert: true,
+      // 1 mês de cache no dispositivo de quem visita. O nome do ficheiro já
+      // é único (timestamp + aleatório), nunca é reaproveitado, por isso
+      // pode "fixar" a imagem para sempre sem risco de ficar desatualizada:
+      // quem já a viu não a torna a descarregar/reprocessar ao reabrir o site.
+      cacheControl: "2592000",
+    });
   if (error) throw new Error("Upload falhou: " + error.message);
   const { data } = supabase.storage.from(STORAGE_BUCKETS.banners).getPublicUrl(path);
   return data.publicUrl;
@@ -938,6 +945,37 @@ const AdminBannersTab = () => {
     onError: (e: any) => toast.error(e.message),
   });
 
+  // Migração de 1x só: as imagens de banners enviadas ANTES desta correção
+  // ficaram guardadas com cache de 1h (padrão do Supabase). Este botão
+  // re-envia o mesmo ficheiro para o mesmo caminho/URL, só trocando o
+  // cabeçalho de cache para 1 mês — nada muda visualmente, os banners
+  // continuam os mesmos, só passam a "fixar" no dispositivo de quem visita.
+  const refreshImageCache = useMutation({
+    mutationFn: async () => {
+      const { data: files, error: listError } = await supabase.storage
+        .from(STORAGE_BUCKETS.banners)
+        .list("banners", { limit: 1000 });
+      if (listError) throw new Error(listError.message);
+
+      const targets = (files || []).filter(f => f.name && !f.name.endsWith("/"));
+      let done = 0;
+      for (const f of targets) {
+        const path = `banners/${f.name}`;
+        const { data: blob, error: downloadError } = await supabase.storage
+          .from(STORAGE_BUCKETS.banners)
+          .download(path);
+        if (downloadError || !blob) continue; // salta ficheiro com problema, não trava os restantes
+        const { error: updateError } = await supabase.storage
+          .from(STORAGE_BUCKETS.banners)
+          .update(path, blob, { cacheControl: "2592000", contentType: blob.type });
+        if (!updateError) done++;
+      }
+      return { total: targets.length, done };
+    },
+    onSuccess: ({ total, done }) => toast.success(`Cache otimizada: ${done}/${total} imagens de banner`),
+    onError: (e: any) => toast.error(e.message),
+  });
+
   const stats = { total: banners.length, active: banners.filter(b => b.is_active).length, mobile: banners.filter(b => (b.device || "mobile") === "mobile").length, tablet: banners.filter(b => b.device === "tablet").length, desktop: banners.filter(b => b.device === "desktop").length };
 
   const splitGroups = new Map<string, { left: BannerRow | null; right: BannerRow | null }>();
@@ -972,6 +1010,20 @@ const AdminBannersTab = () => {
           </div>
         ))}
       </div>
+
+      <button
+        type="button"
+        onClick={() => {
+          if (confirm("Isto vai reprocessar as imagens de banners já enviadas para ficarem guardadas 1 mês no dispositivo de quem visita o site (menos consumo de dados a cada visita). Só precisa de fazer isto uma vez. Continuar?")) {
+            refreshImageCache.mutate();
+          }
+        }}
+        disabled={refreshImageCache.isPending}
+        className="w-full py-2 rounded-xl text-[11px] font-bold border border-border bg-card text-foreground flex items-center justify-center gap-1.5 disabled:opacity-50"
+      >
+        {refreshImageCache.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImageIcon className="w-3.5 h-3.5" />}
+        {refreshImageCache.isPending ? "A otimizar imagens já enviadas..." : "Otimizar cache das imagens já enviadas (fazer só 1 vez)"}
+      </button>
 
       {editSplitPair ? <BannerForm initialSplitPair={editSplitPair} existingBanners={banners} onClose={closeForm} onSaved={invalidate} />
         : editBanner ? <BannerForm initial={editBanner} existingBanners={banners} onClose={closeForm} onSaved={invalidate} />
