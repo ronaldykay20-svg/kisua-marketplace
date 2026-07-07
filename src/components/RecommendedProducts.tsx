@@ -139,14 +139,14 @@ const RecommendedProducts = () => {
   };
 
   return (
-    <section className="container mx-auto px-3 pt-4">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-primary/10">
+    <section className="container mx-auto px-3 pt-5">
+      <div className="flex items-center justify-between mb-3.5">
+        <div className="flex items-center gap-2.5">
+          <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-gradient-to-br from-primary/15 to-primary/5 ring-1 ring-primary/10">
             <Sparkles className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-foreground">Recomendado para si</h2>
+            <h2 className="text-base font-bold text-foreground tracking-tight">Recomendado para si</h2>
             <p className="text-[11px] text-muted-foreground">
               {basedOnCategory
                 ? `Baseado na categoria "${basedOnCategory}" que viu`
@@ -158,7 +158,7 @@ const RecommendedProducts = () => {
 
       <div
         ref={scrollRef}
-        className="flex gap-2.5 overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-1"
+        className="flex gap-3 overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-1 -mx-0.5 px-0.5"
       >
         {products.map((p) => {
           const img = p.cover_image_url || FALLBACK_IMG;
@@ -167,52 +167,64 @@ const RecommendedProducts = () => {
             <div
               key={p.id}
               onClick={() => navigate(`/produto/${p.id}`)}
-              className="flex-shrink-0 w-[140px] sm:w-[160px] snap-start bg-background border border-border rounded-xl overflow-hidden cursor-pointer flex flex-col"
+              className="group flex-shrink-0 w-[148px] sm:w-[172px] snap-start bg-card border border-border/60 rounded-2xl overflow-hidden cursor-pointer flex flex-col shadow-sm hover:shadow-lg hover:border-border transition-all duration-200 active:scale-[0.98]"
             >
-              <div className="relative aspect-square bg-muted">
-                <img src={img} alt={p.title} className="w-full h-full object-cover" loading="lazy" />
+              <div className="relative aspect-square bg-muted overflow-hidden">
+                <img
+                  src={img}
+                  alt={p.title}
+                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  loading="lazy"
+                />
+                <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/15 to-transparent pointer-events-none" />
+
                 {p.discount_percent ? (
-                  <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold text-white bg-red-500">
+                  <span className="absolute top-2 left-2 px-1.5 py-[3px] rounded-full text-[10px] font-bold text-white bg-gradient-to-r from-red-500 to-rose-600 shadow-sm">
                     -{p.discount_percent}%
                   </span>
                 ) : p.badge ? (
-                  <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold text-white bg-primary">
+                  <span className="absolute top-2 left-2 px-1.5 py-[3px] rounded-full text-[10px] font-bold text-primary-foreground bg-gradient-to-r from-primary to-primary/80 shadow-sm">
                     {p.badge}
                   </span>
                 ) : null}
+
                 <button
                   onClick={(e) => handleHeart(e, p.id)}
-                  className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-background/80 backdrop-blur flex items-center justify-center"
+                  className="absolute top-2 right-2 w-7 h-7 rounded-full bg-background/90 backdrop-blur-sm shadow-sm flex items-center justify-center transition-transform active:scale-90"
                 >
                   <Heart className={`w-3.5 h-3.5 transition-colors ${fav ? "fill-[#8B6343] text-[#8B6343]" : "text-muted-foreground"}`} />
                 </button>
               </div>
 
-              <div className="p-2 flex flex-col gap-0.5">
+              <div className="p-2.5 flex flex-col gap-1">
                 <h3 className="text-[12px] font-semibold text-foreground line-clamp-2 leading-snug min-h-[2.4em]">
                   {p.title}
                 </h3>
 
                 {(p.reason === "subcategoria" || p.reason === "categoria") && p.basedOnCategory && (
-                  <span className="text-[9.5px] font-medium text-primary/80 -mt-0.5">
+                  <span className="inline-flex w-fit items-center px-1.5 py-0.5 rounded-full text-[9.5px] font-medium text-primary bg-primary/10 -mt-0.5">
                     {p.reason === "subcategoria" ? "Também em" : "Relacionado com"} {p.basedOnCategory}
                   </span>
                 )}
 
                 {p.rating != null && Number(p.rating) > 0 && (
-                  <div className="flex items-center gap-0.5">
+                  <div className="flex items-center gap-1">
                     <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
                     <span className="text-[10px] font-semibold text-foreground">{p.rating}</span>
+                    {p.total_reviews ? (
+                      <span className="text-[9.5px] text-muted-foreground">({p.total_reviews})</span>
+                    ) : null}
                   </div>
                 )}
 
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="text-[13px] font-black text-foreground">
-                    {Number(p.price).toLocaleString("pt-AO")} {p.currency || "Kz"}
+                <div className="flex items-baseline gap-1.5 mt-0.5">
+                  <span className="text-[14px] font-black text-foreground">
+                    {Number(p.price).toLocaleString("pt-AO")}
                   </span>
+                  <span className="text-[10.5px] font-semibold text-muted-foreground">{p.currency || "Kz"}</span>
                 </div>
                 {p.old_price && (
-                  <span className="text-[10px] text-muted-foreground line-through">
+                  <span className="text-[10px] text-muted-foreground line-through -mt-0.5">
                     {Number(p.old_price).toLocaleString("pt-AO")} {p.currency || "Kz"}
                   </span>
                 )}
@@ -221,10 +233,6 @@ const RecommendedProducts = () => {
           );
         })}
       </div>
-
-      <p className="text-center text-[10px] text-muted-foreground mt-1.5">
-        ↔ Arraste para ver mais
-      </p>
     </section>
   );
 };
