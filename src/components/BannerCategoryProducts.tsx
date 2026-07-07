@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useRef, useState, useEffect, useMemo } from "react";
-import { ChevronLeft, ChevronRight, Star, Truck, Heart, Flame, Users, ShieldCheck } from "lucide-react";
+import { Star, Truck, Heart, Flame, Users, ShieldCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useFavorites } from "@/hooks/useFavorites";
@@ -9,6 +9,12 @@ import { useAuth } from "@/contexts/AuthContext";
 interface Props {
   categoryId: string;
 }
+
+// Nunca mostrar menos que 4 produtos, e nunca um número ÍMPAR (3, 5, 7...).
+// Só são permitidos 4, 6, 8, 10... — ver getEvenCount() abaixo.
+const MIN_TO_SHOW = 4;
+
+const getEvenCount = (total: number) => total - (total % 2);
 
 const InfoPill = ({ type, children }: { type: string; children: React.ReactNode }) => {
   const styles: Record<string, string> = {
@@ -77,10 +83,19 @@ const BannerCategoryProducts = ({ categoryId }: Props) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { isFavorite, toggleFavorite } = useFavorites();
-  const ref = useRef<HTMLDivElement>(null);
-  const [activeDot, setActiveDot] = useState(0);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [scrollPct, setScrollPct] = useState(0);
+  const [thumbWidthPct, setThumbWidthPct] = useState(30);
 
-  const { data: products = [] } = useQuery({
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const maxScroll = el.scrollWidth - el.clientWidth;
+    setThumbWidthPct(Math.min(100, (el.clientWidth / el.scrollWidth) * 100));
+    setScrollPct(maxScroll > 0 ? el.scrollLeft / maxScroll : 0);
+  };
+
+  const { data: rawProducts = [] } = useQuery({
     queryKey: ["banner_category_products", categoryId],
     queryFn: async () => {
       const { data } = await supabase
@@ -89,30 +104,25 @@ const BannerCategoryProducts = ({ categoryId }: Props) => {
         .eq("category_id", categoryId)
         .eq("is_active", true)
         .order("sales_count", { ascending: false })
-        .limit(12);
+        .limit(20); // busca de sobra para depois cortar sempre num número par
       return data || [];
     },
     enabled: !!categoryId,
   });
 
-  if (products.length === 0) return null;
+  // Corta sempre a lista para um número PAR (4, 6, 8, 10...) — nunca 3, 5 ou 7.
+  // Se não sobrar pelo menos 4 depois de arredondar para baixo, a secção some.
+  const products = useMemo(() => {
+    const evenCount = getEvenCount(rawProducts.length);
+    return evenCount >= MIN_TO_SHOW ? rawProducts.slice(0, evenCount) : [];
+  }, [rawProducts]);
 
-  const totalGroups = Math.ceil(products.length / 2);
+  useEffect(() => {
+    handleScroll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [products.length]);
 
-  const scroll = (dir: "left" | "right") => {
-    const el = ref.current;
-    if (!el) return;
-    const cardWidth = el.clientWidth * 0.47;
-    el.scrollBy({ left: dir === "left" ? -(cardWidth * 2 + 8) : (cardWidth * 2 + 8), behavior: "smooth" });
-  };
-
-  const handleScroll = () => {
-    const el = ref.current;
-    if (!el) return;
-    const cardWidth = el.clientWidth * 0.47;
-    const groupWidth = cardWidth * 2 + 8;
-    setActiveDot(Math.min(Math.round(el.scrollLeft / groupWidth), totalGroups - 1));
-  };
+  if (products.length < MIN_TO_SHOW) return null;
 
   const handleHeart = (e: React.MouseEvent, productId: string) => {
     e.stopPropagation();
@@ -122,109 +132,96 @@ const BannerCategoryProducts = ({ categoryId }: Props) => {
 
   return (
     <section className="container mx-auto px-3 mt-2">
-      <div className="relative">
-        <div
-          ref={ref}
-          onScroll={handleScroll}
-          className="flex gap-2 overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-1"
-        >
-          {products.map((p: any, i: number) => {
-            const cover = p.product_media?.find((m: any) => m.is_cover)?.url || p.product_media?.[0]?.url;
-            const fav = isFavorite(p.id);
+      {/*
+        Mesmo layout da secção "Produtos com desconto" (SavingsGrid): scroll
+        horizontal em 2 linhas fixas (grid-flow-col). Como cada coluna tem
+        sempre 2 produtos (linha de cima + linha de baixo), arrastar para o
+        lado nunca revela um número ímpar — vem sempre +2. No mobile,
+        auto-cols-[44vw] deixa ~2 colunas visíveis de início = 4 produtos;
+        em sm/lg só a largura da coluna muda (200px / 220px), a regra dos
+        pares continua igual em qualquer visor.
+      */}
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="grid grid-rows-2 grid-flow-col auto-cols-[44vw] sm:auto-cols-[200px] lg:auto-cols-[220px] gap-3 overflow-x-auto snap-x snap-mandatory scrollbar-hide pb-1"
+      >
+        {products.map((p: any, i: number) => {
+          const cover = p.product_media?.find((m: any) => m.is_cover)?.url || p.product_media?.[0]?.url;
+          const fav = isFavorite(p.id);
 
-            return (
-              <div
-                key={p.id}
-                onClick={() => navigate(`/produto/${p.id}`)}
-                className="snap-start flex-shrink-0 w-[calc(50%-4px)] sm:w-[calc(33.333%-6px)] md:w-[calc(25%-6px)] lg:w-[calc(20%-7px)] bg-card rounded-md border border-border overflow-hidden cursor-pointer hover:shadow-md transition flex flex-col"
-              >
-                <div className="relative aspect-square overflow-hidden bg-muted">
-                  {cover ? (
-                    <img src={cover} alt={p.title} className="w-full h-full object-cover" loading="lazy" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-[10px] text-muted-foreground">Sem foto</div>
-                  )}
-                  {p.discount_percent && (
-                    <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold text-white bg-red-500">
-                      -{p.discount_percent}%
-                    </span>
-                  )}
-                  {p.badge && (
-                    <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold text-white bg-orange-500">
-                      {p.badge}
-                    </span>
-                  )}
-                  <button
-                    onClick={(e) => handleHeart(e, p.id)}
-                    className="absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full bg-white/80 flex items-center justify-center shadow"
-                  >
-                    <Heart className={`w-3 h-3 transition-colors ${fav ? "fill-[#8B6343] text-[#8B6343]" : "text-gray-400"}`} />
-                  </button>
-                </div>
+          return (
+            <div
+              key={p.id}
+              onClick={() => navigate(`/produto/${p.id}`)}
+              className="flex flex-col cursor-pointer snap-start"
+            >
+              <div className="relative aspect-square rounded-lg overflow-hidden bg-muted mb-2">
+                {cover ? (
+                  <img src={cover} alt={p.title} className="w-full h-full object-cover" loading="lazy" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-[10px] text-muted-foreground">Sem foto</div>
+                )}
 
-                <div className="p-1.5 flex flex-col gap-1 flex-1">
-                  <p className="text-[11px] font-semibold text-foreground line-clamp-2 leading-snug">{p.title}</p>
+                {p.discount_percent ? (
+                  <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded text-[10px] font-bold text-white bg-[#8B6343]">
+                    -{p.discount_percent}%
+                  </span>
+                ) : p.badge ? (
+                  <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded border border-[#8B6343] bg-background/90 text-[10px] font-semibold text-[#8B6343]">
+                    {p.badge}
+                  </span>
+                ) : null}
 
-                  {p.rating > 0 && (
-                    <div className="flex items-center gap-0.5">
-                      <Star className="w-2.5 h-2.5 text-yellow-400 fill-yellow-400" />
-                      <span className="text-[10px] font-bold">{Number(p.rating).toFixed(1)}</span>
-                      {p.total_reviews > 0 && (
-                        <span className="text-[9px] text-muted-foreground">
-                          ({p.total_reviews > 999 ? "1000+" : p.total_reviews})
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  <RotatingPill p={p} seed={i} />
-
-                  <div className="flex items-baseline gap-1 mt-auto pt-0.5">
-                    <span className="text-[12px] font-black text-red-500">
-                      {Number(p.price).toLocaleString("pt-AO")} Kz
-                    </span>
-                    {p.old_price && (
-                      <span className="text-[9px] text-muted-foreground line-through">
-                        {Number(p.old_price).toLocaleString("pt-AO")} Kz
-                      </span>
-                    )}
-                  </div>
-                </div>
+                <button
+                  onClick={(e) => handleHeart(e, p.id)}
+                  className="absolute top-2 right-2 w-6 h-6 rounded-full bg-background/90 flex items-center justify-center shadow-sm"
+                >
+                  <Heart className={`w-3.5 h-3.5 transition-colors ${fav ? "fill-[#8B6343] text-[#8B6343]" : "text-foreground"}`} />
+                </button>
               </div>
-            );
-          })}
-        </div>
 
-        {products.length > 2 && (
-          <>
-            <button onClick={() => scroll("left")}
-              className="sm:hidden absolute -left-1 top-[40%] -translate-y-1/2 w-7 h-7 rounded-full bg-white border border-border shadow flex items-center justify-center z-10">
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button onClick={() => scroll("right")}
-              className="sm:hidden absolute -right-1 top-[40%] -translate-y-1/2 w-7 h-7 rounded-full bg-white border border-border shadow flex items-center justify-center z-10">
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </>
-        )}
+              {p.rating > 0 && (
+                <div className="flex items-center gap-0.5 mb-0.5">
+                  <Star className="w-2.5 h-2.5 text-yellow-400 fill-yellow-400" />
+                  <span className="text-[10px] font-bold">{Number(p.rating).toFixed(1)}</span>
+                  {p.total_reviews > 0 && (
+                    <span className="text-[9px] text-muted-foreground">
+                      ({p.total_reviews > 999 ? "1000+" : p.total_reviews})
+                    </span>
+                  )}
+                </div>
+              )}
 
-        <button onClick={() => scroll("left")}
-          className="hidden sm:flex absolute -left-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-card/90 border border-border items-center justify-center shadow-sm hover:bg-card z-10">
-          <ChevronLeft className="w-4 h-4" />
-        </button>
-        <button onClick={() => scroll("right")}
-          className="hidden sm:flex absolute -right-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-card/90 border border-border items-center justify-center shadow-sm hover:bg-card z-10">
-          <ChevronRight className="w-4 h-4" />
-        </button>
+              <RotatingPill p={p} seed={i} />
+
+              <div className="flex items-baseline gap-1.5 flex-wrap mt-1">
+                <span className="text-[13px] text-muted-foreground font-medium">Agora</span>
+                <span className="text-[17px] font-black text-[#8B6343]">
+                  {Number(p.price).toLocaleString("pt-AO")} Kz
+                </span>
+              </div>
+              {p.old_price && (
+                <span className="text-[12px] text-muted-foreground">
+                  Antes <span className="line-through">{Number(p.old_price).toLocaleString("pt-AO")} Kz</span>
+                </span>
+              )}
+              <p className="text-[14px] font-bold text-foreground line-clamp-2 leading-snug mt-1">{p.title}</p>
+            </div>
+          );
+        })}
       </div>
 
-      {products.length > 2 && (
-        <div className="flex justify-center gap-1.5 mt-2 sm:hidden">
-          {Array.from({ length: totalGroups }).map((_, i) => (
-            <div key={i} className={`h-1.5 rounded-full transition-all duration-300 ${i === activeDot ? "w-4 bg-primary" : "w-1.5 bg-muted-foreground/30"}`} />
-          ))}
-        </div>
-      )}
+      {/* Barra de progresso do scroll horizontal, na cor castanha de destaque */}
+      <div className="w-full h-1 rounded-full bg-muted mt-2 overflow-hidden">
+        <div
+          className="h-full rounded-full bg-[#8B6343] transition-transform duration-100 ease-out"
+          style={{
+            width: `${thumbWidthPct}%`,
+            transform: `translateX(${scrollPct * (100 / thumbWidthPct - 1) * 100}%)`,
+          }}
+        />
+      </div>
     </section>
   );
 };
