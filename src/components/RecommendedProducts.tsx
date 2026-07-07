@@ -24,6 +24,7 @@ interface RecommendedProduct {
   category_id: string | null;
   cover_image_url: string | null;
   reason?: string;
+  basedOnCategory?: string | null;
 }
 
 const FALLBACK_IMG = "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop";
@@ -31,6 +32,10 @@ const MIN_TO_SHOW = 10;
 const MAX_TO_SHOW = 18;
 
 // "Recomendado para si" — combina várias fontes para garantir sempre 10-18 produtos:
+//   0. RPC get_products_by_last_viewed_category — a última categoria que o
+//      user viu (tocando no menu de categorias OU abrindo um produto):
+//      primeiro produtos da mesma família de subcategorias, depois da
+//      mesma família de categorias (ver useCategoryTracking.ts + SQL).
 //   1. RPC get_recommended_products (categorias/lojas favoritas)
 //   2. Produtos vistos recentemente (localStorage)
 //   3. Produtos que combinam com pesquisas recentes (localStorage)
@@ -42,13 +47,14 @@ const RecommendedProducts = () => {
   const { isFavorite, toggleFavorite } = useFavorites();
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const { data: products = [] } = useQuery({
+  const { data: result } = useQuery({
     queryKey: ["recommended_products_home_mixed", user?.id],
     enabled: !!user,
     staleTime: 1000 * 60 * 2,
-    queryFn: async (): Promise<RecommendedProduct[]> => {
+    queryFn: async (): Promise<{ products: RecommendedProduct[]; basedOnCategory: string | null }> => {
       const seen = new Set<string>();
       const out: RecommendedProduct[] = [];
+      let basedOnCategory: string | null = null;
 
       const pushMany = (rows: any[]) => {
         for (const r of rows || []) {
@@ -59,11 +65,22 @@ const RecommendedProducts = () => {
         }
       };
 
-      // 1) RPC personalizada
+      // 0) Última categoria vista (menu ou produto) → família de subcategorias,
+      //    depois família de categorias
       try {
-        const { data } = await supabase.rpc("get_recommended_products", { p_limit: MAX_TO_SHOW });
-        pushMany((data as any[]) || []);
+        const { data } = await supabase.rpc("get_products_by_last_viewed_category", { _limit: MAX_TO_SHOW });
+        const rows = (data as any[]) || [];
+        if (rows.length && rows[0]?.based_on_category) basedOnCategory = rows[0].based_on_category;
+        pushMany(rows);
       } catch { /* ignora — segue para as outras fontes */ }
+
+      // 1) RPC personalizada
+      if (out.length < MAX_TO_SHOW) {
+        try {
+          const { data } = await supabase.rpc("get_recommended_products", { p_limit: MAX_TO_SHOW });
+          pushMany((data as any[]) || []);
+        } catch { /* ignora — segue para as outras fontes */ }
+      }
 
       // 2) Produtos vistos recentemente
       if (out.length < MAX_TO_SHOW) {
@@ -107,9 +124,12 @@ const RecommendedProducts = () => {
         pushMany(data || []);
       }
 
-      return out.slice(0, MAX_TO_SHOW);
+      return { products: out.slice(0, MAX_TO_SHOW), basedOnCategory };
     },
   });
+
+  const products = result?.products ?? [];
+  const basedOnCategory = result?.basedOnCategory ?? null;
 
   if (!user || products.length < MIN_TO_SHOW) return null;
 
@@ -127,7 +147,11 @@ const RecommendedProducts = () => {
           </div>
           <div>
             <h2 className="text-base font-bold text-foreground">Recomendado para si</h2>
-            <p className="text-[11px] text-muted-foreground">Baseado no que costuma ver, procurar e comprar</p>
+            <p className="text-[11px] text-muted-foreground">
+              {basedOnCategory
+                ? `Baseado na categoria "${basedOnCategory}" que viu`
+                : "Baseado no que costuma ver, procurar e comprar"}
+            </p>
           </div>
         </div>
       </div>
@@ -168,6 +192,12 @@ const RecommendedProducts = () => {
                 <h3 className="text-[12px] font-semibold text-foreground line-clamp-2 leading-snug min-h-[2.4em]">
                   {p.title}
                 </h3>
+
+                {(p.reason === "subcategoria" || p.reason === "categoria") && p.basedOnCategory && (
+                  <span className="text-[9.5px] font-medium text-primary/80 -mt-0.5">
+                    {p.reason === "subcategoria" ? "Também em" : "Relacionado com"} {p.basedOnCategory}
+                  </span>
+                )}
 
                 {p.rating != null && Number(p.rating) > 0 && (
                   <div className="flex items-center gap-0.5">
@@ -228,6 +258,7 @@ function normalize(r: any): RecommendedProduct {
     category_id: r.category_id ?? null,
     cover_image_url: cover,
     reason: r.reason,
+    basedOnCategory: r.based_on_category ?? null,
   };
 }
 
