@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useRef, useCallback, useState, memo } from "react";
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
@@ -241,6 +241,20 @@ const getBadgeStyle = (badge: string | null | undefined) => {
   return BADGE_STYLES[badge] || null;
 };
 
+// ─── Contador da flash sale ───────────────────────────────────────────────────
+// Isolado num componente próprio: só ele re-renderiza a cada segundo, e só
+// nos cards que realmente têm flash sale. Isto evita que a grelha inteira de
+// produtos (que pode ter centenas de cards) re-renderize a cada segundo,
+// que era a causa do engasgo/travamento ao rolar a página.
+const FlashCountdown = () => {
+  const [remaining, setRemaining] = useState(getRemainingToMidnight());
+  useEffect(() => {
+    const interval = setInterval(() => setRemaining(getRemainingToMidnight()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+  return <>{remaining}</>;
+};
+
 // ─── Estrelas de avaliação ────────────────────────────────────────────────────
 const StarRating = ({ rating }: { rating: number }) => {
   const rounded = Math.round(rating);
@@ -261,15 +275,15 @@ const StarRating = ({ rating }: { rating: number }) => {
 };
 
 // ─── Card ─────────────────────────────────────────────────────────────────────
-const ProductCard = ({
-  p, images, isTrending, isFav, onFav, onClick, onAddToCart, index, tick, flashRemaining, coupon, couponCollected, onCollectCoupon, isSpotlight, onViewportChange,
+const ProductCardBase = ({
+  p, images, isTrending, isFav, onFav, onClick, onAddToCart, index, coupon, couponCollected, onCollectCoupon, isSpotlight, onViewportChange,
 }: {
   p: any; images: string[]; isTrending: boolean;
-  isFav: boolean; onFav: (e: React.MouseEvent) => void;
-  onClick: () => void; onAddToCart: (e: React.MouseEvent) => void;
-  index: number; tick: number; flashRemaining: string;
+  isFav: boolean; onFav: (id: string, e: React.MouseEvent) => void;
+  onClick: (id: string) => void; onAddToCart: (p: any, e: React.MouseEvent) => void;
+  index: number;
   coupon: DisplayCoupon | null; couponCollected: boolean;
-  onCollectCoupon: (e: React.MouseEvent) => void;
+  onCollectCoupon: (couponId: string, e: React.MouseEvent) => void;
   isSpotlight: boolean; onViewportChange: (id: string, inView: boolean, imageCount: number) => void;
 }) => {
   const [pressed, setPressed] = useState(false);
@@ -300,7 +314,7 @@ const ProductCard = ({
   const handleFav = (e: React.MouseEvent) => {
     setHeartPop(true);
     setTimeout(() => setHeartPop(false), 350);
-    onFav(e);
+    onFav(String(p.id), e);
   };
 
   const handleAddToCart = (e: React.MouseEvent) => {
@@ -326,7 +340,7 @@ const ProductCard = ({
       clone.style.opacity = "0.3";
     });
     setTimeout(() => clone.remove(), 600);
-    onAddToCart(e);
+    onAddToCart(p, e);
   };
 
   // Linha rotativa por baixo do título/preço — só troca de conteúdo nos
@@ -396,7 +410,7 @@ const ProductCard = ({
 
   return (
     <div
-      onClick={onClick}
+      onClick={() => onClick(String(p.id))}
       onPointerDown={() => setPressed(true)}
       onPointerUp={() => setPressed(false)}
       onPointerLeave={() => setPressed(false)}
@@ -437,7 +451,7 @@ const ProductCard = ({
         {isFlash && (
           <span className="absolute top-2 right-2 flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-bold text-white z-10"
             style={{ background: "rgba(20,20,20,0.75)", borderRadius: "4px" }}>
-            <Clock className="w-2.5 h-2.5" /> {flashRemaining}
+            <Clock className="w-2.5 h-2.5" /> <FlashCountdown />
           </span>
         )}
 
@@ -498,7 +512,7 @@ const ProductCard = ({
 
         {coupon && (
           <div
-            onClick={(e) => { e.stopPropagation(); if (!couponCollected) onCollectCoupon(e); }}
+            onClick={(e) => { e.stopPropagation(); if (!couponCollected && coupon) onCollectCoupon(coupon.id, e); }}
             className="flex items-center gap-1 mb-1 px-1.5 py-0.5 w-fit"
             style={{
               background: couponCollected ? "#f2f7ee" : "#fdf0e5",
@@ -533,6 +547,12 @@ const ProductCard = ({
   );
 };
 
+// React.memo evita que os cards já renderizados sejam re-processados quando o
+// componente pai (InfiniteProducts) re-renderiza por outros motivos (ex: novo
+// toast, nova página carregada). Combinado com callbacks estáveis (useCallback
+// no pai), isto é o que impede o engasgo ao rolar em listas grandes.
+const ProductCard = memo(ProductCardBase);
+
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 const Skeleton = () => (
   <div className="w-full overflow-hidden" style={{ borderRadius: "3px", background: "#ffffff" }}>
@@ -554,21 +574,11 @@ const InfiniteProducts = () => {
   const { mutate: addToCart } = useAddToCart();
   const sentinelRef = useRef<HTMLDivElement>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [tick, setTick] = useState(0);
-  const [flashRemaining, setFlashRemaining] = useState(getRemainingToMidnight());
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // ── Tick leve (5s) — dá vida aos contadores de "visualizações" ────────────
-  useEffect(() => {
-    const interval = setInterval(() => setTick((t) => t + 1), 5000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // ── Tick por segundo — contagem decrescente da flash sale ────────────────
-  useEffect(() => {
-    const interval = setInterval(() => setFlashRemaining(getRemainingToMidnight()), 1000);
-    return () => clearInterval(interval);
-  }, []);
+  // Nota: os ticks de "tempo real" (contagem da flash sale) foram movidos para
+  // dentro do componente FlashCountdown, para não forçar um re-render de toda
+  // a grelha de produtos a cada segundo (era essa a causa do travamento/engasgo
+  // ao rolar a página — ver componente FlashCountdown acima).
 
   // ── Query principal (paginada) ────────────────────────────────────────────
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
@@ -708,15 +718,21 @@ const InfiniteProducts = () => {
     toastTimeoutRef.current = setTimeout(() => setToast(null), 1800);
   };
 
-  const makeFav = (id: string) => (e: React.MouseEvent) => {
+  // useCallback aqui é essencial: estas funções são passadas a CADA card da
+  // grelha. Se fossem recriadas a cada render do pai (como eram antes, com
+  // "makeFav(id) => (e) => {...}"), o React.memo do ProductCard nunca
+  // "bateria certo" e todos os cards re-renderizariam sempre — incluindo
+  // sempre que o toast aparece/desaparece, uma nova página é carregada, etc.
+  const handleFav = useCallback((id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!user) { navigate("/auth"); return; }
     const willBeFav = !isFavorite(id);
     toggleFavorite(id);
     showToast(willBeFav ? "Adicionado aos favoritos ❤️" : "Removido dos favoritos");
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, isFavorite, toggleFavorite]);
 
-  const makeAddToCart = (p: any) => (e: React.MouseEvent) => {
+  const handleAddToCart = useCallback((p: any, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!user) { navigate("/auth"); return; }
     addToCart(
@@ -726,13 +742,19 @@ const InfiniteProducts = () => {
         onError: () => showToast("Erro ao adicionar ao carrinho"),
       }
     );
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, addToCart]);
 
-  const makeCollectCoupon = (couponId: string) => (e: React.MouseEvent) => {
+  const handleCardClick = useCallback((id: string) => {
+    navigate(`/produto/${id}`);
+  }, [navigate]);
+
+  const handleCollectCoupon = useCallback((couponId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!user) { navigate("/auth"); return; }
     doCollectCoupon(couponId);
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, doCollectCoupon]);
 
   // ── Trending ──────────────────────────────────────────────────────────────
   const { data: trendingIds = new Set<string>() } = useQuery({
@@ -782,15 +804,13 @@ const InfiniteProducts = () => {
               images={p.images}
               isTrending={(trendingIds as Set<string>).has(p.id)}
               isFav={isFavorite(p.id)}
-              onFav={makeFav(p.id)}
-              onAddToCart={makeAddToCart(p)}
-              onClick={() => navigate(`/produto/${p.id}`)}
+              onFav={handleFav}
+              onAddToCart={handleAddToCart}
+              onClick={handleCardClick}
               index={i}
-              tick={tick}
-              flashRemaining={flashRemaining}
               coupon={coupon}
               couponCollected={coupon ? collectedCouponIds.has(coupon.id) : false}
-              onCollectCoupon={coupon ? makeCollectCoupon(coupon.id) : () => {}}
+              onCollectCoupon={handleCollectCoupon}
               isSpotlight={spotlightIds.includes(String(p.id))}
               onViewportChange={handleViewportChange}
             />
