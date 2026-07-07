@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Shield, Users, Search, Plus, Trash2, Crown, Building2, Store, CheckCircle, XCircle, ShieldCheck, UserCheck, UsersRound, FolderTree, ImageIcon, ShoppingBag, Settings, Star, Gavel, Upload, Eye, EyeOff, Copy, Megaphone, Play, TrendingUp, Users as UsersIcon, X, Loader2, Truck, Banknote, Ticket, MousePointerClick } from "lucide-react";
+import { Shield, Users, Search, Plus, Trash2, Crown, Building2, Store, CheckCircle, XCircle, ShieldCheck, UserCheck, UsersRound, FolderTree, ImageIcon, ShoppingBag, Settings, Star, Gavel, Upload, Eye, EyeOff, Copy, Megaphone, Play, TrendingUp, Users as UsersIcon, X, Loader2, Truck, Banknote, Ticket, MousePointerClick, Gift } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,6 +12,7 @@ import AdminOrdersTab from "@/components/admin/AdminOrdersTab";
 import AdminSettingsTab from "@/components/admin/AdminSettingsTab";
 import AdminBannersTab from "@/components/admin/AdminBannersTab";
 import AdminFreightTab from "@/components/admin/AdminFreightTab";
+import AdminFreeShippingTab from "@/components/admin/AdminFreeShippingTab";
 import AdminSuppliersTab from "@/components/admin/AdminSuppliersTab";
 import AdminPaymentReviewTab from "@/components/admin/AdminPaymentReviewTab";
 import CouponManagerTab from "@/components/coupons/CouponManagerTab";
@@ -26,7 +27,7 @@ const roleBadge: Record<string, { label: string; color: string; icon: any }> = {
   user: { label: "Utilizador", color: "bg-primary/10 text-primary border-primary/20", icon: Users },
 };
 
-type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos" | "encomendas" | "categorias" | "banners" | "definicoes" | "leiloes" | "publicidade" | "frete" | "fornecedores" | "pagamentos" | "cupons" | "analytics" | "interacoes";
+type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos" | "encomendas" | "categorias" | "banners" | "definicoes" | "leiloes" | "publicidade" | "frete" | "frete_gratis" | "fornecedores" | "pagamentos" | "cupons" | "analytics" | "interacoes";
 
 const AD_TYPES = [
   { value: "banner",           label: "Banner (imagem/vídeo)",   icon: ImageIcon,   desc: "Upload direto de imagem ou vídeo" },
@@ -1022,6 +1023,7 @@ const AdminPanel = () => {
     { key: "banners",      label: "Banners",       icon: ImageIcon },
     { key: "publicidade",  label: "Publicidade",   icon: Megaphone },
     { key: "frete",        label: "Frete",         icon: Truck },
+    { key: "frete_gratis", label: "Frete Grátis",  icon: Gift },
     { key: "fornecedores", label: "Fornecedores",  icon: Building2 },
     { key: "cupons",       label: "Cupons",        icon: Ticket },
     { key: "pedidos",      label: "Candidaturas",  icon: UserCheck },
@@ -1064,6 +1066,7 @@ const AdminPanel = () => {
         {tab === "definicoes"   && <AdminSettingsTab />}
         {tab === "leiloes"      && <AdminLeiloesTab />}
         {tab === "frete"        && <AdminFreightTab />}
+        {tab === "frete_gratis" && <AdminFreeShippingTab />}
         {tab === "fornecedores" && <AdminSuppliersTab />}
         {tab === "cupons"       && <CouponManagerTab scope="platform" ownerId={null} heading="Cupons da Plataforma" />}
 
