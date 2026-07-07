@@ -184,6 +184,22 @@ const ProductDetail = () => {
   const publisher: any = sellerFull || companyFull || null;
 
   const { data: categoryName } = useQuery({ queryKey: ["category_name_detail", categoryId], queryFn: async () => { const { data } = await supabase.from("categories").select("name").eq("id", categoryId!).maybeSingle(); return data?.name || null; }, enabled: !!categoryId });
+
+  // Resolve a "família" de categorias: se o produto está numa subcategoria (ex: Roupa > Vestidos),
+  // a família inclui o pai (Roupa) e todas as subcategorias irmãs (Vestidos, Calças, Camisas...).
+  // Sem isto, produtos em subcategorias diferentes da mesma família nunca se "encontram".
+  const { data: familyCategoryIds = [] } = useQuery({
+    queryKey: ["category_family", categoryId],
+    queryFn: async () => {
+      const { data: cat } = await supabase.from("categories").select("id, parent_id").eq("id", categoryId!).maybeSingle();
+      if (!cat) return [categoryId as string];
+      const rootId = cat.parent_id || cat.id; // se for subcategoria, a raiz da família é o pai
+      const { data: family } = await supabase.from("categories").select("id").or(`id.eq.${rootId},parent_id.eq.${rootId}`);
+      const ids = (family || []).map((c: any) => c.id);
+      return ids.length ? ids : [categoryId as string];
+    },
+    enabled: !!categoryId,
+  });
   const { data: userOrders = [] } = useQuery({ queryKey: ["user_delivered_orders_for_product", id, user?.id], queryFn: async () => { const { data } = await supabase.from("orders").select("id, order_items!inner(product_id)").eq("user_id", user!.id).eq("status", "delivered").eq("order_items.product_id", id!); return data || []; }, enabled: !!user && !!isUuid });
   const { data: dbReviews = [] } = useQuery({
     queryKey: ["product_reviews_detail", id],
@@ -208,13 +224,34 @@ const ProductDetail = () => {
   });
 
   const { data: relatedDb = [] } = useQuery({
-    queryKey: ["related_products", id, categoryId, rawSellerId],
+    queryKey: ["related_products", id, categoryId, rawSellerId, (dbProduct as any)?.title, familyCategoryIds.join(",")],
     queryFn: async () => {
       const collected: any[] = []; const seen = new Set<string>([id!]);
       const fetchSet = async (filter: (q: any) => any, limit: number) => { const { data } = await filter(supabase.from("products").select("*").eq("is_active", true).neq("id", id!).limit(limit)); (data || []).forEach((p: any) => { if (!seen.has(p.id)) { seen.add(p.id); collected.push(p); } }); };
-      if (categoryId) await fetchSet(q => q.eq("category_id", categoryId).order("sales_count", { ascending: false }), 30);
-      if (rawSellerId && collected.length < 30) await fetchSet(q => q.eq("seller_id", rawSellerId).order("sales_count", { ascending: false }), 20);
+
+      // 1) Mesma família (categoria-pai + subcategorias irmãs) — prioridade máxima
+      if (familyCategoryIds.length) {
+        await fetchSet(q => q.in("category_id", familyCategoryIds).order("sales_count", { ascending: false }), 30);
+      } else if (import.meta.env.DEV) {
+        // Aviso de diagnóstico: se isto aparecer sempre, o produto não tem category_id na BD
+        console.warn(`[related_products] Produto ${id} sem category_id — a cair no fallback genérico.`);
+      }
+
+      // 2) Mesmo vendedor
+      if (rawSellerId && collected.length < 30) {
+        await fetchSet(q => q.eq("seller_id", rawSellerId).order("sales_count", { ascending: false }), 20);
+      }
+
+      // 3) Título parecido — evita cair sempre nos mesmos "mais vendidos" quando falta categoria
+      const title = (dbProduct as any)?.title as string | undefined;
+      if (collected.length < 30 && title) {
+        const keyword = title.split(" ").filter((w) => w.length > 3)[0];
+        if (keyword) await fetchSet(q => q.ilike("title", `%${keyword}%`).order("sales_count", { ascending: false }), 20);
+      }
+
+      // 4) Fallback final: mais vendidos (só entra se as fontes acima não completarem)
       if (collected.length < 30) await fetchSet(q => q.order("sales_count", { ascending: false }), 30);
+
       const ids = collected.map((p: any) => p.id); const cMap: Record<string, string> = {};
       if (ids.length) { const { data: m } = await supabase.from("product_media").select("product_id,url").in("product_id", ids).eq("is_cover", true); (m || []).forEach((x: any) => { cMap[x.product_id] = x.url; }); }
       return collected.map((p: any) => ({ id: p.id, title: p.title, price: fmt(p.price), image: cMap[p.id] || p.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop" }));
