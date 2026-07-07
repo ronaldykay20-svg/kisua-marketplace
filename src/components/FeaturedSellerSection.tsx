@@ -148,6 +148,7 @@ const FeaturedSellerSection = () => {
               onClick={() => navigate(`/produto/${p.id}`)}
               className="bg-card rounded-xl border border-border overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
             >
+              {/* Imagem */}
               <div className="aspect-square bg-muted overflow-hidden">
                 {image ? (
                   <img
@@ -162,13 +163,28 @@ const FeaturedSellerSection = () => {
                   </div>
                 )}
               </div>
+
               <div className="p-2">
-                <h3 className="text-[11px] font-semibold text-foreground line-clamp-2 leading-tight mb-1">
-                  {p.title}
-                </h3>
-                <span className="text-[13px] font-black text-primary">
+                {/* Botão "Ver em loja" — mesma posição do "Add"/"Options" da Walmart */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/vendedor/${seller.id}`);
+                  }}
+                  className="w-full mb-1.5 rounded-full border border-primary text-primary text-[10px] font-semibold py-1 text-center hover:bg-primary hover:text-primary-foreground transition-colors"
+                >
+                  Ver em loja
+                </button>
+
+                {/* Preço */}
+                <span className="block text-[13px] font-black text-primary mb-0.5">
                   {Number(p.price).toLocaleString("pt-AO")} Kz
                 </span>
+
+                {/* Título */}
+                <h3 className="text-[11px] font-semibold text-foreground line-clamp-2 leading-tight">
+                  {p.title}
+                </h3>
               </div>
             </div>
           );
