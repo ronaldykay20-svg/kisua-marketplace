@@ -211,7 +211,13 @@ const AdminSettingsTab = () => {
     try {
       const ext = file.name.split(".").pop();
       const path = `site/logo_${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from("banners").upload(path, file, { upsert: true });
+      const { error } = await supabase.storage.from("banners").upload(path, file, {
+        upsert: true,
+        // Mesma lógica dos banners: nome do ficheiro é único (timestamp),
+        // por isso pode cachear 1 mês no dispositivo de quem visita sem
+        // risco de mostrar logo desatualizado.
+        cacheControl: "2592000",
+      });
       if (error) throw error;
       const { data } = supabase.storage.from("banners").getPublicUrl(path);
       updateSetting.mutate({ key: "site_logo_url", value: data.publicUrl });
@@ -220,6 +226,22 @@ const AdminSettingsTab = () => {
     }
     setUploading(false);
   };
+
+  const refreshLogoCache = useMutation({
+    mutationFn: async () => {
+      if (!logoUrl) throw new Error("Não há logo enviado ainda");
+      const path = decodeURIComponent(new URL(logoUrl).pathname.split("/banners/")[1]);
+      const { data: blob, error: downloadError } = await supabase.storage.from("banners").download(path);
+      if (downloadError || !blob) throw new Error(downloadError?.message || "Não foi possível descarregar o logo atual");
+      const { error: updateError } = await supabase.storage.from("banners").update(path, blob, {
+        cacheControl: "2592000",
+        contentType: blob.type,
+      });
+      if (updateError) throw new Error(updateError.message);
+    },
+    onSuccess: () => toast.success("Cache do logo otimizada"),
+    onError: (e: any) => toast.error(e.message),
+  });
 
   return (
     <div className="space-y-4">
@@ -248,6 +270,15 @@ const AdminSettingsTab = () => {
           {logoUrl && (
             <button onClick={() => updateSetting.mutate({ key: "site_logo_url", value: "" })} className="text-xs text-destructive hover:underline">
               Remover
+            </button>
+          )}
+          {logoUrl && (
+            <button
+              onClick={() => refreshLogoCache.mutate()}
+              disabled={refreshLogoCache.isPending}
+              className="text-xs text-muted-foreground hover:underline disabled:opacity-50"
+            >
+              {refreshLogoCache.isPending ? "A otimizar..." : "Otimizar cache (1x)"}
             </button>
           )}
         </div>
