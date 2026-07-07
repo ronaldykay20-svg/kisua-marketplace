@@ -18,6 +18,7 @@ interface SavingsProduct {
   currency: string | null;
   cover_image_url: string | null;
   reason: "categoria_favorita" | "loja_favorita" | "popular";
+  promotion_ends_at?: string | null;
 }
 
 // ─── SavingsGrid ─────────────────────────────────────────────────────────────
@@ -132,11 +133,16 @@ const SavingsGrid = () => {
                 </span>
               </div>
               {p.old_price && (
-                <span className="text-[12px] text-muted-foreground line-through">
-                  {Number(p.old_price).toLocaleString("pt-AO")} {p.currency || "Kz"}
+                <span className="text-[12px] text-muted-foreground">
+                  Antes <span className="line-through">{Number(p.old_price).toLocaleString("pt-AO")} {p.currency || "Kz"}</span>
                 </span>
               )}
-              <p className="text-[12px] text-foreground line-clamp-2 leading-snug mt-0.5">{p.title}</p>
+              {p.promotion_ends_at && (
+                <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 w-fit mt-0.5">
+                  Termina: {new Date(p.promotion_ends_at).toLocaleDateString("pt-AO", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                </span>
+              )}
+              <p className="text-[14px] font-bold text-foreground line-clamp-2 leading-snug mt-1">{p.title}</p>
             </div>
           );
         })}
