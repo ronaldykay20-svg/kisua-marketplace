@@ -1,10 +1,11 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { CheckCircle, Store, Building2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCategories } from "@/hooks/useSupabaseData";
 import { useAddToCart } from "@/hooks/useCartActions";
+import { useCategoryTracking } from "@/hooks/useCategoryTracking";
 import {
   ProductBrowser, ProductBrowserGlobalStyle, BrowserProduct,
   bg, surface, ink, inkSoft, brandDeep, line, fontBody, formatPrice,
@@ -195,6 +196,13 @@ const CategoriaDetalhe = () => {
   const { data: dbCategories } = useCategories();
   const category = (dbCategories || []).find((c: any) => c.name === categoryName);
   const categoryId = category?.id;
+
+  // Regista esta categoria como "a última vista" — alimenta o
+  // "Recomendado para si" na home (ver useCategoryTracking.ts).
+  const { trackCategoryView } = useCategoryTracking();
+  useEffect(() => {
+    if (categoryId) trackCategoryView(categoryId, "menu");
+  }, [categoryId]);
 
   const { data: dbProducts, isLoading } = useCategoryProducts(categoryId);
 
