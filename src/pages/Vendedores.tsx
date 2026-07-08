@@ -146,7 +146,7 @@ const Vendedores = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {filtered.map((seller: any) => (
             <div key={seller.id} onClick={() => navigate(`/vendedor/${seller.id}`)}
-              className="bg-card rounded-card border border-border overflow-hidden hover:shadow-lg transition-shadow cursor-pointer">
+              className="rounded-gpu-fix bg-card rounded-card border border-border overflow-hidden hover:shadow-lg transition-shadow cursor-pointer">
               <div className="h-24 overflow-hidden relative">
                 <img src={seller.cover} alt="" className="w-full h-full object-cover" loading="lazy" />
                 <div className="absolute inset-0 bg-gradient-to-t from-foreground/30 to-transparent" />
