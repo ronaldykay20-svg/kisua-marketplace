@@ -77,7 +77,7 @@ const LazySection = ({
 // Tudo abaixo da dobra usa LazySection com altura estimada realista.
 
 const MobileLayout = () => {
-  const occupiedSlots = useOccupiedBannerSlots("mobile");
+  const { occupiedSlots, isLoading: bannersLoading } = useOccupiedBannerSlots("mobile");
 
   return (
     <>
@@ -94,17 +94,17 @@ const MobileLayout = () => {
         era isso que causava o "salto" no scroll ao subir da zona do
         InfiniteProducts de volta para os banners.
       */}
-      {occupiedSlots.has(3) && (
+      {(bannersLoading || occupiedSlots.has(3)) && (
         <LazySection estimatedHeight={280}>
           <HomeBannerSlot slot={3} device="mobile" />
         </LazySection>
       )}
-      {occupiedSlots.has(4) && (
+      {(bannersLoading || occupiedSlots.has(4)) && (
         <LazySection estimatedHeight={280}>
           <HomeBannerSlot slot={4} device="mobile" />
         </LazySection>
       )}
-      {occupiedSlots.has(5) && (
+      {(bannersLoading || occupiedSlots.has(5)) && (
         <LazySection estimatedHeight={280}>
           <HomeBannerSlot slot={5} device="mobile" />
         </LazySection>
@@ -118,12 +118,12 @@ const MobileLayout = () => {
       <LazySection estimatedHeight={420}>
         <RecommendedProducts />
       </LazySection>
-      {occupiedSlots.has(6) && (
+      {(bannersLoading || occupiedSlots.has(6)) && (
         <LazySection estimatedHeight={280}>
           <HomeBannerSlot slot={6} device="mobile" />
         </LazySection>
       )}
-      {occupiedSlots.has(7) && (
+      {(bannersLoading || occupiedSlots.has(7)) && (
         <LazySection estimatedHeight={280}>
           <HomeBannerSlot slot={7} device="mobile" />
         </LazySection>
@@ -131,7 +131,7 @@ const MobileLayout = () => {
       <LazySection estimatedHeight={340}>
         <PromoProductCards />
       </LazySection>
-      {occupiedSlots.has(8) && (
+      {(bannersLoading || occupiedSlots.has(8)) && (
         <LazySection estimatedHeight={280}>
           <HomeBannerSlot slot={8} device="mobile" />
         </LazySection>
@@ -139,42 +139,42 @@ const MobileLayout = () => {
       <LazySection estimatedHeight={480}>
         <GroupedVideoStories />
       </LazySection>
-      {occupiedSlots.has(9) && (
+      {(bannersLoading || occupiedSlots.has(9)) && (
         <LazySection estimatedHeight={280}>
           <HomeBannerSlot slot={9} device="mobile" />
         </LazySection>
       )}
-      {occupiedSlots.has(10) && (
+      {(bannersLoading || occupiedSlots.has(10)) && (
         <LazySection estimatedHeight={280}>
           <HomeBannerSlot slot={10} device="mobile" />
         </LazySection>
       )}
-      {occupiedSlots.has(11) && (
+      {(bannersLoading || occupiedSlots.has(11)) && (
         <LazySection estimatedHeight={280}>
           <HomeBannerSlot slot={11} device="mobile" />
         </LazySection>
       )}
-      {occupiedSlots.has(12) && (
+      {(bannersLoading || occupiedSlots.has(12)) && (
         <LazySection estimatedHeight={280}>
           <HomeBannerSlot slot={12} device="mobile" />
         </LazySection>
       )}
-      {occupiedSlots.has(13) && (
+      {(bannersLoading || occupiedSlots.has(13)) && (
         <LazySection estimatedHeight={280}>
           <HomeBannerSlot slot={13} device="mobile" />
         </LazySection>
       )}
-      {occupiedSlots.has(14) && (
+      {(bannersLoading || occupiedSlots.has(14)) && (
         <LazySection estimatedHeight={280}>
           <HomeBannerSlot slot={14} device="mobile" />
         </LazySection>
       )}
-      {occupiedSlots.has(15) && (
+      {(bannersLoading || occupiedSlots.has(15)) && (
         <LazySection estimatedHeight={280}>
           <HomeBannerSlot slot={15} device="mobile" />
         </LazySection>
       )}
-      {occupiedSlots.has(16) && (
+      {(bannersLoading || occupiedSlots.has(16)) && (
         <LazySection estimatedHeight={280}>
           <HomeBannerSlot slot={16} device="mobile" />
         </LazySection>
@@ -186,7 +186,7 @@ const MobileLayout = () => {
 };
 
 const TabletLayout = () => {
-  const occupiedSlots = useOccupiedBannerSlots("tablet");
+  const { occupiedSlots, isLoading: bannersLoading } = useOccupiedBannerSlots("tablet");
 
   return (
     <div className="max-w-screen-lg mx-auto px-4">
@@ -197,7 +197,7 @@ const TabletLayout = () => {
       <HomeBannerSlot slot={202} device="tablet" />
 
       {/* Abaixo da dobra — só reserva placeholder para slots com banner */}
-      {occupiedSlots.has(203) && (
+      {(bannersLoading || occupiedSlots.has(203)) && (
         <LazySection estimatedHeight={280}>
           <HomeBannerSlot slot={203} device="tablet" />
         </LazySection>
@@ -217,22 +217,22 @@ const TabletLayout = () => {
           <RecommendedProducts />
         </div>
       </LazySection>
-      {occupiedSlots.has(204) && (
+      {(bannersLoading || occupiedSlots.has(204)) && (
         <LazySection estimatedHeight={280}>
           <HomeBannerSlot slot={204} device="tablet" />
         </LazySection>
       )}
-      {occupiedSlots.has(205) && (
+      {(bannersLoading || occupiedSlots.has(205)) && (
         <LazySection estimatedHeight={280}>
           <HomeBannerSlot slot={205} device="tablet" />
         </LazySection>
       )}
-      {occupiedSlots.has(206) && (
+      {(bannersLoading || occupiedSlots.has(206)) && (
         <LazySection estimatedHeight={280}>
           <HomeBannerSlot slot={206} device="tablet" />
         </LazySection>
       )}
-      {occupiedSlots.has(207) && (
+      {(bannersLoading || occupiedSlots.has(207)) && (
         <LazySection estimatedHeight={280}>
           <HomeBannerSlot slot={207} device="tablet" />
         </LazySection>
@@ -251,17 +251,17 @@ const TabletLayout = () => {
           <GroupedVideoStories />
         </div>
       </LazySection>
-      {occupiedSlots.has(209) && (
+      {(bannersLoading || occupiedSlots.has(209)) && (
         <LazySection estimatedHeight={280}>
           <HomeBannerSlot slot={209} device="tablet" />
         </LazySection>
       )}
-      {occupiedSlots.has(210) && (
+      {(bannersLoading || occupiedSlots.has(210)) && (
         <LazySection estimatedHeight={280}>
           <HomeBannerSlot slot={210} device="tablet" />
         </LazySection>
       )}
-      {(occupiedSlots.has(211) || occupiedSlots.has(212)) && (
+      {((bannersLoading || occupiedSlots.has(211)) || (bannersLoading || occupiedSlots.has(212))) && (
         <LazySection estimatedHeight={280}>
           <div className="grid grid-cols-2 gap-3 mt-3">
             <HomeBannerSlot slot={211} device="tablet" compact />
@@ -269,12 +269,12 @@ const TabletLayout = () => {
           </div>
         </LazySection>
       )}
-      {occupiedSlots.has(213) && (
+      {(bannersLoading || occupiedSlots.has(213)) && (
         <LazySection estimatedHeight={280}>
           <HomeBannerSlot slot={213} device="tablet" />
         </LazySection>
       )}
-      {(occupiedSlots.has(214) || occupiedSlots.has(215) || occupiedSlots.has(216)) && (
+      {((bannersLoading || occupiedSlots.has(214)) || (bannersLoading || occupiedSlots.has(215)) || (bannersLoading || occupiedSlots.has(216))) && (
         <LazySection estimatedHeight={280}>
           <div className="grid grid-cols-3 gap-3 mt-3">
             <HomeBannerSlot slot={214} device="tablet" compact />
@@ -289,7 +289,7 @@ const TabletLayout = () => {
 };
 
 const DesktopLayout = () => {
-  const occupiedSlots = useOccupiedBannerSlots("desktop");
+  const { occupiedSlots, isLoading: bannersLoading } = useOccupiedBannerSlots("desktop");
 
   return (
     <div className="max-w-screen-xl mx-auto px-6">
@@ -320,22 +320,22 @@ const DesktopLayout = () => {
               <RecommendedProducts />
             </div>
           </LazySection>
-          {occupiedSlots.has(304) && (
+          {(bannersLoading || occupiedSlots.has(304)) && (
             <LazySection estimatedHeight={280}>
               <HomeBannerSlot slot={304} device="desktop" />
             </LazySection>
           )}
-          {occupiedSlots.has(305) && (
+          {(bannersLoading || occupiedSlots.has(305)) && (
             <LazySection estimatedHeight={280}>
               <HomeBannerSlot slot={305} device="desktop" />
             </LazySection>
           )}
-          {occupiedSlots.has(306) && (
+          {(bannersLoading || occupiedSlots.has(306)) && (
             <LazySection estimatedHeight={280}>
               <HomeBannerSlot slot={306} device="desktop" />
             </LazySection>
           )}
-          {occupiedSlots.has(307) && (
+          {(bannersLoading || occupiedSlots.has(307)) && (
             <LazySection estimatedHeight={280}>
               <HomeBannerSlot slot={307} device="desktop" />
             </LazySection>
@@ -345,7 +345,7 @@ const DesktopLayout = () => {
               <PromoProductCards />
             </div>
           </LazySection>
-          {occupiedSlots.has(308) && (
+          {(bannersLoading || occupiedSlots.has(308)) && (
             <LazySection estimatedHeight={280}>
               <HomeBannerSlot slot={308} device="desktop" />
             </LazySection>
@@ -355,12 +355,12 @@ const DesktopLayout = () => {
               <GroupedVideoStories />
             </div>
           </LazySection>
-          {occupiedSlots.has(309) && (
+          {(bannersLoading || occupiedSlots.has(309)) && (
             <LazySection estimatedHeight={280}>
               <HomeBannerSlot slot={309} device="desktop" />
             </LazySection>
           )}
-          {(occupiedSlots.has(310) || occupiedSlots.has(311)) && (
+          {((bannersLoading || occupiedSlots.has(310)) || (bannersLoading || occupiedSlots.has(311))) && (
             <LazySection estimatedHeight={280}>
               <div className="grid grid-cols-2 gap-3 mt-3">
                 <HomeBannerSlot slot={310} device="desktop" compact />
@@ -368,12 +368,12 @@ const DesktopLayout = () => {
               </div>
             </LazySection>
           )}
-          {occupiedSlots.has(312) && (
+          {(bannersLoading || occupiedSlots.has(312)) && (
             <LazySection estimatedHeight={280}>
               <HomeBannerSlot slot={312} device="desktop" />
             </LazySection>
           )}
-          {(occupiedSlots.has(313) || occupiedSlots.has(314) || occupiedSlots.has(315) || occupiedSlots.has(316)) && (
+          {((bannersLoading || occupiedSlots.has(313)) || (bannersLoading || occupiedSlots.has(314)) || (bannersLoading || occupiedSlots.has(315)) || (bannersLoading || occupiedSlots.has(316))) && (
             <LazySection estimatedHeight={280}>
               <div className="grid grid-cols-4 gap-3 mt-3">
                 <HomeBannerSlot slot={313} device="desktop" compact />
@@ -389,12 +389,12 @@ const DesktopLayout = () => {
         {/* Sidebar — carrega imediatamente pois está acima da dobra no desktop */}
         <aside className="space-y-4 self-start sticky top-[80px]">
           <HomeBannerSlot slot={101} device="desktop" sidebar />
-          {occupiedSlots.has(102) && (
+          {(bannersLoading || occupiedSlots.has(102)) && (
             <LazySection estimatedHeight={300}>
               <HomeBannerSlot slot={102} device="desktop" sidebar />
             </LazySection>
           )}
-          {occupiedSlots.has(103) && (
+          {(bannersLoading || occupiedSlots.has(103)) && (
             <LazySection estimatedHeight={300}>
               <HomeBannerSlot slot={103} device="desktop" sidebar />
             </LazySection>
