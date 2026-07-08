@@ -46,7 +46,7 @@ const BannerItem = ({
   return (
     <a
       href={b.cta_link || "#"}
-      className="relative block rounded-2xl overflow-hidden border border-border hover:shadow-md transition-shadow flex-1"
+      className="rounded-gpu-fix relative block rounded-2xl overflow-hidden border border-border hover:shadow-md transition-shadow flex-1"
       style={{ minHeight: heightPx }}
     >
       <img
