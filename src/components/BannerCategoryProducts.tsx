@@ -16,6 +16,11 @@ const MIN_TO_SHOW = 4;
 
 const getEvenCount = (total: number) => total - (total % 2);
 
+// Classes de grid partilhadas entre o skeleton e a grelha real, para que a
+// altura reservada durante o carregamento seja igual à altura final — é
+// isso que evita o "salto" de layout quando os produtos aparecem.
+const GRID_CLS = "grid grid-rows-2 grid-flow-col auto-cols-[44vw] sm:auto-cols-[200px] lg:auto-cols-[220px] gap-3 pb-1";
+
 const InfoPill = ({ type, children }: { type: string; children: React.ReactNode }) => {
   const styles: Record<string, string> = {
     shipping:  "bg-green-100 text-green-700",
@@ -79,6 +84,25 @@ const RotatingPill = ({ p, seed }: { p: any; seed: number }) => {
   );
 };
 
+// Esqueleto mostrado enquanto a query ainda não respondeu. Usa exatamente
+// as mesmas classes de grid (GRID_CLS) da versão final, para reservar a
+// MESMA altura — assim, quando os produtos chegam, não há salto de "0px"
+// para "altura cheia" a meio do scroll.
+const BannerCategoryProductsSkeleton = () => (
+  <section className="container mx-auto px-3 mt-2">
+    <div className={`${GRID_CLS} overflow-hidden`}>
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className="flex flex-col animate-pulse">
+          <div className="aspect-square rounded-lg bg-muted mb-2" />
+          <div className="h-2.5 w-10 bg-muted rounded mb-1.5" />
+          <div className="h-4 w-16 bg-muted rounded mb-1" />
+          <div className="h-3 w-full bg-muted rounded" />
+        </div>
+      ))}
+    </div>
+  </section>
+);
+
 const BannerCategoryProducts = ({ categoryId }: Props) => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -95,7 +119,7 @@ const BannerCategoryProducts = ({ categoryId }: Props) => {
     setScrollPct(maxScroll > 0 ? el.scrollLeft / maxScroll : 0);
   };
 
-  const { data: rawProducts = [] } = useQuery({
+  const { data: rawProducts = [], isLoading } = useQuery({
     queryKey: ["banner_category_products", categoryId],
     queryFn: async () => {
       const { data } = await supabase
@@ -122,6 +146,11 @@ const BannerCategoryProducts = ({ categoryId }: Props) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [products.length]);
 
+  // Enquanto a query não respondeu, mostra o esqueleto (mesma altura da
+  // grelha real) em vez de nada — evita o salto de layout ao entrar em
+  // ecrã. Só depois de saber se há produtos suficientes é que decide entre
+  // mostrar a grelha real ou não reservar espaço nenhum.
+  if (isLoading) return <BannerCategoryProductsSkeleton />;
   if (products.length < MIN_TO_SHOW) return null;
 
   const handleHeart = (e: React.MouseEvent, productId: string) => {
@@ -144,7 +173,7 @@ const BannerCategoryProducts = ({ categoryId }: Props) => {
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="grid grid-rows-2 grid-flow-col auto-cols-[44vw] sm:auto-cols-[200px] lg:auto-cols-[220px] gap-3 overflow-x-auto snap-x snap-mandatory scrollbar-hide pb-1"
+        className={`${GRID_CLS} overflow-x-auto snap-x snap-mandatory scrollbar-hide`}
       >
         {products.map((p: any, i: number) => {
           const cover = p.product_media?.find((m: any) => m.is_cover)?.url || p.product_media?.[0]?.url;
