@@ -247,7 +247,7 @@ const ProductPageAdBlock = ({ currentProductId }: { currentProductId?: string })
   const ad = ads[idx];
 
   return (
-    <div className="mt-4 rounded-xl border border-border overflow-hidden shadow-sm">
+    <div className="rounded-gpu-fix mt-4 rounded-xl border border-border overflow-hidden shadow-sm">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-1.5 bg-muted/50 border-b border-border">
         <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Publicidade</span>
