@@ -9,6 +9,7 @@ import InfiniteProducts from "@/components/InfiniteProducts";
 import FlashSaleBar from "@/components/FlashSaleBar";
 import LiveActivityTicker from "@/components/LiveActivityTicker";
 import { useDeviceLayout } from "@/hooks/useDeviceLayout";
+import { useOccupiedBannerSlots } from "@/hooks/useBanners";
 
 // ─── LazySection ─────────────────────────────────────────────────────────────
 // Adia o render dos filhos até o elemento estar a ~300px do viewport.
@@ -75,243 +76,334 @@ const LazySection = ({
 // Os primeiros slots (acima da dobra) carregam imediatamente — sem LazySection.
 // Tudo abaixo da dobra usa LazySection com altura estimada realista.
 
-const MobileLayout = () => (
-  <>
-    <FlashSaleBar />
-    <LiveActivityTicker />
-    {/* Acima da dobra — carrega imediatamente */}
-    <HomeBannerSlot slot={1} device="mobile" />
-    <HomeBannerSlot slot={2} device="mobile" />
+const MobileLayout = () => {
+  const occupiedSlots = useOccupiedBannerSlots("mobile");
 
-    {/* Abaixo da dobra — carregamento adiado */}
-    <LazySection estimatedHeight={280}>
-      <HomeBannerSlot slot={3} device="mobile" />
-    </LazySection>
-    <LazySection estimatedHeight={280}>
-      <HomeBannerSlot slot={4} device="mobile" />
-    </LazySection>
-    <LazySection estimatedHeight={280}>
-      <HomeBannerSlot slot={5} device="mobile" />
-    </LazySection>
-    <LazySection estimatedHeight={420}>
-      <SavingsGrid />
-    </LazySection>
-    <LazySection estimatedHeight={420}>
-      <FeaturedSellers />
-    </LazySection>
-    <LazySection estimatedHeight={420}>
-      <RecommendedProducts />
-    </LazySection>
-    <LazySection estimatedHeight={280}>
-      <HomeBannerSlot slot={6} device="mobile" />
-    </LazySection>
-    <LazySection estimatedHeight={280}>
-      <HomeBannerSlot slot={7} device="mobile" />
-    </LazySection>
-    <LazySection estimatedHeight={340}>
-      <PromoProductCards />
-    </LazySection>
-    <LazySection estimatedHeight={280}>
-      <HomeBannerSlot slot={8} device="mobile" />
-    </LazySection>
-    <LazySection estimatedHeight={480}>
-      <GroupedVideoStories />
-    </LazySection>
-    <LazySection estimatedHeight={280}>
-      <HomeBannerSlot slot={9} device="mobile" />
-    </LazySection>
-    <LazySection estimatedHeight={280}>
-      <HomeBannerSlot slot={10} device="mobile" />
-    </LazySection>
-    <LazySection estimatedHeight={280}>
-      <HomeBannerSlot slot={11} device="mobile" />
-    </LazySection>
-    <LazySection estimatedHeight={280}>
-      <HomeBannerSlot slot={12} device="mobile" />
-    </LazySection>
-    <LazySection estimatedHeight={280}>
-      <HomeBannerSlot slot={13} device="mobile" />
-    </LazySection>
-    <LazySection estimatedHeight={280}>
-      <HomeBannerSlot slot={14} device="mobile" />
-    </LazySection>
-    <LazySection estimatedHeight={280}>
-      <HomeBannerSlot slot={15} device="mobile" />
-    </LazySection>
-    <LazySection estimatedHeight={280}>
-      <HomeBannerSlot slot={16} device="mobile" />
-    </LazySection>
-    {/* InfiniteProducts tem o seu próprio lazy loading interno — sem wrapper */}
-    <InfiniteProducts />
-  </>
-);
+  return (
+    <>
+      <FlashSaleBar />
+      <LiveActivityTicker />
+      {/* Acima da dobra — carrega imediatamente */}
+      <HomeBannerSlot slot={1} device="mobile" />
+      <HomeBannerSlot slot={2} device="mobile" />
 
-const TabletLayout = () => (
-  <div className="max-w-screen-lg mx-auto px-4">
-    <FlashSaleBar />
-    <LiveActivityTicker />
-    {/* Acima da dobra */}
-    <HomeBannerSlot slot={201} device="tablet" />
-    <HomeBannerSlot slot={202} device="tablet" />
-
-    {/* Abaixo da dobra */}
-    <LazySection estimatedHeight={280}>
-      <HomeBannerSlot slot={203} device="tablet" />
-    </LazySection>
-    <LazySection estimatedHeight={420} rootMargin="80px">
-      <div className="mt-4">
+      {/*
+        Abaixo da dobra — carregamento adiado. Só reservamos o placeholder do
+        LazySection para slots que REALMENTE têm banner. Um slot vazio não
+        tem wrapper nenhum, então não colapsa de repente ao ficar visível —
+        era isso que causava o "salto" no scroll ao subir da zona do
+        InfiniteProducts de volta para os banners.
+      */}
+      {occupiedSlots.has(3) && (
+        <LazySection estimatedHeight={280}>
+          <HomeBannerSlot slot={3} device="mobile" />
+        </LazySection>
+      )}
+      {occupiedSlots.has(4) && (
+        <LazySection estimatedHeight={280}>
+          <HomeBannerSlot slot={4} device="mobile" />
+        </LazySection>
+      )}
+      {occupiedSlots.has(5) && (
+        <LazySection estimatedHeight={280}>
+          <HomeBannerSlot slot={5} device="mobile" />
+        </LazySection>
+      )}
+      <LazySection estimatedHeight={420}>
         <SavingsGrid />
-      </div>
-    </LazySection>
-    <LazySection estimatedHeight={480} rootMargin="80px">
-      <div className="mt-4">
-        <FeaturedSellers layout="tablet" />
-      </div>
-    </LazySection>
-    <LazySection estimatedHeight={420} rootMargin="80px">
-      <div className="mt-4">
+      </LazySection>
+      <LazySection estimatedHeight={420}>
+        <FeaturedSellers />
+      </LazySection>
+      <LazySection estimatedHeight={420}>
         <RecommendedProducts />
-      </div>
-    </LazySection>
-    <LazySection estimatedHeight={280}>
-      <HomeBannerSlot slot={204} device="tablet" />
-    </LazySection>
-    <LazySection estimatedHeight={280}>
-      <HomeBannerSlot slot={205} device="tablet" />
-    </LazySection>
-    <LazySection estimatedHeight={280}>
-      <HomeBannerSlot slot={206} device="tablet" />
-    </LazySection>
-    <LazySection estimatedHeight={280}>
-      <HomeBannerSlot slot={207} device="tablet" />
-    </LazySection>
-    <LazySection estimatedHeight={340} rootMargin="80px">
-      <div className="mt-4">
+      </LazySection>
+      {occupiedSlots.has(6) && (
+        <LazySection estimatedHeight={280}>
+          <HomeBannerSlot slot={6} device="mobile" />
+        </LazySection>
+      )}
+      {occupiedSlots.has(7) && (
+        <LazySection estimatedHeight={280}>
+          <HomeBannerSlot slot={7} device="mobile" />
+        </LazySection>
+      )}
+      <LazySection estimatedHeight={340}>
         <PromoProductCards />
-      </div>
-    </LazySection>
-    <LazySection estimatedHeight={480} rootMargin="80px">
-      <div className="grid grid-cols-2 gap-3 mt-3">
-        <HomeBannerSlot slot={208} device="tablet" compact />
+      </LazySection>
+      {occupiedSlots.has(8) && (
+        <LazySection estimatedHeight={280}>
+          <HomeBannerSlot slot={8} device="mobile" />
+        </LazySection>
+      )}
+      <LazySection estimatedHeight={480}>
         <GroupedVideoStories />
-      </div>
-    </LazySection>
-    <LazySection estimatedHeight={280}>
-      <HomeBannerSlot slot={209} device="tablet" />
-    </LazySection>
-    <LazySection estimatedHeight={280}>
-      <HomeBannerSlot slot={210} device="tablet" />
-    </LazySection>
-    <LazySection estimatedHeight={280}>
-      <div className="grid grid-cols-2 gap-3 mt-3">
-        <HomeBannerSlot slot={211} device="tablet" compact />
-        <HomeBannerSlot slot={212} device="tablet" compact />
-      </div>
-    </LazySection>
-    <LazySection estimatedHeight={280}>
-      <HomeBannerSlot slot={213} device="tablet" />
-    </LazySection>
-    <LazySection estimatedHeight={280}>
-      <div className="grid grid-cols-3 gap-3 mt-3">
-        <HomeBannerSlot slot={214} device="tablet" compact />
-        <HomeBannerSlot slot={215} device="tablet" compact />
-        <HomeBannerSlot slot={216} device="tablet" compact />
-      </div>
-    </LazySection>
-    <InfiniteProducts />
-  </div>
-);
+      </LazySection>
+      {occupiedSlots.has(9) && (
+        <LazySection estimatedHeight={280}>
+          <HomeBannerSlot slot={9} device="mobile" />
+        </LazySection>
+      )}
+      {occupiedSlots.has(10) && (
+        <LazySection estimatedHeight={280}>
+          <HomeBannerSlot slot={10} device="mobile" />
+        </LazySection>
+      )}
+      {occupiedSlots.has(11) && (
+        <LazySection estimatedHeight={280}>
+          <HomeBannerSlot slot={11} device="mobile" />
+        </LazySection>
+      )}
+      {occupiedSlots.has(12) && (
+        <LazySection estimatedHeight={280}>
+          <HomeBannerSlot slot={12} device="mobile" />
+        </LazySection>
+      )}
+      {occupiedSlots.has(13) && (
+        <LazySection estimatedHeight={280}>
+          <HomeBannerSlot slot={13} device="mobile" />
+        </LazySection>
+      )}
+      {occupiedSlots.has(14) && (
+        <LazySection estimatedHeight={280}>
+          <HomeBannerSlot slot={14} device="mobile" />
+        </LazySection>
+      )}
+      {occupiedSlots.has(15) && (
+        <LazySection estimatedHeight={280}>
+          <HomeBannerSlot slot={15} device="mobile" />
+        </LazySection>
+      )}
+      {occupiedSlots.has(16) && (
+        <LazySection estimatedHeight={280}>
+          <HomeBannerSlot slot={16} device="mobile" />
+        </LazySection>
+      )}
+      {/* InfiniteProducts tem o seu próprio lazy loading interno — sem wrapper */}
+      <InfiniteProducts />
+    </>
+  );
+};
 
-const DesktopLayout = () => (
-  <div className="max-w-screen-xl mx-auto px-6">
-    <FlashSaleBar />
-    <LiveActivityTicker />
-    {/* Acima da dobra */}
-    <HomeBannerSlot slot={301} device="desktop" />
+const TabletLayout = () => {
+  const occupiedSlots = useOccupiedBannerSlots("tablet");
 
-    <div className="grid grid-cols-[1fr_300px] gap-5 mt-4">
-      <div>
-        {/* Acima da dobra */}
-        <HomeBannerSlot slot={302} device="desktop" />
-        <HomeBannerSlot slot={303} device="desktop" />
+  return (
+    <div className="max-w-screen-lg mx-auto px-4">
+      <FlashSaleBar />
+      <LiveActivityTicker />
+      {/* Acima da dobra */}
+      <HomeBannerSlot slot={201} device="tablet" />
+      <HomeBannerSlot slot={202} device="tablet" />
 
-        {/* Abaixo da dobra */}
-        <LazySection estimatedHeight={420} rootMargin="80px">
-          <div className="mt-4">
-            <SavingsGrid />
-          </div>
-        </LazySection>
-        <LazySection estimatedHeight={480} rootMargin="80px">
-          <div className="mt-4">
-            <FeaturedSellers layout="desktop" />
-          </div>
-        </LazySection>
-        <LazySection estimatedHeight={420} rootMargin="80px">
-          <div className="mt-4">
-            <RecommendedProducts />
-          </div>
-        </LazySection>
+      {/* Abaixo da dobra — só reserva placeholder para slots com banner */}
+      {occupiedSlots.has(203) && (
         <LazySection estimatedHeight={280}>
-          <HomeBannerSlot slot={304} device="desktop" />
+          <HomeBannerSlot slot={203} device="tablet" />
         </LazySection>
+      )}
+      <LazySection estimatedHeight={420} rootMargin="80px">
+        <div className="mt-4">
+          <SavingsGrid />
+        </div>
+      </LazySection>
+      <LazySection estimatedHeight={480} rootMargin="80px">
+        <div className="mt-4">
+          <FeaturedSellers layout="tablet" />
+        </div>
+      </LazySection>
+      <LazySection estimatedHeight={420} rootMargin="80px">
+        <div className="mt-4">
+          <RecommendedProducts />
+        </div>
+      </LazySection>
+      {occupiedSlots.has(204) && (
         <LazySection estimatedHeight={280}>
-          <HomeBannerSlot slot={305} device="desktop" />
+          <HomeBannerSlot slot={204} device="tablet" />
         </LazySection>
+      )}
+      {occupiedSlots.has(205) && (
         <LazySection estimatedHeight={280}>
-          <HomeBannerSlot slot={306} device="desktop" />
+          <HomeBannerSlot slot={205} device="tablet" />
         </LazySection>
+      )}
+      {occupiedSlots.has(206) && (
         <LazySection estimatedHeight={280}>
-          <HomeBannerSlot slot={307} device="desktop" />
+          <HomeBannerSlot slot={206} device="tablet" />
         </LazySection>
-        <LazySection estimatedHeight={340} rootMargin="80px">
-          <div className="mt-4">
-            <PromoProductCards />
-          </div>
-        </LazySection>
+      )}
+      {occupiedSlots.has(207) && (
         <LazySection estimatedHeight={280}>
-          <HomeBannerSlot slot={308} device="desktop" />
+          <HomeBannerSlot slot={207} device="tablet" />
         </LazySection>
-        <LazySection estimatedHeight={480} rootMargin="80px">
-          <div className="mt-4">
-            <GroupedVideoStories />
-          </div>
-        </LazySection>
+      )}
+      <LazySection estimatedHeight={340} rootMargin="80px">
+        <div className="mt-4">
+          <PromoProductCards />
+        </div>
+      </LazySection>
+      {/* Slot 208 fica sempre junto ao GroupedVideoStories, que tem
+          conteúdo próprio — o slot em si simplesmente não aparece se
+          estiver vazio, sem afetar a altura da linha. */}
+      <LazySection estimatedHeight={480} rootMargin="80px">
+        <div className="grid grid-cols-2 gap-3 mt-3">
+          <HomeBannerSlot slot={208} device="tablet" compact />
+          <GroupedVideoStories />
+        </div>
+      </LazySection>
+      {occupiedSlots.has(209) && (
         <LazySection estimatedHeight={280}>
-          <HomeBannerSlot slot={309} device="desktop" />
+          <HomeBannerSlot slot={209} device="tablet" />
         </LazySection>
+      )}
+      {occupiedSlots.has(210) && (
+        <LazySection estimatedHeight={280}>
+          <HomeBannerSlot slot={210} device="tablet" />
+        </LazySection>
+      )}
+      {(occupiedSlots.has(211) || occupiedSlots.has(212)) && (
         <LazySection estimatedHeight={280}>
           <div className="grid grid-cols-2 gap-3 mt-3">
-            <HomeBannerSlot slot={310} device="desktop" compact />
-            <HomeBannerSlot slot={311} device="desktop" compact />
+            <HomeBannerSlot slot={211} device="tablet" compact />
+            <HomeBannerSlot slot={212} device="tablet" compact />
           </div>
         </LazySection>
+      )}
+      {occupiedSlots.has(213) && (
         <LazySection estimatedHeight={280}>
-          <HomeBannerSlot slot={312} device="desktop" />
+          <HomeBannerSlot slot={213} device="tablet" />
         </LazySection>
+      )}
+      {(occupiedSlots.has(214) || occupiedSlots.has(215) || occupiedSlots.has(216)) && (
         <LazySection estimatedHeight={280}>
-          <div className="grid grid-cols-4 gap-3 mt-3">
-            <HomeBannerSlot slot={313} device="desktop" compact />
-            <HomeBannerSlot slot={314} device="desktop" compact />
-            <HomeBannerSlot slot={315} device="desktop" compact />
-            <HomeBannerSlot slot={316} device="desktop" compact />
+          <div className="grid grid-cols-3 gap-3 mt-3">
+            <HomeBannerSlot slot={214} device="tablet" compact />
+            <HomeBannerSlot slot={215} device="tablet" compact />
+            <HomeBannerSlot slot={216} device="tablet" compact />
           </div>
         </LazySection>
-        <InfiniteProducts />
-      </div>
-
-      {/* Sidebar — carrega imediatamente pois está acima da dobra no desktop */}
-      <aside className="space-y-4 self-start sticky top-[80px]">
-        <HomeBannerSlot slot={101} device="desktop" sidebar />
-        <LazySection estimatedHeight={300}>
-          <HomeBannerSlot slot={102} device="desktop" sidebar />
-        </LazySection>
-        <LazySection estimatedHeight={300}>
-          <HomeBannerSlot slot={103} device="desktop" sidebar />
-        </LazySection>
-      </aside>
+      )}
+      <InfiniteProducts />
     </div>
-  </div>
-);
+  );
+};
+
+const DesktopLayout = () => {
+  const occupiedSlots = useOccupiedBannerSlots("desktop");
+
+  return (
+    <div className="max-w-screen-xl mx-auto px-6">
+      <FlashSaleBar />
+      <LiveActivityTicker />
+      {/* Acima da dobra */}
+      <HomeBannerSlot slot={301} device="desktop" />
+
+      <div className="grid grid-cols-[1fr_300px] gap-5 mt-4">
+        <div>
+          {/* Acima da dobra */}
+          <HomeBannerSlot slot={302} device="desktop" />
+          <HomeBannerSlot slot={303} device="desktop" />
+
+          {/* Abaixo da dobra — só reserva placeholder para slots com banner */}
+          <LazySection estimatedHeight={420} rootMargin="80px">
+            <div className="mt-4">
+              <SavingsGrid />
+            </div>
+          </LazySection>
+          <LazySection estimatedHeight={480} rootMargin="80px">
+            <div className="mt-4">
+              <FeaturedSellers layout="desktop" />
+            </div>
+          </LazySection>
+          <LazySection estimatedHeight={420} rootMargin="80px">
+            <div className="mt-4">
+              <RecommendedProducts />
+            </div>
+          </LazySection>
+          {occupiedSlots.has(304) && (
+            <LazySection estimatedHeight={280}>
+              <HomeBannerSlot slot={304} device="desktop" />
+            </LazySection>
+          )}
+          {occupiedSlots.has(305) && (
+            <LazySection estimatedHeight={280}>
+              <HomeBannerSlot slot={305} device="desktop" />
+            </LazySection>
+          )}
+          {occupiedSlots.has(306) && (
+            <LazySection estimatedHeight={280}>
+              <HomeBannerSlot slot={306} device="desktop" />
+            </LazySection>
+          )}
+          {occupiedSlots.has(307) && (
+            <LazySection estimatedHeight={280}>
+              <HomeBannerSlot slot={307} device="desktop" />
+            </LazySection>
+          )}
+          <LazySection estimatedHeight={340} rootMargin="80px">
+            <div className="mt-4">
+              <PromoProductCards />
+            </div>
+          </LazySection>
+          {occupiedSlots.has(308) && (
+            <LazySection estimatedHeight={280}>
+              <HomeBannerSlot slot={308} device="desktop" />
+            </LazySection>
+          )}
+          <LazySection estimatedHeight={480} rootMargin="80px">
+            <div className="mt-4">
+              <GroupedVideoStories />
+            </div>
+          </LazySection>
+          {occupiedSlots.has(309) && (
+            <LazySection estimatedHeight={280}>
+              <HomeBannerSlot slot={309} device="desktop" />
+            </LazySection>
+          )}
+          {(occupiedSlots.has(310) || occupiedSlots.has(311)) && (
+            <LazySection estimatedHeight={280}>
+              <div className="grid grid-cols-2 gap-3 mt-3">
+                <HomeBannerSlot slot={310} device="desktop" compact />
+                <HomeBannerSlot slot={311} device="desktop" compact />
+              </div>
+            </LazySection>
+          )}
+          {occupiedSlots.has(312) && (
+            <LazySection estimatedHeight={280}>
+              <HomeBannerSlot slot={312} device="desktop" />
+            </LazySection>
+          )}
+          {(occupiedSlots.has(313) || occupiedSlots.has(314) || occupiedSlots.has(315) || occupiedSlots.has(316)) && (
+            <LazySection estimatedHeight={280}>
+              <div className="grid grid-cols-4 gap-3 mt-3">
+                <HomeBannerSlot slot={313} device="desktop" compact />
+                <HomeBannerSlot slot={314} device="desktop" compact />
+                <HomeBannerSlot slot={315} device="desktop" compact />
+                <HomeBannerSlot slot={316} device="desktop" compact />
+              </div>
+            </LazySection>
+          )}
+          <InfiniteProducts />
+        </div>
+
+        {/* Sidebar — carrega imediatamente pois está acima da dobra no desktop */}
+        <aside className="space-y-4 self-start sticky top-[80px]">
+          <HomeBannerSlot slot={101} device="desktop" sidebar />
+          {occupiedSlots.has(102) && (
+            <LazySection estimatedHeight={300}>
+              <HomeBannerSlot slot={102} device="desktop" sidebar />
+            </LazySection>
+          )}
+          {occupiedSlots.has(103) && (
+            <LazySection estimatedHeight={300}>
+              <HomeBannerSlot slot={103} device="desktop" sidebar />
+            </LazySection>
+          )}
+        </aside>
+      </div>
+    </div>
+  );
+};
 
 // ─── Index ────────────────────────────────────────────────────────────────────
 const Index = () => {
