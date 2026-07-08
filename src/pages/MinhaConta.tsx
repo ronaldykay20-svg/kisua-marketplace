@@ -23,10 +23,20 @@ const accountMenuItems = [
 ];
 
 // ─── Skeleton para os cards de painel enquanto a role é determinada ────────────
+// A prop CORNER_FIX (mask-image) evita um bug conhecido do Chrome/WebView no
+// Android: cantos arredondados + fundo em gradiente + animação (animate-pulse
+// ou hover/transition) por vezes "rasgam" visualmente durante o scroll,
+// sobretudo em GPUs mais fracas. A máscara força o navegador a recortar os
+// cantos corretamente em vez de deixar o compositor desenhar de forma errada.
+const CORNER_FIX: React.CSSProperties = {
+  WebkitMaskImage: "-webkit-radial-gradient(white, black)",
+  transform: "translateZ(0)",
+};
+
 const PanelSkeleton = () => (
   <div className="grid grid-cols-2 gap-2.5 mb-5">
     {[0, 1].map(i => (
-      <div key={i} className="h-24 rounded-2xl bg-muted animate-pulse" />
+      <div key={i} className="h-24 rounded-2xl bg-muted animate-pulse" style={CORNER_FIX} />
     ))}
   </div>
 );
@@ -165,6 +175,7 @@ const MinhaConta = () => {
           <button
             onClick={() => navigate("/central-de-pedidos")}
             className="w-full flex items-center gap-3 rounded-2xl p-4 mb-5 border border-primary/25 bg-gradient-to-br from-primary/10 to-primary/5"
+            style={CORNER_FIX}
           >
             <div className="w-11 h-11 rounded-xl bg-primary flex items-center justify-center flex-shrink-0">
               <Truck className="w-5 h-5 text-primary-foreground" />
@@ -189,6 +200,7 @@ const MinhaConta = () => {
                   key={p.key}
                   onClick={() => navigate(p.path)}
                   className={`bg-gradient-to-br ${p.grad} border ${p.border} rounded-2xl p-3.5 text-left flex flex-col gap-2 hover:brightness-95 transition`}
+                  style={CORNER_FIX}
                 >
                   <div className={`w-9 h-9 rounded-xl ${p.iconBg} flex items-center justify-center`}>
                     <p.icon className="w-4.5 h-4.5 text-white" />
