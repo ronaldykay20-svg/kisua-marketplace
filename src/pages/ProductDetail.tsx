@@ -909,7 +909,8 @@ const ProductReviewsSection = ({ productId, product, dbReviews, userOrders, trac
 
   useEffect(() => {
     if (reviews && reviews.length > 0 && productId) trackEvent(productId, "review_read", { review_count: reviews.length, avg_rating: product.rating });
-  }, [reviews?.length]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reviews?.length, productId]);
 
   const uploadImg = async (file: File) => {
     setUploadingImg(true);
