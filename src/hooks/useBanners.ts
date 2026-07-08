@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { DeviceLayout } from "@/hooks/useDeviceLayout";
@@ -64,4 +65,27 @@ export const useBanners = (format?: string, device?: DeviceLayout) => {
     },
     staleTime: 5 * 60 * 1000,
   });
+};
+
+/**
+ * Devolve o conjunto de slots (sort_order) que TÊM banner activo para o
+ * device pedido. Reaproveita a mesma queryKey de useBanners(undefined,
+ * device), por isso não faz nenhum pedido extra à rede — só reprocessa os
+ * dados já em cache.
+ *
+ * Serve para o Index.tsx decidir, ANTES de renderizar, se vale a pena
+ * reservar espaço (placeholder) para um slot: slots sem banner não devem
+ * reservar altura nenhuma, senão ao tornarem-se visíveis colapsam de
+ * repente e o scroll "salta" — era isso que estava a acontecer na home.
+ */
+export const useOccupiedBannerSlots = (device: DeviceLayout) => {
+  const { data: banners = [] } = useBanners(undefined, device);
+  return useMemo(() => {
+    const set = new Set<number>();
+    for (const b of banners) {
+      const matches = b.device === device || (!b.device && device === "mobile");
+      if (matches) set.add(b.sort_order);
+    }
+    return set;
+  }, [banners, device]);
 };
