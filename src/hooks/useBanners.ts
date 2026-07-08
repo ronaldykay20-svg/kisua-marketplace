@@ -69,18 +69,26 @@ export const useBanners = (format?: string, device?: DeviceLayout) => {
 
 /**
  * Devolve o conjunto de slots (sort_order) que TÊM banner activo para o
- * device pedido. Reaproveita a mesma queryKey de useBanners(undefined,
- * device), por isso não faz nenhum pedido extra à rede — só reprocessa os
- * dados já em cache.
+ * device pedido, mais isLoading. Reaproveita a mesma queryKey de
+ * useBanners(undefined, device), por isso não faz nenhum pedido extra à
+ * rede — só reprocessa os dados já em cache.
  *
  * Serve para o Index.tsx decidir, ANTES de renderizar, se vale a pena
  * reservar espaço (placeholder) para um slot: slots sem banner não devem
  * reservar altura nenhuma, senão ao tornarem-se visíveis colapsam de
- * repente e o scroll "salta" — era isso que estava a acontecer na home.
+ * repente e o scroll "salta".
+ *
+ * IMPORTANTE: enquanto isLoading é true (a busca dos banners ainda não
+ * respondeu), o chamador deve continuar a reservar espaço normalmente —
+ * só deve deixar de reservar quando isLoading for false E o slot não
+ * estiver no conjunto. Decidir com base só no conjunto (que começa vazio
+ * antes da busca responder) faz os banners "aparecerem de repente" e
+ * empurrarem o conteúdo para baixo assim que a busca termina — foi isso
+ * que causou o novo salto/travamento no scroll.
  */
 export const useOccupiedBannerSlots = (device: DeviceLayout) => {
-  const { data: banners = [] } = useBanners(undefined, device);
-  return useMemo(() => {
+  const { data: banners = [], isLoading } = useBanners(undefined, device);
+  const occupiedSlots = useMemo(() => {
     const set = new Set<number>();
     for (const b of banners) {
       const matches = b.device === device || (!b.device && device === "mobile");
@@ -88,4 +96,5 @@ export const useOccupiedBannerSlots = (device: DeviceLayout) => {
     }
     return set;
   }, [banners, device]);
+  return { occupiedSlots, isLoading };
 };
