@@ -148,6 +148,23 @@ const EmpresaPerfil = () => {
     );
   }
 
+  const handleShare = async () => {
+    const title = company.name;
+    const desc = company.description?.slice(0, 100) || "Confere esta loja no Kisua Marketplace";
+    const url = window.location.href;
+
+    try {
+      if (navigator.share) {
+        await navigator.share({ title, text: `${desc}\n\n${url}` });
+        return;
+      }
+      await navigator.clipboard.writeText(`${title}\n${desc}\n\n${url}`);
+      toast.success("Link copiado!");
+    } catch (err: any) {
+      if (err?.name !== "AbortError") toast.error("Não foi possível partilhar");
+    }
+  };
+
   const ratingBreakdown = [5, 4, 3, 2, 1].map(s => ({
     stars: s,
     pct: reviews.length > 0 ? Math.round((reviews.filter((r: any) => r.rating === s).length / reviews.length) * 100) : 0,
@@ -158,7 +175,7 @@ const EmpresaPerfil = () => {
       <div className="container mx-auto px-4 pt-3 flex items-center gap-3">
         <button onClick={() => navigate(-1)} className="text-foreground"><ArrowLeft className="w-5 h-5" /></button>
         <h1 className="text-sm font-bold text-foreground truncate flex-1">{company.name}</h1>
-        <button className="text-foreground"><Share2 className="w-5 h-5" /></button>
+        <button onClick={handleShare} className="text-foreground"><Share2 className="w-5 h-5" /></button>
       </div>
 
       <div className="relative">
