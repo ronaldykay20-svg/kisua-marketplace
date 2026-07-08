@@ -132,13 +132,31 @@ const GlobalStyle = () => (
     .cgr-scroll::-webkit-scrollbar { display: none; }
     .cgr-chip { transition: border-color .15s ease, background .15s ease; }
     .cgr-chip:hover { border-color: ${brand} !important; }
-    .cgr-icon-card { transition: transform .15s ease; }
-    .cgr-icon-card:hover { transform: translateY(-2px); }
     .cgr-prod-card { transition: transform .15s ease, box-shadow .15s ease; }
     .cgr-prod-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(35,21,11,0.14) !important; }
     .cgr-heart-btn:active { transform: scale(0.88); }
     .cgr-cta:active { transform: scale(0.97); }
     @keyframes cgr-spin { to { transform: rotate(360deg); } }
+
+    /* ── Grelha de categorias (estilo "departamentos") ── */
+    .cgr-cat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 20px 10px;
+    }
+    @media (min-width: 480px)  { .cgr-cat-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+    @media (min-width: 700px)  { .cgr-cat-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+    @media (min-width: 1000px) { .cgr-cat-grid { grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 24px 14px; } }
+    @media (min-width: 1300px) { .cgr-cat-grid { grid-template-columns: repeat(10, minmax(0, 1fr)); } }
+
+    .cgr-cat-tile { transition: transform .18s ease; }
+    .cgr-cat-tile:hover { transform: translateY(-3px); }
+    .cgr-cat-tile:hover .cgr-cat-ring { border-color: ${brand} !important; box-shadow: 0 6px 16px rgba(169,131,92,0.30); }
+    .cgr-cat-tile:hover .cgr-cat-img { transform: scale(1.08); }
+    .cgr-cat-tile:hover .cgr-cat-label { color: ${brandDeep} !important; }
+    .cgr-cat-img { transition: transform .25s ease; }
+    .cgr-cat-ring { transition: border-color .18s ease, box-shadow .18s ease; }
+    .cgr-cat-tile:focus-visible .cgr-cat-ring { outline: 2px solid ${brand}; outline-offset: 3px; }
   `}</style>
 );
 
@@ -160,27 +178,41 @@ const RatingRow = ({ rating, reviews }: { rating: number; reviews: number }) => 
   </div>
 );
 
-/* ── Cartão de categoria — formato "ícone de atalho" ── */
-const CategoryIconCard = ({ name, image, onClick, size = 84 }: { name: string; image: string; onClick: () => void; size?: number }) => (
+/* ── Paleta de fundos suaves para os azulejos de categoria — variações
+     tonais dentro da própria identidade da marca (nunca cores soltas),
+     para dar variedade visual sem fugir do tom creme/castanho do site ── */
+const catTints = ["#F3E7D3", "#F1E6EA", "#E8EFE4", "#E4ECF1", "#F6E9DC", "#EEE6F2", "#EAEFE9", "#F2E5E0"];
+
+/* ── Cartão de categoria — azulejo em grelha, ícone circular colorido
+     + nome por baixo. Substitui a antiga tira horizontal a rolar. ── */
+const CategoryTile = ({ name, image, onClick, index }: { name: string; image: string; onClick: () => void; index: number }) => (
   <button
-    className="cgr-icon-card"
+    className="cgr-cat-tile"
     onClick={onClick}
-    style={{ background: "none", border: "none", cursor: "pointer", padding: 0, width: size, flexShrink: 0 }}
+    style={{ background: "none", border: "none", cursor: "pointer", padding: 0, width: "100%" }}
   >
-    <div style={{
-      width: size, height: size, borderRadius: 16,
-      background: "#EFE2CE", overflow: "hidden",
-      display: "flex", alignItems: "center", justifyContent: "center",
-    }}>
+    <div
+      className="cgr-cat-ring"
+      style={{
+        width: "100%", aspectRatio: "1/1", maxWidth: 96, margin: "0 auto",
+        borderRadius: "50%", border: "2px solid transparent",
+        background: catTints[index % catTints.length],
+        overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center",
+        boxShadow: shadowSm,
+      }}
+    >
       {image
-        ? <img src={image} alt={name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-        : <ShoppingBag style={{ width: 26, height: 26, color: brandDeep }} />}
+        ? <img className="cgr-cat-img" src={image} alt={name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        : <ShoppingBag style={{ width: 28, height: 28, color: brandDeep }} />}
     </div>
-    <p style={{
-      margin: "8px 0 0", fontFamily: fontBody, fontSize: 12, fontWeight: 600, color: ink,
-      lineHeight: 1.25, textAlign: "center",
-      display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
-    }}>
+    <p
+      className="cgr-cat-label"
+      style={{
+        margin: "10px 0 0", fontFamily: fontBody, fontSize: 12.5, fontWeight: 700, color: ink,
+        lineHeight: 1.25, textAlign: "center", letterSpacing: -0.1,
+        display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
+      }}
+    >
       {name}
     </p>
   </button>
@@ -367,14 +399,18 @@ const Categorias = () => {
       {/* Cabeçalho removido — o site já usa o Navbar global no topo */}
 
 
-      {/* ── Categorias: faixa de atalhos ── */}
-      <div style={{ background: surface, padding: "16px 14px" }}>
-        <div className="cgr-scroll" style={{ display: "flex", gap: 18, overflowX: "auto", scrollbarWidth: "none" }}>
-          {categories.map((cat) => (
-            <CategoryIconCard
+      {/* ── Categorias: grelha de departamentos ── */}
+      <div style={{ background: surface, padding: "20px 14px 22px" }}>
+        <h2 style={{ margin: "0 0 16px", fontFamily: fontBody, fontSize: 21, fontWeight: 800, color: ink, letterSpacing: -0.3 }}>
+          Categorias
+        </h2>
+        <div className="cgr-cat-grid">
+          {categories.map((cat, i) => (
+            <CategoryTile
               key={cat.name}
               name={cat.name}
               image={cat.image}
+              index={i}
               onClick={() => navigate(`/categoria/${encodeURIComponent(cat.name)}`)}
             />
           ))}
