@@ -142,7 +142,7 @@ const FeaturedSellers = ({ layout = "mobile" }: FeaturedSellersProps) => {
     const positivePct: number | null = reviewsMap[seller.id] ?? null;
 
     return (
-      <div className="border border-border rounded-2xl overflow-hidden flex flex-col bg-card">
+      <div className="rounded-gpu-fix border border-border rounded-2xl overflow-hidden flex flex-col bg-card">
         {/* Banner */}
         <div className="relative overflow-hidden h-[160px] bg-muted flex-shrink-0">
           {seller.cover_url ? (
@@ -231,7 +231,7 @@ const FeaturedSellers = ({ layout = "mobile" }: FeaturedSellersProps) => {
                   <div
                     key={p.id}
                     onClick={() => navigate(`/produto/${p.id}`)}
-                    className="cursor-pointer hover:opacity-90 transition bg-card rounded-xl border border-border overflow-hidden"
+                    className="rounded-gpu-fix cursor-pointer hover:opacity-90 transition bg-card rounded-xl border border-border overflow-hidden"
                   >
                     <div className="aspect-square bg-muted overflow-hidden">
                       {img ? (
