@@ -114,6 +114,43 @@ export default function DropshipDashboard() {
 
   const formatKz = (v: number) => `${(v || 0).toLocaleString("pt-AO")} Kz`;
 
+  // Envia um pedido de pagamento aos admins/moderadores (não há ainda uma
+  // tabela dedicada a payouts, por isso o pedido chega como notificação
+  // acionável, com o valor acumulado e os dados da loja).
+  const requestPayout = useMutation({
+    mutationFn: async () => {
+      const amount = totalRevenue || 0;
+      if (amount <= 0) {
+        throw new Error("Ainda não tens saldo confirmado para pedir pagamento.");
+      }
+      const { data: reviewers, error: reviewersError } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .in("role", ["admin", "moderator"]);
+      if (reviewersError) throw reviewersError;
+      if (!reviewers || reviewers.length === 0) {
+        throw new Error("Não foi possível contactar a equipa Kisua agora. Tenta novamente mais tarde.");
+      }
+
+      const rows = reviewers.map((r: any) => ({
+        user_id: r.user_id,
+        title: `💰 Pedido de pagamento — ${store?.name || "Loja dropship"}`,
+        message:
+          `A loja "${store?.name || ""}" pediu o levantamento do saldo acumulado ` +
+          `de ${formatKz(amount)}.\n\nConfirma os dados bancários com o lojista antes de processar.`,
+        type: "payout_request",
+        link_url: "/admin",
+        is_read: false,
+      }));
+      const { error } = await supabase.from("notifications").insert(rows as any);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Pedido de pagamento enviado! A equipa Kisua vai processar em 2 a 5 dias úteis.");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   const statusColor: Record<string, string> = {
     pending:   "bg-amber-500/10 text-amber-500",
     confirmed: "bg-blue-500/10 text-blue-500",
@@ -510,8 +547,12 @@ export default function DropshipDashboard() {
               </div>
             </div>
 
-            <button className="w-full py-3 bg-primary text-primary-foreground font-bold rounded-xl text-sm">
-              Pedir Pagamento
+            <button
+              onClick={() => requestPayout.mutate()}
+              disabled={requestPayout.isPending || !(totalRevenue > 0)}
+              className="w-full py-3 bg-primary text-primary-foreground font-bold rounded-xl text-sm disabled:opacity-50"
+            >
+              {requestPayout.isPending ? "A enviar pedido..." : "Pedir Pagamento"}
             </button>
 
             <div className="bg-card border border-border rounded-xl p-4 flex gap-2">
