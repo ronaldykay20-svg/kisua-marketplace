@@ -1,8 +1,19 @@
+import { useState } from "react";
 import { Search, MapPin } from "lucide-react";
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import heroImage from "@/assets/hero-luanda.jpg";
 
 const Hero = () => {
+  const navigate = useNavigate();
+  const [query, setQuery] = useState("");
+
+  const handleSearch = () => {
+    if (query.trim()) {
+      navigate(`/pesquisa?q=${encodeURIComponent(query.trim())}`);
+    }
+  };
+
   return (
     <section className="relative min-h-[600px] flex items-center overflow-hidden">
       <div
@@ -41,11 +52,16 @@ const Hero = () => {
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
               <input
                 type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                 placeholder="O que procura? Ex: iPhone, carro, apartamento..."
                 className="w-full pl-12 pr-4 py-4 rounded-xl bg-background/95 backdrop-blur-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary font-body"
               />
             </div>
-            <button className="px-8 py-4 rounded-xl font-semibold font-heading text-primary-foreground transition-all hover:scale-105 active:scale-95"
+            <button
+              onClick={handleSearch}
+              className="px-8 py-4 rounded-xl font-semibold font-heading text-primary-foreground transition-all hover:scale-105 active:scale-95"
               style={{ background: 'var(--hero-gradient)' }}>
               Pesquisar
             </button>
@@ -55,6 +71,7 @@ const Hero = () => {
             {["Luanda", "Benguela", "Huambo", "Cabinda"].map((city) => (
               <button
                 key={city}
+                onClick={() => navigate(`/pesquisa?q=${encodeURIComponent(city)}`)}
                 className="px-3 py-1 rounded-full text-sm text-primary-foreground/70 border border-primary-foreground/20 hover:border-primary hover:text-primary-foreground transition-colors backdrop-blur-sm"
               >
                 {city}
