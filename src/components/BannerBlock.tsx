@@ -18,7 +18,7 @@ const BannerBlock = ({ format, offset = 0 }: BannerBlockProps) => {
     const b = items[0];
     return (
       <section className="container mx-auto px-3 pt-3">
-        <a href={b.cta_link || "#"} className="block rounded-2xl overflow-hidden border border-border hover:shadow-md transition-shadow">
+        <a href={b.cta_link || "#"} className="rounded-gpu-fix block rounded-2xl overflow-hidden border border-border hover:shadow-md transition-shadow">
           <img src={b.image_url} alt={b.title || "Banner"} className="w-full aspect-[21/9] object-cover" loading="lazy" />
         </a>
         <p className="text-[9px] text-muted-foreground text-right mt-0.5">Publicidade</p>
@@ -31,7 +31,7 @@ const BannerBlock = ({ format, offset = 0 }: BannerBlockProps) => {
       <section className="container mx-auto px-3 pt-3">
         <div className="grid grid-cols-2 gap-2.5">
           {items.map((b, i) => (
-            <a key={b.id || i} href={b.cta_link || "#"} className="block rounded-2xl overflow-hidden border border-border hover:shadow-md transition-shadow">
+            <a key={b.id || i} href={b.cta_link || "#"} className="rounded-gpu-fix block rounded-2xl overflow-hidden border border-border hover:shadow-md transition-shadow">
               <img src={b.image_url} alt={b.title || "Banner"} className="w-full aspect-square object-cover" loading="lazy" />
             </a>
           ))}
@@ -48,7 +48,7 @@ const BannerBlock = ({ format, offset = 0 }: BannerBlockProps) => {
       <section className="container mx-auto px-3 pt-3">
         <div className="grid grid-cols-2 gap-2.5" style={{ minHeight: 320 }}>
           {/* Left tall card */}
-          <a href={left.cta_link || "#"} className="block rounded-2xl overflow-hidden border border-border hover:shadow-md transition-shadow relative row-span-2">
+          <a href={left.cta_link || "#"} className="rounded-gpu-fix block rounded-2xl overflow-hidden border border-border hover:shadow-md transition-shadow relative row-span-2">
             <div className="relative h-full min-h-[320px]" style={{ backgroundColor: left.bg_color || "#F0F9FF" }}>
               <img src={left.image_url} alt={left.title || ""} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
@@ -61,7 +61,7 @@ const BannerBlock = ({ format, offset = 0 }: BannerBlockProps) => {
           {/* Right stacked cards */}
           <div className="flex flex-col gap-2.5">
             {right.map((b, i) => (
-              <a key={b.id || i} href={b.cta_link || "#"} className="block rounded-2xl overflow-hidden border border-border hover:shadow-md transition-shadow relative flex-1">
+              <a key={b.id || i} href={b.cta_link || "#"} className="rounded-gpu-fix block rounded-2xl overflow-hidden border border-border hover:shadow-md transition-shadow relative flex-1">
                 <div className="relative h-full min-h-[155px]" style={{ backgroundColor: b.bg_color || "#FDF2F8" }}>
                   <img src={b.image_url} alt={b.title || ""} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
@@ -84,7 +84,7 @@ const BannerBlock = ({ format, offset = 0 }: BannerBlockProps) => {
       <div className="grid grid-cols-2 gap-2.5">
         {items.map((b, i) => (
           <a key={b.id || i} href={b.cta_link || "#"}
-            className="relative rounded-2xl overflow-hidden cursor-pointer group min-h-[200px] sm:min-h-[260px] border border-border">
+            className="rounded-gpu-fix relative rounded-2xl overflow-hidden cursor-pointer group min-h-[200px] sm:min-h-[260px] border border-border">
             <img src={b.image_url} alt={b.title || ""} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
             <div className="relative h-full flex flex-col justify-end p-3 pt-16">
