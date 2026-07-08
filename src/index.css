@@ -64,6 +64,18 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+  /*
+   * Corrige um bug conhecido do Chrome/WebView no Android: elementos com
+   * cantos arredondados + fundo em gradiente + qualquer animação/transform
+   * (hover, scale, pulse, ou simplesmente estar dentro de algo que faz
+   * scroll) por vezes "rasgam" visualmente porque o compositor de GPU não
+   * recorta os cantos corretamente. A máscara força o recorte certo.
+   * Usar em qualquer cartão/botão que junte rounded-* + bg-gradient-to-*.
+   */
+  .rounded-gpu-fix {
+    -webkit-mask-image: -webkit-radial-gradient(white, black);
+    transform: translateZ(0);
+  }
 }
 /* ── Remover marca de água Lovable ── */
 a[href*="lovable.dev"],
