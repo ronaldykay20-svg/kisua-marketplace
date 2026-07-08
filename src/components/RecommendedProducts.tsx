@@ -167,7 +167,7 @@ const RecommendedProducts = () => {
             <div
               key={p.id}
               onClick={() => navigate(`/produto/${p.id}`)}
-              className="group flex-shrink-0 w-[148px] sm:w-[172px] snap-start bg-card border border-border/60 rounded-2xl overflow-hidden cursor-pointer flex flex-col shadow-sm hover:shadow-lg hover:border-border transition-all duration-200 active:scale-[0.98]"
+              className="rounded-gpu-fix group flex-shrink-0 w-[148px] sm:w-[172px] snap-start bg-card border border-border/60 rounded-2xl overflow-hidden cursor-pointer flex flex-col shadow-sm hover:shadow-lg hover:border-border transition-all duration-200 active:scale-[0.98]"
             >
               <div className="relative aspect-square bg-muted overflow-hidden">
                 <img
@@ -179,11 +179,11 @@ const RecommendedProducts = () => {
                 <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/15 to-transparent pointer-events-none" />
 
                 {p.discount_percent ? (
-                  <span className="absolute top-2 left-2 px-1.5 py-[3px] rounded-full text-[10px] font-bold text-white bg-gradient-to-r from-red-500 to-rose-600 shadow-sm">
+                  <span className="rounded-gpu-fix absolute top-2 left-2 px-1.5 py-[3px] rounded-full text-[10px] font-bold text-white bg-gradient-to-r from-red-500 to-rose-600 shadow-sm">
                     -{p.discount_percent}%
                   </span>
                 ) : p.badge ? (
-                  <span className="absolute top-2 left-2 px-1.5 py-[3px] rounded-full text-[10px] font-bold text-primary-foreground bg-gradient-to-r from-primary to-primary/80 shadow-sm">
+                  <span className="rounded-gpu-fix absolute top-2 left-2 px-1.5 py-[3px] rounded-full text-[10px] font-bold text-primary-foreground bg-gradient-to-r from-primary to-primary/80 shadow-sm">
                     {p.badge}
                   </span>
                 ) : null}
