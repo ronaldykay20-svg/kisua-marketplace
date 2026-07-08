@@ -30,7 +30,7 @@ const HeroBanner = () => {
 
   return (
     <section className="container mx-auto px-3 pt-3">
-      <div className="relative rounded-card overflow-hidden" style={{ backgroundColor: slide.bg }}>
+      <div className="rounded-gpu-fix relative rounded-card overflow-hidden" style={{ backgroundColor: slide.bg }}>
         {/* Full-cover background image */}
         <img src={slide.image} alt="Banner" className="absolute inset-0 w-full h-full object-cover" />
         {/* Gradient overlay for text readability */}
