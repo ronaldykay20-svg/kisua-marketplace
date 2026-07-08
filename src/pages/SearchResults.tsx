@@ -399,7 +399,7 @@ const SearchResults = () => {
                   {/* Faixa de scan animada, tipo "radar" */}
                   <div className="absolute inset-x-0 h-1/3 bg-gradient-to-b from-transparent via-primary/40 to-transparent animate-scan-line" />
                   {/* Grelha subtil por cima, para reforçar a ideia de "análise" */}
-                  <div className="absolute inset-0 bg-[linear-gradient(transparent_0%,transparent_calc(50%-1px),theme(colors.primary/25)_50%,transparent_calc(50%+1px),transparent_100%)] opacity-0" />
+                  <div className="absolute inset-0 bg-[linear-gradient(transparent_0%,transparent_calc(50%-1px),hsl(var(--primary)/0.25)_50%,transparent_calc(50%+1px),transparent_100%)] opacity-0" />
                   <div className="absolute inset-0 ring-2 ring-primary/30 rounded-2xl animate-pulse" />
                 </div>
                 <p className="text-sm font-semibold text-foreground">A comparar com os produtos da loja...</p>
