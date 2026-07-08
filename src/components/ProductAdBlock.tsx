@@ -61,7 +61,7 @@ const BannerAd = ({ ad }: { ad: any }) => {
       href={ad.destination_url || "#"}
       target={ad.destination_url ? "_blank" : "_self"}
       rel="noopener noreferrer"
-      className="block rounded-xl overflow-hidden border border-border relative group"
+      className="rounded-gpu-fix block rounded-xl overflow-hidden border border-border relative group"
     >
       <div className="h-36 w-full">{inner}</div>
       {ad.title && (
@@ -96,7 +96,7 @@ const EmpresaAd = ({ refId, title, destinationUrl }: { refId: string; title?: st
   return (
     <div
       onClick={() => navigate(`/empresa/${empresa.id}`)}
-      className="rounded-xl border border-border overflow-hidden cursor-pointer hover:shadow-md transition group relative"
+      className="rounded-gpu-fix rounded-xl border border-border overflow-hidden cursor-pointer hover:shadow-md transition group relative"
     >
       <div className="h-24 bg-muted relative">
         {empresa.cover_url ? (
@@ -149,7 +149,7 @@ const VendedorAd = ({ refId }: { refId: string }) => {
   return (
     <div
       onClick={() => navigate(`/vendedor/${vendedor.id}`)}
-      className="rounded-xl border border-border overflow-hidden cursor-pointer hover:shadow-md transition group relative"
+      className="rounded-gpu-fix rounded-xl border border-border overflow-hidden cursor-pointer hover:shadow-md transition group relative"
     >
       <div className="h-20 bg-muted">
         {vendedor.cover_url ? (
@@ -214,7 +214,7 @@ const ProdutoAd = ({ refId }: { refId: string }) => {
   return (
     <div
       onClick={() => navigate(`/produto/${produto.id}`)}
-      className="rounded-xl border border-border overflow-hidden cursor-pointer hover:shadow-md transition flex relative"
+      className="rounded-gpu-fix rounded-xl border border-border overflow-hidden cursor-pointer hover:shadow-md transition flex relative"
     >
       <img src={produto.image} alt={produto.title} className="w-24 h-28 object-cover flex-shrink-0" />
       <div className="flex-1 p-3 flex flex-col justify-between min-w-0">
