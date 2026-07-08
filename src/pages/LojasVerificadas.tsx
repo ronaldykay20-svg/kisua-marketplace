@@ -81,7 +81,7 @@ const LojaCard = ({ item, onClick }: { item: any; onClick: () => void }) => {
   return (
     <div
       onClick={onClick}
-      className="bg-card rounded-card border border-border overflow-hidden cursor-pointer hover:shadow-lg transition-shadow group"
+      className="rounded-gpu-fix bg-card rounded-card border border-border overflow-hidden cursor-pointer hover:shadow-lg transition-shadow group"
     >
       {/* Cover */}
       <div className="h-24 overflow-hidden relative">
