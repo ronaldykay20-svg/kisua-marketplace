@@ -114,9 +114,9 @@ const AdminNoticesSection = ({ userId }: { userId: string }) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 // Secção: Meus Pedidos (Vendedor individual OU Loja/Empresa)
 // ═══════════════════════════════════════════════════════════════════════════════
-const SellerOrCompanySection = ({ sellerId, companyId, search }: { sellerId: string | null; companyId: string | null; search: string }) => {
+const SellerOrCompanySection = ({ sellerId, sellerType, companyId, search }: { sellerId: string | null; sellerType?: string | null; companyId: string | null; search: string }) => {
   const queryClient = useQueryClient();
-  const label = sellerId ? "Vendedor" : "Loja";
+  const label = sellerId ? (sellerType === "dropship" ? "Afiliado" : "Vendedor") : "Loja";
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ["central_orders_seller_company", sellerId, companyId],
@@ -486,7 +486,7 @@ const CentralDePedidos = () => {
   const { data: seller } = useQuery({
     queryKey: ["central_my_seller", user?.id],
     queryFn: async () => {
-      const { data } = await supabase.from("sellers").select("id").eq("user_id", user!.id).maybeSingle();
+      const { data } = await supabase.from("sellers").select("id, type").eq("user_id", user!.id).maybeSingle();
       return data;
     },
     enabled: !!user,
@@ -574,6 +574,7 @@ const CentralDePedidos = () => {
         {(seller?.id || companyMembership?.company_id) && (
           <SellerOrCompanySection
             sellerId={seller?.id || null}
+            sellerType={seller?.type || null}
             companyId={!seller?.id ? companyMembership?.company_id || null : null}
             search={search}
           />
