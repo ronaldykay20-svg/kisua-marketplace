@@ -117,6 +117,32 @@ export default function DropshipDashboard() {
   // Envia um pedido de pagamento aos admins/moderadores (não há ainda uma
   // tabela dedicada a payouts, por isso o pedido chega como notificação
   // acionável, com o valor acumulado e os dados da loja).
+  // O afiliado confirma a entrega ao cliente final, fechando o ciclo do
+  // pedido e liberando os ganhos (fornecedor e loja) para "Ganhos".
+  const markDelivered = useMutation({
+    mutationFn: async (order: any) => {
+      const { error: orderError } = await supabase
+        .from("supplier_orders")
+        .update({ status: "delivered" })
+        .eq("id", order.id);
+      if (orderError) throw orderError;
+
+      const itemIds = (order.supplier_order_items || []).map((i: any) => i.id);
+      if (itemIds.length > 0) {
+        const { error: itemsError } = await supabase
+          .from("supplier_order_items")
+          .update({ supplier_status: "delivered" })
+          .in("id", itemIds);
+        if (itemsError) throw itemsError;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dropship_orders"] });
+      toast.success("Pedido marcado como entregue — ganhos atualizados");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   const requestPayout = useMutation({
     mutationFn: async () => {
       const amount = totalRevenue || 0;
@@ -284,6 +310,22 @@ export default function DropshipDashboard() {
         {/* ── VISÃO GERAL ── */}
         {tab === "visao" && (
           <div className="space-y-3">
+
+            {/* Aviso: sem município definido, os produtos não calculam frete no checkout */}
+            {sellerProfile && !sellerProfile.municipality_code && (
+              <button
+                onClick={() => setTab("perfil")}
+                className="w-full flex items-start gap-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl p-3.5 text-left"
+              >
+                <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-bold text-amber-700">Falta definir a cidade de despacho</p>
+                  <p className="text-[11px] text-amber-700/80 mt-0.5">
+                    Sem isso, os teus produtos aparecem no checkout do cliente sem opção de frete. Toca aqui para configurar no teu Perfil.
+                  </p>
+                </div>
+              </button>
+            )}
 
             {/* Acesso rápido ao catálogo */}
             <button
@@ -474,6 +516,8 @@ export default function DropshipDashboard() {
             ) : (
               orders.map((order: any) => {
                 const items = order.supplier_order_items || [];
+                const allShipped = items.length > 0 && items.every((i: any) => i.supplier_status === "shipped" || i.supplier_status === "delivered");
+                const canMarkDelivered = order.status !== "delivered" && allShipped;
                 return (
                   <div key={order.id} className="bg-card border border-border rounded-xl p-4">
                     <div className="flex items-start justify-between mb-2">
@@ -514,6 +558,16 @@ export default function DropshipDashboard() {
                         </p>
                       </div>
                     </div>
+
+                    {canMarkDelivered && (
+                      <button
+                        onClick={() => markDelivered.mutate(order)}
+                        disabled={markDelivered.isPending}
+                        className="w-full mt-2.5 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-lg disabled:opacity-50"
+                      >
+                        Confirmar entrega ao cliente
+                      </button>
+                    )}
                   </div>
                 );
               })
