@@ -569,17 +569,43 @@ export default function FornecedorDashboard() {
     enabled: !!supplier?.id,
   });
 
+  // 🔗 Pedidos reais — antes isto lia "supplier_order_items", uma tabela
+  // que nunca era alimentada por uma venda de verdade. Agora lê diretamente
+  // dos order_items reais, através da ligação products.supplier_product_id
+  // (criada na migração 001) com os produtos deste fornecedor.
   const { data: orders = [] } = useQuery({
-    queryKey: ["supplier_orders_items", supplier?.id],
+    queryKey: ["supplier_real_orders", supplier?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("supplier_order_items")
-        .select("*, supplier_orders(id, created_at, status), supplier_products(name)")
-        .eq("supplier_id", supplier!.id)
+      const { data: myProducts } = await supabase
+        .from("supplier_products")
+        .select("id, name, cost_price, images")
+        .eq("supplier_id", supplier!.id);
+      const myProductIds = (myProducts || []).map((p: any) => p.id);
+      if (myProductIds.length === 0) return [];
+
+      const { data: linkedProducts } = await (supabase as any)
+        .from("products")
+        .select("id, supplier_product_id")
+        .in("supplier_product_id", myProductIds);
+      const productIds = (linkedProducts || []).map((p: any) => p.id);
+      if (productIds.length === 0) return [];
+
+      const spMap = new Map((myProducts || []).map((p: any) => [p.id, p]));
+      const productToSp = new Map((linkedProducts || []).map((p: any) => [p.id, p.supplier_product_id]));
+
+      const { data: items, error } = await (supabase as any)
+        .from("order_items")
+        .select("*, orders!inner(id, created_at, payment_verified)")
+        .in("product_id", productIds)
+        .eq("orders.payment_verified", true)
         .order("created_at", { ascending: false })
         .limit(30);
       if (error) throw error;
-      return data || [];
+
+      return (items || []).map((item: any) => {
+        const sp = spMap.get(productToSp.get(item.product_id));
+        return { ...item, supplier_product: sp, supplier_amount: (sp?.cost_price || 0) * item.quantity };
+      });
     },
     enabled: !!supplier?.id,
   });
@@ -608,30 +634,40 @@ export default function FornecedorDashboard() {
       if (amount <= 0) {
         throw new Error("Ainda não tens saldo confirmado para pedir pagamento.");
       }
+
+      // 🔗 registo rastreável — fica em "pendente" até um admin marcar
+      // como pago ou rejeitar, em vez de só uma notificação que se perde.
+      const { error: payoutError } = await (supabase as any).from("payout_requests").insert({
+        beneficiary_type: "supplier",
+        supplier_id: supplier!.id,
+        amount,
+        status: "pending",
+      });
+      if (payoutError) throw payoutError;
+
       const { data: reviewers, error: reviewersError } = await supabase
         .from("user_roles")
         .select("user_id")
         .in("role", ["admin", "moderator"]);
       if (reviewersError) throw reviewersError;
-      if (!reviewers || reviewers.length === 0) {
-        throw new Error("Não foi possível contactar a equipa Kisua agora. Tenta novamente mais tarde.");
-      }
 
-      const rows = reviewers.map((r: any) => ({
-        user_id: r.user_id,
-        title: `💰 Pedido de pagamento — ${supplier?.name || "Fornecedor"}`,
-        message:
-          `O fornecedor "${supplier?.name || ""}" pediu o levantamento do saldo acumulado ` +
-          `de ${formatKz(amount)}.\n\nConfirma os dados bancários com o fornecedor antes de processar.`,
-        type: "payout_request",
-        link_url: "/admin",
-        is_read: false,
-      }));
-      const { error } = await supabase.from("notifications").insert(rows as any);
-      if (error) throw error;
+      if (reviewers && reviewers.length > 0) {
+        const rows = reviewers.map((r: any) => ({
+          user_id: r.user_id,
+          title: `💰 Pedido de pagamento — ${supplier?.name || "Fornecedor"}`,
+          message:
+            `O fornecedor "${supplier?.name || ""}" pediu o levantamento do saldo acumulado ` +
+            `de ${formatKz(amount)}.\n\nConfirma os dados bancários com o fornecedor antes de processar.`,
+          type: "payout_request",
+          link_url: "/admin",
+          is_read: false,
+        }));
+        await supabase.from("notifications").insert(rows as any);
+      }
     },
     onSuccess: () => {
-      toast.success("Pedido de pagamento enviado! A equipa Kisua vai processar em 2 a 5 dias úteis.");
+      queryClient.invalidateQueries({ queryKey: ["supplier_payout_requests"] });
+      toast.success("Pedido de pagamento enviado! A equipa Zangu vai processar em 2 a 5 dias úteis.");
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -650,14 +686,14 @@ export default function FornecedorDashboard() {
 
   const updateOrderStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase
-        .from("supplier_order_items")
+      const { error } = await (supabase as any)
+        .from("order_items")
         .update({ supplier_status: status })
         .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["supplier_orders_items"] });
+      queryClient.invalidateQueries({ queryKey: ["supplier_real_orders"] });
       toast.success("Estado actualizado!");
     },
     onError: (e: any) => toast.error(e.message),
@@ -968,7 +1004,7 @@ export default function FornecedorDashboard() {
                   <div className="flex items-start justify-between mb-2">
                     <div>
                       <p className="font-bold text-sm text-foreground">
-                        {order.supplier_products?.name || "Produto"}
+                        {order.supplier_product?.name || "Produto"}
                       </p>
                       <p className="text-[10px] text-muted-foreground">
                         Qtd: {order.quantity} • {new Date(order.created_at).toLocaleDateString("pt-AO")}
@@ -1010,58 +1046,101 @@ export default function FornecedorDashboard() {
 
         {/* ── GANHOS ── */}
         {tab === "ganhos" && (
-          <div className="space-y-3">
-            <h2 className="text-sm font-bold text-foreground">Os meus Ganhos</h2>
-
-            <div className="bg-primary rounded-2xl p-5 text-primary-foreground">
-              <p className="text-sm opacity-80">Total acumulado</p>
-              <p className="text-3xl font-bold mt-1">{formatKz(supplier.total_revenue || 0)}</p>
-              <p className="text-xs opacity-60 mt-1">
-                {orders.filter((o: any) => o.supplier_status === "delivered").length} entregas confirmadas
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-card border border-border rounded-xl p-4">
-                <p className="text-[10px] text-muted-foreground">Pendente</p>
-                <p className="font-bold text-amber-500 mt-1">
-                  {formatKz(
-                    orders
-                      .filter((o: any) => o.supplier_status === "pending")
-                      .reduce((s: number, o: any) => s + (o.supplier_amount || 0), 0)
-                  )}
-                </p>
-              </div>
-              <div className="bg-card border border-border rounded-xl p-4">
-                <p className="text-[10px] text-muted-foreground">A caminho</p>
-                <p className="font-bold text-blue-500 mt-1">
-                  {formatKz(
-                    orders
-                      .filter((o: any) => o.supplier_status === "shipped")
-                      .reduce((s: number, o: any) => s + (o.supplier_amount || 0), 0)
-                  )}
-                </p>
-              </div>
-            </div>
-
-            <button
-              onClick={() => requestPayout.mutate()}
-              disabled={requestPayout.isPending || !(supplier.total_revenue > 0)}
-              className="w-full py-3 bg-primary text-primary-foreground font-bold rounded-xl text-sm disabled:opacity-50"
-            >
-              {requestPayout.isPending ? "A enviar pedido..." : "Pedir Pagamento"}
-            </button>
-
-            <div className="bg-card border border-border rounded-xl p-4 flex gap-2">
-              <AlertCircle className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
-              <p className="text-xs text-muted-foreground">
-                Os pagamentos são processados após confirmação de entrega, em 2 a 5 dias úteis.
-              </p>
-            </div>
-          </div>
+          <GanhosTab supplier={supplier} orders={orders} formatKz={formatKz} requestPayout={requestPayout} />
         )}
 
       </div>
     </div>
   );
 }
+
+// 🔗 Aba de Ganhos, separada para poder ter o seu próprio histórico de
+// pedidos de pagamento (payout_requests) sem sobrecarregar o componente
+// principal.
+const GanhosTab = ({ supplier, orders, formatKz, requestPayout }: any) => {
+  const { data: payoutHistory = [] } = useQuery({
+    queryKey: ["supplier_payout_requests", supplier?.id],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("payout_requests")
+        .select("*")
+        .eq("supplier_id", supplier!.id)
+        .order("requested_at", { ascending: false })
+        .limit(10);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!supplier?.id,
+  });
+
+  const hasPendingRequest = payoutHistory.some((p: any) => p.status === "pending");
+  const payoutStatusLabel: Record<string, string> = { pending: "Pendente", paid: "Pago", rejected: "Rejeitado" };
+  const payoutStatusColor: Record<string, string> = {
+    pending: "bg-amber-500/10 text-amber-600",
+    paid: "bg-green-500/10 text-green-600",
+    rejected: "bg-destructive/10 text-destructive",
+  };
+
+  return (
+    <div className="space-y-3">
+      <h2 className="text-sm font-bold text-foreground">Os meus Ganhos</h2>
+
+      <div className="bg-primary rounded-2xl p-5 text-primary-foreground">
+        <p className="text-sm opacity-80">Total acumulado</p>
+        <p className="text-3xl font-bold mt-1">{formatKz(supplier.total_revenue || 0)}</p>
+        <p className="text-xs opacity-60 mt-1">{orders.length} vendas confirmadas</p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-card border border-border rounded-xl p-4">
+          <p className="text-[10px] text-muted-foreground">A confirmar</p>
+          <p className="font-bold text-amber-500 mt-1">
+            {formatKz(orders.filter((o: any) => o.supplier_status === "pending").reduce((s: number, o: any) => s + (o.supplier_amount || 0), 0))}
+          </p>
+        </div>
+        <div className="bg-card border border-border rounded-xl p-4">
+          <p className="text-[10px] text-muted-foreground">A caminho</p>
+          <p className="font-bold text-blue-500 mt-1">
+            {formatKz(orders.filter((o: any) => o.supplier_status === "shipped").reduce((s: number, o: any) => s + (o.supplier_amount || 0), 0))}
+          </p>
+        </div>
+      </div>
+
+      <button
+        onClick={() => requestPayout.mutate()}
+        disabled={requestPayout.isPending || hasPendingRequest || !(supplier.total_revenue > 0)}
+        className="w-full py-3 bg-primary text-primary-foreground font-bold rounded-xl text-sm disabled:opacity-50"
+      >
+        {requestPayout.isPending ? "A enviar pedido..." : hasPendingRequest ? "Já tens um pedido pendente" : "Pedir Pagamento"}
+      </button>
+
+      <div className="bg-card border border-border rounded-xl p-4 flex gap-2">
+        <AlertCircle className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+        <p className="text-xs text-muted-foreground">
+          O saldo é creditado assim que um pagamento é confirmado pela administração. Os levantamentos são processados em 2 a 5 dias úteis.
+        </p>
+      </div>
+
+      {payoutHistory.length > 0 && (
+        <div>
+          <h3 className="text-xs font-bold text-foreground mb-2">Histórico de pedidos</h3>
+          <div className="space-y-2">
+            {payoutHistory.map((p: any) => (
+              <div key={p.id} className="bg-card border border-border rounded-xl p-3 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-bold text-foreground">{formatKz(p.amount)}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {new Date(p.requested_at).toLocaleDateString("pt-AO")}
+                  </p>
+                </div>
+                <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${payoutStatusColor[p.status]}`}>
+                  {payoutStatusLabel[p.status]}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
