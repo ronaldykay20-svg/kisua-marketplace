@@ -263,24 +263,49 @@ const SellerOrCompanySection = ({ sellerId, sellerType, companyId, search }: { s
 const SupplierSection = ({ supplierId, search }: { supplierId: string; search: string }) => {
   const queryClient = useQueryClient();
 
+  // 🔗 Lê diretamente dos order_items reais (ligação products.supplier_product_id
+  // criada na migração 001), em vez da tabela "supplier_order_items" que
+  // nunca recebia dados de uma venda de verdade.
   const { data: items = [], isLoading } = useQuery({
     queryKey: ["central_supplier_items", supplierId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("supplier_order_items")
-        .select("*, supplier_orders(created_at), supplier_products(name, images)")
-        .eq("supplier_id", supplierId)
+      const { data: myProducts } = await supabase
+        .from("supplier_products")
+        .select("id, name, images, cost_price")
+        .eq("supplier_id", supplierId);
+      const myProductIds = (myProducts || []).map((p: any) => p.id);
+      if (myProductIds.length === 0) return [];
+
+      const { data: linkedProducts } = await (supabase as any)
+        .from("products")
+        .select("id, supplier_product_id")
+        .in("supplier_product_id", myProductIds);
+      const productIds = (linkedProducts || []).map((p: any) => p.id);
+      if (productIds.length === 0) return [];
+
+      const spMap = new Map((myProducts || []).map((p: any) => [p.id, p]));
+      const productToSp = new Map((linkedProducts || []).map((p: any) => [p.id, p.supplier_product_id]));
+
+      const { data, error } = await (supabase as any)
+        .from("order_items")
+        .select("*, orders!inner(id, created_at, payment_verified)")
+        .in("product_id", productIds)
+        .eq("orders.payment_verified", true)
         .order("created_at", { ascending: false })
         .limit(50);
       if (error) throw error;
-      return data || [];
+
+      return (data || []).map((item: any) => {
+        const sp = spMap.get(productToSp.get(item.product_id));
+        return { ...item, supplier_product: sp, supplier_amount: (sp?.cost_price || 0) * item.quantity };
+      });
     },
     refetchInterval: 20000,
   });
 
   const updateStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase.from("supplier_order_items").update({ supplier_status: status }).eq("id", id);
+      const { error } = await (supabase as any).from("order_items").update({ supplier_status: status }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -293,12 +318,10 @@ const SupplierSection = ({ supplierId, search }: { supplierId: string; search: s
   const filtered = useMemo(() => {
     if (!search.trim()) return items;
     const q = search.toLowerCase();
-    return items.filter((i: any) => i.supplier_products?.name?.toLowerCase().includes(q));
+    return items.filter((i: any) => i.supplier_product?.name?.toLowerCase().includes(q));
   }, [items, search]);
 
-  const totalEarnings = items
-    .filter((i: any) => i.supplier_status === "delivered")
-    .reduce((s: number, i: any) => s + Number(i.supplier_amount || 0), 0);
+  const totalEarnings = items.reduce((s: number, i: any) => s + Number(i.supplier_amount || 0), 0);
 
   if (isLoading) return <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>;
   if (items.length === 0) return null;
@@ -314,21 +337,21 @@ const SupplierSection = ({ supplierId, search }: { supplierId: string; search: s
         <h2 className="text-sm font-black text-foreground flex items-center gap-1.5">
           <Boxes className="w-4 h-4 text-primary" /> Pedidos como Fornecedor
         </h2>
-        <span className="text-[11px] font-bold text-green-600">{formatKz(totalEarnings)} entregues</span>
+        <span className="text-[11px] font-bold text-green-600">{formatKz(totalEarnings)} confirmados</span>
       </div>
 
       <div className="space-y-3">
         {filtered.map((item: any) => {
-          const cover = Array.isArray(item.supplier_products?.images) && item.supplier_products.images.length > 0
-            ? item.supplier_products.images[0] : null;
+          const cover = Array.isArray(item.supplier_product?.images) && item.supplier_product.images.length > 0
+            ? item.supplier_product.images[0] : null;
           const action = nextAction[item.supplier_status];
           return (
             <div key={item.id} className="bg-card rounded-2xl border border-border p-3.5">
               <div className="flex items-center gap-3">
-                <BigImage url={cover} alt={item.supplier_products?.name || "Produto"} />
+                <BigImage url={cover} alt={item.supplier_product?.name || "Produto"} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-foreground line-clamp-1">{item.supplier_products?.name || "Produto"}</p>
-                  <p className="text-xs text-muted-foreground">Qtd: {item.quantity} • {formatKz(item.unit_price)}</p>
+                  <p className="text-sm font-semibold text-foreground line-clamp-1">{item.supplier_product?.name || "Produto"}</p>
+                  <p className="text-xs text-muted-foreground">Qtd: {item.quantity} • {formatKz(item.price)}</p>
                   <p className="text-xs font-bold text-green-600 mt-0.5">Você recebe: {formatKz(item.supplier_amount)}</p>
                 </div>
                 <span className={`text-[10px] font-bold px-2 py-1 rounded-full border flex-shrink-0 ${statusColor(item.supplier_status)}`}>
@@ -342,128 +365,6 @@ const SupplierSection = ({ supplierId, search }: { supplierId: string; search: s
                   className="w-full mt-3 flex items-center justify-center gap-1.5 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-lg disabled:opacity-50"
                 >
                   <action.icon className="w-3.5 h-3.5" /> {action.label}
-                </button>
-              )}
-            </div>
-          );
-        })}
-        {filtered.length === 0 && <p className="text-center py-6 text-sm text-muted-foreground">Nenhum pedido encontrado para "{search}".</p>}
-      </div>
-    </div>
-  );
-};
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// Secção: Pedidos como Dropshipper (Loja)
-// ═══════════════════════════════════════════════════════════════════════════════
-const DropshipperSection = ({ storeId, search }: { storeId: string; search: string }) => {
-  const queryClient = useQueryClient();
-
-  const { data: orders = [], isLoading } = useQuery({
-    queryKey: ["central_dropship_orders", storeId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("supplier_orders")
-        .select("*, supplier_order_items(*, supplier_products(name, images))")
-        .eq("store_id", storeId)
-        .order("created_at", { ascending: false })
-        .limit(50);
-      if (error) throw error;
-      return data || [];
-    },
-    refetchInterval: 20000,
-  });
-
-  // O afiliado é quem recebe fisicamente do fornecedor e entrega ao
-  // cliente final — por isso é ele (não o fornecedor) quem fecha o ciclo
-  // marcando "entregue". Atualiza o pedido e todos os seus itens de uma vez.
-  const markDelivered = useMutation({
-    mutationFn: async (order: any) => {
-      const { error: orderError } = await supabase
-        .from("supplier_orders")
-        .update({ status: "delivered" })
-        .eq("id", order.id);
-      if (orderError) throw orderError;
-
-      const itemIds = (order.supplier_order_items || []).map((i: any) => i.id);
-      if (itemIds.length > 0) {
-        const { error: itemsError } = await supabase
-          .from("supplier_order_items")
-          .update({ supplier_status: "delivered" })
-          .in("id", itemIds);
-        if (itemsError) throw itemsError;
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["central_dropship_orders"] });
-      toast.success("Pedido marcado como entregue — ganhos atualizados");
-    },
-    onError: (e: any) => toast.error(e.message),
-  });
-
-  const filtered = useMemo(() => {
-    if (!search.trim()) return orders;
-    const q = search.toLowerCase();
-    return orders.filter((o: any) =>
-      o.id.toLowerCase().includes(q) ||
-      (o.supplier_order_items || []).some((i: any) => i.supplier_products?.name?.toLowerCase().includes(q))
-    );
-  }, [orders, search]);
-
-  const totalEarnings = orders
-    .filter((o: any) => o.status === "delivered")
-    .reduce((s: number, o: any) => s + (o.supplier_order_items || []).reduce((ss: number, i: any) => ss + Number(i.dropshipper_amount || 0), 0), 0);
-
-  if (isLoading) return <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>;
-  if (orders.length === 0) return null;
-
-  return (
-    <div className="mb-6">
-      <div className="flex items-center justify-between mb-2">
-        <h2 className="text-sm font-black text-foreground flex items-center gap-1.5">
-          <ShoppingBag className="w-4 h-4 text-primary" /> Pedidos da Minha Loja
-        </h2>
-        <span className="text-[11px] font-bold text-green-600">{formatKz(totalEarnings)} entregues</span>
-      </div>
-
-      <div className="space-y-3">
-        {filtered.map((o: any) => {
-          const items = o.supplier_order_items || [];
-          const myEarning = items.reduce((s: number, i: any) => s + Number(i.dropshipper_amount || 0), 0);
-          const allShipped = items.length > 0 && items.every((i: any) => i.supplier_status === "shipped" || i.supplier_status === "delivered");
-          const canMarkDelivered = o.status !== "delivered" && allShipped;
-          return (
-            <div key={o.id} className="bg-card rounded-2xl border border-border p-3.5">
-              <div className="flex items-start justify-between gap-2 mb-2.5">
-                <p className="text-sm font-bold text-foreground">#{o.id.slice(0, 8)}</p>
-                <span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${statusColor(o.status)}`}>
-                  {ORDER_STATUS_LABELS[o.status] || o.status}
-                </span>
-              </div>
-              {items.map((item: any) => {
-                const cover = Array.isArray(item.supplier_products?.images) && item.supplier_products.images.length > 0
-                  ? item.supplier_products.images[0] : null;
-                return (
-                  <div key={item.id} className="flex items-center gap-3 py-1.5">
-                    <BigImage url={cover} alt={item.supplier_products?.name || "Produto"} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-foreground line-clamp-1">{item.supplier_products?.name || "Produto"}</p>
-                      <p className="text-xs text-muted-foreground">Qtd: {item.quantity}</p>
-                    </div>
-                  </div>
-                );
-              })}
-              <div className="flex items-center justify-between mt-2.5 pt-2.5 border-t border-border">
-                <span className="text-sm font-black text-foreground">{formatKz(o.total_amount)}</span>
-                <span className="text-xs font-bold text-green-600">O seu lucro: {formatKz(myEarning)}</span>
-              </div>
-              {canMarkDelivered && (
-                <button
-                  onClick={() => markDelivered.mutate(o)}
-                  disabled={markDelivered.isPending}
-                  className="w-full mt-2.5 flex items-center justify-center gap-1.5 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-lg disabled:opacity-50"
-                >
-                  <CheckCircle className="w-3.5 h-3.5" /> Confirmar entrega ao cliente
                 </button>
               )}
             </div>
@@ -581,8 +482,6 @@ const CentralDePedidos = () => {
         )}
 
         {supplier?.id && <SupplierSection supplierId={supplier.id} search={search} />}
-
-        {dropshipStore?.id && <DropshipperSection storeId={dropshipStore.id} search={search} />}
 
       </div>
     </div>
