@@ -191,8 +191,14 @@ export default function AdminSuppliersTab() {
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/(^-|-$)/g, "")
         .slice(0, 60) + "-" + store.user_id.slice(0, 6);
-      const { data: existingSeller } = await (supabase as any).from("sellers").select("id").eq("user_id", store.user_id).maybeSingle();
-      const payload = { name: store.store_name, slug, type: "individual", description: store.description || null, phone: store.phone || null, province: store.province || null, is_active: true };
+      const { data: existingSeller } = await (supabase as any).from("sellers").select("id, type").eq("user_id", store.user_id).maybeSingle();
+      // 🔗 type "dropship" distingue este vendedor (criado automaticamente
+      // ao aprovar a candidatura) de um vendedor normal — usado em toda a
+      // parte para rotular corretamente como "Afiliado". Se a pessoa já
+      // era vendedor/empresa antes de virar afiliado, não mexemos no tipo
+      // dela — só ativamos a conta, sem apagar a identidade que já tinha.
+      const payload: any = { name: store.store_name, slug, description: store.description || null, phone: store.phone || null, province: store.province || null, is_active: true };
+      if (!existingSeller) payload.type = "dropship";
       const sellerResult = existingSeller
         ? await (supabase as any).from("sellers").update(payload).eq("id", existingSeller.id)
         : await (supabase as any).from("sellers").insert({ ...payload, user_id: store.user_id });
