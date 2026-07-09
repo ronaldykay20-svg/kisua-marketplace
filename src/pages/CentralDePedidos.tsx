@@ -124,8 +124,17 @@ const SellerOrCompanySection = ({ sellerId, sellerType, companyId, search }: { s
       let orderIds: string[] = [];
 
       if (sellerId) {
-        const { data } = await supabase.from("orders").select("id").eq("seller_id", sellerId).eq("payment_verified", true);
-        orderIds = (data || []).map((o: any) => o.id);
+        // Busca via order_items.seller_id (coluna indexada, preenchida por
+        // trigger no insert) em vez de orders.seller_id — porque uma
+        // encomenda pode ter itens de vários vendedores, e orders.seller_id
+        // só guarda o vendedor "principal" do checkout. Sem isto, um
+        // vendedor que não fosse o principal nunca via a própria venda.
+        const { data: items } = await supabase.from("order_items").select("order_id").eq("seller_id", sellerId);
+        const candidateIds = [...new Set((items || []).map((i: any) => i.order_id))];
+        if (candidateIds.length) {
+          const { data } = await supabase.from("orders").select("id").in("id", candidateIds).eq("payment_verified", true);
+          orderIds = (data || []).map((o: any) => o.id);
+        }
       } else if (companyId) {
         // Pedidos de loja: encontrados via order_items -> products.company_id
         const { data: companyProducts } = await supabase.from("products").select("id").eq("company_id", companyId);
@@ -143,7 +152,12 @@ const SellerOrCompanySection = ({ sellerId, sellerType, companyId, search }: { s
       if (orderIds.length === 0) return [];
 
       const { data: ordersData } = await supabase.from("orders").select("*").in("id", orderIds).order("created_at", { ascending: false });
-      const { data: items } = await supabase.from("order_items").select("*").in("order_id", orderIds);
+
+      // Se a encomenda tiver itens de vários vendedores (checkout partilhado),
+      // cada vendedor só deve ver a SUA parte — não os produtos do outro.
+      let itemsQuery = supabase.from("order_items").select("*").in("order_id", orderIds);
+      itemsQuery = sellerId ? itemsQuery.eq("seller_id", sellerId) : itemsQuery.eq("company_id", companyId);
+      const { data: items } = await itemsQuery;
 
       const productIds = [...new Set((items || []).map((i: any) => i.product_id))];
       let productMap: Record<string, any> = {};
