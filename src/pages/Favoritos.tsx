@@ -133,14 +133,15 @@ const FavCard = ({
   onCart: (id: string) => void;
 }) => {
   const navigate = useNavigate();
+  const [pressed, setPressed] = useState(false);
+  const [cartPop, setCartPop] = useState(false);
+  const [removing, setRemoving] = useState(false);
+
   const p = fav.products;
   if (!p) return null;
 
   const coverMedia = p.product_media?.find((m: any) => m.is_cover) || p.product_media?.[0];
   const img = coverMedia?.url || p.image_url;
-  const [pressed, setPressed] = useState(false);
-  const [cartPop, setCartPop] = useState(false);
-  const [removing, setRemoving] = useState(false);
 
   const handleRemove = (e: React.MouseEvent) => {
     e.stopPropagation();
