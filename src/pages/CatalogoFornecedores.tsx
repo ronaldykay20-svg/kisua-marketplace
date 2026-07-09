@@ -40,6 +40,23 @@ export default function CatalogoFornecedores() {
     enabled: !!user,
   });
 
+  // ✅ Perfil de vendedor (mesma tabela usada no Painel) — para saber se já
+  // tem cidade de despacho definida antes de deixar importar produtos.
+  const { data: sellerProfile } = useQuery({
+    queryKey: ["my_seller", user?.id],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("sellers")
+        .select("municipality_code")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+  const hasMunicipality = !!sellerProfile?.municipality_code;
+
   // ✅ Buscar produtos já adicionados — dropship_store_products
   const { data: addedIds = [] } = useQuery({
     queryKey: ["added_supplier_products", myStore?.id],
@@ -88,12 +105,12 @@ export default function CatalogoFornecedores() {
         .single();
       if (store?.status !== "active") throw new Error("A tua candidatura de afiliado ainda precisa de aprovação do Admin.");
 
-      const { error } = await supabase.from("dropship_store_products").insert({
+      const { data: dsp, error } = await supabase.from("dropship_store_products").insert({
         store_id: myStore.id,
         supplier_product_id: selected.id,
         selling_price: price,
         is_active: true,
-      });
+      }).select("id").single();
       if (error) throw error;
 
       const { data: seller } = await (supabase as any).from("sellers").select("id").eq("user_id", user!.id).maybeSingle();
@@ -123,8 +140,18 @@ export default function CatalogoFornecedores() {
           stock: selected.stock_quantity || 1,
           condition: "new",
           is_active: true,
+          // 🔗 liga este produto de volta ao item do catálogo do fornecedor
+          // que lhe deu origem — é isto que o gatilho SQL usa para
+          // descontar stock e creditar o fornecedor quando o pedido for pago.
+          supplier_product_id: selected.id,
         }).select("id").single();
         if (productError) throw productError;
+
+        // 🔗 completa a ligação do outro lado também, para gestão futura
+        if (dsp?.id && product?.id) {
+          await supabase.from("dropship_store_products").update({ product_id: product.id }).eq("id", dsp.id);
+        }
+
         if (selected.images?.length && product?.id) {
           const mediaRows = selected.images.map((url: string, i: number) => ({ product_id: product.id, url, type: "image", is_cover: i === 0, sort_order: i }));
           const { data: insertedMedia, error: mediaError } = await supabase.from("product_media").insert(mediaRows).select("id, type");
@@ -269,6 +296,23 @@ export default function CatalogoFornecedores() {
           )}
         </div>
       </div>
+
+      {!hasMunicipality && (
+        <div className="container mx-auto px-3 max-w-2xl pt-3">
+          <button
+            onClick={() => navigate("/painel-dropship")}
+            className="w-full flex items-start gap-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl p-3.5 text-left"
+          >
+            <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-bold text-amber-700">Falta definir a tua cidade de despacho</p>
+              <p className="text-[11px] text-amber-700/80 mt-0.5">
+                Produtos adicionados sem isso não calculam frete no checkout do cliente. Configura no Painel → Perfil antes de continuar.
+              </p>
+            </div>
+          </button>
+        </div>
+      )}
 
       {/* Conteúdo */}
       <div className="container mx-auto px-3 py-3 max-w-2xl">
