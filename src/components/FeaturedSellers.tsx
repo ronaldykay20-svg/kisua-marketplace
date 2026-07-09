@@ -167,7 +167,7 @@ const FeaturedSellers = ({ layout = "mobile" }: FeaturedSellersProps) => {
                 {seller.is_verified && <CheckCircle className="w-3.5 h-3.5 text-white" />}
               </div>
               <span className="text-[10px] text-white/70">
-                {seller.type === "company" ? "Empresa" : "Vendedor"}
+                {seller.type === "company" ? "Empresa" : seller.type === "dropship" ? "Afiliado" : "Vendedor"}
               </span>
             </div>
           </div>
