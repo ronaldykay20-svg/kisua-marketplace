@@ -372,7 +372,7 @@ const NormalOrdersSection = () => {
                     <ItemImage url={p?.cover_url || null} alt={p?.title || "Produto"} />
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-semibold text-foreground line-clamp-1">{p?.title || "Produto removido"}</p>
-                      <p className="text-[10px] text-muted-foreground">Qtd: {item.quantity} • {formatPrice(item.unit_price)}</p>
+                      <p className="text-[10px] text-muted-foreground">Qtd: {item.quantity} • {formatPrice(item.price)}</p>
                       {entity && (
                         <p className="text-[10px] font-bold text-primary flex items-center gap-1 mt-0.5">
                           {entity.type === "Loja" ? <Building2 className="w-3 h-3" /> : <Store className="w-3 h-3" />}
@@ -444,56 +444,74 @@ const NormalOrdersSection = () => {
 const DropshipOrdersSection = () => {
   const [notifyTarget, setNotifyTarget] = useState<any>(null);
 
+  // 🔗 Lê diretamente dos order_items reais (ligação products.supplier_product_id
+  // criada na migração 001), em vez de "supplier_orders"/"supplier_order_items",
+  // que nunca recebiam dados de uma venda de verdade.
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ["admin_full_orders_dropship"],
     queryFn: async () => {
-      const { data: ordersData, error } = await supabase
-        .from("supplier_orders")
-        .select("*")
+      const { data: items, error } = await (supabase as any)
+        .from("order_items")
+        .select("*, products!inner(seller_id, supplier_product_id), orders!inner(id, created_at, status, shipping_address, payment_verified)")
+        .not("products.supplier_product_id", "is", null)
+        .eq("orders.payment_verified", true)
         .order("created_at", { ascending: false })
-        .limit(50);
+        .limit(200);
       if (error) throw error;
-      if (!ordersData?.length) return [];
+      if (!items?.length) return [];
 
-      const orderIds = ordersData.map((o: any) => o.id);
-      const { data: items } = await supabase
-        .from("supplier_order_items")
-        .select("*")
-        .in("order_id", orderIds);
-
-      const supplierProductIds = [...new Set((items || []).map((i: any) => i.supplier_product_id).filter(Boolean))];
-      const supplierIds = [...new Set((items || []).map((i: any) => i.supplier_id).filter(Boolean))];
-      const storeIds = [...new Set(ordersData.map((o: any) => o.store_id).filter(Boolean))];
+      const supplierProductIds = [...new Set(items.map((i: any) => i.products.supplier_product_id).filter(Boolean))];
+      const sellerIds = [...new Set(items.map((i: any) => i.products.seller_id).filter(Boolean))];
 
       const { data: sProducts } = supplierProductIds.length
-        ? await supabase.from("supplier_products").select("id, name, images").in("id", supplierProductIds)
+        ? await supabase.from("supplier_products").select("id, name, images, cost_price, supplier_id").in("id", supplierProductIds)
         : { data: [] as any[] };
+      const supplierIds = [...new Set((sProducts || []).map((p: any) => p.supplier_id).filter(Boolean))];
       const { data: suppliers } = supplierIds.length
-        ? await supabase.from("suppliers").select("id, company_name, user_id").in("id", supplierIds)
+        ? await supabase.from("suppliers").select("id, name, user_id").in("id", supplierIds)
         : { data: [] as any[] };
-      const { data: stores } = storeIds.length
-        ? await supabase.from("dropship_stores").select("id, store_name, user_id").in("id", storeIds)
+
+      const { data: sellers } = sellerIds.length
+        ? await (supabase as any).from("sellers").select("id, user_id").in("id", sellerIds)
+        : { data: [] as any[] };
+      const sellerUserIds = [...new Set((sellers || []).map((s: any) => s.user_id).filter(Boolean))];
+      const { data: stores } = sellerUserIds.length
+        ? await supabase.from("dropship_stores").select("id, store_name, user_id").in("user_id", sellerUserIds)
         : { data: [] as any[] };
 
       const sProductMap = Object.fromEntries((sProducts || []).map((p: any) => [p.id, p]));
       const supplierMap = Object.fromEntries((suppliers || []).map((s: any) => [s.id, s]));
-      const storeMap = Object.fromEntries((stores || []).map((s: any) => [s.id, s]));
+      const sellerMap = Object.fromEntries((sellers || []).map((s: any) => [s.id, s]));
+      const storeByUserId = Object.fromEntries((stores || []).map((s: any) => [s.user_id, s]));
 
-      const itemsByOrder: Record<string, any[]> = {};
-      (items || []).forEach((i: any) => {
-        if (!itemsByOrder[i.order_id]) itemsByOrder[i.order_id] = [];
-        itemsByOrder[i.order_id].push({
-          ...i,
-          supplierProduct: sProductMap[i.supplier_product_id] || null,
-          supplier: supplierMap[i.supplier_id] || null,
-        });
-      });
+      const ordersById: Record<string, any> = {};
+      for (const item of items) {
+        const sp = sProductMap[item.products.supplier_product_id];
+        const supplier = sp ? supplierMap[sp.supplier_id] : null;
+        const seller = sellerMap[item.products.seller_id];
+        const store = seller ? storeByUserId[seller.user_id] : null;
 
-      return ordersData.map((o: any) => ({
-        ...o,
-        store: o.store_id ? storeMap[o.store_id] : null,
-        items: itemsByOrder[o.id] || [],
-      }));
+        const saleAmount = item.price * item.quantity;
+        const supplierAmount = (sp?.cost_price || 0) * item.quantity;
+        const dropshipperAmount = Math.max(0, saleAmount - supplierAmount - saleAmount * 0.10);
+
+        const enrichedItem = {
+          ...item,
+          supplierProduct: sp,
+          supplier,
+          store,
+          supplier_amount: supplierAmount,
+          dropshipper_amount: dropshipperAmount,
+        };
+
+        const o = item.orders;
+        if (!ordersById[o.id]) {
+          ordersById[o.id] = { ...o, store, items: [] };
+        }
+        ordersById[o.id].items.push(enrichedItem);
+      }
+
+      return Object.values(ordersById);
     },
     refetchInterval: 20000,
   });
@@ -555,7 +573,7 @@ const DropshipOrdersSection = () => {
                       <ItemImage url={cover} alt={item.supplierProduct?.name || "Produto"} />
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-semibold text-foreground line-clamp-1">{item.supplierProduct?.name || "Produto"}</p>
-                        <p className="text-[10px] text-muted-foreground">Qtd: {item.quantity} • {formatPrice(item.unit_price)}</p>
+                        <p className="text-[10px] text-muted-foreground">Qtd: {item.quantity} • {formatPrice(item.price)}</p>
                       </div>
                       <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ${statusColor(item.supplier_status)}`}>
                         {SUPPLIER_STATUS_LABELS[item.supplier_status] || item.supplier_status}
@@ -565,7 +583,7 @@ const DropshipOrdersSection = () => {
                     {/* Rota ilustrativa */}
                     <div className="flex items-center gap-1.5 flex-wrap text-[10px] font-bold">
                       <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-purple-500/10 text-purple-600">
-                        <Boxes className="w-3 h-3" /> {item.supplier?.company_name || "Fornecedor"}
+                        <Boxes className="w-3 h-3" /> {item.supplier?.name || "Fornecedor"}
                       </span>
                       <ArrowRight className="w-3 h-3 text-muted-foreground" />
                       <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-blue-500/10 text-blue-600">
@@ -586,7 +604,7 @@ const DropshipOrdersSection = () => {
                     <div className="flex gap-2 mt-2">
                       {item.supplier?.user_id && (
                         <button
-                          onClick={() => setNotifyTarget({ userId: item.supplier.user_id, label: item.supplier.company_name || "Fornecedor" })}
+                          onClick={() => setNotifyTarget({ userId: item.supplier.user_id, label: item.supplier.name || "Fornecedor" })}
                           className="text-[10px] font-bold px-2 py-1 rounded-lg bg-muted text-foreground"
                         >
                           Avisar fornecedor
