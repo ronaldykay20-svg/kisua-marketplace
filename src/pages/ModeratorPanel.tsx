@@ -176,7 +176,7 @@ const ModeratorPanel = () => {
                       <p className="text-sm font-bold text-foreground flex items-center gap-1">
                         {s.name} {s.is_verified && <ShieldCheck className="w-3.5 h-3.5 text-blue-500" />}
                       </p>
-                      <p className="text-[10px] text-muted-foreground">{s.type} • {s.total_sales || 0} vendas</p>
+                      <p className="text-[10px] text-muted-foreground">{s.type === "company" ? "Empresa" : s.type === "dropship" ? "Afiliado" : "Vendedor"} • {s.total_sales || 0} vendas</p>
                     </div>
                   </div>
                   <button onClick={() => toggleVerifySeller.mutate({ id: s.id, verified: !s.is_verified })}
