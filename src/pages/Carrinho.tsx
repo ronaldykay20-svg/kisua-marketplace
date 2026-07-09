@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Minus, Plus, Trash2, ShoppingCart, Loader2, Star, Heart, ImageOff, Check, Pencil, X } from "lucide-react";
+import { Minus, Plus, Trash2, ShoppingCart, Loader2, Star, Heart, ImageOff, Check, Pencil, X, Store } from "lucide-react";
 import { useCart } from "@/hooks/useSupabaseData";
 import { useUpdateCartItem, useRemoveCartItem, useAddToCart } from "@/hooks/useCartActions";
 import FreeShippingBar from "@/components/FreeShippingBar";
@@ -146,6 +146,43 @@ const Carrinho = () => {
     const sellerRel: any = Array.isArray(prod.sellers) ? prod.sellers[0] : prod.sellers;
     const companyRel: any = Array.isArray(prod.companies) ? prod.companies[0] : prod.companies;
     return sellerRel?.name || companyRel?.name || "Zangu";
+  };
+
+  // ── Agrupamento por loja/vendedor (estilo Shein) ────────────────────────────
+  // Usa a mesma chave (seller_id ou company_id) que o Checkout.tsx usa para
+  // calcular o frete — assim a loja que o utilizador vê aqui é sempre a mesma
+  // que vai gerar uma linha de frete separada no checkout.
+  const getSellerKey = (item: any): string => {
+    const prod = cartProductSellers.find((p: any) => p.id === item.products?.id);
+    if (!prod) return "zangu";
+    const sellerRel: any = Array.isArray(prod.sellers) ? prod.sellers[0] : prod.sellers;
+    const companyRel: any = Array.isArray(prod.companies) ? prod.companies[0] : prod.companies;
+    return sellerRel?.id || companyRel?.id || "zangu";
+  };
+
+  const storeGroups = useMemo(() => {
+    const map = new Map<string, { key: string; name: string; items: any[] }>();
+    for (const item of cartItems as any[]) {
+      if (!item.products) continue;
+      const key = getSellerKey(item);
+      if (!map.has(key)) {
+        map.set(key, { key, name: getSellerName(item), items: [] });
+      }
+      map.get(key)!.items.push(item);
+    }
+    return Array.from(map.values());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cartItems, cartProductSellers]);
+
+  const isGroupFullySelected = (items: any[]) =>
+    items.length > 0 && items.every((i: any) => selectedIds.includes(i.id));
+
+  const toggleGroupSelect = (items: any[]) => {
+    const ids = items.map((i: any) => i.id);
+    const allIn = ids.every((id: string) => selectedIds.includes(id));
+    setSelectedIds(prev =>
+      allIn ? prev.filter(id => !ids.includes(id)) : Array.from(new Set([...prev, ...ids]))
+    );
   };
 
   const categoryIds = useMemo(
@@ -321,109 +358,168 @@ const Carrinho = () => {
             {/* ── Barra de frete grátis ── */}
             <FreeShippingBar subtotal={subtotal} />
 
-            {/* ── Itens ── */}
+            {/* ── Itens agrupados por loja (estilo Shein) ── */}
             <div className="space-y-3">
-              {(cartItems as any[]).map((item: any) => {
-                const product = item.products;
-                if (!product) return null;
-                const coverUrl: string | null = product.cover_url || product.image_url || null;
-                const isSelected = selectedIds.includes(item.id);
-
+              {storeGroups.map((store) => {
+                const groupSelected = isGroupFullySelected(store.items);
                 return (
                   <div
-                    key={item.id}
-                    className="rounded-2xl p-3 flex gap-3"
-                    style={{
-                      background: "#fff",
-                      border: `1px solid ${isSelected ? brown : sand}`,
-                      opacity: isSelected ? 1 : 0.6,
-                    }}
+                    key={store.key}
+                    className="rounded-2xl overflow-hidden"
+                    style={{ background: "#fff", border: `1px solid ${sand}` }}
                   >
-                    <button
-                      onClick={() => toggleSelect(item.id)}
-                      className="flex items-start pt-1 flex-shrink-0"
-                      aria-label="Seleccionar item"
+                    {/* Cabeçalho da loja */}
+                    <div
+                      className="flex items-center gap-2.5 px-3 py-2.5"
+                      style={{ borderBottom: `1px solid ${sand}`, background: brownLight }}
                     >
-                      <div
-                        className="w-5 h-5 rounded-full flex items-center justify-center"
-                        style={isSelected
-                          ? { background: brown, border: `1.5px solid ${brown}` }
-                          : { background: "#fff", border: `1.5px solid ${sand}` }}
+                      <button
+                        onClick={() => toggleGroupSelect(store.items)}
+                        className="flex items-center flex-shrink-0"
+                        aria-label="Seleccionar loja"
                       >
-                        {isSelected && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
-                      </div>
-                    </button>
-
-                    {coverUrl ? (
-                      <img
-                        src={coverUrl}
-                        alt={product.title}
-                        className="w-24 h-24 rounded-xl object-cover flex-shrink-0 cursor-pointer"
-                        onClick={() => navigate(`/produto/${product.id}`)}
-                        onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                      />
-                    ) : (
-                      <div className="cursor-pointer" onClick={() => navigate(`/produto/${product.id}`)}>
-                        <ImagePlaceholder className="w-24 h-24" />
-                      </div>
-                    )}
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <p
-                          className="text-sm font-bold line-clamp-2 cursor-pointer"
-                          style={{ color: brown }}
-                          onClick={() => navigate(`/produto/${product.id}`)}
+                        <div
+                          className="w-5 h-5 rounded-full flex items-center justify-center"
+                          style={groupSelected
+                            ? { background: brown, border: `1.5px solid ${brown}` }
+                            : { background: "#fff", border: `1.5px solid ${sand}` }}
                         >
-                          {product.title}
-                        </p>
-                        {editMode && (
-                          <button
-                            onClick={() => removeItem.mutate(item.id)}
-                            className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
-                            style={{ background: "rgba(229,57,53,0.08)", color: danger }}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-
-                      <p className="text-[11px] mt-1 leading-tight" style={{ color: sandDark }}>
-                        Vendido por <span className="font-semibold" style={{ color: brown }}>{getSellerName(item)}</span>
-                      </p>
-                      <p className="text-[10px] flex items-center gap-1" style={{ color: sandDark }}>
-                        🛡 Entregue por parceiros confiáveis da Zangu
-                      </p>
-
-                      <div className="flex items-center justify-between mt-2">
-                        <p className="text-base font-black" style={{ color: brown }}>
-                          {formatPrice(product.price)}
-                        </p>
-                        <div className="flex items-center rounded-xl overflow-hidden" style={{ border: `1.5px solid ${sand}` }}>
-                          <button
-                            onClick={() => handleQuantity(item, -1)}
-                            className="w-8 h-8 flex items-center justify-center"
-                            style={{ color: sandDark }}
-                          >
-                            <Minus className="w-3 h-3" />
-                          </button>
-                          <span className="w-8 text-center text-sm font-black" style={{ color: brown }}>
-                            {item.quantity}
-                          </span>
-                          <button
-                            onClick={() => handleQuantity(item, +1)}
-                            className="w-8 h-8 flex items-center justify-center"
-                            style={{ color: sandDark }}
-                          >
-                            <Plus className="w-3 h-3" />
-                          </button>
+                          {groupSelected && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
                         </div>
+                      </button>
+                      <Store className="w-3.5 h-3.5 flex-shrink-0" style={{ color: sandDark }} />
+                      <span className="text-xs font-black flex-1 truncate" style={{ color: brown }}>
+                        {store.name}
+                      </span>
+                      <span
+                        className="text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
+                        style={{ background: "#fff", color: sandDark }}
+                      >
+                        {store.items.length} {store.items.length === 1 ? "item" : "itens"}
+                      </span>
+                    </div>
+
+                    {/* Itens da loja */}
+                    <div className="p-3 space-y-3">
+                      {store.items.map((item: any) => {
+                        const product = item.products;
+                        if (!product) return null;
+                        const coverUrl: string | null = product.cover_url || product.image_url || null;
+                        const isSelected = selectedIds.includes(item.id);
+
+                        return (
+                          <div
+                            key={item.id}
+                            className="rounded-2xl p-3 flex gap-3"
+                            style={{
+                              background: "#fff",
+                              border: `1px solid ${isSelected ? brown : sand}`,
+                              opacity: isSelected ? 1 : 0.6,
+                            }}
+                          >
+                            <button
+                              onClick={() => toggleSelect(item.id)}
+                              className="flex items-start pt-1 flex-shrink-0"
+                              aria-label="Seleccionar item"
+                            >
+                              <div
+                                className="w-5 h-5 rounded-full flex items-center justify-center"
+                                style={isSelected
+                                  ? { background: brown, border: `1.5px solid ${brown}` }
+                                  : { background: "#fff", border: `1.5px solid ${sand}` }}
+                              >
+                                {isSelected && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                              </div>
+                            </button>
+
+                            {coverUrl ? (
+                              <img
+                                src={coverUrl}
+                                alt={product.title}
+                                className="w-24 h-24 rounded-xl object-cover flex-shrink-0 cursor-pointer"
+                                onClick={() => navigate(`/produto/${product.id}`)}
+                                onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                              />
+                            ) : (
+                              <div className="cursor-pointer" onClick={() => navigate(`/produto/${product.id}`)}>
+                                <ImagePlaceholder className="w-24 h-24" />
+                              </div>
+                            )}
+
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2">
+                                <p
+                                  className="text-sm font-bold line-clamp-2 cursor-pointer"
+                                  style={{ color: brown }}
+                                  onClick={() => navigate(`/produto/${product.id}`)}
+                                >
+                                  {product.title}
+                                </p>
+                                {editMode && (
+                                  <button
+                                    onClick={() => removeItem.mutate(item.id)}
+                                    className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
+                                    style={{ background: "rgba(229,57,53,0.08)", color: danger }}
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
+
+                              <p className="text-[10px] flex items-center gap-1" style={{ color: sandDark }}>
+                                🛡 Entregue por parceiros confiáveis da Zangu
+                              </p>
+
+                              <div className="flex items-center justify-between mt-2">
+                                <p className="text-base font-black" style={{ color: brown }}>
+                                  {formatPrice(product.price)}
+                                </p>
+                                <div className="flex items-center rounded-xl overflow-hidden" style={{ border: `1.5px solid ${sand}` }}>
+                                  <button
+                                    onClick={() => handleQuantity(item, -1)}
+                                    className="w-8 h-8 flex items-center justify-center"
+                                    style={{ color: sandDark }}
+                                  >
+                                    <Minus className="w-3 h-3" />
+                                  </button>
+                                  <span className="w-8 text-center text-sm font-black" style={{ color: brown }}>
+                                    {item.quantity}
+                                  </span>
+                                  <button
+                                    onClick={() => handleQuantity(item, +1)}
+                                    className="w-8 h-8 flex items-center justify-center"
+                                    style={{ color: sandDark }}
+                                  >
+                                    <Plus className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* Subtotal da loja — dá ao utilizador uma noção do valor por loja
+                          sem ainda falar de frete (isso só aparece no checkout). */}
+                      <div className="flex justify-between pt-1">
+                        <span className="text-[11px]" style={{ color: sandDark }}>
+                          Subtotal desta loja
+                        </span>
+                        <span className="text-xs font-bold" style={{ color: brown }}>
+                          {formatPrice(
+                            store.items.reduce(
+                              (sum: number, i: any) => sum + (i.products?.price || 0) * i.quantity,
+                              0
+                            )
+                          )}
+                        </span>
                       </div>
                     </div>
                   </div>
                 );
               })}
             </div>
+
 
             {/* ── Resumo do pedido ── */}
             {!editMode && (
