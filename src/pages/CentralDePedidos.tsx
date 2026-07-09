@@ -357,6 +357,8 @@ const SupplierSection = ({ supplierId, search }: { supplierId: string; search: s
 // Secção: Pedidos como Dropshipper (Loja)
 // ═══════════════════════════════════════════════════════════════════════════════
 const DropshipperSection = ({ storeId, search }: { storeId: string; search: string }) => {
+  const queryClient = useQueryClient();
+
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ["central_dropship_orders", storeId],
     queryFn: async () => {
@@ -370,6 +372,33 @@ const DropshipperSection = ({ storeId, search }: { storeId: string; search: stri
       return data || [];
     },
     refetchInterval: 20000,
+  });
+
+  // O afiliado é quem recebe fisicamente do fornecedor e entrega ao
+  // cliente final — por isso é ele (não o fornecedor) quem fecha o ciclo
+  // marcando "entregue". Atualiza o pedido e todos os seus itens de uma vez.
+  const markDelivered = useMutation({
+    mutationFn: async (order: any) => {
+      const { error: orderError } = await supabase
+        .from("supplier_orders")
+        .update({ status: "delivered" })
+        .eq("id", order.id);
+      if (orderError) throw orderError;
+
+      const itemIds = (order.supplier_order_items || []).map((i: any) => i.id);
+      if (itemIds.length > 0) {
+        const { error: itemsError } = await supabase
+          .from("supplier_order_items")
+          .update({ supplier_status: "delivered" })
+          .in("id", itemIds);
+        if (itemsError) throw itemsError;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["central_dropship_orders"] });
+      toast.success("Pedido marcado como entregue — ganhos atualizados");
+    },
+    onError: (e: any) => toast.error(e.message),
   });
 
   const filtered = useMemo(() => {
@@ -401,6 +430,8 @@ const DropshipperSection = ({ storeId, search }: { storeId: string; search: stri
         {filtered.map((o: any) => {
           const items = o.supplier_order_items || [];
           const myEarning = items.reduce((s: number, i: any) => s + Number(i.dropshipper_amount || 0), 0);
+          const allShipped = items.length > 0 && items.every((i: any) => i.supplier_status === "shipped" || i.supplier_status === "delivered");
+          const canMarkDelivered = o.status !== "delivered" && allShipped;
           return (
             <div key={o.id} className="bg-card rounded-2xl border border-border p-3.5">
               <div className="flex items-start justify-between gap-2 mb-2.5">
@@ -426,6 +457,15 @@ const DropshipperSection = ({ storeId, search }: { storeId: string; search: stri
                 <span className="text-sm font-black text-foreground">{formatKz(o.total_amount)}</span>
                 <span className="text-xs font-bold text-green-600">O seu lucro: {formatKz(myEarning)}</span>
               </div>
+              {canMarkDelivered && (
+                <button
+                  onClick={() => markDelivered.mutate(o)}
+                  disabled={markDelivered.isPending}
+                  className="w-full mt-2.5 flex items-center justify-center gap-1.5 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-lg disabled:opacity-50"
+                >
+                  <CheckCircle className="w-3.5 h-3.5" /> Confirmar entrega ao cliente
+                </button>
+              )}
             </div>
           );
         })}
