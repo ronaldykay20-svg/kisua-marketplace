@@ -209,6 +209,11 @@ const VendedorPerfil = () => {
               <div className="flex items-center gap-1.5">
                 <h1 className="text-base font-black text-foreground">{seller.name}</h1>
                 {seller.is_verified && <CheckCircle className="w-4 h-4 text-primary" />}
+                {seller.type === "dropship" && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600">
+                    Afiliado
+                  </span>
+                )}
               </div>
               <p className="text-xs text-muted-foreground">{seller.description || "Vendedor"}</p>
             </div>
