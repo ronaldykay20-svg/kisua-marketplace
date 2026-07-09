@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useFreight, useCheckoutFreight, DeliveryType } from "@/hooks/useFreight";
+import { useFreightCompanyOptions, FreightCompanyOption } from "@/hooks/useFreightCompanies";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -39,6 +40,9 @@ interface CartGroup {
     imageUrl?: string;
   }[];
   subtotal: number;
+  // Soma do peso (kg) de todos os itens deste grupo — usada para filtrar as
+  // faixas de peso do tarifário das empresas transportadoras.
+  totalWeightKg?: number;
 }
 
 interface FreightSelection {
@@ -48,6 +52,9 @@ interface FreightSelection {
   daysMin: number;
   daysMax: number;
   source: string;
+  // Preenchido quando o comprador escolhe uma empresa transportadora em vez
+  // do frete padrão da ZANGU (rota interprovincial).
+  freightCompanyId?: string | null;
 }
 
 interface Props {
@@ -332,22 +339,39 @@ function SellerFreightRow({
   calculateFreight,
   onSelect,
 }: SellerFreightRowProps) {
-  const [deliveryType, setDeliveryType] = useState<DeliveryType>("standard");
+  // "standard" | "express" | "company:<rate_id>" — um único estado cobre
+  // as opções da plataforma e as das empresas transportadoras.
+  const [mode, setMode] = useState<string>("standard");
   const [expressResult, setExpressResult] = useState<any>(null);
   const [loadingExpress, setLoadingExpress] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [showPickup, setShowPickup] = useState(false);
-  // Por defeito o método de entrega vem RECOLHIDO — mostra-se só a opção já
-  // seleccionada (normal, grátis por defeito) e um botão "Alterar". Isto evita
-  // que o checkout mostre 4 blocos grandes de "Entrega normal / expressa"
-  // abertos ao mesmo tempo quando há vários vendedores no carrinho.
-  const [methodExpanded, setMethodExpanded] = useState(false);
 
   const { result, loading, recalculate } = useCheckoutFreight(
     group.seller.sellerId,
     group.seller.originMunicipalityCode,
     destMunicipalityCode
   );
+
+  // Resolve as províncias de origem/destino a partir dos códigos de município
+  // para saber se esta rota é interprovincial e, nesse caso, ir buscar as
+  // opções das empresas transportadoras.
+  const originMun = municipalities.find(
+    (m: any) => m.code === group.seller.originMunicipalityCode
+  );
+  const destMun = municipalities.find((m: any) => m.code === destMunicipalityCode);
+  const originProvinceId = originMun?.province_id ?? null;
+  const destProvinceId = destMun?.province_id ?? null;
+  const isInterprovincial =
+    !!originProvinceId && !!destProvinceId && originProvinceId !== destProvinceId;
+
+  const { options: companyOptions, loading: loadingCompanyOptions } =
+    useFreightCompanyOptions(
+      isInterprovincial ? originProvinceId : null,
+      isInterprovincial ? destProvinceId : null,
+      group.totalWeightKg ?? 0,
+      null
+    );
 
   useEffect(() => {
     if (!group.seller.sellerId || !group.seller.originMunicipalityCode || !destMunicipalityCode)
@@ -366,25 +390,49 @@ function SellerFreightRow({
   }, [group.seller.sellerId, group.seller.originMunicipalityCode, destMunicipalityCode, calculateFreight]);
 
   useEffect(() => {
-    const activeResult = deliveryType === "express" ? expressResult : result;
+    if (mode.startsWith("company:")) return; // tratado em handleSelectCompany
+    const activeResult = mode === "express" ? expressResult : result;
     if (!activeResult || activeResult.error) return;
     onSelect({
       sellerId: group.seller.sellerId,
-      deliveryType,
+      deliveryType: mode as DeliveryType,
       price: activeResult.price,
       daysMin: activeResult.days_min,
       daysMax: activeResult.days_max,
       source: activeResult.source,
+      freightCompanyId: null,
     });
-  }, [result, expressResult, deliveryType, group.seller.sellerId, onSelect]);
+  }, [result, expressResult, mode, group.seller.sellerId, onSelect]);
 
   const handleTypeChange = (val: DeliveryType) => {
-    setDeliveryType(val);
+    setMode(val);
     recalculate(val);
-    setMethodExpanded(false);
   };
 
-  const activeResult = deliveryType === "express" ? expressResult : result;
+  const handleSelectCompany = (opt: FreightCompanyOption) => {
+    setMode(`company:${opt.rate_id}`);
+    onSelect({
+      sellerId: group.seller.sellerId,
+      deliveryType: "standard",
+      price: opt.price_kwz,
+      daysMin: opt.days_min,
+      daysMax: opt.days_max,
+      source: `company:${opt.company_name}`,
+      freightCompanyId: opt.company_id,
+    });
+  };
+
+  const handleModeChange = (v: string) => {
+    if (v === "standard" || v === "express") {
+      handleTypeChange(v);
+    } else if (v.startsWith("company:")) {
+      const rateId = v.slice("company:".length);
+      const opt = companyOptions.find((o) => o.rate_id === rateId);
+      if (opt) handleSelectCompany(opt);
+    }
+  };
+
+  const activeResult = mode === "express" ? expressResult : mode === "standard" ? result : null;
   const noRoute = !loading && result && (result.error || result.source === "error");
   const isPickup = activeResult?.source === "pickup" || showPickup;
   const isFree = activeResult?.price === 0 && activeResult?.source !== "pickup";
@@ -471,61 +519,17 @@ function SellerFreightRow({
             </div>
             <Badge className="ml-auto bg-rose-500/20 text-rose-400 border-rose-500/30">Grátis</Badge>
           </div>
-        ) : !methodExpanded ? (
-          // ── Resumo compacto (estado por defeito) ──────────────────────────
-          // Mostra só o método já seleccionado e o preço, com um botão
-          // "Alterar" — evita mostrar todos os vendedores com os cartões de
-          // "Entrega normal / expressa" abertos ao mesmo tempo.
-          <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/10 p-3">
-            {isFree ? (
-              <Gift className="w-4 h-4 text-green-400 shrink-0" />
-            ) : deliveryType === "express" ? (
-              <Zap className="w-4 h-4 text-amber-400 shrink-0" />
-            ) : (
-              <Truck className="w-4 h-4 text-muted-foreground shrink-0" />
-            )}
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium">
-                {deliveryType === "express" ? "Entrega expressa" : "Entrega normal"}
-              </p>
-              {activeResult && !loadingExpress && (
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  {activeResult.days_min === activeResult.days_max
-                    ? `${activeResult.days_min} dias úteis`
-                    : `${activeResult.days_min}–${activeResult.days_max} dias úteis`}
-                </p>
-              )}
-            </div>
-            <div className="text-right shrink-0 flex items-center gap-2">
-              {!activeResult || loadingExpress ? (
-                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-              ) : isFree ? (
-                <span className="text-sm font-semibold text-green-400">Grátis</span>
-              ) : (
-                <span className="text-sm font-semibold">{fmtKz(activeResult.price)}</span>
-              )}
-              {hasExpress && (
-                <button
-                  onClick={() => setMethodExpanded(true)}
-                  className="text-xs font-semibold text-primary underline underline-offset-2"
-                >
-                  Alterar
-                </button>
-              )}
-            </div>
-          </div>
         ) : (
           <RadioGroup
-            value={deliveryType}
-            onValueChange={(v) => handleTypeChange(v as DeliveryType)}
+            value={mode}
+            onValueChange={handleModeChange}
             className="space-y-2"
           >
             <Label
               htmlFor={`std-${group.seller.sellerId}`}
               className={cn(
                 "flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-all",
-                deliveryType === "standard"
+                mode === "standard"
                   ? "border-primary bg-primary/5"
                   : "border-border hover:border-muted-foreground"
               )}
@@ -564,7 +568,7 @@ function SellerFreightRow({
                 htmlFor={`exp-${group.seller.sellerId}`}
                 className={cn(
                   "flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-all",
-                  deliveryType === "express"
+                  mode === "express"
                     ? "border-amber-500 bg-amber-500/5"
                     : "border-border hover:border-muted-foreground"
                 )}
@@ -599,13 +603,66 @@ function SellerFreightRow({
               </Label>
             )}
 
-            {methodExpanded && (
-              <button
-                onClick={() => setMethodExpanded(false)}
-                className="w-full text-center text-xs font-semibold text-muted-foreground py-1"
-              >
-                Ocultar opções
-              </button>
+            {isInterprovincial && loadingCompanyOptions && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                A procurar transportadoras para esta rota…
+              </div>
+            )}
+
+            {isInterprovincial && !loadingCompanyOptions && companyOptions.length > 0 && (
+              <>
+                <p className="text-xs text-muted-foreground font-medium pt-1 flex items-center gap-1.5">
+                  <Truck className="w-3 h-3" />
+                  Transportadoras disponíveis para esta rota
+                </p>
+                {companyOptions.map((opt) => {
+                  const value = `company:${opt.rate_id}`;
+                  const active = mode === value;
+                  return (
+                    <Label
+                      key={opt.rate_id}
+                      htmlFor={`co-${opt.rate_id}`}
+                      className={cn(
+                        "flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-all",
+                        active
+                          ? "border-blue-500 bg-blue-500/5"
+                          : "border-border hover:border-muted-foreground"
+                      )}
+                    >
+                      <RadioGroupItem value={value} id={`co-${opt.rate_id}`} className="shrink-0" />
+                      {opt.company_logo_url ? (
+                        <img
+                          src={opt.company_logo_url}
+                          alt={opt.company_name}
+                          className="w-4 h-4 rounded object-cover shrink-0"
+                        />
+                      ) : (
+                        <Truck className="w-4 h-4 text-blue-400 shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{opt.company_name}</p>
+                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {opt.days_min === opt.days_max
+                            ? `${opt.days_min} dia útil`
+                            : `${opt.days_min}–${opt.days_max} dias úteis`}
+                          {opt.material_type_name && (
+                            <span className="ml-1 text-[10px] opacity-60">
+                              ({opt.material_type_name})
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="text-sm font-semibold text-blue-400">
+                          {fmtKz(opt.price_kwz)}
+                        </span>
+                      </div>
+                    </Label>
+                  );
+                })}
+              </>
             )}
           </RadioGroup>
         )}
@@ -727,13 +784,27 @@ export default function FreightCalculator({
         </div>
       ) : (
         <>
+          <div className="space-y-3">
+            {cartGroups.map((group) => (
+              <SellerFreightRow
+                key={group.seller.sellerId}
+                group={group}
+                destMunicipalityCode={destCode}
+                provinces={provinces}
+                municipalities={municipalities}
+                calculateFreight={calculateFreight}
+                onSelect={handleSelect}
+              />
+            ))}
+          </div>
+
           {cartGroups.length > 1 && (
             <div className="rounded-xl border bg-muted/20 p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Truck className="w-4 h-4 text-muted-foreground" />
                   <span className="text-sm font-medium">Total de frete</span>
-                  <span className="text-xs text-muted-foreground">({cartGroups.length} lojas)</span>
+                  <span className="text-xs text-muted-foreground">({cartGroups.length} vendedores)</span>
                 </div>
                 <div className="text-right">
                   {!allSelected ? (
@@ -751,26 +822,22 @@ export default function FreightCalculator({
                   )}
                 </div>
               </div>
-              <p className="text-[11px] text-muted-foreground mt-2">
-                Os teus produtos vêm de {cartGroups.length} lojas diferentes, por isso chegam
-                em encomendas separadas — o valor acima já inclui o frete de todas.
-              </p>
+
+              {allSelected && cartGroups.length > 1 && (
+                <div className="mt-3 space-y-1 pt-3 border-t">
+                  {Array.from(selections.values()).map((s) => {
+                    const group = cartGroups.find((g) => g.seller.sellerId === s.sellerId);
+                    return (
+                      <div key={s.sellerId} className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>{group?.seller.sellerName}</span>
+                        <span>{s.price === 0 ? "Grátis" : fmtKz(s.price)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
-
-          <div className="space-y-3">
-            {cartGroups.map((group) => (
-              <SellerFreightRow
-                key={group.seller.sellerId}
-                group={group}
-                destMunicipalityCode={destCode}
-                provinces={provinces}
-                municipalities={municipalities}
-                calculateFreight={calculateFreight}
-                onSelect={handleSelect}
-              />
-            ))}
-          </div>
         </>
       )}
     </div>
