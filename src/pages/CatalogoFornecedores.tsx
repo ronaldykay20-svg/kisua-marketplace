@@ -120,7 +120,7 @@ export default function CatalogoFornecedores() {
           user_id: user!.id,
           name: store.store_name,
           slug: `${store.store_slug || store.store_name}-${user!.id.slice(0, 6)}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""),
-          type: "individual",
+          type: "dropship",
           description: store.description || null,
           phone: store.phone || null,
           province: store.province || null,
