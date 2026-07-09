@@ -51,6 +51,23 @@ export default function DropshipDashboard() {
     enabled: !!store?.id,
   });
 
+  // Perfil de vendedor (mesma tabela que aparece em /vendedores)
+  // ⚠️ Esta query TEM de vir antes da query "orders" abaixo, porque essa
+  // query usa sellerProfile?.id na queryKey e no queryFn.
+  const { data: sellerProfile } = useQuery({
+    queryKey: ["my_seller", user?.id],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("sellers")
+        .select("*")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
   // 🔗 Pedidos reais — antes isto lia "supplier_orders", uma tabela que
   // nunca era alimentada por uma venda de verdade. Agora lê diretamente
   // dos order_items reais (o mesmo pedido que o cliente fez no checkout
@@ -74,7 +91,7 @@ export default function DropshipDashboard() {
         .from("supplier_products")
         .select("id, name, images, cost_price")
         .in("id", supplierProductIds);
-      const spByProductId = new Map(
+      const spByProductId = new Map<string, { id: string; name: string; images: string[]; cost_price: number } | undefined>(
         (myProducts || []).map((p: any) => [p.id, (supplierProducts || []).find((sp: any) => sp.id === p.supplier_product_id)])
       );
 
@@ -119,21 +136,6 @@ export default function DropshipDashboard() {
       return Array.from(grouped.values());
     },
     enabled: !!sellerProfile?.id,
-  });
-
-  // Perfil de vendedor (mesma tabela que aparece em /vendedores)
-  const { data: sellerProfile } = useQuery({
-    queryKey: ["my_seller", user?.id],
-    queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("sellers")
-        .select("*")
-        .eq("user_id", user!.id)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user,
   });
 
   const toggleProduct = useMutation({
