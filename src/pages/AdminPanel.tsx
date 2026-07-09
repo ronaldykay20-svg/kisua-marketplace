@@ -1191,7 +1191,7 @@ const AdminPanel = () => {
                         {s.is_verified && <ShieldCheck className="w-3.5 h-3.5 text-blue-500" />}
                       </p>
                       <p className="text-[10px] text-muted-foreground">
-                        {s.type} • {s.total_sales || 0} vendas
+                        {s.type === "company" ? "Empresa" : s.type === "dropship" ? "Afiliado" : "Vendedor"} • {s.total_sales || 0} vendas
                       </p>
                     </div>
                   </div>
