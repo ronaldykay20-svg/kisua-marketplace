@@ -173,7 +173,7 @@ const MinhaConta = () => {
         {/* ── Central de Pedidos (acesso rápido, sempre visível se autenticado) ── */}
         {user && (
           <button
-            onClick={() => navigate("/central-de-pedidos")}
+            onClick={() => navigate("/central-pedidos")}
             className="w-full flex items-center gap-3 rounded-2xl p-4 mb-5 border border-primary/25 bg-gradient-to-br from-primary/10 to-primary/5"
             style={CORNER_FIX}
           >
