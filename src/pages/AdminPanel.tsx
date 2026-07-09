@@ -12,6 +12,7 @@ import AdminOrdersTab from "@/components/admin/AdminOrdersTab";
 import AdminSettingsTab from "@/components/admin/AdminSettingsTab";
 import AdminBannersTab from "@/components/admin/AdminBannersTab";
 import AdminFreightTab from "@/components/admin/AdminFreightTab";
+import AdminFreightCompaniesTab from "@/components/admin/AdminFreightCompaniesTab";
 import AdminFreeShippingTab from "@/components/admin/AdminFreeShippingTab";
 import AdminSuppliersTab from "@/components/admin/AdminSuppliersTab";
 import AdminPaymentReviewTab from "@/components/admin/AdminPaymentReviewTab";
@@ -27,7 +28,7 @@ const roleBadge: Record<string, { label: string; color: string; icon: any }> = {
   user: { label: "Utilizador", color: "bg-primary/10 text-primary border-primary/20", icon: Users },
 };
 
-type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos" | "encomendas" | "categorias" | "banners" | "definicoes" | "leiloes" | "publicidade" | "frete" | "frete_gratis" | "fornecedores" | "pagamentos" | "cupons" | "analytics" | "interacoes";
+type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos" | "encomendas" | "categorias" | "banners" | "definicoes" | "leiloes" | "publicidade" | "frete" | "frete_gratis" | "frete_empresas" | "fornecedores" | "pagamentos" | "cupons" | "analytics" | "interacoes";
 
 const AD_TYPES = [
   { value: "banner",           label: "Banner (imagem/vídeo)",   icon: ImageIcon,   desc: "Upload direto de imagem ou vídeo" },
@@ -1024,6 +1025,7 @@ const AdminPanel = () => {
     { key: "publicidade",  label: "Publicidade",   icon: Megaphone },
     { key: "frete",        label: "Frete",         icon: Truck },
     { key: "frete_gratis", label: "Frete Grátis",  icon: Gift },
+    { key: "frete_empresas", label: "Transportadoras", icon: Truck },
     { key: "fornecedores", label: "Fornecedores",  icon: Building2 },
     { key: "cupons",       label: "Cupons",        icon: Ticket },
     { key: "pedidos",      label: "Candidaturas",  icon: UserCheck },
@@ -1067,6 +1069,7 @@ const AdminPanel = () => {
         {tab === "leiloes"      && <AdminLeiloesTab />}
         {tab === "frete"        && <AdminFreightTab />}
         {tab === "frete_gratis" && <AdminFreeShippingTab />}
+        {tab === "frete_empresas" && <AdminFreightCompaniesTab />}
         {tab === "fornecedores" && <AdminSuppliersTab />}
         {tab === "cupons"       && <CouponManagerTab scope="platform" ownerId={null} heading="Cupons da Plataforma" />}
 
