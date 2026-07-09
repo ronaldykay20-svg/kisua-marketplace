@@ -215,23 +215,6 @@ const MinhaConta = () => {
           </div>
         )}
 
-        {/* ── Seja Fornecedor (só se ainda não for) ── */}
-        {user && !rolesLoading && !isSupplier && (
-          <button
-            onClick={() => navigate("/seja-fornecedor")}
-            className="w-full flex items-center gap-3 rounded-2xl p-3.5 mb-5 border border-border bg-card text-left"
-          >
-            <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
-              <Boxes className="w-4.5 h-4.5 text-muted-foreground" />
-            </div>
-            <div className="flex-1">
-              <p className="text-xs font-bold text-foreground">Seja Fornecedor</p>
-              <p className="text-[10px] text-muted-foreground">Forneça produtos à rede de dropshippers</p>
-            </div>
-            <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-          </button>
-        )}
-
         {/* ── A Minha Conta ── */}
         <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide mb-2 px-1">A Minha Conta</p>
         <div className="bg-card rounded-2xl border border-border divide-y divide-border overflow-hidden">
