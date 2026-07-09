@@ -260,7 +260,7 @@ const LeilaoAd = ({ refId }: { refId: string }) => {
 
   return (
     <div
-      onClick={() => navigate(`/leiloes/${leilao.id}`)}
+      onClick={() => navigate("/leilao")}
       className="rounded-xl border border-red-500/20 bg-red-500/5 overflow-hidden cursor-pointer hover:shadow-md transition relative"
     >
       <div className="flex">
