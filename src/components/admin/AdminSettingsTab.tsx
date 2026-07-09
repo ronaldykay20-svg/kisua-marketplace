@@ -302,7 +302,7 @@ const AdminSettingsTab = () => {
           <option value="">Automático (maior vendedor verificado)</option>
           {allSellers.map((s: any) => (
             <option key={s.id} value={s.id}>
-              {s.name} {s.is_verified ? "✅" : ""} ({s.type === "company" ? "Empresa" : "Vendedor"})
+              {s.name} {s.is_verified ? "✅" : ""} ({s.type === "company" ? "Empresa" : s.type === "dropship" ? "Afiliado" : "Vendedor"})
             </option>
           ))}
         </select>
