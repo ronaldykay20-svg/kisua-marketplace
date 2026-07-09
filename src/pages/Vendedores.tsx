@@ -93,6 +93,7 @@ const Vendedores = () => {
       visits: s.visits_count ?? 0,
       followers: (followersMap as Record<string, number>)[s.id] ?? s.followers_count ?? 0,
       verified: s.is_verified,
+      isAffiliate: s.type === "dropship",
       image: s.logo_url || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop",
       cover: s.cover_url || "https://images.unsplash.com/photo-1556761175-b413da4baf72?w=600&h=200&fit=crop",
     })),
@@ -158,6 +159,11 @@ const Vendedores = () => {
                     <div className="flex items-center gap-1">
                       <h3 className="text-sm font-bold text-foreground truncate">{seller.name}</h3>
                       {seller.verified && <CheckCircle className="w-3.5 h-3.5 text-primary flex-shrink-0" />}
+                      {seller.isAffiliate && (
+                        <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 flex-shrink-0">
+                          Afiliado
+                        </span>
+                      )}
                     </div>
                     <p className="text-[10px] text-muted-foreground">{seller.specialty}</p>
                   </div>
