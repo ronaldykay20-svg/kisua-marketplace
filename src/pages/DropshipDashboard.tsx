@@ -51,20 +51,74 @@ export default function DropshipDashboard() {
     enabled: !!store?.id,
   });
 
-  // Buscar pedidos
+  // 🔗 Pedidos reais — antes isto lia "supplier_orders", uma tabela que
+  // nunca era alimentada por uma venda de verdade. Agora lê diretamente
+  // dos order_items reais (o mesmo pedido que o cliente fez no checkout
+  // normal), agrupados por encomenda, filtrando só os produtos que vieram
+  // de um fornecedor (products.supplier_product_id) e pertencem à minha loja.
   const { data: orders = [] } = useQuery({
-    queryKey: ["dropship_orders", store?.id],
+    queryKey: ["dropship_orders", sellerProfile?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("supplier_orders")
-        .select("*, supplier_order_items(*, supplier_products(name))")
-        .eq("store_id", store!.id)
+      if (!sellerProfile?.id) return [];
+
+      const { data: myProducts } = await (supabase as any)
+        .from("products")
+        .select("id, supplier_product_id")
+        .eq("seller_id", sellerProfile.id)
+        .not("supplier_product_id", "is", null);
+      const productIds = (myProducts || []).map((p: any) => p.id);
+      if (productIds.length === 0) return [];
+
+      const supplierProductIds = [...new Set((myProducts || []).map((p: any) => p.supplier_product_id))];
+      const { data: supplierProducts } = await supabase
+        .from("supplier_products")
+        .select("id, name, images, cost_price")
+        .in("id", supplierProductIds);
+      const spByProductId = new Map(
+        (myProducts || []).map((p: any) => [p.id, (supplierProducts || []).find((sp: any) => sp.id === p.supplier_product_id)])
+      );
+
+      const { data: settingRow } = await supabase.from("site_settings").select("value").eq("key", "dropship_commission_percent").maybeSingle();
+      const commissionPct = settingRow?.value ? Number(settingRow.value) : 10;
+
+      const { data: items, error } = await (supabase as any)
+        .from("order_items")
+        .select("*, orders!inner(id, created_at, status, payment_verified, total_amount)")
+        .in("product_id", productIds)
         .order("created_at", { ascending: false })
-        .limit(30);
+        .limit(100);
       if (error) throw error;
-      return data || [];
+
+      // agrupar por encomenda, para manter "Pedido #XXXX" com vários itens
+      const grouped = new Map<string, any>();
+      for (const item of items || []) {
+        const o = item.orders;
+        const sp = spByProductId.get(item.product_id);
+        const saleAmount = item.price * item.quantity;
+        const supplierCut = (sp?.cost_price || 0) * item.quantity;
+        const dropshipperCut = Math.max(0, saleAmount - supplierCut - (saleAmount * commissionPct) / 100);
+
+        if (!grouped.has(o.id)) {
+          grouped.set(o.id, {
+            id: o.id,
+            created_at: o.created_at,
+            status: o.status,
+            payment_verified: o.payment_verified,
+            total_amount: o.total_amount,
+            supplier_order_items: [],
+          });
+        }
+        grouped.get(o.id).supplier_order_items.push({
+          id: item.id,
+          quantity: item.quantity,
+          supplier_status: item.supplier_status,
+          dropshipper_amount: dropshipperCut,
+          supplier_products: sp,
+        });
+      }
+      return Array.from(grouped.values());
     },
-    enabled: !!store?.id,
+    enabled: !!sellerProfile?.id,
   });
 
   // Perfil de vendedor (mesma tabela que aparece em /vendedores)
@@ -117,31 +171,27 @@ export default function DropshipDashboard() {
   // Envia um pedido de pagamento aos admins/moderadores (não há ainda uma
   // tabela dedicada a payouts, por isso o pedido chega como notificação
   // acionável, com o valor acumulado e os dados da loja).
-  // O afiliado confirma a entrega ao cliente final, fechando o ciclo do
-  // pedido e liberando os ganhos (fornecedor e loja) para "Ganhos".
-  const markDelivered = useMutation({
-    mutationFn: async (order: any) => {
-      const { error: orderError } = await supabase
-        .from("supplier_orders")
-        .update({ status: "delivered" })
-        .eq("id", order.id);
-      if (orderError) throw orderError;
-
-      const itemIds = (order.supplier_order_items || []).map((i: any) => i.id);
-      if (itemIds.length > 0) {
-        const { error: itemsError } = await supabase
-          .from("supplier_order_items")
-          .update({ supplier_status: "delivered" })
-          .in("id", itemIds);
-        if (itemsError) throw itemsError;
-      }
+  const { data: payoutHistory = [] } = useQuery({
+    queryKey: ["dropship_payout_requests", store?.id],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("payout_requests")
+        .select("*")
+        .eq("dropship_store_id", store!.id)
+        .order("requested_at", { ascending: false })
+        .limit(10);
+      if (error) throw error;
+      return data || [];
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["dropship_orders"] });
-      toast.success("Pedido marcado como entregue — ganhos atualizados");
-    },
-    onError: (e: any) => toast.error(e.message),
+    enabled: !!store?.id,
   });
+  const hasPendingPayoutRequest = payoutHistory.some((p: any) => p.status === "pending");
+  const payoutStatusLabel: Record<string, string> = { pending: "Pendente", paid: "Pago", rejected: "Rejeitado" };
+  const payoutStatusColor: Record<string, string> = {
+    pending: "bg-amber-500/10 text-amber-600",
+    paid: "bg-green-500/10 text-green-600",
+    rejected: "bg-destructive/10 text-destructive",
+  };
 
   const requestPayout = useMutation({
     mutationFn: async () => {
@@ -149,30 +199,38 @@ export default function DropshipDashboard() {
       if (amount <= 0) {
         throw new Error("Ainda não tens saldo confirmado para pedir pagamento.");
       }
+
+      const { error: payoutError } = await (supabase as any).from("payout_requests").insert({
+        beneficiary_type: "dropshipper",
+        dropship_store_id: store!.id,
+        amount,
+        status: "pending",
+      });
+      if (payoutError) throw payoutError;
+
       const { data: reviewers, error: reviewersError } = await supabase
         .from("user_roles")
         .select("user_id")
         .in("role", ["admin", "moderator"]);
       if (reviewersError) throw reviewersError;
-      if (!reviewers || reviewers.length === 0) {
-        throw new Error("Não foi possível contactar a equipa Kisua agora. Tenta novamente mais tarde.");
-      }
 
-      const rows = reviewers.map((r: any) => ({
-        user_id: r.user_id,
-        title: `💰 Pedido de pagamento — ${store?.name || "Loja dropship"}`,
-        message:
-          `A loja "${store?.name || ""}" pediu o levantamento do saldo acumulado ` +
-          `de ${formatKz(amount)}.\n\nConfirma os dados bancários com o lojista antes de processar.`,
-        type: "payout_request",
-        link_url: "/admin",
-        is_read: false,
-      }));
-      const { error } = await supabase.from("notifications").insert(rows as any);
-      if (error) throw error;
+      if (reviewers && reviewers.length > 0) {
+        const rows = reviewers.map((r: any) => ({
+          user_id: r.user_id,
+          title: `💰 Pedido de pagamento — ${store?.name || "Loja dropship"}`,
+          message:
+            `A loja "${store?.name || ""}" pediu o levantamento do saldo acumulado ` +
+            `de ${formatKz(amount)}.\n\nConfirma os dados bancários com o lojista antes de processar.`,
+          type: "payout_request",
+          link_url: "/admin",
+          is_read: false,
+        }));
+        await supabase.from("notifications").insert(rows as any);
+      }
     },
     onSuccess: () => {
-      toast.success("Pedido de pagamento enviado! A equipa Kisua vai processar em 2 a 5 dias úteis.");
+      queryClient.invalidateQueries({ queryKey: ["dropship_payout_requests"] });
+      toast.success("Pedido de pagamento enviado! A equipa Zangu vai processar em 2 a 5 dias úteis.");
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -516,8 +574,6 @@ export default function DropshipDashboard() {
             ) : (
               orders.map((order: any) => {
                 const items = order.supplier_order_items || [];
-                const allShipped = items.length > 0 && items.every((i: any) => i.supplier_status === "shipped" || i.supplier_status === "delivered");
-                const canMarkDelivered = order.status !== "delivered" && allShipped;
                 return (
                   <div key={order.id} className="bg-card border border-border rounded-xl p-4">
                     <div className="flex items-start justify-between mb-2">
@@ -559,15 +615,12 @@ export default function DropshipDashboard() {
                       </div>
                     </div>
 
-                    {canMarkDelivered && (
-                      <button
-                        onClick={() => markDelivered.mutate(order)}
-                        disabled={markDelivered.isPending}
-                        className="w-full mt-2.5 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-lg disabled:opacity-50"
-                      >
-                        Confirmar entrega ao cliente
-                      </button>
-                    )}
+                    <button
+                      onClick={() => navigate("/central-pedidos")}
+                      className="w-full mt-2.5 py-2 border border-border text-xs font-bold rounded-lg text-foreground"
+                    >
+                      Gerir estado do pedido →
+                    </button>
                   </div>
                 );
               })
@@ -603,10 +656,10 @@ export default function DropshipDashboard() {
 
             <button
               onClick={() => requestPayout.mutate()}
-              disabled={requestPayout.isPending || !(totalRevenue > 0)}
+              disabled={requestPayout.isPending || hasPendingPayoutRequest || !(totalRevenue > 0)}
               className="w-full py-3 bg-primary text-primary-foreground font-bold rounded-xl text-sm disabled:opacity-50"
             >
-              {requestPayout.isPending ? "A enviar pedido..." : "Pedir Pagamento"}
+              {requestPayout.isPending ? "A enviar pedido..." : hasPendingPayoutRequest ? "Já tens um pedido pendente" : "Pedir Pagamento"}
             </button>
 
             <div className="bg-card border border-border rounded-xl p-4 flex gap-2">
@@ -615,6 +668,27 @@ export default function DropshipDashboard() {
                 Os pagamentos são processados após confirmação de entrega, em 2 a 5 dias úteis.
               </p>
             </div>
+
+            {payoutHistory.length > 0 && (
+              <div>
+                <h3 className="text-xs font-bold text-foreground mb-2">Histórico de pedidos</h3>
+                <div className="space-y-2">
+                  {payoutHistory.map((p: any) => (
+                    <div key={p.id} className="bg-card border border-border rounded-xl p-3 flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-bold text-foreground">{formatKz(p.amount)}</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {new Date(p.requested_at).toLocaleDateString("pt-AO")}
+                        </p>
+                      </div>
+                      <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${payoutStatusColor[p.status]}`}>
+                        {payoutStatusLabel[p.status]}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
