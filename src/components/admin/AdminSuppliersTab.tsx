@@ -205,7 +205,7 @@ export default function AdminSuppliersTab() {
           `Parabéns! A sua loja "${store.store_name}" já está ativa.\n` +
           `Aceda ao painel para importar produtos e começar a vender.`,
         type: "aprovado",
-        link_url: "/painel-afiliado",
+        link_url: "/painel-dropship",
         is_read: false,
       });
     },
