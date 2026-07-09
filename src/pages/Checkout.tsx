@@ -174,7 +174,7 @@ const Checkout = () => {
       const { data } = await supabase
         .from("products")
         .select(`
-          id, title, price, image_url, seller_id, company_id,
+          id, title, price, image_url, seller_id, company_id, weight_kg,
           free_shipping, free_shipping_scope, free_shipping_province_id, free_shipping_municipality_ids,
           sellers(id, name, municipality_code),
           companies(id, name, municipality_code)
@@ -267,6 +267,7 @@ const Checkout = () => {
           },
           items: [],
           subtotal: 0,
+          totalWeightKg: 0,
           isCompany,
         });
       }
@@ -284,6 +285,8 @@ const Checkout = () => {
         },
       });
       group.subtotal += prod.price * item.quantity;
+      // Peso usado no tarifário das empresas transportadoras (frete interprovincial)
+      group.totalWeightKg += (prod.weight_kg ?? 0) * item.quantity;
     }
     return Array.from(map.values());
   })();
@@ -548,15 +551,29 @@ const Checkout = () => {
       });
 
       if (freightSelections.length > 0) {
-        const freightRows = freightSelections.map((s: any) => ({
-          order_id: order.id,
-          seller_id: s.sellerId,
-          delivery_type: s.deliveryType,
-          price: s.price,
-          days_min: s.daysMin,
-          days_max: s.daysMax,
-          source: s.source,
-        }));
+        const freightRows = freightSelections.map((s: any) => {
+          const group = cartGroups.find((g: any) => g.seller.sellerId === s.sellerId);
+          const originMun = group
+            ? allMunicipalities.find(
+                (m: any) => m.code === group.seller.originMunicipalityCode
+              )
+            : null;
+          return {
+            order_id: order.id,
+            seller_id: s.sellerId,
+            delivery_type: s.deliveryType,
+            price: s.price,
+            days_min: s.daysMin,
+            days_max: s.daysMax,
+            source: s.source,
+            freight_company_id: s.freightCompanyId ?? null,
+            origin_province_id: originMun?.province_id ?? null,
+            dest_province_id: destMunicipalityId
+              ? allMunicipalities.find((m: any) => m.id === destMunicipalityId)
+                  ?.province_id ?? null
+              : null,
+          };
+        });
         await supabase.from("order_freight").insert(freightRows);
       }
 
