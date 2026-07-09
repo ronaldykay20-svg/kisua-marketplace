@@ -588,7 +588,7 @@ const Checkout = () => {
 
       if (requiresProof) {
         // Pagamento por comprovativo: o vendedor só é notificado depois da
-        // aprovação do Admin/Moderador (feita em /admin/pedidos-completos).
+        // aprovação do Admin/Moderador (feita em /admin/encomendas).
         // Aqui notificamos quem tem de validar o comprovativo, com todos os
         // dados necessários para decidir e cobrar com precisão.
         const { data: reviewers } = await supabase
@@ -618,7 +618,7 @@ const Checkout = () => {
               `${productLines}\n\n` +
               `Abra o pedido para ver o comprovativo e aprovar o pagamento.`,
             type: "payment_proof",
-            link_url: `/admin/pedidos-completos?pedido=${order.id}`,
+            link_url: `/admin/encomendas?pedido=${order.id}`,
             image_path: paymentProofPath,
             is_read: false,
           }));
