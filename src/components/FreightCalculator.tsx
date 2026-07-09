@@ -39,9 +39,6 @@ interface CartGroup {
     imageUrl?: string;
   }[];
   subtotal: number;
-  freeShippingEligible?: boolean;
-  freeShippingPartial?: boolean;
-  freeShippingEligibleItemNames?: string[];
 }
 
 interface FreightSelection {
@@ -79,7 +76,6 @@ const SOURCE_LABELS: Record<string, string> = {
   seller_provincial: "Frota do vendedor",
   seller_custom_default: "Frota do vendedor",
   seller_free: "Entrega grátis",
-  product_free_shipping: "Frete grátis oferecido pelo vendedor",
   seller_custom_default_forced: "Padrão da plataforma",
   global_default: "Padrão da plataforma",
   global_default_forced: "Padrão da plataforma",
@@ -341,6 +337,11 @@ function SellerFreightRow({
   const [loadingExpress, setLoadingExpress] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [showPickup, setShowPickup] = useState(false);
+  // Por defeito o método de entrega vem RECOLHIDO — mostra-se só a opção já
+  // seleccionada (normal, grátis por defeito) e um botão "Alterar". Isto evita
+  // que o checkout mostre 4 blocos grandes de "Entrega normal / expressa"
+  // abertos ao mesmo tempo quando há vários vendedores no carrinho.
+  const [methodExpanded, setMethodExpanded] = useState(false);
 
   const { result, loading, recalculate } = useCheckoutFreight(
     group.seller.sellerId,
@@ -349,7 +350,6 @@ function SellerFreightRow({
   );
 
   useEffect(() => {
-    if (group.freeShippingEligible) return;
     if (!group.seller.sellerId || !group.seller.originMunicipalityCode || !destMunicipalityCode)
       return;
     let cancelled = false;
@@ -363,23 +363,9 @@ function SellerFreightRow({
       if (!cancelled) { setExpressResult(res); setLoadingExpress(false); }
     });
     return () => { cancelled = true; };
-  }, [group.seller.sellerId, group.seller.originMunicipalityCode, destMunicipalityCode, calculateFreight, group.freeShippingEligible]);
-
-  // Frete grátis por produto — sobrepõe-se sempre ao cálculo normal por zonas.
-  useEffect(() => {
-    if (!group.freeShippingEligible) return;
-    onSelect({
-      sellerId: group.seller.sellerId,
-      deliveryType: "standard",
-      price: 0,
-      daysMin: 1,
-      daysMax: 3,
-      source: "product_free_shipping",
-    });
-  }, [group.freeShippingEligible, group.seller.sellerId, onSelect]);
+  }, [group.seller.sellerId, group.seller.originMunicipalityCode, destMunicipalityCode, calculateFreight]);
 
   useEffect(() => {
-    if (group.freeShippingEligible) return;
     const activeResult = deliveryType === "express" ? expressResult : result;
     if (!activeResult || activeResult.error) return;
     onSelect({
@@ -390,11 +376,12 @@ function SellerFreightRow({
       daysMax: activeResult.days_max,
       source: activeResult.source,
     });
-  }, [result, expressResult, deliveryType, group.seller.sellerId, group.freeShippingEligible, onSelect]);
+  }, [result, expressResult, deliveryType, group.seller.sellerId, onSelect]);
 
   const handleTypeChange = (val: DeliveryType) => {
     setDeliveryType(val);
     recalculate(val);
+    setMethodExpanded(false);
   };
 
   const activeResult = deliveryType === "express" ? expressResult : result;
@@ -443,34 +430,7 @@ function SellerFreightRow({
       )}
 
       <div className="p-4 space-y-3">
-        {group.freeShippingPartial && (
-          <div className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
-            <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
-            <p className="text-xs text-amber-700/90">
-              <span className="font-semibold">
-                {group.freeShippingEligibleItemNames && group.freeShippingEligibleItemNames.length === 1
-                  ? group.freeShippingEligibleItemNames[0]
-                  : `${group.freeShippingEligibleItemNames?.length ?? 0} produtos`}
-              </span>{" "}
-              deste vendedor têm frete grátis para o teu município, mas os
-              restantes itens não — por isso o frete abaixo continua a ser
-              cobrado normalmente para o pedido todo.
-            </p>
-          </div>
-        )}
-
-        {group.freeShippingEligible ? (
-          <div className="flex items-center gap-3 rounded-lg border border-green-500/30 bg-green-500/5 p-3">
-            <Gift className="w-5 h-5 text-green-500 shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-green-600">Frete grátis</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Este vendedor oferece entrega grátis para o teu município.
-              </p>
-            </div>
-            <Badge className="ml-auto bg-green-500/15 text-green-600 border-green-500/30">Grátis</Badge>
-          </div>
-        ) : loading ? (
+        {loading ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="w-4 h-4 animate-spin" />
             A calcular frete…
@@ -510,6 +470,50 @@ function SellerFreightRow({
               )}
             </div>
             <Badge className="ml-auto bg-rose-500/20 text-rose-400 border-rose-500/30">Grátis</Badge>
+          </div>
+        ) : !methodExpanded ? (
+          // ── Resumo compacto (estado por defeito) ──────────────────────────
+          // Mostra só o método já seleccionado e o preço, com um botão
+          // "Alterar" — evita mostrar todos os vendedores com os cartões de
+          // "Entrega normal / expressa" abertos ao mesmo tempo.
+          <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/10 p-3">
+            {isFree ? (
+              <Gift className="w-4 h-4 text-green-400 shrink-0" />
+            ) : deliveryType === "express" ? (
+              <Zap className="w-4 h-4 text-amber-400 shrink-0" />
+            ) : (
+              <Truck className="w-4 h-4 text-muted-foreground shrink-0" />
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium">
+                {deliveryType === "express" ? "Entrega expressa" : "Entrega normal"}
+              </p>
+              {activeResult && !loadingExpress && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  {activeResult.days_min === activeResult.days_max
+                    ? `${activeResult.days_min} dias úteis`
+                    : `${activeResult.days_min}–${activeResult.days_max} dias úteis`}
+                </p>
+              )}
+            </div>
+            <div className="text-right shrink-0 flex items-center gap-2">
+              {!activeResult || loadingExpress ? (
+                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+              ) : isFree ? (
+                <span className="text-sm font-semibold text-green-400">Grátis</span>
+              ) : (
+                <span className="text-sm font-semibold">{fmtKz(activeResult.price)}</span>
+              )}
+              {hasExpress && (
+                <button
+                  onClick={() => setMethodExpanded(true)}
+                  className="text-xs font-semibold text-primary underline underline-offset-2"
+                >
+                  Alterar
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <RadioGroup
@@ -593,6 +597,15 @@ function SellerFreightRow({
                   ) : null}
                 </div>
               </Label>
+            )}
+
+            {methodExpanded && (
+              <button
+                onClick={() => setMethodExpanded(false)}
+                className="w-full text-center text-xs font-semibold text-muted-foreground py-1"
+              >
+                Ocultar opções
+              </button>
             )}
           </RadioGroup>
         )}
@@ -714,27 +727,13 @@ export default function FreightCalculator({
         </div>
       ) : (
         <>
-          <div className="space-y-3">
-            {cartGroups.map((group) => (
-              <SellerFreightRow
-                key={group.seller.sellerId}
-                group={group}
-                destMunicipalityCode={destCode}
-                provinces={provinces}
-                municipalities={municipalities}
-                calculateFreight={calculateFreight}
-                onSelect={handleSelect}
-              />
-            ))}
-          </div>
-
           {cartGroups.length > 1 && (
             <div className="rounded-xl border bg-muted/20 p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Truck className="w-4 h-4 text-muted-foreground" />
                   <span className="text-sm font-medium">Total de frete</span>
-                  <span className="text-xs text-muted-foreground">({cartGroups.length} vendedores)</span>
+                  <span className="text-xs text-muted-foreground">({cartGroups.length} lojas)</span>
                 </div>
                 <div className="text-right">
                   {!allSelected ? (
@@ -752,22 +751,26 @@ export default function FreightCalculator({
                   )}
                 </div>
               </div>
-
-              {allSelected && cartGroups.length > 1 && (
-                <div className="mt-3 space-y-1 pt-3 border-t">
-                  {Array.from(selections.values()).map((s) => {
-                    const group = cartGroups.find((g) => g.seller.sellerId === s.sellerId);
-                    return (
-                      <div key={s.sellerId} className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>{group?.seller.sellerName}</span>
-                        <span>{s.price === 0 ? "Grátis" : fmtKz(s.price)}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+              <p className="text-[11px] text-muted-foreground mt-2">
+                Os teus produtos vêm de {cartGroups.length} lojas diferentes, por isso chegam
+                em encomendas separadas — o valor acima já inclui o frete de todas.
+              </p>
             </div>
           )}
+
+          <div className="space-y-3">
+            {cartGroups.map((group) => (
+              <SellerFreightRow
+                key={group.seller.sellerId}
+                group={group}
+                destMunicipalityCode={destCode}
+                provinces={provinces}
+                municipalities={municipalities}
+                calculateFreight={calculateFreight}
+                onSelect={handleSelect}
+              />
+            ))}
+          </div>
         </>
       )}
     </div>
