@@ -11,6 +11,7 @@ import BottomNav from "@/components/BottomNav";
 import CookieConsentBanner from "@/components/CookieConsentBanner";
 import WelcomeCouponPopup from "@/components/WelcomeCouponPopup";
 import AbandonedCartPopup from "@/components/AbandonedCartPopup";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import { trackPageView } from "@/lib/analytics";
 import Index from "./pages/Index.tsx";
 import ProductDetail from "./pages/ProductDetail.tsx";
@@ -90,7 +91,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
           <DesktopNavbar />
         </>
       )}
-      {children}
+      <ErrorBoundary key={location.pathname}>{children}</ErrorBoundary>
       {!hideBottomNav && <BottomNav />}
       <CookieConsentBanner />
       <WelcomeCouponPopup />
