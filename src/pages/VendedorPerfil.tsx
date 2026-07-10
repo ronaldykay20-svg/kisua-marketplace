@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import Footer from "@/components/Footer";
 import { Star, MapPin, CheckCircle, ShoppingBag, UserPlus, UserCheck, Eye, Phone, Clock, Loader2, Send, X, Package, Users } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useNavigate, useParams } from "react-router-dom";
@@ -183,7 +182,6 @@ const VendedorPerfil = () => {
         <div className="container mx-auto px-3 py-20 text-center">
           <p className="text-muted-foreground">Vendedor não encontrado.</p>
         </div>
-        <Footer />
       </div>
     );
   }
@@ -317,7 +315,6 @@ const VendedorPerfil = () => {
         />
       )}
 
-      <Footer />
     </div>
   );
 };
