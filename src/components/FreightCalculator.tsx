@@ -53,7 +53,7 @@ interface FreightSelection {
   daysMax: number;
   source: string;
   // Preenchido quando o comprador escolhe uma empresa transportadora em vez
-  // do frete padrão da ZANGU (rota interprovincial).
+  // do frete padrão da plataforma (rota interprovincial).
   freightCompanyId?: string | null;
 }
 
@@ -87,6 +87,7 @@ const SOURCE_LABELS: Record<string, string> = {
   global_default: "Padrão da plataforma",
   global_default_forced: "Padrão da plataforma",
   pickup: "Retirada na loja",
+  company: "Transportadora",
   error: "Não disponível",
 };
 
@@ -339,8 +340,8 @@ function SellerFreightRow({
   calculateFreight,
   onSelect,
 }: SellerFreightRowProps) {
-  // "standard" | "express" | "company:<rate_id>" — um único estado cobre
-  // as opções da plataforma e as das empresas transportadoras.
+  // "standard" | "express" | "company:<rate_id>" — um único estado cobre as
+  // opções da plataforma e as das empresas transportadoras.
   const [mode, setMode] = useState<string>("standard");
   const [expressResult, setExpressResult] = useState<any>(null);
   const [loadingExpress, setLoadingExpress] = useState(false);
@@ -353,9 +354,8 @@ function SellerFreightRow({
     destMunicipalityCode
   );
 
-  // Resolve as províncias de origem/destino a partir dos códigos de município
-  // para saber se esta rota é interprovincial e, nesse caso, ir buscar as
-  // opções das empresas transportadoras.
+  // Resolve as províncias de origem/destino para saber se esta rota é
+  // interprovincial e, nesse caso, ir buscar as opções das transportadoras.
   const originMun = municipalities.find(
     (m: any) => m.code === group.seller.originMunicipalityCode
   );
@@ -404,9 +404,11 @@ function SellerFreightRow({
     });
   }, [result, expressResult, mode, group.seller.sellerId, onSelect]);
 
-  const handleTypeChange = (val: DeliveryType) => {
+  const handleModeChange = (val: string) => {
     setMode(val);
-    recalculate(val);
+    if (val === "standard" || val === "express") {
+      recalculate(val as DeliveryType);
+    }
   };
 
   const handleSelectCompany = (opt: FreightCompanyOption) => {
@@ -417,19 +419,9 @@ function SellerFreightRow({
       price: opt.price_kwz,
       daysMin: opt.days_min,
       daysMax: opt.days_max,
-      source: `company:${opt.company_name}`,
+      source: "company",
       freightCompanyId: opt.company_id,
     });
-  };
-
-  const handleModeChange = (v: string) => {
-    if (v === "standard" || v === "express") {
-      handleTypeChange(v);
-    } else if (v.startsWith("company:")) {
-      const rateId = v.slice("company:".length);
-      const opt = companyOptions.find((o) => o.rate_id === rateId);
-      if (opt) handleSelectCompany(opt);
-    }
   };
 
   const activeResult = mode === "express" ? expressResult : mode === "standard" ? result : null;
@@ -442,32 +434,58 @@ function SellerFreightRow({
   return (
     <div className="rounded-xl border bg-card overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
-        <div className="flex items-center gap-2">
-          <Package className="w-4 h-4 text-muted-foreground" />
-          <span className="font-medium text-sm">{group.seller.sellerName}</span>
-          <Badge variant="outline" className="text-xs">
+        <div className="flex items-center gap-2 min-w-0">
+          <Package className="w-4 h-4 text-muted-foreground shrink-0" />
+          <span className="font-medium text-sm truncate">{group.seller.sellerName}</span>
+          <Badge variant="outline" className="text-xs shrink-0">
             {group.items.length} {group.items.length === 1 ? "item" : "itens"}
           </Badge>
         </div>
         <button
           onClick={() => setExpanded((e) => !e)}
-          className="text-muted-foreground hover:text-foreground transition-colors"
+          className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
         >
           {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
+      </div>
+
+      {/* Miniaturas dos produtos — sempre visíveis, em formato pequeno.
+          O clique em "expandir" só acrescenta os preços/subtotal por baixo. */}
+      <div className="px-4 py-2.5 border-b bg-muted/10 flex items-center gap-2 overflow-x-auto">
+        {group.items.map((item) => (
+          <div
+            key={item.id}
+            className="relative shrink-0"
+            title={`${item.quantity}× ${item.name}`}
+          >
+            {item.imageUrl ? (
+              <img
+                src={item.imageUrl}
+                alt={item.name}
+                className="w-9 h-9 rounded-md object-cover border border-border/60"
+              />
+            ) : (
+              <div className="w-9 h-9 rounded-md bg-muted flex items-center justify-center border border-border/60">
+                <Package className="w-4 h-4 text-muted-foreground/50" />
+              </div>
+            )}
+            {item.quantity > 1 && (
+              <span className="absolute -top-1.5 -right-1.5 bg-foreground text-background text-[10px] leading-none font-semibold rounded-full w-4 h-4 flex items-center justify-center">
+                {item.quantity}
+              </span>
+            )}
+          </div>
+        ))}
       </div>
 
       {expanded && (
         <div className="px-4 py-2 border-b space-y-1.5 bg-muted/10">
           {group.items.map((item) => (
             <div key={item.id} className="flex items-center justify-between text-sm">
-              <div className="flex items-center gap-2">
-                {item.imageUrl && (
-                  <img src={item.imageUrl} alt={item.name} className="w-8 h-8 rounded object-cover" />
-                )}
-                <span className="text-muted-foreground">{item.quantity}× {item.name}</span>
-              </div>
-              <span>{fmtKz(item.price * item.quantity)}</span>
+              <span className="text-muted-foreground truncate pr-2">
+                {item.quantity}× {item.name}
+              </span>
+              <span className="shrink-0">{fmtKz(item.price * item.quantity)}</span>
             </div>
           ))}
           <div className="flex justify-between text-sm font-medium pt-1 border-t">
@@ -501,6 +519,7 @@ function SellerFreightRow({
                 daysMin: 0,
                 daysMax: 0,
                 source: "pickup",
+                freightCompanyId: null,
               });
             }}
             pickupAddress={pickupAddress}
@@ -603,66 +622,82 @@ function SellerFreightRow({
               </Label>
             )}
 
+            {/* Transportadoras — só para rotas interprovinciais. Cartões com
+                o logótipo em destaque; clicar na imagem ou no cartão escolhe
+                essa transportadora. */}
             {isInterprovincial && loadingCompanyOptions && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground py-1.5">
                 <Loader2 className="w-3 h-3 animate-spin" />
                 A procurar transportadoras para esta rota…
               </div>
             )}
 
             {isInterprovincial && !loadingCompanyOptions && companyOptions.length > 0 && (
-              <>
-                <p className="text-xs text-muted-foreground font-medium pt-1 flex items-center gap-1.5">
+              <div className="pt-1 space-y-2">
+                <p className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
                   <Truck className="w-3 h-3" />
                   Transportadoras disponíveis para esta rota
                 </p>
-                {companyOptions.map((opt) => {
-                  const value = `company:${opt.rate_id}`;
-                  const active = mode === value;
-                  return (
-                    <Label
-                      key={opt.rate_id}
-                      htmlFor={`co-${opt.rate_id}`}
-                      className={cn(
-                        "flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-all",
-                        active
-                          ? "border-blue-500 bg-blue-500/5"
-                          : "border-border hover:border-muted-foreground"
-                      )}
-                    >
-                      <RadioGroupItem value={value} id={`co-${opt.rate_id}`} className="shrink-0" />
-                      {opt.company_logo_url ? (
-                        <img
-                          src={opt.company_logo_url}
-                          alt={opt.company_name}
-                          className="w-4 h-4 rounded object-cover shrink-0"
-                        />
-                      ) : (
-                        <Truck className="w-4 h-4 text-blue-400 shrink-0" />
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{opt.company_name}</p>
-                        <p className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {opt.days_min === opt.days_max
-                            ? `${opt.days_min} dia útil`
-                            : `${opt.days_min}–${opt.days_max} dias úteis`}
-                          {opt.material_type_name && (
-                            <span className="ml-1 text-[10px] opacity-60">
-                              ({opt.material_type_name})
-                            </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {companyOptions.map((opt) => {
+                    const value = `company:${opt.rate_id}`;
+                    const active = mode === value;
+                    return (
+                      <button
+                        key={opt.rate_id}
+                        type="button"
+                        onClick={() => handleSelectCompany(opt)}
+                        className={cn(
+                          "flex items-center gap-3 rounded-lg border p-3 text-left transition-all",
+                          active
+                            ? "border-blue-500 bg-blue-500/5 ring-1 ring-blue-500/30"
+                            : "border-border hover:border-muted-foreground"
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "w-11 h-11 rounded-lg overflow-hidden shrink-0 border flex items-center justify-center bg-muted/40",
+                            active ? "border-blue-500/50" : "border-border"
                           )}
-                        </p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <span className="text-sm font-semibold text-blue-400">
-                          {fmtKz(opt.price_kwz)}
-                        </span>
-                      </div>
-                    </Label>
-                  );
-                })}
-              </>
+                        >
+                          {opt.company_logo_url ? (
+                            <img
+                              src={opt.company_logo_url}
+                              alt={opt.company_name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <Truck className="w-5 h-5 text-muted-foreground/50" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{opt.company_name}</p>
+                          <p className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Clock className="w-3 h-3 shrink-0" />
+                            {opt.days_min === opt.days_max
+                              ? `${opt.days_min} dia útil`
+                              : `${opt.days_min}–${opt.days_max} dias úteis`}
+                            {opt.material_type_name && (
+                              <span className="opacity-60 truncate">· {opt.material_type_name}</span>
+                            )}
+                          </p>
+                          <p className="text-sm font-semibold text-blue-400 mt-0.5">
+                            {fmtKz(opt.price_kwz)}
+                          </p>
+                        </div>
+                        <div
+                          className={cn(
+                            "w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center",
+                            active ? "border-blue-500 bg-blue-500" : "border-muted-foreground/40"
+                          )}
+                        >
+                          {active && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             )}
           </RadioGroup>
         )}
