@@ -2,13 +2,16 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Save, X, Trash2, Image as ImageIcon, Film, Plus,
   ChevronDown, ChevronRight, AlertTriangle, Clock, Camera,
-  Weight, Package2, Ruler, Info,
+  Weight, Package2, Ruler, Info, Check, Tag, Sparkles, FileText, DollarSign,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { STORAGE_BUCKETS } from "@/lib/storage";
 import { useUserRole } from "@/hooks/useUserRole";
 import { convertToWebP, getFileExtension } from "@/lib/imageToWebp";
+import { cn } from "@/lib/utils";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 
 // ─── Types ────────────────────────────────────────────────
 interface ProductFormData {
@@ -351,6 +354,23 @@ const SellerProductForm = ({
   const parentCategories = allCategories.filter((c: any) => !c.parent_id);
   const getSubcategories = (parentId: string) => allCategories.filter((c: any) => c.parent_id === parentId);
 
+  // Lista achatada para a pesquisa: cada opção já traz o caminho completo
+  // ("Electrónica › Telemóveis") para o vendedor encontrar por qualquer termo,
+  // sem ter de adivinhar em que categoria-mãe a subcategoria está escondida.
+  const flatCategoryOptions = useMemo(() => {
+    const opts: { id: string; label: string; parentLabel: string | null }[] = [];
+    parentCategories.forEach((c: any) => {
+      opts.push({ id: c.id, label: c.name, parentLabel: null });
+      getSubcategories(c.id).forEach((s: any) => {
+        opts.push({ id: s.id, label: s.name, parentLabel: c.name });
+      });
+    });
+    return opts;
+  }, [allCategories]);
+
+  const selectedCategory = flatCategoryOptions.find((c) => c.id === form.category_id);
+  const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
+
   // ── Upload ────────────────────────────────────────────
   const handleFilesUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: "image" | "video") => {
     const files = e.target.files;
@@ -557,23 +577,122 @@ const SellerProductForm = ({
   };
 
   // ── Render ────────────────────────────────────────────
+  const filledCount = [form.title, form.price, form.category_id, media.length > 0].filter(Boolean).length;
+
   return (
-    <div className="bg-card rounded-xl border border-border p-4 mb-4">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-bold text-foreground">
-          {editingProduct ? "Editar Produto" : "Novo Produto"}
-        </h2>
-        <button onClick={onCancel} className="p-1 text-muted-foreground"><X className="w-4 h-4" /></button>
+    <div className="bg-card rounded-2xl border border-border shadow-sm p-4 mb-4">
+      <div className="flex items-center justify-between mb-1">
+        <div>
+          <h2 className="text-base font-bold text-foreground">
+            {editingProduct ? "Editar produto" : "Novo produto"}
+          </h2>
+          {!editingProduct && (
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Leva menos de 2 minutos — começa pelas fotos, é o que mais vende.
+            </p>
+          )}
+        </div>
+        <button onClick={onCancel} className="p-1.5 -mr-1 rounded-full text-muted-foreground hover:bg-muted transition-colors"><X className="w-4 h-4" /></button>
       </div>
 
-      <div className="space-y-3">
+      {!editingProduct && (
+        <div className="flex items-center gap-1 mt-3 mb-1">
+          {[0, 1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className={cn(
+                "h-1 flex-1 rounded-full transition-colors duration-300",
+                i < filledCount ? "bg-primary" : "bg-muted"
+              )}
+            />
+          ))}
+        </div>
+      )}
+
+      <div className="space-y-5 mt-4">
+
+        {/* Imagens — primeiro, porque é o que faz o comprador parar de rolar */}
+        <div>
+          <label className="text-[11px] font-bold text-muted-foreground mb-1.5 flex items-center gap-1.5">
+            <span className="w-4 h-4 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+              <Camera className="w-2.5 h-2.5 text-primary" />
+            </span>
+            Fotos e vídeos
+            <span className="text-[9px] text-destructive font-bold">(mín. 1 foto)</span>
+          </label>
+
+          {photoError && media.length === 0 && (
+            <div className="flex items-center gap-2 rounded-lg px-3 py-2 mb-2" style={{ background: "#FFF0F0", border: "1.5px solid #C0392B55" }}>
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" style={{ color: "#C0392B" }} />
+              <p className="text-xs font-bold" style={{ color: "#C0392B" }}>É obrigatório adicionar pelo menos uma foto do produto antes de publicar.</p>
+            </div>
+          )}
+
+          <div className="grid grid-cols-4 gap-2">
+            {media.map((m, i) => (
+              <div key={i} className={cn(
+                "group relative rounded-xl border-2 overflow-hidden aspect-square",
+                m.is_cover ? "border-primary ring-2 ring-primary/20" : "border-border"
+              )}>
+                {m.type === "image" ? <img src={m.url} alt="" className="w-full h-full object-cover" /> : <video src={m.url} className="w-full h-full object-cover" />}
+                {m.is_cover && (
+                  <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded-md text-[8px] font-bold bg-primary text-primary-foreground shadow-sm">
+                    CAPA
+                  </span>
+                )}
+                <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent flex justify-between p-1">
+                  {!m.is_cover && <button onClick={() => setCover(i)} className="text-[9px] font-bold text-white px-1 drop-shadow">Capa</button>}
+                  <button onClick={() => removeMedia(i)} className="text-white ml-auto p-0.5"><Trash2 className="w-3 h-3" /></button>
+                </div>
+              </div>
+            ))}
+
+            {/* Tile de adicionar — sempre visível, mesmo com fotos já carregadas,
+                para adicionar mais sem procurar os botões lá em baixo. */}
+            <label className={cn(
+              "relative flex flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed aspect-square cursor-pointer transition-colors",
+              uploading ? "opacity-50 pointer-events-none" : "hover:border-primary hover:bg-primary/5",
+              photoError && media.length === 0 ? "border-destructive" : "border-border"
+            )}>
+              {uploading ? (
+                <span className="text-[9px] text-muted-foreground text-center px-1">A enviar…</span>
+              ) : (
+                <>
+                  <Plus className="w-5 h-5 text-muted-foreground" />
+                  <span className="text-[9px] text-muted-foreground font-medium">Adicionar</span>
+                </>
+              )}
+              <input type="file" accept="image/*" multiple onChange={e => handleFilesUpload(e, "image")} className="hidden" disabled={uploading} />
+            </label>
+          </div>
+
+          <label className={cn(
+            "mt-2 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold cursor-pointer border transition w-fit",
+            uploading ? "opacity-50 pointer-events-none" : "bg-accent text-foreground border-border hover:bg-accent/80"
+          )}>
+            <Film className="w-3.5 h-3.5" /> Adicionar vídeo
+            <input type="file" accept="video/*" multiple onChange={e => handleFilesUpload(e, "video")} className="hidden" disabled={uploading} />
+          </label>
+
+          {media.length === 0 && !photoError && (
+            <p className="text-[10px] text-muted-foreground mt-1.5 flex items-center gap-1">
+              <Sparkles className="w-3 h-3 text-primary/70" />
+              Fotos claras e com boa luz vendem mais rápido.
+            </p>
+          )}
+        </div>
 
         {/* Título */}
         <div>
-          <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Nome do produto *</label>
+          <label className="text-[11px] font-bold text-muted-foreground mb-1 flex items-center gap-1.5">
+            <span className="w-4 h-4 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+              <FileText className="w-2.5 h-2.5 text-primary" />
+            </span>
+            Nome do produto *
+          </label>
           <input value={form.title} onChange={e => set("title", e.target.value)}
             placeholder="Ex: iPhone 15 Pro Max 256GB"
-            className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground" />
+            className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
         </div>
 
         {/* Descrição */}
@@ -581,12 +700,17 @@ const SellerProductForm = ({
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Descrição</label>
           <textarea value={form.description} onChange={e => set("description", e.target.value)}
             placeholder="Descreva o produto em detalhe..."
-            className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground h-20 resize-none" />
+            className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground h-20 resize-none transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
         </div>
 
         {/* Preços */}
         <div>
-          <label className="text-[11px] font-bold text-muted-foreground mb-1.5 block">Preços e Promoção</label>
+          <label className="text-[11px] font-bold text-muted-foreground mb-1.5 flex items-center gap-1.5">
+            <span className="w-4 h-4 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+              <DollarSign className="w-2.5 h-2.5 text-primary" />
+            </span>
+            Preços e promoção
+          </label>
           <div className="rounded-xl border border-border bg-muted/40 p-3 space-y-2.5">
             <div className="grid grid-cols-2 gap-2">
               <div>
@@ -780,19 +904,63 @@ const SellerProductForm = ({
         {/* Categoria */}
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Categoria</label>
-          <select value={form.category_id} onChange={e => set("category_id", e.target.value)}
-            className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground">
-            <option value="">Selecionar</option>
-            {parentCategories.map((c: any) => {
-              const subs = getSubcategories(c.id);
-              return (
-                <optgroup key={c.id} label={c.name}>
-                  <option value={c.id}>{c.name} (geral)</option>
-                  {subs.map((s: any) => <option key={s.id} value={s.id}>&nbsp;&nbsp;↳ {s.name}</option>)}
-                </optgroup>
-              );
-            })}
-          </select>
+          <Popover open={categoryPickerOpen} onOpenChange={setCategoryPickerOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-muted border border-border text-sm text-left"
+              >
+                <Tag className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                {selectedCategory ? (
+                  <span className="truncate">
+                    {selectedCategory.parentLabel && (
+                      <span className="text-muted-foreground">{selectedCategory.parentLabel} › </span>
+                    )}
+                    <span className="font-medium text-foreground">{selectedCategory.label}</span>
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">Pesquisar categoria…</span>
+                )}
+                <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0 ml-auto" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+              <Command>
+                <CommandInput placeholder="Ex: telemóvel, roupa, cozinha…" className="text-sm" />
+                <CommandList className="max-h-64">
+                  <CommandEmpty className="py-6 text-center text-xs text-muted-foreground">
+                    Nenhuma categoria encontrada.
+                  </CommandEmpty>
+                  {parentCategories.map((c: any) => {
+                    const subs = getSubcategories(c.id);
+                    return (
+                      <CommandGroup key={c.id} heading={c.name}>
+                        <CommandItem
+                          value={`${c.name} geral`}
+                          onSelect={() => { set("category_id", c.id); setCategoryPickerOpen(false); }}
+                          className="text-sm"
+                        >
+                          <Check className={cn("w-3.5 h-3.5 mr-2", form.category_id === c.id ? "opacity-100 text-primary" : "opacity-0")} />
+                          {c.name} <span className="text-muted-foreground ml-1">(geral)</span>
+                        </CommandItem>
+                        {subs.map((s: any) => (
+                          <CommandItem
+                            key={s.id}
+                            value={`${c.name} ${s.name}`}
+                            onSelect={() => { set("category_id", s.id); setCategoryPickerOpen(false); }}
+                            className="text-sm pl-7"
+                          >
+                            <Check className={cn("w-3.5 h-3.5 mr-2", form.category_id === s.id ? "opacity-100 text-primary" : "opacity-0")} />
+                            {s.name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    );
+                  })}
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
         </div>
 
         {/* Condição */}
@@ -815,52 +983,6 @@ const SellerProductForm = ({
               </button>
             ))}
           </div>
-        </div>
-
-        {/* Imagens */}
-        <div>
-          <label className="text-[11px] font-bold text-muted-foreground mb-1 block flex items-center gap-1">
-            <Camera className="w-3.5 h-3.5" />
-            Imagens e Vídeos *
-            <span className="text-[9px] text-destructive font-bold">(mínimo 1 foto obrigatória)</span>
-          </label>
-          <div className="flex gap-2 mb-2">
-            <label className={`flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-bold cursor-pointer border transition ${uploading ? "opacity-50" : "bg-accent text-foreground border-border hover:bg-accent/80"}`}>
-              <ImageIcon className="w-3.5 h-3.5" /> Imagens
-              <input type="file" accept="image/*" multiple onChange={e => handleFilesUpload(e, "image")} className="hidden" disabled={uploading} />
-            </label>
-            <label className={`flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-bold cursor-pointer border transition ${uploading ? "opacity-50" : "bg-accent text-foreground border-border hover:bg-accent/80"}`}>
-              <Film className="w-3.5 h-3.5" /> Vídeos
-              <input type="file" accept="video/*" multiple onChange={e => handleFilesUpload(e, "video")} className="hidden" disabled={uploading} />
-            </label>
-            {uploading && <span className="text-xs text-muted-foreground self-center">A enviar...</span>}
-          </div>
-          {photoError && media.length === 0 && (
-            <div className="flex items-center gap-2 rounded-lg px-3 py-2 mb-2" style={{ background: "#FFF0F0", border: "1.5px solid #C0392B55" }}>
-              <AlertTriangle className="w-4 h-4 flex-shrink-0" style={{ color: "#C0392B" }} />
-              <p className="text-xs font-bold" style={{ color: "#C0392B" }}>É obrigatório adicionar pelo menos uma foto do produto antes de publicar.</p>
-            </div>
-          )}
-          {media.length > 0 ? (
-            <div className="grid grid-cols-4 gap-2">
-              {media.map((m, i) => (
-                <div key={i} className={`relative rounded-lg border-2 overflow-hidden aspect-square ${m.is_cover ? "border-primary" : "border-border"}`}>
-                  {m.type === "image" ? <img src={m.url} alt="" className="w-full h-full object-cover" /> : <video src={m.url} className="w-full h-full object-cover" />}
-                  {m.is_cover && <span className="absolute top-0.5 left-0.5 px-1 py-0.5 rounded text-[8px] font-bold bg-primary text-primary-foreground">CAPA</span>}
-                  <div className="absolute bottom-0 inset-x-0 bg-background/80 flex justify-between p-0.5">
-                    {!m.is_cover && <button onClick={() => setCover(i)} className="text-[9px] font-bold text-primary px-1">Capa</button>}
-                    <button onClick={() => removeMedia(i)} className="text-destructive ml-auto p-0.5"><Trash2 className="w-3 h-3" /></button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed py-6 gap-2"
-              style={{ borderColor: photoError ? "#C0392B" : undefined }}>
-              <Camera className="w-8 h-8" style={{ color: photoError ? "#C0392B" : "#ccc" }} />
-              <p className="text-xs text-muted-foreground">Clique em "Imagens" para adicionar fotos</p>
-            </div>
-          )}
         </div>
 
         {/* Variações */}
