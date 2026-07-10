@@ -10,7 +10,7 @@ import { useState, useMemo, useEffect } from "react";
 
 const sand       = "#D4B896";
 const sandDark   = "#B8956A";
-const cream      = "#F7F0E6";
+const cream      = "#FFFFFF";
 const brown      = "#4A2E0A";
 const brownLight = "rgba(74,46,10,0.10)";
 const danger     = "#E53935";
@@ -274,13 +274,13 @@ const Carrinho = () => {
   }
 
   return (
-    <div className="min-h-screen pb-36" style={{ background: "#F2EAE0" }}>
+    <div className="min-h-screen pb-36" style={{ background: "#FFFFFF" }}>
 
       {/* ── Cabeçalho ── */}
       <div
         className="sticky top-0 z-40 px-4 py-3 flex items-center justify-between gap-3"
         style={{
-          background: "rgba(242,234,224,0.97)",
+          background: "rgba(255,255,255,0.97)",
           backdropFilter: "blur(10px)",
           borderBottom: `1px solid ${sand}`,
         }}
@@ -683,7 +683,7 @@ const Carrinho = () => {
         <div
           className="fixed bottom-14 md:bottom-0 left-0 right-0 z-50 px-4 py-3"
           style={{
-            background: "rgba(242,234,224,0.97)",
+            background: "rgba(255,255,255,0.97)",
             backdropFilter: "blur(12px)",
             borderTop: `1px solid ${sand}`,
           }}
