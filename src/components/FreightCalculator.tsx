@@ -431,9 +431,35 @@ function SellerFreightRow({
   const hasExpress = expressResult && !expressResult.error && expressResult.source !== "pickup";
   const pickupAddress = result?.pickup_address ?? undefined;
 
+  // Se o frete não conseguiu ser calculado automaticamente, o comprador tem
+  // de escolher uma rota alternativa ou levantamento — nesse caso abrimos o
+  // cartão logo de início, para não esconder uma ação obrigatória.
+  useEffect(() => {
+    if (noRoute) setExpanded(true);
+  }, [noRoute]);
+
+  // Resumo compacto mostrado sempre no cabeçalho do cartão (mesmo fechado),
+  // para o comprador ver "produto + frete da loja" de forma simples, sem
+  // ter de abrir nada. O cálculo continua a correr por trás na mesma.
+  const freightSummary = loading
+    ? { text: "A calcular frete…", tone: "muted" as const }
+    : noRoute
+    ? { text: "Escolher entrega", tone: "warning" as const }
+    : isPickup
+    ? { text: "Retirada na loja", tone: "free" as const }
+    : isFree
+    ? { text: "Frete grátis", tone: "free" as const }
+    : activeResult
+    ? { text: fmtKz(activeResult.price), tone: "normal" as const }
+    : { text: "—", tone: "muted" as const };
+
   return (
     <div className="rounded-xl border bg-card overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
+      <button
+        type="button"
+        onClick={() => setExpanded((e) => !e)}
+        className="w-full flex items-center justify-between px-4 py-3 border-b bg-muted/30 text-left"
+      >
         <div className="flex items-center gap-2 min-w-0">
           <Package className="w-4 h-4 text-muted-foreground shrink-0" />
           <span className="font-medium text-sm truncate">{group.seller.sellerName}</span>
@@ -441,16 +467,31 @@ function SellerFreightRow({
             {group.items.length} {group.items.length === 1 ? "item" : "itens"}
           </Badge>
         </div>
-        <button
-          onClick={() => setExpanded((e) => !e)}
-          className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
-        >
-          {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-        </button>
-      </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {freightSummary.tone === "muted" && loading && (
+            <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
+          )}
+          <span
+            className={cn(
+              "text-xs font-semibold whitespace-nowrap",
+              freightSummary.tone === "free" && "text-rose-400",
+              freightSummary.tone === "warning" && "text-amber-400",
+              freightSummary.tone === "normal" && "text-foreground",
+              freightSummary.tone === "muted" && "text-muted-foreground"
+            )}
+          >
+            {freightSummary.text}
+          </span>
+          <span className="text-muted-foreground">
+            {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </span>
+        </div>
+      </button>
 
       {/* Miniaturas dos produtos — sempre visíveis, em formato pequeno.
-          O clique em "expandir" só acrescenta os preços/subtotal por baixo. */}
+          "Produto + frete da loja" fica visível de imediato, sem precisar
+          abrir nada; o detalhe completo (subtotal, outras opções de entrega)
+          só aparece ao expandir. */}
       <div className="px-4 py-2.5 border-b bg-muted/10 flex items-center gap-2 overflow-x-auto">
         {group.items.map((item) => (
           <div
@@ -495,6 +536,7 @@ function SellerFreightRow({
         </div>
       )}
 
+      {!expanded ? null : (
       <div className="p-4 space-y-3">
         {loading ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -702,6 +744,7 @@ function SellerFreightRow({
           </RadioGroup>
         )}
       </div>
+      )}
     </div>
   );
 }
