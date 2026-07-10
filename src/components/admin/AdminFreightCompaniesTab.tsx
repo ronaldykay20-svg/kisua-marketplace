@@ -1,9 +1,12 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import {
   useAdminFreightCompanies,
   FreightCompany,
   FreightCompanyRate,
 } from "@/hooks/useFreightCompanies";
+import { supabase } from "@/integrations/supabase/client";
+import { STORAGE_BUCKETS } from "@/lib/storage";
+import { convertToWebP, getFileExtension } from "@/lib/imageToWebp";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,7 +39,22 @@ import {
   Package,
   ArrowRight,
   Scale,
+  Image as ImageIcon,
+  X,
+  Upload,
 } from "lucide-react";
+
+async function uploadFreightLogo(file: File): Promise<string> {
+  const uploadFile = await convertToWebP(file, 0.85, 400);
+  const ext = getFileExtension(uploadFile);
+  const path = `logos/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+  const { error } = await supabase.storage
+    .from(STORAGE_BUCKETS.freight)
+    .upload(path, uploadFile, { upsert: true, cacheControl: "2592000" });
+  if (error) throw new Error("Upload falhou: " + error.message);
+  const { data } = supabase.storage.from(STORAGE_BUCKETS.freight).getPublicUrl(path);
+  return data.publicUrl;
+}
 
 // ─── Estilo para <select> nativo (consistente com AdminFreightTab) ───────────
 const nativeSelectClass =
@@ -137,6 +155,8 @@ export default function AdminFreightCompaniesTab() {
   const [deleteCompanyConfirm, setDeleteCompanyConfirm] = useState<
     string | null
   >(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   const openCreateCompany = () => {
     setCompanyForm(EMPTY_COMPANY);
@@ -154,6 +174,29 @@ export default function AdminFreightCompaniesTab() {
       is_active: c.is_active,
     });
     setCompanyModalOpen(true);
+  };
+
+  const handleLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // permite re-seleccionar o mesmo ficheiro depois
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Selecciona um ficheiro de imagem", variant: "destructive" });
+      return;
+    }
+    setUploadingLogo(true);
+    try {
+      const url = await uploadFreightLogo(file);
+      setCompanyForm((f) => ({ ...f, logo_url: url }));
+    } catch (err: any) {
+      toast({
+        title: "Erro ao enviar o logótipo",
+        description: err.message,
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingLogo(false);
+    }
   };
 
   const handleSubmitCompany = async () => {
@@ -421,18 +464,62 @@ export default function AdminFreightCompaniesTab() {
             </div>
             <div className="space-y-2">
               <Label>
-                URL do logótipo{" "}
+                Logótipo{" "}
                 <span className="text-muted-foreground text-xs">
-                  (opcional)
+                  (opcional — aparece no checkout ao escolher a transportadora)
                 </span>
               </Label>
-              <Input
-                value={companyForm.logo_url}
-                onChange={(e) =>
-                  setCompanyForm((f) => ({ ...f, logo_url: e.target.value }))
-                }
-                placeholder="https://…"
+              <input
+                ref={logoInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleLogoFileChange}
               />
+              <div className="flex items-center gap-3">
+                <div className="w-16 h-16 rounded-xl border bg-muted/30 flex items-center justify-center overflow-hidden shrink-0">
+                  {companyForm.logo_url ? (
+                    <img
+                      src={companyForm.logo_url}
+                      alt="Logótipo"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <ImageIcon className="w-6 h-6 text-muted-foreground/40" />
+                  )}
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={uploadingLogo}
+                    onClick={() => logoInputRef.current?.click()}
+                  >
+                    {uploadingLogo ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                        A enviar…
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-3.5 h-3.5 mr-1.5" />
+                        {companyForm.logo_url ? "Trocar imagem" : "Carregar imagem"}
+                      </>
+                    )}
+                  </Button>
+                  {companyForm.logo_url && (
+                    <button
+                      type="button"
+                      onClick={() => setCompanyForm((f) => ({ ...f, logo_url: "" }))}
+                      className="text-xs text-muted-foreground hover:text-destructive flex items-center gap-1 w-fit"
+                    >
+                      <X className="w-3 h-3" />
+                      Remover
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
             <div className="space-y-2">
               <Label>
