@@ -2,6 +2,18 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+/* ── Evita o zoom automático do iOS Safari ao focar um input ──
+   O Safari amplia a página sempre que o font-size de um campo
+   é inferior a 16px. Forçamos 16px só em ecrãs pequenos, para
+   não estragar o layout desktop onde o zoom não acontece. */
+@media (max-width: 767px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
 @layer base {
   :root {
     --background: 210 20% 98%;
