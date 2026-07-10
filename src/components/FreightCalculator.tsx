@@ -454,7 +454,7 @@ function SellerFreightRow({
     : { text: "—", tone: "muted" as const };
 
   return (
-    <div className="rounded-xl border bg-card overflow-hidden">
+    <div className="rounded-2xl border bg-card overflow-hidden shadow-sm transition-shadow">
       <button
         type="button"
         onClick={() => setExpanded((e) => !e)}
@@ -474,8 +474,8 @@ function SellerFreightRow({
           <span
             className={cn(
               "text-xs font-semibold whitespace-nowrap",
-              freightSummary.tone === "free" && "text-rose-400",
-              freightSummary.tone === "warning" && "text-amber-400",
+              freightSummary.tone === "free" && "text-walmart-green",
+              freightSummary.tone === "warning" && "text-walmart-orange",
               freightSummary.tone === "normal" && "text-foreground",
               freightSummary.tone === "muted" && "text-muted-foreground"
             )}
@@ -567,8 +567,8 @@ function SellerFreightRow({
             pickupAddress={pickupAddress}
           />
         ) : isPickup ? (
-          <div className="flex items-center gap-3 rounded-lg border border-rose-500/30 bg-rose-500/5 p-3">
-            <Store className="w-5 h-5 text-rose-400 shrink-0" />
+          <div className="flex items-center gap-3 rounded-lg border border-walmart-green/30 bg-walmart-green/5 p-3">
+            <Store className="w-5 h-5 text-walmart-green shrink-0" />
             <div>
               <p className="text-sm font-medium">Retirada na loja</p>
               {activeResult?.pickup_address && (
@@ -578,7 +578,7 @@ function SellerFreightRow({
                 </p>
               )}
             </div>
-            <Badge className="ml-auto bg-rose-500/20 text-rose-400 border-rose-500/30">Grátis</Badge>
+            <Badge className="ml-auto bg-walmart-green/20 text-walmart-green border-walmart-green/30">Grátis</Badge>
           </div>
         ) : (
           <RadioGroup
