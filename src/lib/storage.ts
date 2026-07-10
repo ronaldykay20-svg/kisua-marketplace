@@ -5,4 +5,5 @@ export const STORAGE_BUCKETS = {
   categories: "categories",
   banners: "banners",
   chat: "chat",
+  freight: "freight",
 } as const;
