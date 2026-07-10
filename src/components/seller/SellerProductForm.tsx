@@ -360,8 +360,13 @@ const SellerProductForm = ({
   const flatCategoryOptions = useMemo(() => {
     const opts: { id: string; label: string; parentLabel: string | null }[] = [];
     parentCategories.forEach((c: any) => {
-      opts.push({ id: c.id, label: c.name, parentLabel: null });
-      getSubcategories(c.id).forEach((s: any) => {
+      const subs = getSubcategories(c.id);
+      // Só entra como opção "solta" se não tiver subcategorias — caso contrário
+      // o produto tem de ficar preso a uma subcategoria, nunca à categoria-mãe.
+      if (subs.length === 0) {
+        opts.push({ id: c.id, label: c.name, parentLabel: null });
+      }
+      subs.forEach((s: any) => {
         opts.push({ id: s.id, label: s.name, parentLabel: c.name });
       });
     });
@@ -933,16 +938,20 @@ const SellerProductForm = ({
                   </CommandEmpty>
                   {parentCategories.map((c: any) => {
                     const subs = getSubcategories(c.id);
+                    // Uma categoria-mãe só pode ser selecionada diretamente quando
+                    // não tem subcategorias (senão fica "solta" sem classificação real).
                     return (
                       <CommandGroup key={c.id} heading={c.name}>
-                        <CommandItem
-                          value={`${c.name} geral`}
-                          onSelect={() => { set("category_id", c.id); setCategoryPickerOpen(false); }}
-                          className="text-sm"
-                        >
-                          <Check className={cn("w-3.5 h-3.5 mr-2", form.category_id === c.id ? "opacity-100 text-primary" : "opacity-0")} />
-                          {c.name} <span className="text-muted-foreground ml-1">(geral)</span>
-                        </CommandItem>
+                        {subs.length === 0 && (
+                          <CommandItem
+                            value={c.name}
+                            onSelect={() => { set("category_id", c.id); setCategoryPickerOpen(false); }}
+                            className="text-sm"
+                          >
+                            <Check className={cn("w-3.5 h-3.5 mr-2", form.category_id === c.id ? "opacity-100 text-primary" : "opacity-0")} />
+                            {c.name}
+                          </CommandItem>
+                        )}
                         {subs.map((s: any) => (
                           <CommandItem
                             key={s.id}
