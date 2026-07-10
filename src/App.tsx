@@ -8,6 +8,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import NewNavbar from "@/components/NewNavbar";
 import DesktopNavbar from "@/components/DesktopNavbar";
 import BottomNav from "@/components/BottomNav";
+import Footer from "@/components/Footer";
 import CookieConsentBanner from "@/components/CookieConsentBanner";
 import WelcomeCouponPopup from "@/components/WelcomeCouponPopup";
 import AbandonedCartPopup from "@/components/AbandonedCartPopup";
@@ -67,8 +68,19 @@ import CatalogoFornecedores from "./pages/CatalogoFornecedores.tsx";
 
 const queryClient = new QueryClient();
 
-const HIDE_BOTTOM_NAV_PATHS = [/^\/produto\/.+/];
-const HIDE_HEADER_PATHS = [/^\/produto\/.+/];
+const HIDE_BOTTOM_NAV_PATHS = [/^\/produto\/.+/, /^\/checkout/];
+const HIDE_HEADER_PATHS = [/^\/produto\/.+/, /^\/checkout/];
+// Painéis internos (admin/vendedor/moderador/fornecedor) e o checkout não
+// levam rodapé — são ferramentas/fluxos de trabalho, não páginas de
+// navegação de conteúdo, e o rodapé ali só acrescentaria ruído.
+const HIDE_FOOTER_PATHS = [
+  /^\/produto\/.+/,
+  /^\/checkout/,
+  /^\/admin/,
+  /^\/painel-/,
+  /^\/central-pedidos/,
+  /^\/carrinho/,
+];
 
 const Layout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
@@ -76,6 +88,9 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
     pattern.test(location.pathname)
   );
   const hideHeader = HIDE_HEADER_PATHS.some((pattern) =>
+    pattern.test(location.pathname)
+  );
+  const hideFooter = HIDE_FOOTER_PATHS.some((pattern) =>
     pattern.test(location.pathname)
   );
 
@@ -92,6 +107,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
         </>
       )}
       <ErrorBoundary key={location.pathname}>{children}</ErrorBoundary>
+      {!hideFooter && <Footer />}
       {!hideBottomNav && <BottomNav />}
       <CookieConsentBanner />
       <WelcomeCouponPopup />
