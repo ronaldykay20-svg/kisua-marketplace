@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Save, X, Trash2, Image as ImageIcon, Film, Plus,
   ChevronDown, ChevronRight, AlertTriangle, Clock, Camera,
-  Weight, Package2, Ruler, Info, Check, Tag, Sparkles, FileText, DollarSign,
+  Weight, Package2, Ruler, Info, Tag, Sparkles, FileText, DollarSign,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -10,8 +10,6 @@ import { STORAGE_BUCKETS } from "@/lib/storage";
 import { useUserRole } from "@/hooks/useUserRole";
 import { convertToWebP, getFileExtension } from "@/lib/imageToWebp";
 import { cn } from "@/lib/utils";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 
 // ─── Types ────────────────────────────────────────────────
 interface ProductFormData {
@@ -201,6 +199,15 @@ const SellerProductForm = ({
 
   const [lastEdited, setLastEdited] = useState<"price" | "old_price" | "discount_percent" | null>(null);
 
+  // ── Vender com desconto: liga/desliga a secção e escolhe se o
+  // vendedor prefere indicar o preço antigo ou a percentagem direta.
+  const [discountEnabled, setDiscountEnabled] = useState(
+    () => !!(editingProduct?.old_price || editingProduct?.discount_percent)
+  );
+  const [discountMode, setDiscountMode] = useState<"percent" | "old_price">(
+    () => (editingProduct?.discount_percent ? "percent" : "old_price")
+  );
+
   const set = useCallback((key: keyof ProductFormData, value: any) => {
     setForm(f => ({ ...f, [key]: value }));
   }, []);
@@ -374,7 +381,6 @@ const SellerProductForm = ({
   }, [allCategories]);
 
   const selectedCategory = flatCategoryOptions.find((c) => c.id === form.category_id);
-  const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
 
   // ── Upload ────────────────────────────────────────────
   const handleFilesUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: "image" | "video") => {
@@ -585,36 +591,18 @@ const SellerProductForm = ({
   const filledCount = [form.title, form.price, form.category_id, media.length > 0].filter(Boolean).length;
 
   return (
-    <div className="bg-card rounded-2xl border border-border shadow-sm p-4 mb-4">
-      <div className="flex items-center justify-between mb-1">
-        <div>
-          <h2 className="text-base font-bold text-foreground">
-            {editingProduct ? "Editar produto" : "Novo produto"}
-          </h2>
-          {!editingProduct && (
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              Leva menos de 2 minutos — começa pelas fotos, é o que mais vende.
-            </p>
-          )}
-        </div>
+    <div className="bg-card rounded-2xl border border-border shadow-sm mb-4 overflow-hidden">
+      {/* Cabeçalho fino e fixo — título + fechar, sem enfeites.
+          É o padrão da Amazon Seller Central e do Shein Seller Center:
+          uma barra simples que não rouba espaço ao formulário em si. */}
+      <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 bg-card/95 backdrop-blur border-b border-border">
+        <h2 className="text-sm font-bold text-foreground">
+          {editingProduct ? "Editar produto" : "Novo produto"}
+        </h2>
         <button onClick={onCancel} className="p-1.5 -mr-1 rounded-full text-muted-foreground hover:bg-muted transition-colors"><X className="w-4 h-4" /></button>
       </div>
 
-      {!editingProduct && (
-        <div className="flex items-center gap-1 mt-3 mb-1">
-          {[0, 1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className={cn(
-                "h-1 flex-1 rounded-full transition-colors duration-300",
-                i < filledCount ? "bg-primary" : "bg-muted"
-              )}
-            />
-          ))}
-        </div>
-      )}
-
-      <div className="space-y-5 mt-4">
+      <div className="p-4 space-y-5">
 
         {/* Imagens — primeiro, porque é o que faz o comprador parar de rolar */}
         <div>
@@ -708,75 +696,130 @@ const SellerProductForm = ({
             className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm text-foreground h-20 resize-none transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
         </div>
 
-        {/* Preços */}
+        {/* Preço — bem visível, é a primeira coisa que o comprador olha */}
         <div>
           <label className="text-[11px] font-bold text-muted-foreground mb-1.5 flex items-center gap-1.5">
             <span className="w-4 h-4 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
               <DollarSign className="w-2.5 h-2.5 text-primary" />
             </span>
-            Preços e promoção
+            Preço *
           </label>
-          <div className="rounded-xl border border-border bg-muted/40 p-3 space-y-2.5">
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[10px] font-bold text-muted-foreground mb-0.5 block">Preço antigo (Kz)</label>
-                <input type="number" value={form.old_price} onChange={e => handleOldPriceChange(e.target.value)}
-                  placeholder="Ex: 50 000"
-                  className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground" />
-                <p className="text-[9px] text-muted-foreground mt-0.5">Preço antes da promoção</p>
-              </div>
-              <div>
-                <label className="text-[10px] font-bold mb-0.5 block" style={{ color: "#C0392B" }}>Desconto %</label>
-                <input type="number" value={form.discount_percent} onChange={e => handleDiscountChange(e.target.value)}
-                  placeholder="Ex: 20" min="1" max="99"
-                  className="w-full px-3 py-2 rounded-lg bg-background border text-sm font-bold"
-                  style={{ borderColor: form.discount_percent ? "#C0392B" : undefined, color: form.discount_percent ? "#C0392B" : undefined }} />
-                <p className="text-[9px] text-muted-foreground mt-0.5">Calcula o preço novo</p>
-              </div>
-            </div>
-            <div>
-              <label className="text-[10px] font-bold text-muted-foreground mb-0.5 block">Preço actual (Kz) *</label>
+          <div className="rounded-xl border-2 border-primary/30 bg-primary/5 p-3">
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground pointer-events-none">Kz</span>
               <input type="number" value={form.price} onChange={e => handlePriceChange(e.target.value)}
-                placeholder="Ex: 40 000"
-                className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground font-bold" />
-              <p className="text-[9px] text-muted-foreground mt-0.5">{supplierMode ? "Preço base do fornecedor que aparece na loja" : "Preenche → calcula % automaticamente"}</p>
+                placeholder="0"
+                className="w-full pl-10 pr-3 py-3 rounded-lg bg-background border border-border text-xl text-foreground font-black tracking-tight" />
             </div>
-            {savingsSummary && (
-              <div className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ background: "#FFF5F5" }}>
-                <span className="text-xs font-black px-2 py-0.5 rounded" style={{ background: "#C0392B", color: "#fff" }}>
-                  -{savingsSummary.pct}%
-                </span>
-                <span className="text-xs" style={{ color: "#6B3A2A" }}>
-                  O cliente poupa <strong>{Number(savingsSummary.saving).toLocaleString("pt-AO").replace(/,/g, ".")} Kz</strong>
-                </span>
-              </div>
-            )}
+            <p className="text-[10px] text-muted-foreground mt-1">
+              {supplierMode ? "Preço base do fornecedor que aparece na loja" : "Preço final que o comprador vai pagar"}
+            </p>
           </div>
         </div>
 
-        {/* Fim de promoção */}
-        {hasDiscount && (
-          <div className="rounded-lg border p-3 space-y-1.5" style={{ borderColor: "#C0392B44", background: "#FFF8F5" }}>
-            <label className="text-[11px] font-bold flex items-center gap-1.5" style={{ color: "#C0392B" }}>
-              <Clock className="w-3.5 h-3.5" /> Fim da promoção (opcional)
-            </label>
-            <input type="datetime-local" value={form.promotion_ends_at}
-              onChange={e => set("promotion_ends_at", e.target.value)}
-              min={new Date().toISOString().slice(0, 16)}
-              className="w-full px-3 py-2 rounded-lg bg-white border border-border text-sm text-foreground" />
-            {promotionEndsAtPreview && (
-              <p className="text-[10px]" style={{ color: "#8B4A35" }}>
-                Termina em {promotionEndsAtPreview.toLocaleString("pt-AO", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })} — o produto sai das Promoções automaticamente.
-              </p>
-            )}
-            {form.promotion_ends_at && (
-              <button type="button" onClick={() => set("promotion_ends_at", "")}
-                className="text-[10px] underline" style={{ color: "#C0392B" }}>
-                Remover data limite
-              </button>
-            )}
-          </div>
-        )}
+        {/* Vender com desconto — desligado por omissão, só aparece o
+            que é preciso quando o vendedor liga a opção. */}
+        <div className="rounded-xl border border-border p-3">
+          <label className="flex items-center justify-between cursor-pointer">
+            <span className="text-[11px] font-bold text-foreground flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-primary" /> Vender com desconto
+            </span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={discountEnabled}
+              onClick={() => {
+                const next = !discountEnabled;
+                setDiscountEnabled(next);
+                if (!next) {
+                  // Desligar limpa tudo o que só faz sentido com desconto ativo.
+                  setLastEdited(null);
+                  setForm(f => ({ ...f, old_price: "", discount_percent: "", promotion_ends_at: "" }));
+                }
+              }}
+              className={cn(
+                "w-9 h-5 rounded-full transition-colors relative shrink-0",
+                discountEnabled ? "bg-primary" : "bg-muted"
+              )}
+            >
+              <span className={cn(
+                "absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform",
+                discountEnabled && "translate-x-4"
+              )} />
+            </button>
+          </label>
+
+          {discountEnabled && (
+            <div className="mt-3 space-y-2.5">
+              {/* Escolher como definir o desconto */}
+              <div className="flex gap-1.5">
+                <button type="button" onClick={() => setDiscountMode("percent")}
+                  className={cn(
+                    "flex-1 py-1.5 rounded-lg text-[11px] font-bold border transition",
+                    discountMode === "percent" ? "bg-primary text-primary-foreground border-primary" : "bg-muted text-foreground border-border"
+                  )}>
+                  Por percentagem
+                </button>
+                <button type="button" onClick={() => setDiscountMode("old_price")}
+                  className={cn(
+                    "flex-1 py-1.5 rounded-lg text-[11px] font-bold border transition",
+                    discountMode === "old_price" ? "bg-primary text-primary-foreground border-primary" : "bg-muted text-foreground border-border"
+                  )}>
+                  Por preço antigo
+                </button>
+              </div>
+
+              {discountMode === "percent" ? (
+                <div>
+                  <label className="text-[10px] font-bold text-muted-foreground mb-0.5 block">Desconto (%)</label>
+                  <input type="number" value={form.discount_percent} onChange={e => handleDiscountChange(e.target.value)}
+                    placeholder="Ex: 20" min="1" max="99"
+                    className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm font-bold text-foreground" />
+                </div>
+              ) : (
+                <div>
+                  <label className="text-[10px] font-bold text-muted-foreground mb-0.5 block">Preço antigo (Kz)</label>
+                  <input type="number" value={form.old_price} onChange={e => handleOldPriceChange(e.target.value)}
+                    placeholder="Ex: 50 000"
+                    className="w-full px-3 py-2 rounded-lg bg-muted border border-border text-sm font-bold text-foreground" />
+                </div>
+              )}
+
+              {savingsSummary && (
+                <div className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ background: "#FFF5F5" }}>
+                  <span className="text-xs font-black px-2 py-0.5 rounded" style={{ background: "#C0392B", color: "#fff" }}>
+                    -{savingsSummary.pct}%
+                  </span>
+                  <span className="text-xs" style={{ color: "#6B3A2A" }}>
+                    O cliente poupa <strong>{Number(savingsSummary.saving).toLocaleString("pt-AO").replace(/,/g, ".")} Kz</strong>
+                  </span>
+                </div>
+              )}
+
+              {/* Tempo de promoção */}
+              <div className="rounded-lg border p-2.5 space-y-1.5" style={{ borderColor: "#C0392B44", background: "#FFF8F5" }}>
+                <label className="text-[10px] font-bold flex items-center gap-1.5" style={{ color: "#C0392B" }}>
+                  <Clock className="w-3.5 h-3.5" /> Fim da promoção (opcional)
+                </label>
+                <input type="datetime-local" value={form.promotion_ends_at}
+                  onChange={e => set("promotion_ends_at", e.target.value)}
+                  min={new Date().toISOString().slice(0, 16)}
+                  className="w-full px-3 py-2 rounded-lg bg-white border border-border text-sm text-foreground" />
+                {promotionEndsAtPreview && (
+                  <p className="text-[10px]" style={{ color: "#8B4A35" }}>
+                    Termina em {promotionEndsAtPreview.toLocaleString("pt-AO", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })} — o produto sai das Promoções automaticamente.
+                  </p>
+                )}
+                {form.promotion_ends_at && (
+                  <button type="button" onClick={() => set("promotion_ends_at", "")}
+                    className="text-[10px] underline" style={{ color: "#C0392B" }}>
+                    Remover data limite
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Stock & SKU */}
         <div className="grid grid-cols-2 gap-2">
@@ -906,70 +949,47 @@ const SellerProductForm = ({
           </div>
         </div>
 
-        {/* Categoria */}
-        <div>
-          <label className="text-[11px] font-bold text-muted-foreground mb-1 block">Categoria</label>
-          <Popover open={categoryPickerOpen} onOpenChange={setCategoryPickerOpen}>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-muted border border-border text-sm text-left"
-              >
-                <Tag className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                {selectedCategory ? (
-                  <span className="truncate">
-                    {selectedCategory.parentLabel && (
-                      <span className="text-muted-foreground">{selectedCategory.parentLabel} › </span>
-                    )}
-                    <span className="font-medium text-foreground">{selectedCategory.label}</span>
-                  </span>
-                ) : (
-                  <span className="text-muted-foreground">Pesquisar categoria…</span>
-                )}
-                <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0 ml-auto" />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-              <Command>
-                <CommandInput placeholder="Ex: telemóvel, roupa, cozinha…" className="text-sm" />
-                <CommandList className="max-h-64">
-                  <CommandEmpty className="py-6 text-center text-xs text-muted-foreground">
-                    Nenhuma categoria encontrada.
-                  </CommandEmpty>
-                  {parentCategories.map((c: any) => {
-                    const subs = getSubcategories(c.id);
-                    // Uma categoria-mãe só pode ser selecionada diretamente quando
-                    // não tem subcategorias (senão fica "solta" sem classificação real).
-                    return (
-                      <CommandGroup key={c.id} heading={c.name}>
-                        {subs.length === 0 && (
-                          <CommandItem
-                            value={c.name}
-                            onSelect={() => { set("category_id", c.id); setCategoryPickerOpen(false); }}
-                            className="text-sm"
-                          >
-                            <Check className={cn("w-3.5 h-3.5 mr-2", form.category_id === c.id ? "opacity-100 text-primary" : "opacity-0")} />
-                            {c.name}
-                          </CommandItem>
-                        )}
-                        {subs.map((s: any) => (
-                          <CommandItem
-                            key={s.id}
-                            value={`${c.name} ${s.name}`}
-                            onSelect={() => { set("category_id", s.id); setCategoryPickerOpen(false); }}
-                            className="text-sm pl-7"
-                          >
-                            <Check className={cn("w-3.5 h-3.5 mr-2", form.category_id === s.id ? "opacity-100 text-primary" : "opacity-0")} />
-                            {s.name}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    );
-                  })}
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
+        {/* Categoria — select nativo HTML: sem popover, sem portal, sem
+            z-index para gerir. Funciona em qualquer browser/dispositivo
+            sem depender de nada além do próprio HTML. */}
+        <div className="rounded-xl border border-border bg-muted/40 p-3">
+          <label className="text-[11px] font-bold text-muted-foreground mb-1.5 flex items-center gap-1.5">
+            <span className="w-4 h-4 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+              <Tag className="w-2.5 h-2.5 text-primary" />
+            </span>
+            Categoria *
+          </label>
+          <div className="relative">
+            <select
+              value={form.category_id}
+              onChange={e => set("category_id", e.target.value)}
+              className="w-full appearance-none px-3 py-2.5 pr-9 rounded-lg bg-card border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+            >
+              <option value="" disabled>Escolha uma categoria…</option>
+              {parentCategories.map((c: any) => {
+                const subs = getSubcategories(c.id);
+                // Categoria-mãe só aparece como opção quando não tem
+                // subcategorias — senão o produto é obrigado a ficar
+                // numa subcategoria, nunca "solto" na categoria-mãe.
+                if (subs.length === 0) {
+                  return <option key={c.id} value={c.id}>{c.name}</option>;
+                }
+                return (
+                  <optgroup key={c.id} label={c.name}>
+                    {subs.map((s: any) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </optgroup>
+                );
+              })}
+            </select>
+            <ChevronDown className="w-4 h-4 text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
+          {selectedCategory && (
+            <p className="text-[10px] text-muted-foreground mt-1.5">
+              {selectedCategory.parentLabel ? `${selectedCategory.parentLabel} › ${selectedCategory.label}` : selectedCategory.label}
+            </p>
+          )}
         </div>
 
         {/* Condição */}
@@ -1017,12 +1037,6 @@ const SellerProductForm = ({
           <div className="space-y-3">{parentVariants.map(v => renderVariantCard(v, false))}</div>
         </div>
 
-        {/* Checkboxes */}
-        <label className="flex items-center gap-2 text-sm text-foreground">
-          <input type="checkbox" checked={form.free_shipping} onChange={e => set("free_shipping", e.target.checked)} className="rounded" />
-          Frete grátis
-        </label>
-
         {isAdmin && (
           <label className="flex items-center gap-2 text-sm text-foreground p-2 rounded-lg border border-amber-500/30 bg-amber-500/5">
             <input type="checkbox" checked={form.is_sponsored} onChange={e => set("is_sponsored", e.target.checked)} className="rounded" />
@@ -1031,16 +1045,23 @@ const SellerProductForm = ({
           </label>
         )}
 
-        {/* Submit */}
+      </div>
+
+      {/* Barra de ação fixa no fundo — sempre ao alcance do polegar,
+          como no Shein Seller Center e no app da AliExpress, em vez
+          de obrigar a rolar até ao fim para gravar. */}
+      <div className="sticky bottom-0 z-10 flex items-center gap-3 px-4 py-3 bg-card/95 backdrop-blur border-t border-border">
+        {!editingProduct && (
+          <span className="text-[10px] text-muted-foreground shrink-0">{filledCount}/4 preenchido</span>
+        )}
         <button
           onClick={handleSubmit}
           disabled={!form.title || !form.price || saving || stockExceeded}
-          className="w-full py-2.5 bg-primary text-primary-foreground text-sm font-bold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2"
+          className="flex-1 py-2.5 bg-primary text-primary-foreground text-sm font-bold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2"
         >
           <Save className="w-4 h-4" />
           {saving ? "A guardar..." : editingProduct ? "Atualizar Produto" : "Adicionar Produto"}
         </button>
-
       </div>
     </div>
   );
