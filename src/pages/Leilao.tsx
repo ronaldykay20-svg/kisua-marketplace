@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from "react";
-import Footer from "@/components/Footer";
 import { Gavel, Monitor, Home, Car, Watch, Clock, Trophy, CheckCircle2, Users, Shield, Loader2, X, Upload, Copy, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -504,7 +503,6 @@ const LeilaoEmBreve = () => {
           Voltar à página inicial
         </button>
       </div>
-      <Footer />
     </div>
   );
 };
@@ -957,7 +955,6 @@ const Leilao = () => {
         </section>
       )}
 
-      <Footer />
     </div>
   );
 };
