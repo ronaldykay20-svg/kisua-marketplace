@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import { useFreight, useCheckoutFreight, DeliveryType } from "@/hooks/useFreight";
-import { useFreightCompanyOptions, FreightCompanyOption } from "@/hooks/useFreightCompanies";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -40,9 +39,6 @@ interface CartGroup {
     imageUrl?: string;
   }[];
   subtotal: number;
-  // Soma do peso (kg) de todos os itens deste grupo — usada para filtrar as
-  // faixas de peso do tarifário das empresas transportadoras.
-  totalWeightKg?: number;
 }
 
 interface FreightSelection {
@@ -52,9 +48,6 @@ interface FreightSelection {
   daysMin: number;
   daysMax: number;
   source: string;
-  // Preenchido quando o comprador escolhe uma empresa transportadora em vez
-  // do frete padrão da plataforma (rota interprovincial).
-  freightCompanyId?: string | null;
 }
 
 interface Props {
@@ -87,7 +80,6 @@ const SOURCE_LABELS: Record<string, string> = {
   global_default: "Padrão da plataforma",
   global_default_forced: "Padrão da plataforma",
   pickup: "Retirada na loja",
-  company: "Transportadora",
   error: "Não disponível",
 };
 
@@ -340,9 +332,7 @@ function SellerFreightRow({
   calculateFreight,
   onSelect,
 }: SellerFreightRowProps) {
-  // "standard" | "express" | "company:<rate_id>" — um único estado cobre as
-  // opções da plataforma e as das empresas transportadoras.
-  const [mode, setMode] = useState<string>("standard");
+  const [deliveryType, setDeliveryType] = useState<DeliveryType>("standard");
   const [expressResult, setExpressResult] = useState<any>(null);
   const [loadingExpress, setLoadingExpress] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -353,25 +343,6 @@ function SellerFreightRow({
     group.seller.originMunicipalityCode,
     destMunicipalityCode
   );
-
-  // Resolve as províncias de origem/destino para saber se esta rota é
-  // interprovincial e, nesse caso, ir buscar as opções das transportadoras.
-  const originMun = municipalities.find(
-    (m: any) => m.code === group.seller.originMunicipalityCode
-  );
-  const destMun = municipalities.find((m: any) => m.code === destMunicipalityCode);
-  const originProvinceId = originMun?.province_id ?? null;
-  const destProvinceId = destMun?.province_id ?? null;
-  const isInterprovincial =
-    !!originProvinceId && !!destProvinceId && originProvinceId !== destProvinceId;
-
-  const { options: companyOptions, loading: loadingCompanyOptions } =
-    useFreightCompanyOptions(
-      isInterprovincial ? originProvinceId : null,
-      isInterprovincial ? destProvinceId : null,
-      group.totalWeightKg ?? 0,
-      null
-    );
 
   useEffect(() => {
     if (!group.seller.sellerId || !group.seller.originMunicipalityCode || !destMunicipalityCode)
@@ -390,157 +361,88 @@ function SellerFreightRow({
   }, [group.seller.sellerId, group.seller.originMunicipalityCode, destMunicipalityCode, calculateFreight]);
 
   useEffect(() => {
-    if (mode.startsWith("company:")) return; // tratado em handleSelectCompany
-    const activeResult = mode === "express" ? expressResult : result;
+    const activeResult = deliveryType === "express" ? expressResult : result;
     if (!activeResult || activeResult.error) return;
     onSelect({
       sellerId: group.seller.sellerId,
-      deliveryType: mode as DeliveryType,
+      deliveryType,
       price: activeResult.price,
       daysMin: activeResult.days_min,
       daysMax: activeResult.days_max,
       source: activeResult.source,
-      freightCompanyId: null,
     });
-  }, [result, expressResult, mode, group.seller.sellerId, onSelect]);
+  }, [result, expressResult, deliveryType, group.seller.sellerId, onSelect]);
 
-  const handleModeChange = (val: string) => {
-    setMode(val);
-    if (val === "standard" || val === "express") {
-      recalculate(val as DeliveryType);
-    }
+  const handleTypeChange = (val: DeliveryType) => {
+    setDeliveryType(val);
+    recalculate(val);
   };
 
-  const handleSelectCompany = (opt: FreightCompanyOption) => {
-    setMode(`company:${opt.rate_id}`);
-    onSelect({
-      sellerId: group.seller.sellerId,
-      deliveryType: "standard",
-      price: opt.price_kwz,
-      daysMin: opt.days_min,
-      daysMax: opt.days_max,
-      source: "company",
-      freightCompanyId: opt.company_id,
-    });
-  };
-
-  const activeResult = mode === "express" ? expressResult : mode === "standard" ? result : null;
+  const activeResult = deliveryType === "express" ? expressResult : result;
   const noRoute = !loading && result && (result.error || result.source === "error");
   const isPickup = activeResult?.source === "pickup" || showPickup;
   const isFree = activeResult?.price === 0 && activeResult?.source !== "pickup";
   const hasExpress = expressResult && !expressResult.error && expressResult.source !== "pickup";
   const pickupAddress = result?.pickup_address ?? undefined;
 
-  // Se o frete não conseguiu ser calculado automaticamente, o comprador tem
-  // de escolher uma rota alternativa ou levantamento — nesse caso abrimos o
-  // cartão logo de início, para não esconder uma ação obrigatória.
-  useEffect(() => {
-    if (noRoute) setExpanded(true);
-  }, [noRoute]);
-
-  // Resumo compacto mostrado sempre no cabeçalho do cartão (mesmo fechado),
-  // para o comprador ver "produto + frete da loja" de forma simples, sem
-  // ter de abrir nada. O cálculo continua a correr por trás na mesma.
-  const freightSummary = loading
-    ? { text: "A calcular frete…", tone: "muted" as const }
-    : noRoute
-    ? { text: "Escolher entrega", tone: "warning" as const }
-    : isPickup
-    ? { text: "Retirada na loja", tone: "free" as const }
-    : isFree
-    ? { text: "Frete grátis", tone: "free" as const }
-    : activeResult
-    ? { text: fmtKz(activeResult.price), tone: "normal" as const }
-    : { text: "—", tone: "muted" as const };
-
   return (
-    <div className="rounded-2xl border bg-card overflow-hidden shadow-sm transition-shadow">
-      <button
-        type="button"
-        onClick={() => setExpanded((e) => !e)}
-        className="w-full flex items-center justify-between px-4 py-3 border-b bg-muted/30 text-left"
-      >
+    <div className="rounded-xl border bg-card overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-2.5 border-b bg-muted/30">
         <div className="flex items-center gap-2 min-w-0">
-          <Package className="w-4 h-4 text-muted-foreground shrink-0" />
-          <span className="font-medium text-sm truncate">{group.seller.sellerName}</span>
-          <Badge variant="outline" className="text-xs shrink-0">
-            {group.items.length} {group.items.length === 1 ? "item" : "itens"}
-          </Badge>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {freightSummary.tone === "muted" && loading && (
-            <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
-          )}
-          <span
-            className={cn(
-              "text-xs font-semibold whitespace-nowrap",
-              freightSummary.tone === "free" && "text-walmart-green",
-              freightSummary.tone === "warning" && "text-walmart-orange",
-              freightSummary.tone === "normal" && "text-foreground",
-              freightSummary.tone === "muted" && "text-muted-foreground"
-            )}
-          >
-            {freightSummary.text}
-          </span>
-          <span className="text-muted-foreground">
-            {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </span>
-        </div>
-      </button>
-
-      {/* Miniaturas dos produtos — sempre visíveis, em formato pequeno.
-          "Produto + frete da loja" fica visível de imediato, sem precisar
-          abrir nada; o detalhe completo (subtotal, outras opções de entrega)
-          só aparece ao expandir. */}
-      <div className="px-4 py-2.5 border-b bg-muted/10 flex items-center gap-2 overflow-x-auto">
-        {group.items.map((item) => (
-          <div
-            key={item.id}
-            className="relative shrink-0"
-            title={`${item.quantity}× ${item.name}`}
-          >
-            {item.imageUrl ? (
-              <img
-                src={item.imageUrl}
-                alt={item.name}
-                className="w-9 h-9 rounded-md object-cover border border-border/60"
-              />
-            ) : (
-              <div className="w-9 h-9 rounded-md bg-muted flex items-center justify-center border border-border/60">
-                <Package className="w-4 h-4 text-muted-foreground/50" />
-              </div>
-            )}
-            {item.quantity > 1 && (
-              <span className="absolute -top-1.5 -right-1.5 bg-foreground text-background text-[10px] leading-none font-semibold rounded-full w-4 h-4 flex items-center justify-center">
-                {item.quantity}
+          <Package className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+          <span className="font-medium text-xs truncate">{group.seller.sellerName}</span>
+          {/* Miniaturas sempre visíveis — sem precisar expandir para ver o que está a comprar */}
+          <div className="flex items-center -space-x-2 shrink-0">
+            {group.items.slice(0, 4).map((item) => (
+              item.imageUrl ? (
+                <img key={item.id} src={item.imageUrl} alt={item.name}
+                  className="w-6 h-6 rounded-full object-cover border-2 border-card" />
+              ) : (
+                <div key={item.id} className="w-6 h-6 rounded-full bg-muted border-2 border-card" />
+              )
+            ))}
+            {group.items.length > 4 && (
+              <span className="w-6 h-6 rounded-full bg-muted border-2 border-card flex items-center justify-center text-[9px] font-bold text-muted-foreground">
+                +{group.items.length - 4}
               </span>
             )}
           </div>
-        ))}
+        </div>
+        <button
+          onClick={() => setExpanded((e) => !e)}
+          className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors shrink-0"
+        >
+          {group.items.length} {group.items.length === 1 ? "item" : "itens"}
+          {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+        </button>
       </div>
 
       {expanded && (
-        <div className="px-4 py-2 border-b space-y-1.5 bg-muted/10">
+        <div className="px-3 py-2 border-b space-y-1.5 bg-muted/10">
           {group.items.map((item) => (
-            <div key={item.id} className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground truncate pr-2">
-                {item.quantity}× {item.name}
-              </span>
-              <span className="shrink-0">{fmtKz(item.price * item.quantity)}</span>
+            <div key={item.id} className="flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2 min-w-0">
+                {item.imageUrl ? (
+                  <img src={item.imageUrl} alt={item.name} className="w-7 h-7 rounded object-cover shrink-0" />
+                ) : (
+                  <div className="w-7 h-7 rounded bg-muted shrink-0" />
+                )}
+                <span className="text-muted-foreground truncate">{item.quantity}× {item.name}</span>
+              </div>
+              <span className="shrink-0 ml-2">{fmtKz(item.price * item.quantity)}</span>
             </div>
           ))}
-          <div className="flex justify-between text-sm font-medium pt-1 border-t">
+          <div className="flex justify-between text-xs font-medium pt-1 border-t">
             <span>Subtotal</span>
             <span>{fmtKz(group.subtotal)}</span>
           </div>
         </div>
       )}
 
-      {!expanded ? null : (
-      <div className="p-4 space-y-3">
+      <div className="p-3 space-y-2">
         {loading ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="w-4 h-4 animate-spin" />
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
             A calcular frete…
           </div>
         ) : noRoute ? (
@@ -561,65 +463,63 @@ function SellerFreightRow({
                 daysMin: 0,
                 daysMax: 0,
                 source: "pickup",
-                freightCompanyId: null,
               });
             }}
             pickupAddress={pickupAddress}
           />
         ) : isPickup ? (
-          <div className="flex items-center gap-3 rounded-lg border border-walmart-green/30 bg-walmart-green/5 p-3">
-            <Store className="w-5 h-5 text-walmart-green shrink-0" />
-            <div>
-              <p className="text-sm font-medium">Retirada na loja</p>
+          <div className="flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-500/5 p-2.5">
+            <Store className="w-4 h-4 text-rose-400 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-xs font-medium">Retirada na loja</p>
               {activeResult?.pickup_address && (
-                <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                  <MapPin className="w-3 h-3" />
+                <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5 truncate">
+                  <MapPin className="w-3 h-3 shrink-0" />
                   {activeResult.pickup_address}
                 </p>
               )}
             </div>
-            <Badge className="ml-auto bg-walmart-green/20 text-walmart-green border-walmart-green/30">Grátis</Badge>
+            <Badge className="ml-auto bg-rose-500/20 text-rose-400 border-rose-500/30 text-[10px] shrink-0">Grátis</Badge>
           </div>
         ) : (
+          // Lado a lado e compacto: normal e expressa como dois cartões pequenos
+          // em vez de blocos grandes empilhados — muito mais rápido de comparar.
           <RadioGroup
-            value={mode}
-            onValueChange={handleModeChange}
-            className="space-y-2"
+            value={deliveryType}
+            onValueChange={(v) => handleTypeChange(v as DeliveryType)}
+            className={cn("grid gap-2", hasExpress ? "grid-cols-2" : "grid-cols-1")}
           >
             <Label
               htmlFor={`std-${group.seller.sellerId}`}
               className={cn(
-                "flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-all",
-                mode === "standard"
+                "flex flex-col gap-1 rounded-lg border p-2 cursor-pointer transition-all",
+                deliveryType === "standard"
                   ? "border-primary bg-primary/5"
                   : "border-border hover:border-muted-foreground"
               )}
             >
-              <RadioGroupItem value="standard" id={`std-${group.seller.sellerId}`} className="shrink-0" />
-              <Truck className="w-4 h-4 text-muted-foreground shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium">Entrega normal</p>
-                {result && (
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Clock className="w-3 h-3" />
-                    {result.days_min === result.days_max
-                      ? `${result.days_min} dias úteis`
-                      : `${result.days_min}–${result.days_max} dias úteis`}
-                    <span className="ml-1 text-[10px] opacity-60">
-                      ({SOURCE_LABELS[result.source] ?? result.source})
-                    </span>
-                  </p>
-                )}
+              <div className="flex items-center gap-1.5">
+                <RadioGroupItem value="standard" id={`std-${group.seller.sellerId}`} className="shrink-0 w-3.5 h-3.5" />
+                <Truck className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                <p className="text-xs font-medium truncate">Normal</p>
               </div>
-              <div className="text-right shrink-0">
+              {result && (
+                <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                  <Clock className="w-3 h-3 shrink-0" />
+                  {result.days_min === result.days_max
+                    ? `${result.days_min} dia útil`
+                    : `${result.days_min}–${result.days_max} dias`}
+                </p>
+              )}
+              <div>
                 {result ? (
                   isFree ? (
-                    <span className="text-sm font-semibold text-green-400">Grátis</span>
+                    <span className="text-xs font-semibold text-green-400">Grátis</span>
                   ) : (
-                    <span className="text-sm font-semibold">{fmtKz(result.price)}</span>
+                    <span className="text-xs font-semibold">{fmtKz(result.price)}</span>
                   )
                 ) : (
-                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
                 )}
               </div>
             </Label>
@@ -628,123 +528,39 @@ function SellerFreightRow({
               <Label
                 htmlFor={`exp-${group.seller.sellerId}`}
                 className={cn(
-                  "flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-all",
-                  mode === "express"
+                  "flex flex-col gap-1 rounded-lg border p-2 cursor-pointer transition-all",
+                  deliveryType === "express"
                     ? "border-amber-500 bg-amber-500/5"
                     : "border-border hover:border-muted-foreground"
                 )}
               >
-                <RadioGroupItem value="express" id={`exp-${group.seller.sellerId}`} className="shrink-0" />
-                <Zap className="w-4 h-4 text-amber-400 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium">
-                    Entrega expressa
-                    <Badge variant="outline" className="ml-2 text-[10px] border-amber-500/40 text-amber-400">
-                      Rápido
-                    </Badge>
-                  </p>
-                  {loadingExpress ? (
-                    <p className="text-xs text-muted-foreground">A calcular…</p>
-                  ) : expressResult && (
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {expressResult.days_min === expressResult.days_max
-                        ? `${expressResult.days_min} dia útil`
-                        : `${expressResult.days_min}–${expressResult.days_max} dias úteis`}
-                    </p>
-                  )}
+                <div className="flex items-center gap-1.5">
+                  <RadioGroupItem value="express" id={`exp-${group.seller.sellerId}`} className="shrink-0 w-3.5 h-3.5" />
+                  <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <p className="text-xs font-medium truncate">Expressa</p>
                 </div>
-                <div className="text-right shrink-0">
+                {loadingExpress ? (
+                  <p className="text-[10px] text-muted-foreground">A calcular…</p>
+                ) : expressResult && (
+                  <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                    <Clock className="w-3 h-3 shrink-0" />
+                    {expressResult.days_min === expressResult.days_max
+                      ? `${expressResult.days_min} dia útil`
+                      : `${expressResult.days_min}–${expressResult.days_max} dias`}
+                  </p>
+                )}
+                <div>
                   {loadingExpress ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
                   ) : expressResult ? (
-                    <span className="text-sm font-semibold text-amber-400">{fmtKz(expressResult.price)}</span>
+                    <span className="text-xs font-semibold text-amber-400">{fmtKz(expressResult.price)}</span>
                   ) : null}
                 </div>
               </Label>
             )}
-
-            {/* Transportadoras — só para rotas interprovinciais. Cartões com
-                o logótipo em destaque; clicar na imagem ou no cartão escolhe
-                essa transportadora. */}
-            {isInterprovincial && loadingCompanyOptions && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground py-1.5">
-                <Loader2 className="w-3 h-3 animate-spin" />
-                A procurar transportadoras para esta rota…
-              </div>
-            )}
-
-            {isInterprovincial && !loadingCompanyOptions && companyOptions.length > 0 && (
-              <div className="pt-1 space-y-2">
-                <p className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
-                  <Truck className="w-3 h-3" />
-                  Transportadoras disponíveis para esta rota
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {companyOptions.map((opt) => {
-                    const value = `company:${opt.rate_id}`;
-                    const active = mode === value;
-                    return (
-                      <button
-                        key={opt.rate_id}
-                        type="button"
-                        onClick={() => handleSelectCompany(opt)}
-                        className={cn(
-                          "flex items-center gap-3 rounded-lg border p-3 text-left transition-all",
-                          active
-                            ? "border-blue-500 bg-blue-500/5 ring-1 ring-blue-500/30"
-                            : "border-border hover:border-muted-foreground"
-                        )}
-                      >
-                        <div
-                          className={cn(
-                            "w-11 h-11 rounded-lg overflow-hidden shrink-0 border flex items-center justify-center bg-muted/40",
-                            active ? "border-blue-500/50" : "border-border"
-                          )}
-                        >
-                          {opt.company_logo_url ? (
-                            <img
-                              src={opt.company_logo_url}
-                              alt={opt.company_name}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <Truck className="w-5 h-5 text-muted-foreground/50" />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{opt.company_name}</p>
-                          <p className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Clock className="w-3 h-3 shrink-0" />
-                            {opt.days_min === opt.days_max
-                              ? `${opt.days_min} dia útil`
-                              : `${opt.days_min}–${opt.days_max} dias úteis`}
-                            {opt.material_type_name && (
-                              <span className="opacity-60 truncate">· {opt.material_type_name}</span>
-                            )}
-                          </p>
-                          <p className="text-sm font-semibold text-blue-400 mt-0.5">
-                            {fmtKz(opt.price_kwz)}
-                          </p>
-                        </div>
-                        <div
-                          className={cn(
-                            "w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center",
-                            active ? "border-blue-500 bg-blue-500" : "border-muted-foreground/40"
-                          )}
-                        >
-                          {active && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
           </RadioGroup>
         )}
       </div>
-      )}
     </div>
   );
 }
