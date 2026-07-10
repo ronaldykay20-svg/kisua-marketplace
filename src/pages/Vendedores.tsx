@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect } from "react";
-import Footer from "@/components/Footer";
 import { Search, Star, MapPin, CheckCircle, ChevronRight, Users, ShoppingBag, Eye, Package } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useSellers } from "@/hooks/useSupabaseData";
@@ -183,7 +182,6 @@ const Vendedores = () => {
           ))}
         </div>
       </section>
-      <Footer />
     </div>
   );
 };
