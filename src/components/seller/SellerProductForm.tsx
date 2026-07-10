@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Save, X, Trash2, Image as ImageIcon, Film, Plus,
   ChevronDown, ChevronRight, AlertTriangle, Clock, Camera,
-  Weight, Package2, Ruler, Info, Tag, Sparkles, FileText, DollarSign,
+  Weight, Package2, Ruler, Info, Tag, Sparkles, FileText, DollarSign, Search,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -381,6 +381,33 @@ const SellerProductForm = ({
   }, [allCategories]);
 
   const selectedCategory = flatCategoryOptions.find((c) => c.id === form.category_id);
+
+  const [categorySearch, setCategorySearch] = useState("");
+  const normalize = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+  // Sem pesquisa: mantém a estrutura em grupos (categoria-mãe → subcategorias).
+  // Com pesquisa: devolve uma lista plana só com o que corresponde ao termo,
+  // já com "Categoria-mãe › Subcategoria" para dar contexto.
+  const filteredCategoryGroups = useMemo(() => {
+    const term = normalize(categorySearch.trim());
+    if (!term) {
+      return parentCategories.map((c: any) => {
+        const subs = getSubcategories(c.id);
+        return subs.length === 0
+          ? { id: c.id, isGroup: false, label: c.name, options: [{ id: c.id, label: c.name }] }
+          : { id: c.id, isGroup: true, label: c.name, options: subs.map((s: any) => ({ id: s.id, label: s.name })) };
+      });
+    }
+    const matches = flatCategoryOptions.filter(
+      (o) => normalize(o.label).includes(term) || (o.parentLabel && normalize(o.parentLabel).includes(term))
+    );
+    return [{
+      id: "resultados",
+      isGroup: false,
+      label: "Resultados",
+      options: matches.map((o) => ({ id: o.id, label: o.parentLabel ? `${o.parentLabel} › ${o.label}` : o.label })),
+    }];
+  }, [categorySearch, allCategories]);
 
   // ── Upload ────────────────────────────────────────────
   const handleFilesUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: "image" | "video") => {
@@ -949,41 +976,50 @@ const SellerProductForm = ({
           </div>
         </div>
 
-        {/* Categoria — select nativo HTML: sem popover, sem portal, sem
-            z-index para gerir. Funciona em qualquer browser/dispositivo
-            sem depender de nada além do próprio HTML. */}
-        <div className="rounded-xl border border-border bg-muted/40 p-3">
-          <label className="text-[11px] font-bold text-muted-foreground mb-1.5 flex items-center gap-1.5">
+        {/* Categoria — select nativo HTML (funciona sempre, sem portal/z-index),
+            com um campo de pesquisa por cima que filtra as opções em tempo real. */}
+        <div className="rounded-xl border border-border bg-muted/40 p-3 space-y-2">
+          <label className="text-[11px] font-bold text-muted-foreground mb-0.5 flex items-center gap-1.5">
             <span className="w-4 h-4 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
               <Tag className="w-2.5 h-2.5 text-primary" />
             </span>
             Categoria *
           </label>
+
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              value={categorySearch}
+              onChange={e => setCategorySearch(e.target.value)}
+              placeholder="Pesquisar categoria… ex: telemóvel, roupa, cozinha"
+              className="w-full pl-9 pr-3 py-2 rounded-lg bg-card border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+            />
+          </div>
+
           <div className="relative">
             <select
               value={form.category_id}
               onChange={e => set("category_id", e.target.value)}
+              size={categorySearch.trim() ? Math.min(filteredCategoryGroups.reduce((n, g) => n + g.options.length, 0) + 1, 8) : undefined}
               className="w-full appearance-none px-3 py-2.5 pr-9 rounded-lg bg-card border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
             >
-              <option value="" disabled>Escolha uma categoria…</option>
-              {parentCategories.map((c: any) => {
-                const subs = getSubcategories(c.id);
-                // Categoria-mãe só aparece como opção quando não tem
-                // subcategorias — senão o produto é obrigado a ficar
-                // numa subcategoria, nunca "solto" na categoria-mãe.
-                if (subs.length === 0) {
-                  return <option key={c.id} value={c.id}>{c.name}</option>;
-                }
-                return (
-                  <optgroup key={c.id} label={c.name}>
-                    {subs.map((s: any) => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
+              {!categorySearch.trim() && <option value="" disabled>Escolha uma categoria…</option>}
+              {filteredCategoryGroups.map(g =>
+                g.isGroup ? (
+                  <optgroup key={g.id} label={g.label}>
+                    {g.options.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
                   </optgroup>
-                );
-              })}
+                ) : (
+                  g.options.map(o => <option key={o.id} value={o.id}>{o.label}</option>)
+                )
+              )}
+              {categorySearch.trim() && filteredCategoryGroups.every(g => g.options.length === 0) && (
+                <option value="" disabled>Nenhuma categoria encontrada</option>
+              )}
             </select>
-            <ChevronDown className="w-4 h-4 text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            {!categorySearch.trim() && (
+              <ChevronDown className="w-4 h-4 text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            )}
           </div>
           {selectedCategory && (
             <p className="text-[10px] text-muted-foreground mt-1.5">
