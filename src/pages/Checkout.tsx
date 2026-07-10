@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { ArrowLeft, MapPin, CreditCard, Truck, CheckCircle, Loader2, ShieldCheck, ImageOff, Upload, FileCheck, X, Building2, Smartphone, Tag } from "lucide-react";
+import { ArrowLeft, MapPin, CreditCard, Truck, CheckCircle, Loader2, ShieldCheck, ImageOff, Upload, FileCheck, X, Building2, Smartphone, Tag, Check, Lock, PackageCheck } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useCart } from "@/hooks/useSupabaseData";
 import { useClearCart, useRemoveCartItem } from "@/hooks/useCartActions";
 import { useAuth } from "@/contexts/AuthContext";
@@ -761,47 +762,91 @@ const Checkout = () => {
 
   return (
     <div className="min-h-screen bg-background pb-14">
-      <div className="container mx-auto px-3 pt-3 flex items-center gap-3">
-        <button onClick={() => step === "success" ? navigate("/") : navigate(-1)} className="text-foreground">
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <span className="text-base font-bold text-foreground">
-          {step === "success" ? "Pedido confirmado" : "Finalizar compra"}
-        </span>
-      </div>
-
-      {step !== "success" && (
-        <div className="container mx-auto px-3 max-w-2xl py-4">
-          <div className="flex items-center gap-2 justify-center">
-            {(["address", "payment", "confirm"] as Step[]).map((s, i) => (
-              <div key={s} className="flex items-center gap-2">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                  step === s ? "bg-primary text-primary-foreground" :
-                  (["address", "payment", "confirm"].indexOf(step) > i ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground")
-                }`}>
-                  {i + 1}
-                </div>
-                {i < 2 && <div className={`w-8 h-0.5 ${["address", "payment", "confirm"].indexOf(step) > i ? "bg-primary" : "bg-border"}`} />}
-              </div>
-            ))}
-          </div>
-          <div className="flex justify-between text-[10px] text-muted-foreground mt-1 px-2">
-            <span>Endereço</span>
-            <span>Pagamento</span>
-            <span>Confirmar</span>
-          </div>
+      <div className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b border-border/60">
+        <div className="container mx-auto px-3 pt-3 pb-2 flex items-center gap-3 max-w-2xl">
+          <button
+            onClick={() => step === "success" ? navigate("/") : navigate(-1)}
+            className="w-8 h-8 -ml-1 flex items-center justify-center rounded-full text-foreground active:bg-muted transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <span className="text-base font-bold text-foreground">
+            {step === "success" ? "Pedido confirmado" : "Finalizar compra"}
+          </span>
+          {step !== "success" && (
+            <span className="ml-auto flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+              <ShieldCheck className="w-3.5 h-3.5 text-walmart-green" />
+              Compra protegida
+            </span>
+          )}
         </div>
-      )}
+
+        {step !== "success" && (
+          <div className="container mx-auto px-4 max-w-2xl pb-3">
+            <div className="relative flex items-center justify-between">
+              {/* Linha base + linha de progresso animada, por trás dos círculos */}
+              <div className="absolute left-4 right-4 top-3.5 h-[2px] bg-border" />
+              <div
+                className="absolute left-4 top-3.5 h-[2px] bg-primary transition-all duration-500 ease-out"
+                style={{
+                  width:
+                    step === "address" ? "0%" :
+                    step === "payment" ? "calc(50% - 1rem)" :
+                    "calc(100% - 2rem)",
+                }}
+              />
+              {(["address", "payment", "confirm"] as Step[]).map((s, i) => {
+                const order = ["address", "payment", "confirm"];
+                const currentIdx = order.indexOf(step);
+                const done = currentIdx > i;
+                const active = step === s;
+                const labels = { address: "Endereço", payment: "Pagamento", confirm: "Confirmar" };
+                return (
+                  <div key={s} className="relative z-10 flex flex-col items-center gap-1.5" style={{ width: "33.33%" }}>
+                    <div
+                      className={cn(
+                        "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-colors duration-300",
+                        active
+                          ? "bg-primary border-primary text-primary-foreground shadow-[0_0_0_4px_hsl(var(--primary)/0.15)]"
+                          : done
+                          ? "bg-primary border-primary text-primary-foreground"
+                          : "bg-background border-border text-muted-foreground"
+                      )}
+                    >
+                      {done ? <Check className="w-3.5 h-3.5" /> : i + 1}
+                    </div>
+                    <span
+                      className={cn(
+                        "text-[10.5px] font-medium",
+                        active ? "text-foreground" : done ? "text-primary" : "text-muted-foreground"
+                      )}
+                    >
+                      {labels[s]}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
 
       <div className="container mx-auto px-3 max-w-2xl">
 
         {/* STEP 1: Endereço */}
         {step === "address" && (
-          <div className="space-y-4">
-            <div className="bg-card rounded-card border border-border p-4">
-              <div className="flex items-center gap-2 mb-4">
-                <MapPin className="w-5 h-5 text-primary" />
-                <h3 className="text-sm font-bold text-foreground">Endereço de entrega</h3>
+          <div className="space-y-4 pt-4 pb-44">
+            <div className="bg-card rounded-2xl border border-border shadow-sm p-4">
+              <div className="flex items-center gap-2.5 mb-4">
+                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                  <MapPin className="w-4 h-4 text-primary" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-bold text-foreground leading-tight">Endereço de entrega</h3>
+                  <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">
+                    Para onde enviamos o teu pedido
+                  </p>
+                </div>
               </div>
               <div className="space-y-3">
                 <div>
@@ -809,8 +854,8 @@ const Checkout = () => {
                   <input
                     value={address.name}
                     onChange={e => setAddress(p => ({ ...p, name: e.target.value }))}
-                    className="w-full mt-1 px-3 py-2 rounded-lg bg-background border border-border text-base md:text-sm text-foreground"
-                    placeholder="Seu nome"
+                    className="w-full mt-1 px-3 py-2.5 rounded-xl bg-background border border-border text-base md:text-sm text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                    placeholder="Como aparece no teu B.I."
                   />
                 </div>
                 <div>
@@ -818,7 +863,7 @@ const Checkout = () => {
                   <input
                     value={address.phone}
                     onChange={e => setAddress(p => ({ ...p, phone: e.target.value }))}
-                    className="w-full mt-1 px-3 py-2 rounded-lg bg-background border border-border text-base md:text-sm text-foreground"
+                    className="w-full mt-1 px-3 py-2.5 rounded-xl bg-background border border-border text-base md:text-sm text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                     placeholder="+244 9XX XXX XXX"
                   />
                 </div>
@@ -837,7 +882,7 @@ const Checkout = () => {
                           municipalityName: "",
                         }));
                       }}
-                      className="w-full mt-1 h-9 px-3 py-1 rounded-lg bg-background border border-border text-base md:text-sm text-foreground appearance-none focus:outline-none focus:ring-1 focus:ring-ring"
+                      className="w-full mt-1 h-10 px-3 py-1 rounded-xl bg-background border border-border text-base md:text-sm text-foreground appearance-none transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                     >
                       <option value="">Seleccionar…</option>
                       {provinces.map(p => (
@@ -863,7 +908,7 @@ const Checkout = () => {
                         setFreightTotal(0);
                       }}
                       disabled={!address.provinceId}
-                      className="w-full mt-1 h-9 px-3 py-1 rounded-lg bg-background border border-border text-base md:text-sm text-foreground appearance-none focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+                      className="w-full mt-1 h-10 px-3 py-1 rounded-xl bg-background border border-border text-base md:text-sm text-foreground appearance-none transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary disabled:opacity-50"
                     >
                       <option value="">Seleccionar…</option>
                       {municipalities.map(m => (
@@ -878,11 +923,16 @@ const Checkout = () => {
                     value={address.street}
                     onChange={e => setAddress(p => ({ ...p, street: e.target.value }))}
                     rows={2}
-                    className="w-full mt-1 px-3 py-2 rounded-lg bg-background border border-border text-base md:text-sm text-foreground resize-none"
-                    placeholder="Rua, número, bairro..."
+                    className="w-full mt-1 px-3 py-2.5 rounded-xl bg-background border border-border text-base md:text-sm text-foreground resize-none transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                    placeholder="Ex: Rua Amílcar Cabral, nº 12, perto do mercado"
                   />
                 </div>
               </div>
+            </div>
+
+            <div className="flex items-center gap-2 px-1">
+              <Truck className="w-4 h-4 text-primary" />
+              <h3 className="text-sm font-bold text-foreground">Entrega por loja</h3>
             </div>
 
             <FreightCalculator
@@ -891,23 +941,55 @@ const Checkout = () => {
               onFreightChange={handleFreightChange}
               showAddressSelector={false}
             />
+          </div>
+        )}
 
-            <button
-              onClick={() => setStep("payment")}
-              disabled={!address.name || !address.phone || !address.street || !address.municipalityCode || !freightReady}
-              className="w-full py-3 rounded-full bg-primary text-primary-foreground font-bold text-sm disabled:opacity-50"
-            >
-              Continuar
-            </button>
-            {/* Não deixa avançar para o Pagamento sem uma rota de frete definida
-                para todos os vendedores/lojas do pedido — a notificação aparece
-                aqui, logo no Passo 1, em vez de só lá na confirmação final. */}
-            {address.municipalityCode && !freightReady && (
-              <p className="text-xs text-center text-red-500 font-semibold -mt-2">
-                Aguarde o cálculo do frete, ou escolha uma rota alternativa acima
-                (ou levantamento na loja) para poder continuar.
-              </p>
-            )}
+        {step === "address" && (
+          <div className="fixed bottom-0 inset-x-0 z-40 bg-card border-t border-border shadow-[0_-6px_20px_-6px_rgba(0,0,0,0.12)]">
+            <div className="container mx-auto max-w-2xl px-4 pt-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+              <div className="flex items-center justify-center gap-4 mb-2">
+                <span className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+                  <Lock className="w-3 h-3 text-walmart-green" />
+                  Pagamento seguro
+                </span>
+                <span className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+                  <PackageCheck className="w-3 h-3 text-walmart-green" />
+                  Entrega rastreada
+                </span>
+                <span className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+                  <ShieldCheck className="w-3 h-3 text-walmart-green" />
+                  Compra protegida
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-muted-foreground">
+                  {freightTotal > 0 ? "Total (produtos + frete)" : "Total"}
+                </span>
+                <span className="text-lg font-extrabold text-foreground tabular-nums">
+                  {formatPrice(total)}
+                </span>
+              </div>
+
+              <button
+                onClick={() => setStep("payment")}
+                disabled={!address.name || !address.phone || !address.street || !address.municipalityCode || !freightReady}
+                className="w-full py-3.5 rounded-full bg-primary text-primary-foreground font-bold text-sm disabled:opacity-50 disabled:pointer-events-none active:scale-[0.99] transition-transform flex items-center justify-center gap-1.5"
+              >
+                Continuar para pagamento
+                <ArrowLeft className="w-4 h-4 rotate-180" />
+              </button>
+
+              {/* Não deixa avançar para o Pagamento sem uma rota de frete definida
+                  para todos os vendedores/lojas do pedido — a notificação aparece
+                  aqui, logo no Passo 1, em vez de só lá na confirmação final. */}
+              {address.municipalityCode && !freightReady && (
+                <p className="text-xs text-center text-destructive font-semibold mt-2">
+                  Aguarde o cálculo do frete, ou escolha uma rota alternativa acima
+                  (ou levantamento na loja) para poder continuar.
+                </p>
+              )}
+            </div>
           </div>
         )}
 
