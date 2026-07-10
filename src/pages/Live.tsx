@@ -6,7 +6,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { STORAGE_BUCKETS } from "@/lib/storage";
 import { triggerImageEmbeddings } from "@/lib/imageEmbedding";
-import Footer from "@/components/Footer";
 import {
   Play, Upload, X, Loader2, Star, ShoppingBag, Check,
   VideoOff, Image as ImageIcon, Clock, Send, Trash2,
@@ -2648,7 +2647,6 @@ const Lancamentos = () => {
         )}
       </div>
 
-      <Footer />
 
       {watchRelease && (
         <WatchModal
