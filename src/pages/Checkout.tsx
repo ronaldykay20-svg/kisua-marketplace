@@ -945,7 +945,7 @@ const Checkout = () => {
         )}
 
         {step === "address" && (
-          <div className="fixed bottom-0 inset-x-0 z-40 bg-card border-t border-border shadow-[0_-6px_20px_-6px_rgba(0,0,0,0.12)]">
+          <div className="fixed bottom-0 inset-x-0 z-[60] bg-card border-t border-border shadow-[0_-6px_20px_-6px_rgba(0,0,0,0.12)]">
             <div className="container mx-auto max-w-2xl px-4 pt-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
               <div className="flex items-center justify-center gap-4 mb-2">
                 <span className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
