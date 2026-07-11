@@ -197,7 +197,7 @@ const RecommendedProducts = () => {
               </div>
 
               <div className="p-2.5 flex flex-col gap-1">
-                <h3 className="text-[12.5px] font-semibold text-foreground line-clamp-2 leading-snug min-h-[2.4em]">
+                <h3 className="text-[13px] font-semibold text-foreground line-clamp-2 leading-snug min-h-[2.4em]">
                   {p.title}
                 </h3>
 
@@ -218,7 +218,7 @@ const RecommendedProducts = () => {
                 )}
 
                 <div className="flex items-baseline gap-1.5 mt-0.5">
-                  <span className="text-[14px] font-black" style={{ color: "#8B6343" }}>
+                  <span className="text-[14px] font-black text-foreground">
                     {Number(p.price).toLocaleString("pt-AO")}
                   </span>
                   <span className="text-[10.5px] font-semibold text-muted-foreground">{p.currency || "Kz"}</span>
