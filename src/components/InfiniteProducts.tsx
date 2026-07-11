@@ -414,10 +414,9 @@ const ProductCardBase = ({
       onPointerDown={() => setPressed(true)}
       onPointerUp={() => setPressed(false)}
       onPointerLeave={() => setPressed(false)}
-      className="zg-card-enter w-full cursor-pointer select-none overflow-hidden"
+      className="zg-card-enter w-full cursor-pointer select-none overflow-hidden bg-card border border-border/60 shadow-sm hover:shadow-lg transition-shadow duration-200"
       style={{
-        borderRadius: "3px",
-        background: "#ffffff",
+        borderRadius: "16px",
         transform: pressed ? "scale(0.974)" : "scale(1)",
         transition: "transform 0.13s ease",
         animationDelay: `${(index % 10) * 40}ms`,
@@ -427,37 +426,37 @@ const ProductCardBase = ({
         <ImageSwiper images={images} alt={p.title} id={String(p.id)} isSpotlight={isSpotlight} onViewportChange={handleOwnViewportChange} />
 
         {p.discount_percent > 0 && (
-          <span className="absolute top-2 left-2 px-1.5 py-0.5 text-[10px] font-black text-white z-10"
-            style={{ background: "#e53935", borderRadius: "4px" }}>
+          <span className="absolute top-2 left-2 px-1.5 py-[3px] rounded-full text-[10px] font-bold text-white z-10 shadow-sm"
+            style={{ background: "linear-gradient(90deg, #ef4444, #e11d48)" }}>
             -{p.discount_percent}%
           </span>
         )}
 
         {customBadge && (
-          <span className="absolute top-2 left-2 flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-black text-white z-10"
-            style={{ background: customBadge.bg, borderRadius: "4px" }}>
+          <span className="absolute top-2 left-2 flex items-center gap-0.5 px-1.5 py-[3px] rounded-full text-[10px] font-bold text-white z-10 shadow-sm"
+            style={{ background: customBadge.bg }}>
             {customBadge.icon && <customBadge.icon className="w-2.5 h-2.5" />}
             {customBadge.label}
           </span>
         )}
 
         {showHotFallback && (
-          <span className="absolute top-2 left-2 flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-black text-white z-10"
-            style={{ background: "#f57c00", borderRadius: "4px" }}>
+          <span className="absolute top-2 left-2 flex items-center gap-0.5 px-1.5 py-[3px] rounded-full text-[10px] font-bold text-white z-10 shadow-sm"
+            style={{ background: "#f57c00" }}>
             <Flame className="w-2.5 h-2.5" /> Hot
           </span>
         )}
 
         {isFlash && (
-          <span className="absolute top-2 right-2 flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-bold text-white z-10"
-            style={{ background: "rgba(20,20,20,0.75)", borderRadius: "4px" }}>
+          <span className="absolute top-2 right-2 flex items-center gap-0.5 px-1.5 py-[3px] rounded-full text-[9px] font-bold text-white z-10"
+            style={{ background: "rgba(20,20,20,0.75)" }}>
             <Clock className="w-2.5 h-2.5" /> <FlashCountdown />
           </span>
         )}
 
         {p.free_shipping && (
-          <span className="absolute bottom-2 left-2 flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-bold text-white z-10"
-            style={{ background: "rgba(26,92,58,0.88)", borderRadius: "4px" }}>
+          <span className="absolute bottom-2 left-2 flex items-center gap-0.5 px-1.5 py-[3px] rounded-full text-[9px] font-bold text-white z-10"
+            style={{ background: "rgba(26,92,58,0.88)" }}>
             <Truck className="w-2.5 h-2.5" /> Grátis
           </span>
         )}
@@ -483,19 +482,10 @@ const ProductCardBase = ({
         </div>
       </div>
 
-      <div className="px-2 pt-1.5 pb-2">
-        <p className="font-bold line-clamp-2 leading-tight" style={{ color: "#6b3a1f", margin: 0, fontSize: "19px" }}>
+      <div className="p-2.5">
+        <p className="font-semibold line-clamp-2 leading-snug" style={{ color: "#1a0f07", margin: 0, fontSize: "12.5px", minHeight: "2.4em" }}>
           {p.title}
         </p>
-
-        {p.description && (
-          <p
-            className="font-medium leading-snug line-clamp-3"
-            style={{ color: "#000000", margin: "3px 0 6px 0", fontSize: "13.5px", letterSpacing: "0.4px" }}
-          >
-            {p.description}
-          </p>
-        )}
 
         {infoCandidates.length > 0 && (
           <div
@@ -532,12 +522,12 @@ const ProductCardBase = ({
           </div>
         )}
 
-        <div className="flex items-baseline gap-1.5 flex-wrap">
-          <span className="font-black leading-none" style={{ fontSize: "14px", color: "#1a0f07" }}>
+        <div className="flex items-baseline gap-1.5 flex-wrap mt-0.5">
+          <span className="font-black leading-none" style={{ fontSize: "14px", color: "#8B6343" }}>
             {Number(p.price).toLocaleString("pt-AO")} Kz
           </span>
           {p.old_price && (
-            <span className="text-[9px] line-through" style={{ color: "#b09080" }}>
+            <span className="text-[10.5px] line-through" style={{ color: "#b09080" }}>
               {Number(p.old_price).toLocaleString("pt-AO")} Kz
             </span>
           )}
@@ -555,9 +545,9 @@ const ProductCard = memo(ProductCardBase);
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 const Skeleton = () => (
-  <div className="w-full overflow-hidden" style={{ borderRadius: "3px", background: "#ffffff" }}>
+  <div className="w-full overflow-hidden bg-card border border-border/60" style={{ borderRadius: "16px" }}>
     <div className="zg-shimmer" style={{ aspectRatio: "1/1" }} />
-    <div className="px-2 pt-1.5 pb-2 space-y-1.5">
+    <div className="p-2.5 space-y-1.5">
       <div className="h-3 rounded w-4/5 zg-shimmer" />
       <div className="h-3 rounded w-3/5 zg-shimmer" />
       <div className="h-3.5 rounded w-2/5 mt-1 zg-shimmer" />
@@ -775,9 +765,9 @@ const InfiniteProducts = () => {
 
   // ── Render ────────────────────────────────────────────────────────────────
   if (isLoading) return (
-    <section className="px-2 md:px-4 pt-3 pb-4" style={{ background: "#ffffff" }}>
+    <section className="container mx-auto px-3 pt-3 pb-4">
       <AnimationStyles />
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 md:gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
         {[0, 1, 2, 3, 4, 5].map(i => <Skeleton key={i} />)}
       </div>
     </section>
@@ -786,15 +776,15 @@ const InfiniteProducts = () => {
   if (allProducts.length === 0) return null;
 
   return (
-    <section className="px-2 md:px-4 pt-3 pb-4" style={{ background: "#ffffff" }}>
+    <section className="container mx-auto px-3 pt-3 pb-4">
       <AnimationStyles />
 
-      <div className="flex items-center justify-between mb-2 px-0.5">
-        <h2 className="text-sm font-bold" style={{ color: "#1a0f07" }}>Para si</h2>
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="text-[15px] font-bold tracking-tight" style={{ color: "#1a0f07" }}>Para si</h2>
         <span className="text-[10px]" style={{ color: "#9a7060" }}>{allProducts.length} produtos</span>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 md:gap-3" style={{ background: "#ffffff" }}>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
         {allProducts.map((p: any, i: number) => {
           const coupon = getCouponForProduct(p);
           return (
