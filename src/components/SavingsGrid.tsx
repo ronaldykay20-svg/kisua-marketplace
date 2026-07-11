@@ -76,7 +76,7 @@ const SavingsGrid = () => {
     <section className="container mx-auto px-3 pt-4">
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h2 className="text-[17px] font-bold text-foreground">Produtos com desconto</h2>
+          <h2 className="text-[15px] font-bold text-foreground tracking-tight">Produtos com desconto</h2>
           <p className="text-[11px] text-muted-foreground">Aproveite as promoções em destaque</p>
         </div>
       </div>
@@ -101,18 +101,18 @@ const SavingsGrid = () => {
             <div
               key={p.id}
               onClick={() => navigate(`/produto/${p.id}`)}
-              className="flex flex-col cursor-pointer snap-start"
+              className="bg-card border border-border/60 rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-200 active:scale-[0.98] cursor-pointer flex flex-col snap-start"
             >
-              <div className="relative aspect-square rounded-lg overflow-hidden bg-muted mb-2">
+              <div className="relative aspect-square bg-muted overflow-hidden">
                 <img src={img} alt={p.title} className="w-full h-full object-cover" loading="lazy" />
 
                 {p.discount_percent ? (
                   isBigDrop ? (
-                    <span className="absolute top-2 left-2 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold text-white bg-red-600">
+                    <span className="absolute top-2 left-2 flex items-center gap-0.5 px-1.5 py-[3px] rounded-full text-[10px] font-bold text-white bg-gradient-to-r from-red-500 to-rose-600 shadow-sm">
                       <ArrowDown className="w-3 h-3" /> Baixa
                     </span>
                   ) : (
-                    <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded border border-red-600 bg-background/90 text-[10px] font-semibold text-red-600">
+                    <span className="absolute top-2 left-2 px-1.5 py-[3px] rounded-full text-[10px] font-bold text-primary-foreground bg-gradient-to-r from-primary to-primary/80 shadow-sm">
                       Preço reduzido
                     </span>
                   )
@@ -120,29 +120,32 @@ const SavingsGrid = () => {
 
                 <button
                   onClick={(e) => handleHeart(e, p.id)}
-                  className="absolute top-2 right-2 w-6 h-6 rounded-full bg-background/90 flex items-center justify-center shadow-sm"
+                  className="absolute top-2 right-2 w-7 h-7 rounded-full bg-background/90 backdrop-blur-sm shadow-sm flex items-center justify-center"
                 >
-                  <Heart className={`w-3.5 h-3.5 transition-colors ${fav ? "fill-[#8B6343] text-[#8B6343]" : "text-foreground"}`} />
+                  <Heart className={`w-3.5 h-3.5 transition-colors ${fav ? "fill-[#8B6343] text-[#8B6343]" : "text-muted-foreground"}`} />
                 </button>
               </div>
 
-              <div className="flex items-baseline gap-1.5 flex-wrap">
-                <span className="text-[13px] text-muted-foreground font-medium">Agora</span>
-                <span className="text-[17px] font-black text-red-600">
-                  {Number(p.price).toLocaleString("pt-AO")} {p.currency || "Kz"}
-                </span>
+              <div className="p-2.5 flex flex-col gap-1">
+                <p className="text-[12.5px] font-semibold text-foreground line-clamp-2 leading-snug min-h-[2.4em]">{p.title}</p>
+
+                <div className="flex items-baseline gap-1.5 mt-0.5">
+                  <span className="text-[14px] font-black" style={{ color: "#8B6343" }}>
+                    {Number(p.price).toLocaleString("pt-AO")}
+                  </span>
+                  <span className="text-[10.5px] font-semibold text-muted-foreground">{p.currency || "Kz"}</span>
+                </div>
+                {p.old_price && (
+                  <span className="text-[10.5px] text-muted-foreground line-through -mt-0.5">
+                    {Number(p.old_price).toLocaleString("pt-AO")} {p.currency || "Kz"}
+                  </span>
+                )}
+                {p.promotion_ends_at && (
+                  <span className="text-[9.5px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5 w-fit mt-0.5">
+                    Termina: {new Date(p.promotion_ends_at).toLocaleDateString("pt-AO", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                  </span>
+                )}
               </div>
-              {p.old_price && (
-                <span className="text-[12px] text-muted-foreground">
-                  Antes <span className="line-through">{Number(p.old_price).toLocaleString("pt-AO")} {p.currency || "Kz"}</span>
-                </span>
-              )}
-              {p.promotion_ends_at && (
-                <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 w-fit mt-0.5">
-                  Termina: {new Date(p.promotion_ends_at).toLocaleDateString("pt-AO", { day: "2-digit", month: "2-digit", year: "numeric" })}
-                </span>
-              )}
-              <p className="text-[14px] font-bold text-foreground line-clamp-2 leading-snug mt-1">{p.title}</p>
             </div>
           );
         })}
