@@ -7,7 +7,6 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Truck,
   Zap,
-  Store,
   Gift,
   Clock,
   MapPin,
@@ -79,6 +78,7 @@ const SOURCE_LABELS: Record<string, string> = {
   seller_custom_default_forced: "Padrão da plataforma",
   global_default: "Padrão da plataforma",
   global_default_forced: "Padrão da plataforma",
+  freight_company: "Transportadora",
   pickup: "Retirada na loja",
   error: "Não disponível",
 };
@@ -115,8 +115,6 @@ interface AlternativeRoutesProps {
     type: DeliveryType
   ) => Promise<any>;
   onSelect: (selection: FreightSelection) => void;
-  onPickup: () => void;
-  pickupAddress?: string;
 }
 
 function AlternativeRoutes({
@@ -127,13 +125,17 @@ function AlternativeRoutes({
   municipalities,
   calculateFreight,
   onSelect,
-  onPickup,
-  pickupAddress,
 }: AlternativeRoutesProps) {
   const [alternatives, setAlternatives] = useState<
     { municipality: any; result: any }[]
   >([]);
+  // Alternativas fora da província do destino seleccionado — só são
+  // usadas quando não existe NENHUMA rota disponível na mesma província.
+  const [otherProvinceAlternatives, setOtherProvinceAlternatives] = useState<
+    { municipality: any; result: any }[]
+  >([]);
   const [loading, setLoading] = useState(true);
+  const [loadingOtherProvinces, setLoadingOtherProvinces] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
 
   useEffect(() => {
@@ -145,7 +147,7 @@ function AlternativeRoutes({
     );
 
     let cancelled = false;
-    const probe = async () => {
+    const probeSameProvince = async () => {
       setLoading(true);
       const results: { municipality: any; result: any }[] = [];
 
@@ -164,16 +166,48 @@ function AlternativeRoutes({
         })
       );
 
-      if (!cancelled) {
-        results.sort((a, b) => a.result.price - b.result.price);
-        setAlternatives(results.slice(0, 3));
-        setLoading(false);
+      if (cancelled) return;
+      results.sort((a, b) => a.result.price - b.result.price);
+      setAlternatives(results.slice(0, 3));
+      setLoading(false);
+
+      // Sem nenhuma rota na mesma província: procurar noutras províncias
+      // (um município representativo por província) para não deixar o
+      // pedido preso sem nenhuma alternativa.
+      if (results.length === 0) {
+        setLoadingOtherProvinces(true);
+        const otherProvinces = provinces.filter((p: any) => p.id !== destMun.province_id);
+        const representatives = otherProvinces
+          .map((p: any) => municipalities.find((m: any) => m.province_id === p.id))
+          .filter(Boolean)
+          .slice(0, 12);
+
+        const otherResults: { municipality: any; result: any }[] = [];
+        await Promise.all(
+          representatives.map(async (mun: any) => {
+            const res = await calculateFreight(
+              group.seller.sellerId,
+              originCode,
+              mun.code,
+              "standard"
+            );
+            if (!res.error && res.source !== "error") {
+              otherResults.push({ municipality: mun, result: res });
+            }
+          })
+        );
+
+        if (!cancelled) {
+          otherResults.sort((a, b) => a.result.price - b.result.price);
+          setOtherProvinceAlternatives(otherResults.slice(0, 3));
+          setLoadingOtherProvinces(false);
+        }
       }
     };
 
-    probe();
+    probeSameProvince();
     return () => { cancelled = true; };
-  }, [currentDestCode, municipalities, group.seller.sellerId, originCode, calculateFreight]);
+  }, [currentDestCode, municipalities, provinces, group.seller.sellerId, originCode, calculateFreight]);
 
   const handleSelectAlt = (mun: any, result: any) => {
     setSelected(mun.code);
@@ -197,46 +231,26 @@ function AlternativeRoutes({
   const originLabel = originProvinceName || originMunicipalityName || "Este vendedor";
   const destLabel = destMunicipalityName || "o local seleccionado";
 
+  const noAlternativesAtAll =
+    !loading && !loadingOtherProvinces &&
+    alternatives.length === 0 && otherProvinceAlternatives.length === 0;
+
   return (
     <div className="rounded-xl border border-amber-900/30 bg-amber-950/10 overflow-hidden">
       <div className="px-4 py-3 border-b border-amber-900/20 flex items-start gap-3">
         <AlertCircle className="w-4 h-4 text-amber-700/70 mt-0.5 shrink-0" />
         <div>
           <p className="text-sm font-medium text-amber-800/80">
-            {originLabel} ainda não tem rota disponível para {destLabel}.
+            {originLabel} ainda não configurou uma rota de entrega para {destLabel}.
           </p>
           <p className="text-xs text-amber-700/60 mt-0.5">
-            O vendedor não entrega directamente no município seleccionado.
-            Escolhe uma alternativa abaixo.
+            Sem rota configurada, este vendedor não consegue entregar neste
+            destino. Escolhe uma alternativa abaixo ou muda o endereço de entrega.
           </p>
         </div>
       </div>
 
       <div className="p-4 space-y-3">
-        <button
-          onClick={onPickup}
-          className={cn(
-            "w-full text-left flex items-center gap-3 rounded-lg border p-3 transition-all",
-            "border-stone-700/40 bg-stone-800/10 hover:border-stone-600/60 hover:bg-stone-800/20"
-          )}
-        >
-          <Store className="w-4 h-4 text-stone-500 shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-stone-300">Levantamento na loja</p>
-            {pickupAddress ? (
-              <p className="text-xs text-stone-500 flex items-center gap-1 mt-0.5 truncate">
-                <MapPin className="w-3 h-3 shrink-0" />
-                {pickupAddress}
-              </p>
-            ) : (
-              <p className="text-xs text-stone-500 mt-0.5">Recolha no local do vendedor</p>
-            )}
-          </div>
-          <Badge className="bg-stone-700/30 text-stone-400 border-stone-600/30 text-[10px]">
-            Grátis
-          </Badge>
-        </button>
-
         {loading ? (
           <div className="flex items-center gap-2 text-xs text-amber-700/60 py-2">
             <Loader2 className="w-3 h-3 animate-spin" />
@@ -298,11 +312,77 @@ function AlternativeRoutes({
               ))}
             </div>
           </>
-        ) : (
+        ) : loadingOtherProvinces ? (
+          <div className="flex items-center gap-2 text-xs text-amber-700/60 py-2">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            Nenhuma rota na mesma província. A procurar noutras províncias…
+          </div>
+        ) : otherProvinceAlternatives.length > 0 ? (
+          <>
+            <p className="text-xs text-amber-700/60 font-medium flex items-center gap-1.5">
+              <Navigation className="w-3 h-3" />
+              Sem rota na mesma província — outras províncias com entrega disponível
+            </p>
+            <div className="space-y-2">
+              {otherProvinceAlternatives.map(({ municipality: mun, result }) => {
+                const prov = provinces.find((p: any) => p.id === mun.province_id);
+                return (
+                  <button
+                    key={mun.code}
+                    onClick={() => handleSelectAlt(mun, result)}
+                    className={cn(
+                      "w-full text-left flex items-center gap-3 rounded-lg border p-3 transition-all",
+                      selected === mun.code
+                        ? "border-blue-600/50 bg-blue-900/15"
+                        : "border-red-900/30 bg-red-950/10 hover:border-red-800/40 hover:bg-red-950/20"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center",
+                      selected === mun.code
+                        ? "border-blue-500 bg-blue-500"
+                        : "border-red-800/50"
+                    )}>
+                      {selected === mun.code && (
+                        <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                        <MapPin className="w-3 h-3 text-red-400/70" />
+                        {mun.name}{prov ? ` — ${prov.name}` : ""}
+                      </p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                        <Clock className="w-3 h-3" />
+                        {result.days_min === result.days_max
+                          ? `${result.days_min} dias úteis`
+                          : `${result.days_min}–${result.days_max} dias úteis`}
+                        <span className="opacity-50 ml-1">
+                          · {SOURCE_LABELS[result.source] ?? result.source}
+                        </span>
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      {result.price === 0 ? (
+                        <span className="text-sm font-semibold text-green-400">Grátis</span>
+                      ) : (
+                        <span className="text-sm font-semibold text-blue-300">
+                          {fmtKz(result.price)}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        ) : noAlternativesAtAll ? (
           <p className="text-xs text-amber-700/60 py-1">
-            Não foram encontradas rotas alternativas na mesma província.
+            Este vendedor ainda não tem nenhuma rota configurada. Não é
+            possível entregar este pedido — muda o endereço de entrega ou
+            remove os itens deste vendedor do carrinho.
           </p>
-        )}
+        ) : null}
       </div>
     </div>
   );
@@ -336,7 +416,6 @@ function SellerFreightRow({
   const [expressResult, setExpressResult] = useState<any>(null);
   const [loadingExpress, setLoadingExpress] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const [showPickup, setShowPickup] = useState(false);
 
   const { result, loading, recalculate } = useCheckoutFreight(
     group.seller.sellerId,
@@ -380,69 +459,51 @@ function SellerFreightRow({
 
   const activeResult = deliveryType === "express" ? expressResult : result;
   const noRoute = !loading && result && (result.error || result.source === "error");
-  const isPickup = activeResult?.source === "pickup" || showPickup;
-  const isFree = activeResult?.price === 0 && activeResult?.source !== "pickup";
-  const hasExpress = expressResult && !expressResult.error && expressResult.source !== "pickup";
-  const pickupAddress = result?.pickup_address ?? undefined;
+  const isFree = activeResult?.price === 0;
+  const hasExpress = expressResult && !expressResult.error;
 
   return (
     <div className="rounded-xl border bg-card overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-2.5 border-b bg-muted/30">
-        <div className="flex items-center gap-2 min-w-0">
-          <Package className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-          <span className="font-medium text-xs truncate">{group.seller.sellerName}</span>
-          {/* Miniaturas sempre visíveis — sem precisar expandir para ver o que está a comprar */}
-          <div className="flex items-center -space-x-2 shrink-0">
-            {group.items.slice(0, 4).map((item) => (
-              item.imageUrl ? (
-                <img key={item.id} src={item.imageUrl} alt={item.name}
-                  className="w-6 h-6 rounded-full object-cover border-2 border-card" />
-              ) : (
-                <div key={item.id} className="w-6 h-6 rounded-full bg-muted border-2 border-card" />
-              )
-            ))}
-            {group.items.length > 4 && (
-              <span className="w-6 h-6 rounded-full bg-muted border-2 border-card flex items-center justify-center text-[9px] font-bold text-muted-foreground">
-                +{group.items.length - 4}
-              </span>
-            )}
-          </div>
+      <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
+        <div className="flex items-center gap-2">
+          <Package className="w-4 h-4 text-muted-foreground" />
+          <span className="font-medium text-sm">{group.seller.sellerName}</span>
+          <Badge variant="outline" className="text-xs">
+            {group.items.length} {group.items.length === 1 ? "item" : "itens"}
+          </Badge>
         </div>
         <button
           onClick={() => setExpanded((e) => !e)}
-          className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors shrink-0"
+          className="text-muted-foreground hover:text-foreground transition-colors"
         >
-          {group.items.length} {group.items.length === 1 ? "item" : "itens"}
-          {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
       </div>
 
       {expanded && (
-        <div className="px-3 py-2 border-b space-y-1.5 bg-muted/10">
+        <div className="px-4 py-2 border-b space-y-1.5 bg-muted/10">
           {group.items.map((item) => (
-            <div key={item.id} className="flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2 min-w-0">
-                {item.imageUrl ? (
-                  <img src={item.imageUrl} alt={item.name} className="w-7 h-7 rounded object-cover shrink-0" />
-                ) : (
-                  <div className="w-7 h-7 rounded bg-muted shrink-0" />
+            <div key={item.id} className="flex items-center justify-between text-sm">
+              <div className="flex items-center gap-2">
+                {item.imageUrl && (
+                  <img src={item.imageUrl} alt={item.name} className="w-8 h-8 rounded object-cover" />
                 )}
-                <span className="text-muted-foreground truncate">{item.quantity}× {item.name}</span>
+                <span className="text-muted-foreground">{item.quantity}× {item.name}</span>
               </div>
-              <span className="shrink-0 ml-2">{fmtKz(item.price * item.quantity)}</span>
+              <span>{fmtKz(item.price * item.quantity)}</span>
             </div>
           ))}
-          <div className="flex justify-between text-xs font-medium pt-1 border-t">
+          <div className="flex justify-between text-sm font-medium pt-1 border-t">
             <span>Subtotal</span>
             <span>{fmtKz(group.subtotal)}</span>
           </div>
         </div>
       )}
 
-      <div className="p-3 space-y-2">
+      <div className="p-4 space-y-3">
         {loading ? (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="w-4 h-4 animate-spin" />
             A calcular frete…
           </div>
         ) : noRoute ? (
@@ -454,72 +515,47 @@ function SellerFreightRow({
             municipalities={municipalities}
             calculateFreight={calculateFreight}
             onSelect={onSelect}
-            onPickup={() => {
-              setShowPickup(true);
-              onSelect({
-                sellerId: group.seller.sellerId,
-                deliveryType: "standard",
-                price: 0,
-                daysMin: 0,
-                daysMax: 0,
-                source: "pickup",
-              });
-            }}
-            pickupAddress={pickupAddress}
           />
-        ) : isPickup ? (
-          <div className="flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-500/5 p-2.5">
-            <Store className="w-4 h-4 text-rose-400 shrink-0" />
-            <div className="min-w-0">
-              <p className="text-xs font-medium">Retirada na loja</p>
-              {activeResult?.pickup_address && (
-                <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5 truncate">
-                  <MapPin className="w-3 h-3 shrink-0" />
-                  {activeResult.pickup_address}
-                </p>
-              )}
-            </div>
-            <Badge className="ml-auto bg-rose-500/20 text-rose-400 border-rose-500/30 text-[10px] shrink-0">Grátis</Badge>
-          </div>
         ) : (
-          // Lado a lado e compacto: normal e expressa como dois cartões pequenos
-          // em vez de blocos grandes empilhados — muito mais rápido de comparar.
           <RadioGroup
             value={deliveryType}
             onValueChange={(v) => handleTypeChange(v as DeliveryType)}
-            className={cn("grid gap-2", hasExpress ? "grid-cols-2" : "grid-cols-1")}
+            className="space-y-2"
           >
             <Label
               htmlFor={`std-${group.seller.sellerId}`}
               className={cn(
-                "flex flex-col gap-1 rounded-lg border p-2 cursor-pointer transition-all",
+                "flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-all",
                 deliveryType === "standard"
                   ? "border-primary bg-primary/5"
                   : "border-border hover:border-muted-foreground"
               )}
             >
-              <div className="flex items-center gap-1.5">
-                <RadioGroupItem value="standard" id={`std-${group.seller.sellerId}`} className="shrink-0 w-3.5 h-3.5" />
-                <Truck className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                <p className="text-xs font-medium truncate">Normal</p>
+              <RadioGroupItem value="standard" id={`std-${group.seller.sellerId}`} className="shrink-0" />
+              <Truck className="w-4 h-4 text-muted-foreground shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium">Entrega normal</p>
+                {result && (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    {result.days_min === result.days_max
+                      ? `${result.days_min} dias úteis`
+                      : `${result.days_min}–${result.days_max} dias úteis`}
+                    <span className="ml-1 text-[10px] opacity-60">
+                      ({SOURCE_LABELS[result.source] ?? result.source})
+                    </span>
+                  </p>
+                )}
               </div>
-              {result && (
-                <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                  <Clock className="w-3 h-3 shrink-0" />
-                  {result.days_min === result.days_max
-                    ? `${result.days_min} dia útil`
-                    : `${result.days_min}–${result.days_max} dias`}
-                </p>
-              )}
-              <div>
+              <div className="text-right shrink-0">
                 {result ? (
                   isFree ? (
-                    <span className="text-xs font-semibold text-green-400">Grátis</span>
+                    <span className="text-sm font-semibold text-green-400">Grátis</span>
                   ) : (
-                    <span className="text-xs font-semibold">{fmtKz(result.price)}</span>
+                    <span className="text-sm font-semibold">{fmtKz(result.price)}</span>
                   )
                 ) : (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
+                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
                 )}
               </div>
             </Label>
@@ -528,32 +564,37 @@ function SellerFreightRow({
               <Label
                 htmlFor={`exp-${group.seller.sellerId}`}
                 className={cn(
-                  "flex flex-col gap-1 rounded-lg border p-2 cursor-pointer transition-all",
+                  "flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-all",
                   deliveryType === "express"
                     ? "border-amber-500 bg-amber-500/5"
                     : "border-border hover:border-muted-foreground"
                 )}
               >
-                <div className="flex items-center gap-1.5">
-                  <RadioGroupItem value="express" id={`exp-${group.seller.sellerId}`} className="shrink-0 w-3.5 h-3.5" />
-                  <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                  <p className="text-xs font-medium truncate">Expressa</p>
-                </div>
-                {loadingExpress ? (
-                  <p className="text-[10px] text-muted-foreground">A calcular…</p>
-                ) : expressResult && (
-                  <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                    <Clock className="w-3 h-3 shrink-0" />
-                    {expressResult.days_min === expressResult.days_max
-                      ? `${expressResult.days_min} dia útil`
-                      : `${expressResult.days_min}–${expressResult.days_max} dias`}
+                <RadioGroupItem value="express" id={`exp-${group.seller.sellerId}`} className="shrink-0" />
+                <Zap className="w-4 h-4 text-amber-400 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">
+                    Entrega expressa
+                    <Badge variant="outline" className="ml-2 text-[10px] border-amber-500/40 text-amber-400">
+                      Rápido
+                    </Badge>
                   </p>
-                )}
-                <div>
                   {loadingExpress ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground">A calcular…</p>
+                  ) : expressResult && (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      {expressResult.days_min === expressResult.days_max
+                        ? `${expressResult.days_min} dia útil`
+                        : `${expressResult.days_min}–${expressResult.days_max} dias úteis`}
+                    </p>
+                  )}
+                </div>
+                <div className="text-right shrink-0">
+                  {loadingExpress ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
                   ) : expressResult ? (
-                    <span className="text-xs font-semibold text-amber-400">{fmtKz(expressResult.price)}</span>
+                    <span className="text-sm font-semibold text-amber-400">{fmtKz(expressResult.price)}</span>
                   ) : null}
                 </div>
               </Label>
