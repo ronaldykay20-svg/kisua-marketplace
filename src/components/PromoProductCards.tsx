@@ -74,7 +74,7 @@ const PromoProductCards = () => {
             <Truck className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h2 className="text-[15px] font-bold text-foreground tracking-tight">Frete grátis</h2>
+            <h2 className="text-[15px] font-bold text-foreground">Frete grátis</h2>
             <p className="text-[11px] text-muted-foreground">Produtos com envio grátis para si</p>
           </div>
         </div>
@@ -89,14 +89,14 @@ const PromoProductCards = () => {
             const img = p.cover_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop";
             const fav = isFavorite(p.id);
             return (
-              <div key={p.id} className="flex-shrink-0 w-[calc(100%-8px)] sm:w-[calc(50%-6px)] snap-start flex flex-row gap-3 bg-card border border-border/60 rounded-2xl overflow-hidden p-1.5 shadow-sm">
-                <div className="relative w-[140px] min-w-[140px] aspect-square rounded-2xl overflow-hidden bg-muted flex-shrink-0">
+              <div key={p.id} className="flex-shrink-0 w-[calc(100%-8px)] sm:w-[calc(50%-6px)] snap-start flex flex-row gap-3 bg-background rounded-xl overflow-hidden">
+                <div className="relative w-[140px] min-w-[140px] aspect-square rounded-xl overflow-hidden bg-muted flex-shrink-0">
                   <img src={img} alt={p.title} className="w-full h-full object-cover" loading="lazy" />
                   {p.badge && (
-                    <span className="absolute top-2 left-2 px-1.5 py-[3px] rounded-full text-[10px] font-bold text-primary-foreground bg-gradient-to-r from-primary to-primary/80 shadow-sm">{p.badge}</span>
+                    <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md text-[10px] font-bold text-white bg-red-500">{p.badge}</span>
                   )}
                   {p.discount_percent && !p.badge && (
-                    <span className="absolute top-2 left-2 px-1.5 py-[3px] rounded-full text-[10px] font-bold text-white bg-gradient-to-r from-red-500 to-rose-600 shadow-sm">-{p.discount_percent}%</span>
+                    <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md text-[10px] font-bold text-white bg-green-500">-{p.discount_percent}%</span>
                   )}
                 </div>
 
@@ -117,7 +117,7 @@ const PromoProductCards = () => {
                     )}
                   </div>
 
-                  <h3 className="text-[12.5px] font-semibold text-foreground line-clamp-2 leading-snug mb-0.5">{p.title}</h3>
+                  <h3 className="text-[13px] font-bold text-foreground line-clamp-2 leading-snug mb-0.5">{p.title}</h3>
 
                   {p.store_name && (
                     <p className="text-[11px] text-muted-foreground mb-1 flex items-center gap-1">
@@ -135,9 +135,9 @@ const PromoProductCards = () => {
                   )}
 
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[14px] font-black" style={{ color: "#8B6343" }}>{Number(p.price).toLocaleString("pt-AO")} Kz</span>
+                    <span className="text-[14px] font-black text-red-500">{Number(p.price).toLocaleString("pt-AO")} Kz</span>
                     {p.discount_percent && (
-                      <span className="text-[10px] font-bold text-white bg-gradient-to-r from-red-500 to-rose-600 px-1.5 py-[3px] rounded-full shadow-sm">-{p.discount_percent}%</span>
+                      <span className="text-[10px] font-bold text-white bg-red-500 px-1.5 py-0.5 rounded-full">-{p.discount_percent}%</span>
                     )}
                   </div>
 
@@ -159,7 +159,7 @@ const PromoProductCards = () => {
                   <div className="flex items-center gap-2 mt-auto">
                     <button
                       onClick={(e) => handleHeart(e, p.id)}
-                      className="w-8 h-8 rounded-full bg-background/90 backdrop-blur-sm shadow-sm flex items-center justify-center transition-colors"
+                      className="w-8 h-8 rounded-lg border border-border flex items-center justify-center transition-colors"
                     >
                       <Heart className={`w-4 h-4 transition-colors ${fav ? "fill-[#8B6343] text-[#8B6343]" : "text-muted-foreground"}`} />
                     </button>
