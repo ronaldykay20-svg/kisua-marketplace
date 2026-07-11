@@ -770,41 +770,20 @@ const Checkout = () => {
 
   return (
     <div className="min-h-screen bg-background pb-14">
-      <div className="sticky top-0 z-30 bg-background/95 backdrop-blur">
-        <div className="container mx-auto px-3 pt-2.5 pb-2 flex items-center gap-3 max-w-2xl">
-          <button
-            onClick={() => step === "success" ? navigate("/") : navigate(-1)}
-            className="w-8 h-8 -ml-1 flex items-center justify-center rounded-full text-foreground active:bg-muted transition-colors shrink-0"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
+      <button
+        onClick={() => step === "success" ? navigate("/") : navigate(-1)}
+        className="fixed top-3 left-3 z-30 w-9 h-9 flex items-center justify-center rounded-full bg-background/90 backdrop-blur border border-border/60 text-foreground active:bg-muted transition-colors shadow-sm"
+      >
+        <ArrowLeft className="w-5 h-5" />
+      </button>
 
-          {/* Barra de progresso fina, estilo Shein — sem números, sem título pesado */}
-          {step !== "success" ? (
-            <div className="flex-1 flex items-center gap-1.5">
-              {(["address", "payment", "confirm"] as Step[]).map((s) => {
-                const order = ["address", "payment", "confirm"];
-                const currentIdx = order.indexOf(step);
-                const segIdx = order.indexOf(s);
-                const filled = segIdx <= currentIdx;
-                return (
-                  <div
-                    key={s}
-                    className={cn(
-                      "h-[3px] flex-1 rounded-full transition-colors duration-300",
-                      filled ? "bg-primary" : "bg-border"
-                    )}
-                  />
-                );
-              })}
-            </div>
-          ) : (
-            <span className="text-base font-bold text-foreground">Pedido confirmado</span>
-          )}
+      {step === "success" && (
+        <div className="container mx-auto px-3 pt-16 max-w-2xl">
+          <span className="text-base font-bold text-foreground">Pedido confirmado</span>
         </div>
-      </div>
+      )}
 
-      <div className="container mx-auto px-3 max-w-2xl">
+      <div className="container mx-auto px-3 max-w-2xl pt-14">
 
         {/* STEP 1: Endereço */}
         {step === "address" && (
