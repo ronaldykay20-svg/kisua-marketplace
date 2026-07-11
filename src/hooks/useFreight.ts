@@ -99,7 +99,8 @@ async function calculateFreightStatic(
   sellerId: string,
   originCode: string,
   destCode: string,
-  deliveryType: DeliveryType = "standard"
+  deliveryType: DeliveryType = "standard",
+  weightKg: number = 0
 ): Promise<FreightResult> {
   try {
     const { data, error } = await supabase.rpc("calculate_freight", {
@@ -107,6 +108,7 @@ async function calculateFreightStatic(
       p_origin_municipality: originCode,
       p_dest_municipality: destCode,
       p_delivery_type: deliveryType,
+      p_weight_kg: weightKg,
     });
     if (error) throw error;
     return data as FreightResult;
@@ -283,7 +285,8 @@ export function useFreeShippingThreshold() {
 export function useCheckoutFreight(
   sellerId: string | null,
   originMunicipalityCode: string | null,
-  destMunicipalityCode: string | null
+  destMunicipalityCode: string | null,
+  weightKg: number = 0
 ) {
   const [result, setResult] = useState<FreightResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -300,7 +303,8 @@ export function useCheckoutFreight(
         sellerId,
         originMunicipalityCode,
         destMunicipalityCode,
-        "standard"
+        "standard",
+        weightKg
       );
       if (!cancelled) {
         setResult(res);
@@ -309,7 +313,7 @@ export function useCheckoutFreight(
     };
     run();
     return () => { cancelled = true; };
-  }, [sellerId, originMunicipalityCode, destMunicipalityCode]);
+  }, [sellerId, originMunicipalityCode, destMunicipalityCode, weightKg]);
 
   const recalculate = useCallback(
     async (deliveryType: DeliveryType = "standard") => {
@@ -319,12 +323,13 @@ export function useCheckoutFreight(
         sellerId,
         originMunicipalityCode,
         destMunicipalityCode,
-        deliveryType
+        deliveryType,
+        weightKg
       );
       setResult(res);
       setLoading(false);
     },
-    [sellerId, originMunicipalityCode, destMunicipalityCode]
+    [sellerId, originMunicipalityCode, destMunicipalityCode, weightKg]
   );
 
   return { result, loading, recalculate };
