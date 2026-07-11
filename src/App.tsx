@@ -68,8 +68,8 @@ import CatalogoFornecedores from "./pages/CatalogoFornecedores.tsx";
 
 const queryClient = new QueryClient();
 
-const HIDE_BOTTOM_NAV_PATHS = [/^\/produto\/.+/, /^\/checkout/];
-const HIDE_HEADER_PATHS = [/^\/produto\/.+/, /^\/checkout/];
+const HIDE_BOTTOM_NAV_PATHS = [/^\/produto\/.+/, /^\/checkout/, /^\/carrinho/];
+const HIDE_HEADER_PATHS = [/^\/produto\/.+/, /^\/checkout/, /^\/carrinho/];
 // Painéis internos (admin/vendedor/moderador/fornecedor) e o checkout não
 // levam rodapé — são ferramentas/fluxos de trabalho, não páginas de
 // navegação de conteúdo, e o rodapé ali só acrescentaria ruído.
