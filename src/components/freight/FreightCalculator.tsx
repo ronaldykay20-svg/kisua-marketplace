@@ -22,6 +22,8 @@ interface SellerFreightInfo {
   sellerId: string;
   sellerName: string;
   originMunicipalityCode: string;
+  logoUrl?: string | null;
+  coverUrl?: string | null;
 }
 
 interface CartGroup {
@@ -271,7 +273,7 @@ function SellerFreightRow({
   const [deliveryType, setDeliveryType] = useState<DeliveryType>("standard");
   const [expressResult, setExpressResult] = useState<any>(null);
   const [loadingExpress, setLoadingExpress] = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const [showPickup, setShowPickup] = useState(false);
 
   const weightKg = group.totalWeightKg ?? 0;
@@ -326,43 +328,90 @@ function SellerFreightRow({
   const pickupAddress = result?.pickup_address ?? undefined;
   const isLoadingActive = deliveryType === "express" ? loadingExpress : loading;
 
+  const hasCover = !!group.seller.coverUrl;
+
   return (
-    <div className="px-4 py-3.5">
+    <div className="pb-3.5">
+      {/* Capa da loja — dá identidade visual imediata ao bloco de entrega */}
+      {hasCover && (
+        <div className="relative h-16 w-full overflow-hidden -mt-px">
+          <img
+            src={group.seller.coverUrl!}
+            alt=""
+            className="w-full h-full object-cover"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/15 to-transparent" />
+        </div>
+      )}
+
       <button
         onClick={() => setExpanded((e) => !e)}
-        className="w-full flex items-center gap-2 mb-2.5 min-w-0 group"
+        className={cn(
+          "w-full flex items-center gap-2 min-w-0 group px-4",
+          hasCover ? "-mt-6 pb-2 relative z-10" : "pt-3.5 mb-2.5"
+        )}
       >
-        <span className="flex items-center justify-center w-7 h-7 rounded-full bg-muted shrink-0">
-          <Store className="w-3.5 h-3.5 text-muted-foreground" />
+        <span className={cn(
+          "flex items-center justify-center w-8 h-8 rounded-full bg-muted shrink-0 overflow-hidden",
+          hasCover && "border-2 border-card shadow-sm"
+        )}>
+          {group.seller.logoUrl ? (
+            <img src={group.seller.logoUrl} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <Store className="w-3.5 h-3.5 text-muted-foreground" />
+          )}
         </span>
-        <span className="text-sm font-semibold truncate group-hover:text-primary transition-colors">
+        <span className={cn(
+          "text-sm font-semibold truncate transition-colors",
+          hasCover ? "text-white drop-shadow-sm" : "text-foreground group-hover:text-primary"
+        )}>
           {group.seller.sellerName}
         </span>
-        <span className="text-xs text-muted-foreground shrink-0">
+        <span className={cn("text-xs shrink-0", hasCover ? "text-white/85 drop-shadow-sm" : "text-muted-foreground")}>
           · {group.items.length} {group.items.length === 1 ? "item" : "itens"}
         </span>
-        <span className="ml-auto shrink-0 text-muted-foreground">
+        <span className={cn("ml-auto shrink-0", hasCover ? "text-white/85" : "text-muted-foreground")}>
           {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
         </span>
       </button>
 
-      {expanded && (
-        <div className="mb-3 pl-9 space-y-1 text-xs">
-          {group.items.map((item) => (
-            <div key={item.id} className="flex items-center justify-between text-muted-foreground">
-              <span className="truncate pr-2">{item.quantity}× {item.name}</span>
-              <span className="shrink-0 tabular-nums">{fmtKz(item.price * item.quantity)}</span>
+      <div className="px-4">
+        {expanded && (
+          <div className="mb-3 space-y-2 text-xs">
+            {group.items.map((item) => (
+              <div key={item.id} className="flex items-center gap-2.5">
+                {item.imageUrl ? (
+                  <img
+                    src={item.imageUrl}
+                    alt={item.name}
+                    className="w-10 h-10 rounded-lg object-cover bg-muted shrink-0"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = "none";
+                      const sibling = (e.target as HTMLImageElement).nextElementSibling as HTMLElement | null;
+                      if (sibling) sibling.style.display = "flex";
+                    }}
+                  />
+                ) : null}
+                <div
+                  className="w-10 h-10 rounded-lg bg-muted items-center justify-center shrink-0"
+                  style={{ display: item.imageUrl ? "none" : "flex" }}
+                >
+                  <Package className="w-4 h-4 text-muted-foreground" />
+                </div>
+                <span className="flex-1 min-w-0 truncate text-muted-foreground">{item.quantity}× {item.name}</span>
+                <span className="shrink-0 tabular-nums font-medium text-foreground">{fmtKz(item.price * item.quantity)}</span>
+              </div>
+            ))}
+            <div className="flex items-center justify-between pt-1.5 border-t border-dashed border-border font-medium text-foreground">
+              <span>Subtotal</span>
+              <span className="tabular-nums">{fmtKz(group.subtotal)}</span>
             </div>
-          ))}
-          <div className="flex items-center justify-between pt-1 border-t border-dashed border-border font-medium text-foreground">
-            <span>Subtotal</span>
-            <span className="tabular-nums">{fmtKz(group.subtotal)}</span>
           </div>
-        </div>
-      )}
+        )}
 
       {loading ? (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground pl-9">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Loader2 className="w-3.5 h-3.5 animate-spin" />
           A calcular frete…
         </div>
@@ -389,7 +438,7 @@ function SellerFreightRow({
           pickupAddress={pickupAddress}
         />
       ) : isPickup ? (
-        <div className="pl-9 flex items-center gap-2 text-xs flex-wrap">
+        <div className="flex items-center gap-2 text-xs flex-wrap">
           <Badge variant="secondary" className="gap-1 font-normal">
             <Store className="w-3 h-3" /> Retirada na loja
           </Badge>
@@ -401,7 +450,7 @@ function SellerFreightRow({
           )}
         </div>
       ) : (
-        <div className="pl-9 space-y-2">
+        <div className="space-y-2">
           <div className="inline-flex items-center rounded-full bg-muted p-0.5 text-xs font-medium">
             <button
               onClick={() => handleTypeChange("standard")}
@@ -448,6 +497,7 @@ function SellerFreightRow({
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }
@@ -480,7 +530,7 @@ function MergedShipmentRow({
   const [expressResult, setExpressResult] = useState<any>(null);
   const [loadingStandard, setLoadingStandard] = useState(true);
   const [loadingExpress, setLoadingExpress] = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
 
   const representativeSellerId = members[0].seller.sellerId;
   const combinedWeight = members.reduce((s, m) => s + (m.totalWeightKg ?? 0), 0);
@@ -567,11 +617,29 @@ function MergedShipmentRow({
           {members.map((m) => (
             <div key={m.seller.sellerId}>
               <p className="text-muted-foreground font-medium mb-1">{m.seller.sellerName}</p>
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 {m.items.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between text-muted-foreground">
-                    <span className="truncate pr-2">{item.quantity}× {item.name}</span>
-                    <span className="shrink-0 tabular-nums">{fmtKz(item.price * item.quantity)}</span>
+                  <div key={item.id} className="flex items-center gap-2.5">
+                    {item.imageUrl ? (
+                      <img
+                        src={item.imageUrl}
+                        alt={item.name}
+                        className="w-9 h-9 rounded-lg object-cover bg-muted shrink-0"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = "none";
+                          const sibling = (e.target as HTMLImageElement).nextElementSibling as HTMLElement | null;
+                          if (sibling) sibling.style.display = "flex";
+                        }}
+                      />
+                    ) : null}
+                    <div
+                      className="w-9 h-9 rounded-lg bg-muted items-center justify-center shrink-0"
+                      style={{ display: item.imageUrl ? "none" : "flex" }}
+                    >
+                      <Package className="w-3.5 h-3.5 text-muted-foreground" />
+                    </div>
+                    <span className="flex-1 min-w-0 truncate text-muted-foreground">{item.quantity}× {item.name}</span>
+                    <span className="shrink-0 tabular-nums font-medium text-foreground">{fmtKz(item.price * item.quantity)}</span>
                   </div>
                 ))}
               </div>
