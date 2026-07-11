@@ -146,7 +146,7 @@ const RecommendedProducts = () => {
             <Sparkles className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-foreground tracking-tight">Recomendado para si</h2>
+            <h2 className="text-[15px] font-bold text-foreground tracking-tight">Recomendado para si</h2>
             <p className="text-[11px] text-muted-foreground">
               {basedOnCategory
                 ? `Baseado na categoria "${basedOnCategory}" que viu`
@@ -197,7 +197,7 @@ const RecommendedProducts = () => {
               </div>
 
               <div className="p-2.5 flex flex-col gap-1">
-                <h3 className="text-[12px] font-semibold text-foreground line-clamp-2 leading-snug min-h-[2.4em]">
+                <h3 className="text-[12.5px] font-semibold text-foreground line-clamp-2 leading-snug min-h-[2.4em]">
                   {p.title}
                 </h3>
 
@@ -218,13 +218,13 @@ const RecommendedProducts = () => {
                 )}
 
                 <div className="flex items-baseline gap-1.5 mt-0.5">
-                  <span className="text-[14px] font-black text-foreground">
+                  <span className="text-[14px] font-black" style={{ color: "#8B6343" }}>
                     {Number(p.price).toLocaleString("pt-AO")}
                   </span>
                   <span className="text-[10.5px] font-semibold text-muted-foreground">{p.currency || "Kz"}</span>
                 </div>
                 {p.old_price && (
-                  <span className="text-[10px] text-muted-foreground line-through -mt-0.5">
+                  <span className="text-[10.5px] text-muted-foreground line-through -mt-0.5">
                     {Number(p.old_price).toLocaleString("pt-AO")} {p.currency || "Kz"}
                   </span>
                 )}
