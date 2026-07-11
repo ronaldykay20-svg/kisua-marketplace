@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { ArrowLeft, MapPin, CreditCard, Truck, CheckCircle, Loader2, ShieldCheck, ImageOff, Upload, FileCheck, X, Building2, Smartphone, Tag, Check, Lock, PackageCheck } from "lucide-react";
+import { ArrowLeft, MapPin, CreditCard, Truck, CheckCircle, Loader2, ShieldCheck, ImageOff, Upload, FileCheck, X, Building2, Smartphone, Tag, Lock, PackageCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCart } from "@/hooks/useSupabaseData";
 import { useClearCart, useRemoveCartItem } from "@/hooks/useCartActions";
@@ -177,8 +177,8 @@ const Checkout = () => {
         .select(`
           id, title, price, image_url, seller_id, company_id, weight_kg,
           free_shipping, free_shipping_scope, free_shipping_province_id, free_shipping_municipality_ids,
-          sellers(id, name, municipality_code),
-          companies(id, name, municipality_code)
+          sellers(id, name, municipality_code, logo_url, cover_url),
+          companies(id, name, municipality_code, logo_url, banner_url)
         `)
         .in("id", productIds);
       return data || [];
@@ -241,6 +241,8 @@ const Checkout = () => {
       let entityName: string = "Vendedor";
       let originMunicipalityCode: string = "";
       let isCompany = false;
+      let entityLogoUrl: string | null = null;
+      let entityCoverUrl: string | null = null;
 
       const sellerRel: any = Array.isArray(prod.sellers) ? prod.sellers[0] : prod.sellers;
       const companyRel: any = Array.isArray(prod.companies) ? prod.companies[0] : prod.companies;
@@ -249,11 +251,15 @@ const Checkout = () => {
         entityName = sellerRel.name;
         originMunicipalityCode = sellerRel.municipality_code ?? "";
         isCompany = false;
+        entityLogoUrl = sellerRel.logo_url ?? null;
+        entityCoverUrl = sellerRel.cover_url ?? null;
       } else if (companyRel) {
         entityId = companyRel.id;
         entityName = companyRel.name;
         originMunicipalityCode = companyRel.municipality_code ?? "";
         isCompany = true;
+        entityLogoUrl = companyRel.logo_url ?? null;
+        entityCoverUrl = companyRel.banner_url ?? null;
       }
 
 
@@ -265,6 +271,8 @@ const Checkout = () => {
             sellerId: entityId,
             sellerName: entityName,
             originMunicipalityCode,
+            logoUrl: entityLogoUrl,
+            coverUrl: entityCoverUrl,
           },
           items: [],
           subtotal: 0,
@@ -762,73 +770,38 @@ const Checkout = () => {
 
   return (
     <div className="min-h-screen bg-background pb-14">
-      <div className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b border-border/60">
-        <div className="container mx-auto px-3 pt-3 pb-2 flex items-center gap-3 max-w-2xl">
+      <div className="sticky top-0 z-30 bg-background/95 backdrop-blur">
+        <div className="container mx-auto px-3 pt-2.5 pb-2 flex items-center gap-3 max-w-2xl">
           <button
             onClick={() => step === "success" ? navigate("/") : navigate(-1)}
-            className="w-8 h-8 -ml-1 flex items-center justify-center rounded-full text-foreground active:bg-muted transition-colors"
+            className="w-8 h-8 -ml-1 flex items-center justify-center rounded-full text-foreground active:bg-muted transition-colors shrink-0"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <span className="text-base font-bold text-foreground">
-            {step === "success" ? "Pedido confirmado" : "Finalizar compra"}
-          </span>
-          {step !== "success" && (
-            <span className="ml-auto flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
-              <ShieldCheck className="w-3.5 h-3.5 text-walmart-green" />
-              Compra protegida
-            </span>
-          )}
-        </div>
 
-        {step !== "success" && (
-          <div className="container mx-auto px-4 max-w-2xl pb-3">
-            <div className="relative flex items-center justify-between">
-              {/* Linha base + linha de progresso animada, por trás dos círculos */}
-              <div className="absolute left-4 right-4 top-3.5 h-[2px] bg-border" />
-              <div
-                className="absolute left-4 top-3.5 h-[2px] bg-primary transition-all duration-500 ease-out"
-                style={{
-                  width:
-                    step === "address" ? "0%" :
-                    step === "payment" ? "calc(50% - 1rem)" :
-                    "calc(100% - 2rem)",
-                }}
-              />
-              {(["address", "payment", "confirm"] as Step[]).map((s, i) => {
+          {/* Barra de progresso fina, estilo Shein — sem números, sem título pesado */}
+          {step !== "success" ? (
+            <div className="flex-1 flex items-center gap-1.5">
+              {(["address", "payment", "confirm"] as Step[]).map((s) => {
                 const order = ["address", "payment", "confirm"];
                 const currentIdx = order.indexOf(step);
-                const done = currentIdx > i;
-                const active = step === s;
-                const labels = { address: "Endereço", payment: "Pagamento", confirm: "Confirmar" };
+                const segIdx = order.indexOf(s);
+                const filled = segIdx <= currentIdx;
                 return (
-                  <div key={s} className="relative z-10 flex flex-col items-center gap-1.5" style={{ width: "33.33%" }}>
-                    <div
-                      className={cn(
-                        "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-colors duration-300",
-                        active
-                          ? "bg-primary border-primary text-primary-foreground shadow-[0_0_0_4px_hsl(var(--primary)/0.15)]"
-                          : done
-                          ? "bg-primary border-primary text-primary-foreground"
-                          : "bg-background border-border text-muted-foreground"
-                      )}
-                    >
-                      {done ? <Check className="w-3.5 h-3.5" /> : i + 1}
-                    </div>
-                    <span
-                      className={cn(
-                        "text-[10.5px] font-medium",
-                        active ? "text-foreground" : done ? "text-primary" : "text-muted-foreground"
-                      )}
-                    >
-                      {labels[s]}
-                    </span>
-                  </div>
+                  <div
+                    key={s}
+                    className={cn(
+                      "h-[3px] flex-1 rounded-full transition-colors duration-300",
+                      filled ? "bg-primary" : "bg-border"
+                    )}
+                  />
                 );
               })}
             </div>
-          </div>
-        )}
+          ) : (
+            <span className="text-base font-bold text-foreground">Pedido confirmado</span>
+          )}
+        </div>
       </div>
 
       <div className="container mx-auto px-3 max-w-2xl">
