@@ -30,6 +30,8 @@ const N = {
 const fmt = (n: number) =>
   Number(n).toLocaleString("pt-AO").replace(/,/g, ".") + " Kz";
 
+const FALLBACK_IMG = "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop";
+
 const conditionLabels: Record<string, string> = {
   new: "Novo", like_new: "Como novo", good: "Bom estado",
   used: "Usado", refurbished: "Recondicionado",
@@ -180,10 +182,141 @@ const ProductDetail = () => {
   const rawCompanyId = (dbProduct as any)?.company_id || null;
   const categoryId   = (dbProduct as any)?.category_id;
 
-  const { data: sellerFull,  isLoading: loadingSeller  } = useQuery({ queryKey: ["seller_full",  rawSellerId],  queryFn: async () => { const { data } = await supabase.from("sellers").select("id,name,logo_url,avatar_url,is_verified,province,rating,total_sales,type,user_id").eq("id", rawSellerId!).maybeSingle(); return data ? { ...data, __type: "seller" } : null; }, enabled: !!rawSellerId });
-  const { data: companyFull, isLoading: loadingCompany } = useQuery({ queryKey: ["company_full", rawCompanyId], queryFn: async () => { const { data } = await (supabase as any).from("companies").select("id,name,logo_url,is_verified,province,rating,total_reviews,total_sales").eq("id", rawCompanyId!).maybeSingle(); return data ? { ...data, __type: "company" } : null; }, enabled: !!rawCompanyId });
+  const { data: sellerFull,  isLoading: loadingSeller  } = useQuery({ queryKey: ["seller_full",  rawSellerId],  queryFn: async () => { const { data } = await supabase.from("sellers").select("id,name,logo_url,avatar_url,banner_url,is_verified,province,rating,total_sales,type,user_id").eq("id", rawSellerId!).maybeSingle(); return data ? { ...data, __type: "seller" } : null; }, enabled: !!rawSellerId });
+  const { data: companyFull, isLoading: loadingCompany } = useQuery({ queryKey: ["company_full", rawCompanyId], queryFn: async () => { const { data } = await (supabase as any).from("companies").select("id,name,logo_url,banner_url,is_verified,province,rating,total_reviews,total_sales").eq("id", rawCompanyId!).maybeSingle(); return data ? { ...data, __type: "company" } : null; }, enabled: !!rawCompanyId });
   const loadingPublisher = (!!rawSellerId && loadingSeller) || (!!rawCompanyId && loadingCompany);
   const publisher: any = sellerFull || companyFull || null;
+
+  // ── Loja/empresa: seguir, contagens reais e outros produtos ──────────────
+  // Mesmo padrão de VendedorPerfil.tsx/EmpresaPerfil.tsx, só que aqui o
+  // "alvo" (tabela/coluna) muda consoante o produto pertence a um vendedor
+  // ou a uma empresa — sem isto duplicaríamos toda a lógica duas vezes.
+  const followTable  = publisher?.__type === "company" ? "company_follows" : "seller_follows";
+  const followColumn = publisher?.__type === "company" ? "company_id"     : "seller_id";
+  const publisherField = publisher?.__type === "company" ? "company_id"   : "seller_id";
+
+  const { data: storeProductCount = 0 } = useQuery({
+    queryKey: ["store_product_count", publisher?.__type, publisher?.id],
+    queryFn: async () => {
+      const { count } = await supabase.from("products").select("id", { count: "exact", head: true }).eq(publisherField, publisher!.id).eq("is_active", true);
+      return count || 0;
+    },
+    enabled: !!publisher?.id,
+  });
+
+  const { data: storeOtherProducts = [] } = useQuery({
+    queryKey: ["store_other_products", publisher?.__type, publisher?.id, id],
+    queryFn: async () => {
+      const { data } = await supabase.from("products").select("*").eq(publisherField, publisher!.id).eq("is_active", true).neq("id", id!).order("sales_count", { ascending: false }).limit(12);
+      const ids = (data || []).map((p: any) => p.id); const cMap: Record<string, string> = {};
+      if (ids.length) { const { data: m } = await supabase.from("product_media").select("product_id,url").in("product_id", ids).eq("is_cover", true); (m || []).forEach((x: any) => { cMap[x.product_id] = x.url; }); }
+      return (data || []).map((p: any) => ({ id: p.id, title: p.title, price: fmt(p.price), image: cMap[p.id] || p.image_url || FALLBACK_IMG }));
+    },
+    enabled: !!publisher?.id && !!isUuid,
+  });
+
+  const { data: isFollowingPublisher, refetch: refetchFollowPublisher } = useQuery({
+    queryKey: ["publisher_follow", followTable, publisher?.id, user?.id],
+    queryFn: async () => {
+      const { data } = await (supabase as any).from(followTable).select("id").eq(followColumn, publisher!.id).eq("user_id", user!.id).maybeSingle();
+      return !!data;
+    },
+    enabled: !!publisher?.id && !!user,
+  });
+
+  const { data: publisherFollowersCount = 0, refetch: refetchPublisherFollowers } = useQuery({
+    queryKey: ["publisher_followers_count", followTable, publisher?.id],
+    queryFn: async () => {
+      const { count } = await (supabase as any).from(followTable).select("id", { count: "exact", head: true }).eq(followColumn, publisher!.id);
+      return count || 0;
+    },
+    enabled: !!publisher?.id,
+  });
+
+  const togglePublisherFollow = useMutation({
+    mutationFn: async () => {
+      if (!user) { navigate("/auth"); return; }
+      if (isFollowingPublisher) {
+        const { error } = await (supabase as any).from(followTable).delete().eq(followColumn, publisher!.id).eq("user_id", user.id);
+        if (error) throw error;
+      } else {
+        const { error } = await (supabase as any).from(followTable).insert({ [followColumn]: publisher!.id, user_id: user.id });
+        if (error) throw error;
+      }
+    },
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ["publisher_followers_count", followTable, publisher?.id] });
+      await queryClient.cancelQueries({ queryKey: ["publisher_follow", followTable, publisher?.id, user?.id] });
+      const prevCount = queryClient.getQueryData<number>(["publisher_followers_count", followTable, publisher?.id]);
+      const prevFollowing = queryClient.getQueryData<boolean>(["publisher_follow", followTable, publisher?.id, user?.id]);
+      queryClient.setQueryData(["publisher_follow", followTable, publisher?.id, user?.id], !isFollowingPublisher);
+      queryClient.setQueryData(["publisher_followers_count", followTable, publisher?.id], (old: number = 0) => isFollowingPublisher ? Math.max(0, old - 1) : old + 1);
+      return { prevCount, prevFollowing };
+    },
+    onError: (err: any, _vars, context) => {
+      if (context) {
+        queryClient.setQueryData(["publisher_followers_count", followTable, publisher?.id], context.prevCount);
+        queryClient.setQueryData(["publisher_follow", followTable, publisher?.id, user?.id], context.prevFollowing);
+      }
+      toast.error(err?.message || "Não foi possível atualizar. Tenta novamente.");
+    },
+    onSuccess: () => { toast.success(isFollowingPublisher ? "Deixou de seguir" : "A seguir!"); },
+    onSettled: () => { refetchFollowPublisher(); refetchPublisherFollowers(); },
+  });
+
+  // ── Comprados juntos com frequência — dados reais de order_items via RPC ──
+  const { data: boughtTogether = [] } = useQuery({
+    queryKey: ["frequently_bought_with", id],
+    queryFn: async () => {
+      const { data: pairs } = await supabase.rpc("get_frequently_bought_with", { p_product_id: id!, p_limit: 8 } as any);
+      const ids = ((pairs as any[]) || []).map((x: any) => x.product_id);
+      if (!ids.length) return [];
+      const { data: prods } = await supabase.from("products").select("id,title,price,image_url").in("id", ids).eq("is_active", true);
+      const cMap: Record<string, string> = {};
+      const { data: media } = await supabase.from("product_media").select("product_id,url").in("product_id", ids).eq("is_cover", true);
+      (media || []).forEach((m: any) => { cMap[m.product_id] = m.url; });
+      return ids
+        .map((pid: string) => (prods || []).find((p: any) => p.id === pid))
+        .filter(Boolean)
+        .map((p: any) => ({ id: p.id, title: p.title, price: fmt(p.price), image: cMap[p.id] || p.image_url || FALLBACK_IMG }));
+    },
+    enabled: !!isUuid,
+  });
+
+  // ── Produtos em promoção — dados reais e activos de promotions/promotion_products ──
+  const { data: activePromotions = [] } = useQuery({
+    queryKey: ["product_page_active_promotions", id],
+    queryFn: async () => {
+      const nowIso = new Date().toISOString();
+      const { data: promos } = await (supabase as any).from("promotions").select("id,title,discount_percent,ends_at").eq("is_active", true).lte("starts_at", nowIso).gte("ends_at", nowIso).order("ends_at", { ascending: true }).limit(4);
+      if (!promos || promos.length === 0) return [];
+      const promoIds = promos.map((p: any) => p.id);
+      const { data: pp } = await (supabase as any).from("promotion_products").select("id,product_id,promo_price,stock_limit,stock_sold,promotion_id").in("promotion_id", promoIds).limit(24);
+      const prodIds = [...new Set((pp || []).map((x: any) => x.product_id))];
+      if (!prodIds.length) return [];
+      const { data: prods } = await supabase.from("products").select("id,title,price,image_url").in("id", prodIds).eq("is_active", true);
+      const prodMap: Record<string, any> = {}; (prods || []).forEach((p: any) => { prodMap[p.id] = p; });
+      const cMap: Record<string, string> = {};
+      const { data: media } = await supabase.from("product_media").select("product_id,url").in("product_id", prodIds).eq("is_cover", true);
+      (media || []).forEach((m: any) => { cMap[m.product_id] = m.url; });
+      return (pp || [])
+        .filter((x: any) => prodMap[x.product_id] && x.product_id !== id)
+        .map((x: any) => {
+          const p = prodMap[x.product_id];
+          const promo = promos.find((pr: any) => pr.id === x.promotion_id);
+          const pct = p.price > 0 ? Math.round((1 - x.promo_price / p.price) * 100) : (promo?.discount_percent ?? 0);
+          return {
+            id: p.id,
+            title: p.title,
+            image: cMap[p.id] || p.image_url || FALLBACK_IMG,
+            price: fmt(x.promo_price),
+            oldPrice: fmt(p.price),
+            discountPercent: pct,
+            stockLeft: x.stock_limit != null ? Math.max(0, x.stock_limit - (x.stock_sold || 0)) : null,
+          };
+        });
+    },
+  });
 
   const { data: categoryName } = useQuery({ queryKey: ["category_name_detail", categoryId], queryFn: async () => { const { data } = await supabase.from("categories").select("name").eq("id", categoryId!).maybeSingle(); return data?.name || null; }, enabled: !!categoryId });
 
@@ -800,6 +933,100 @@ const ProductDetail = () => {
           </div>
         </div>
 
+        {/* ── LOJA / EMPRESA ── */}
+        {publisher && !loadingPublisher && (
+          <div className="bg-white border-b border-gray-100">
+            <div className="relative h-24 md:h-32 overflow-hidden" style={{ background: N.brownLight }}>
+              {publisher.banner_url && <img src={publisher.banner_url} alt="" className="w-full h-full object-cover" />}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/5 to-transparent" />
+            </div>
+            <div className="px-3 md:px-6 -mt-8 pb-3">
+              <div className="flex items-end gap-2.5">
+                <div className="w-16 h-16 rounded-2xl overflow-hidden border-4 border-white bg-white shadow-sm flex-shrink-0">
+                  <AvatarWithFallback src={publisher.logo_url || publisher.avatar_url || null} name={publisher.name} isCompany={publisher.__type === "company"} />
+                </div>
+                <button onClick={handlePublisherNavigate} className="flex-1 min-w-0 pb-0.5 text-left">
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm font-bold truncate" style={{ color: N.brown }}>{publisher.name}</span>
+                    {publisher.is_verified && <ShieldCheck className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />}
+                    {publisher.__type === "company" && <span className="text-[9px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full flex-shrink-0">Empresa</span>}
+                  </div>
+                  {publisher?.province && <p className="text-[10px] text-gray-500 flex items-center gap-0.5"><MapPin className="w-2.5 h-2.5" />{String(publisher.province).replace(/0+$/, "").trim()}</p>}
+                </button>
+                <button
+                  onClick={() => togglePublisherFollow.mutate()}
+                  disabled={togglePublisherFollow.isPending}
+                  className="px-3 py-1.5 rounded-full text-[11px] font-bold flex items-center gap-1 flex-shrink-0 mb-0.5 disabled:opacity-60"
+                  style={isFollowingPublisher ? { background: "#f0f0f0", color: "#555" } : { background: N.brown, color: "#fff" }}
+                >
+                  {togglePublisherFollow.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : isFollowingPublisher ? <Check className="w-3 h-3" /> : null}
+                  {isFollowingPublisher ? "A seguir" : "Seguir"}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-4 gap-1.5 mt-3">
+                <div className="text-center p-1.5 rounded-lg" style={{ background: "#fafafa" }}>
+                  <p className="text-xs font-black" style={{ color: N.brown }}>{publisherFollowersCount}</p>
+                  <p className="text-[9px] text-gray-500">Seguidores</p>
+                </div>
+                <div className="text-center p-1.5 rounded-lg" style={{ background: "#fafafa" }}>
+                  <p className="text-xs font-black" style={{ color: N.brown }}>{storeProductCount}</p>
+                  <p className="text-[9px] text-gray-500">Produtos</p>
+                </div>
+                <div className="text-center p-1.5 rounded-lg" style={{ background: "#fafafa" }}>
+                  <p className="text-xs font-black" style={{ color: N.brown }}>{publisher.rating ? Number(publisher.rating).toFixed(1) : "—"}</p>
+                  <p className="text-[9px] text-gray-500">Avaliação</p>
+                </div>
+                <div className="text-center p-1.5 rounded-lg" style={{ background: "#fafafa" }}>
+                  <p className="text-xs font-black" style={{ color: N.brown }}>{publisher.total_sales ?? 0}</p>
+                  <p className="text-[9px] text-gray-500">Vendas</p>
+                </div>
+              </div>
+
+              <button onClick={handlePublisherNavigate} className="w-full mt-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border" style={{ borderColor: N.brown, color: N.brown }}>
+                Ver loja completa <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+
+              {storeOtherProducts.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-[11px] font-bold text-gray-700 mb-2">Mais desta loja</p>
+                  <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
+                    {storeOtherProducts.map((p: any) => (
+                      <MinimalProductCard key={p.id} product={p} onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "store_other" }); navigate(`/produto/${p.id}`); }} />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── COMPRADOS JUNTOS COM FREQUÊNCIA ── */}
+        {boughtTogether.length > 0 && (
+          <div className="bg-white border-b border-gray-100 px-3 md:px-6 py-3">
+            <p className="text-sm font-bold text-gray-900 mb-3">Comprados juntos com frequência</p>
+            <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
+              {boughtTogether.map((p: any) => (
+                <div key={p.id} className="flex flex-col flex-shrink-0" style={{ width: 118 }}>
+                  <div onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "bought_together" }); navigate(`/produto/${p.id}`); }} className="relative w-full rounded-lg overflow-hidden cursor-pointer" style={{ aspectRatio: "1/1", background: "#f5f5f5" }}>
+                    <img src={p.image} alt={p.title} className="w-full h-full object-cover" />
+                    <button
+                      onClick={(e) => { e.stopPropagation(); addToCart.mutate({ productId: p.id, quantity: 1 }); }}
+                      className="absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full bg-white shadow flex items-center justify-center"
+                    >
+                      <ShoppingCart className="w-3 h-3" style={{ color: N.brown }} />
+                    </button>
+                  </div>
+                  <button onClick={() => navigate(`/produto/${p.id}`)} className="text-left">
+                    <p className="text-[11px] font-semibold leading-snug line-clamp-2 mt-1 text-gray-900">{p.title}</p>
+                    <p className="text-[11px] font-black mt-0.5" style={{ color: N.accent }}>{p.price}</p>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* ── AVALIAÇÕES ── */}
         <ProductReviewsSection productId={id || ""} product={product} dbReviews={dbReviews} userOrders={userOrders} trackEvent={trackEvent} />
 
@@ -810,6 +1037,43 @@ const ProductDetail = () => {
             <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
               {relatedProducts.map((p: any) => (
                 <MinimalProductCard key={p.id} product={p} onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "related" }); navigate(`/produto/${p.id}`); }} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── PRODUTOS EM PROMOÇÃO ── */}
+        {activePromotions.length > 0 && (
+          <div className="bg-white border-b border-gray-100 px-3 md:px-6 py-3">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-bold text-gray-900">🔥 Produtos em promoção</p>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+              {activePromotions.slice(0, 8).map((p: any) => (
+                <div key={p.id} className="rounded-xl overflow-hidden border border-gray-100">
+                  <div onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "promotions" }); navigate(`/produto/${p.id}`); }} className="relative w-full cursor-pointer" style={{ aspectRatio: "1/1", background: "#f5f5f5" }}>
+                    <img src={p.image} alt={p.title} className="w-full h-full object-cover" />
+                    {p.discountPercent > 0 && (
+                      <span className="absolute top-1.5 left-1.5 text-[9px] font-black text-white px-1.5 py-0.5 rounded-full" style={{ background: N.accent }}>-{p.discountPercent}%</span>
+                    )}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); addToCart.mutate({ productId: p.id, quantity: 1 }); }}
+                      className="absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full bg-white shadow flex items-center justify-center"
+                    >
+                      <ShoppingCart className="w-3 h-3" style={{ color: N.brown }} />
+                    </button>
+                  </div>
+                  <button onClick={() => navigate(`/produto/${p.id}`)} className="block w-full text-left p-1.5">
+                    <p className="text-[10.5px] font-semibold leading-snug line-clamp-2 text-gray-900">{p.title}</p>
+                    <div className="flex items-baseline gap-1 mt-0.5 flex-wrap">
+                      <span className="text-[11px] font-black" style={{ color: N.accent }}>{p.price}</span>
+                      <span className="text-[9px] text-gray-400 line-through">{p.oldPrice}</span>
+                    </div>
+                    {p.stockLeft != null && p.stockLeft <= 10 && (
+                      <p className="text-[9px] font-bold text-red-500 mt-0.5">Só {p.stockLeft} restantes</p>
+                    )}
+                  </button>
+                </div>
               ))}
             </div>
           </div>
