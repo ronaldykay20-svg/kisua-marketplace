@@ -86,11 +86,17 @@ const SELLER_SPECIFIC_SOURCES = new Set([
   "seller_exact",
   "seller_exact_express",
   "seller_provincial",
+  "seller_package",
   "seller_custom_default",
   "seller_custom_default_forced",
   "seller_free",
   "pickup",
 ]);
+
+// Fontes ligadas a uma zona da PLATAFORMA para um único município exacto —
+// diferente de "toda a província"/"pacote", que se aplicam por igual a
+// qualquer origem dentro da província e por isso PODEM ser combinadas.
+const MUNICIPALITY_EXACT_SOURCES = new Set(["admin_exact", "admin_exact_express"]);
 
 function resolveLocationLabel(
   municipalityCode: string | null | undefined,
@@ -260,7 +266,6 @@ interface SellerFreightRowProps {
   municipalities: any[];
   calculateFreight: CalculateFreightFn;
   onSelect: (selection: FreightSelection) => void;
-  onSettled?: (sellerId: string) => void;
 }
 
 function SellerFreightRow({
@@ -270,7 +275,6 @@ function SellerFreightRow({
   municipalities,
   calculateFreight,
   onSelect,
-  onSettled,
 }: SellerFreightRowProps) {
   const [deliveryType, setDeliveryType] = useState<DeliveryType>("standard");
   const [expressResult, setExpressResult] = useState<any>(null);
@@ -317,13 +321,6 @@ function SellerFreightRow({
     });
   }, [result, expressResult, deliveryType, group.seller.sellerId, onSelect]);
 
-  // Avisa o pai assim que o primeiro cálculo (standard) termina — encontre
-  // rota ou não. É isto que distingue "ainda a calcular" de "resolvido, mas
-  // sem rota automática, à espera que o comprador escolha".
-  useEffect(() => {
-    if (!loading) onSettled?.(group.seller.sellerId);
-  }, [loading, group.seller.sellerId, onSettled]);
-
   const handleTypeChange = (val: DeliveryType) => {
     setDeliveryType(val);
     recalculate(val);
@@ -336,7 +333,6 @@ function SellerFreightRow({
   const hasExpress = expressResult && !expressResult.error && expressResult.source !== "pickup";
   const pickupAddress = result?.pickup_address ?? undefined;
   const isLoadingActive = deliveryType === "express" ? loadingExpress : loading;
-
 
   const hasCover = !!group.seller.coverUrl;
 
@@ -526,7 +522,6 @@ interface MergedShipmentRowProps {
   destMunicipalityCode: string;
   calculateFreight: CalculateFreightFn;
   onSelect: (selection: FreightSelection) => void;
-  onSettled?: (sellerId: string) => void;
 }
 
 function MergedShipmentRow({
@@ -535,7 +530,6 @@ function MergedShipmentRow({
   destMunicipalityCode,
   calculateFreight,
   onSelect,
-  onSettled,
 }: MergedShipmentRowProps) {
   const [deliveryType, setDeliveryType] = useState<DeliveryType>("standard");
   const [standardResult, setStandardResult] = useState<any>(null);
@@ -557,13 +551,6 @@ function MergedShipmentRow({
       .then((res) => { if (!cancelled) { setStandardResult(res); setLoadingStandard(false); } });
     return () => { cancelled = true; };
   }, [representativeSellerId, originCode, destMunicipalityCode, combinedWeight, calculateFreight]);
-
-  // Mesmo princípio do SellerFreightRow: avisa o pai assim que o cálculo
-  // combinado termina, encontre rota ou não, para todas as lojas deste grupo.
-  useEffect(() => {
-    if (!loadingStandard) members.forEach((m) => onSettled?.(m.seller.sellerId));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadingStandard]);
 
   useEffect(() => {
     let cancelled = false;
@@ -609,7 +596,6 @@ function MergedShipmentRow({
   const hasExpress = expressResult && !expressResult.error && expressResult.source !== "pickup";
   const isFree = activeResult?.price === 0;
   const isLoadingActive = deliveryType === "express" ? loadingExpress : loadingStandard;
-  const noRoute = !isLoadingActive && activeResult && (activeResult.error || activeResult.source === "error");
 
   return (
     <div className="px-4 py-3.5">
@@ -710,23 +696,13 @@ function MergedShipmentRow({
           <span className={cn("font-semibold text-sm", isFree && "text-green-500")}>
             {isLoadingActive ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : noRoute ? null : isFree ? (
+            ) : isFree ? (
               "Grátis"
             ) : activeResult ? (
               fmtKz(activeResult.price)
             ) : null}
           </span>
         </div>
-
-        {noRoute && (
-          <p className="text-xs text-amber-500 flex items-start gap-1.5 leading-snug">
-            <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-            <span>
-              Sem rota automática para este envio combinado. Contacta o
-              suporte para confirmar a entrega antes de continuar.
-            </span>
-          </p>
-        )}
 
         <p className="text-[11px] text-muted-foreground/70 flex items-center gap-1">
           <Package className="w-3 h-3" />
@@ -802,7 +778,7 @@ function AddressSelector({ onMunicipalitySelect, selectedCode }: AddressSelector
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 interface ShipmentCluster {
-  originCode: string;
+  provinceId: number;
   members: CartGroup[];
 }
 
@@ -814,60 +790,106 @@ export default function FreightCalculator({
 }: Props) {
   const [internalDestCode, setInternalDestCode] = useState<string | null>(null);
   const [selections, setSelections] = useState<Map<string, FreightSelection>>(new Map());
-  const [settledIds, setSettledIds] = useState<Set<string>>(new Set());
-  const [mergeSafety, setMergeSafety] = useState<Record<string, boolean | null>>({});
+  // Por província de origem: null enquanto ainda não se sabe, ou já resolvido
+  // em sub-grupos — cada sub-grupo é um conjunto de lojas que cai exactamente
+  // na mesma tarifa genérica (mesma zona provincial/pacote, ou mesma
+  // transportadora), e por isso partilha um único envio com peso somado.
+  const [mergeGroups, setMergeGroups] = useState<Record<number, CartGroup[][] | null>>({});
   const { provinces, municipalities, calculateFreight } = useFreight();
 
   const destCode = showAddressSelector ? internalDestCode : externalDestCode;
 
-  // Agrupa as lojas do carrinho pelo município de origem — duas lojas que
-  // despacham do mesmo sítio são candidatas a um envio/preço único.
+  // Agrupa as lojas do carrinho pela PROVÍNCIA de origem (não só pelo
+  // município exacto) — duas lojas de municípios diferentes da mesma
+  // província são candidatas a partilhar um envio, desde que nenhuma tenha
+  // uma rota própria (de loja) nem uma rota exacta para o seu município.
   const clusters: ShipmentCluster[] = useMemo(() => {
-    const map = new Map<string, CartGroup[]>();
+    const map = new Map<number, CartGroup[]>();
     for (const g of cartGroups) {
-      const key = g.seller.originMunicipalityCode;
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(g);
+      const mun = municipalities.find(
+        (m: any) => m.code === g.seller.originMunicipalityCode
+      );
+      // -1 = província desconhecida (dados ainda a carregar); nunca combinar.
+      const provinceId = mun?.province_id ?? -1;
+      if (!map.has(provinceId)) map.set(provinceId, []);
+      map.get(provinceId)!.push(g);
     }
-    return Array.from(map.entries()).map(([originCode, members]) => ({ originCode, members }));
-  }, [cartGroups]);
+    return Array.from(map.entries()).map(([provinceId, members]) => ({
+      provinceId,
+      members,
+    }));
+  }, [cartGroups, municipalities]);
 
-  const clustersKey = clusters.map((c) => `${c.originCode}:${c.members.length}`).join("|");
+  const clustersKey = clusters
+    .map(
+      (c) =>
+        `${c.provinceId}:${c.members
+          .map((m) => `${m.seller.sellerId}=${m.totalWeightKg ?? 0}`)
+          .join(",")}`
+    )
+    .join("|");
 
-  // Para cada ponto de origem com mais do que uma loja, testa se a rota cai
-  // numa fonte "genérica" da plataforma (não presa a uma loja específica).
-  // Só nesse caso é seguro combinar o peso e mostrar um preço único.
+  // Para cada província de origem com mais do que uma loja: calcula o frete
+  // INDIVIDUAL de cada loja (peso próprio) para descobrir que tarifa lhe
+  // calhava sozinha. Lojas que caem na mesma tarifa genérica (mesma zona
+  // provincial/pacote da plataforma, ou mesma transportadora) são agrupadas
+  // e o peso delas é somado para um preço único; as restantes (tarifa
+  // própria da loja, ou rota exacta só para o seu município) mantêm-se
+  // separadas.
   useEffect(() => {
     if (!destCode) return;
-    const multi = clusters.filter((c) => c.members.length > 1);
+    const multi = clusters.filter((c) => c.provinceId !== -1 && c.members.length > 1);
     if (multi.length === 0) return;
 
     let cancelled = false;
-    setMergeSafety((prev) => {
+    setMergeGroups((prev) => {
       const next = { ...prev };
-      multi.forEach((c) => { if (!(c.originCode in next)) next[c.originCode] = null; });
+      multi.forEach((c) => { if (!(c.provinceId in next)) next[c.provinceId] = null; });
       return next;
     });
 
     (async () => {
       const results = await Promise.all(
         multi.map(async (c) => {
-          const combinedWeight = c.members.reduce((s, m) => s + (m.totalWeightKg ?? 0), 0);
-          const res = await calculateFreight(
-            c.members[0].seller.sellerId,
-            c.originCode,
-            destCode,
-            "standard",
-            combinedWeight
+          const memberResults = await Promise.all(
+            c.members.map(async (m) => {
+              const res = await calculateFreight(
+                m.seller.sellerId,
+                m.seller.originMunicipalityCode,
+                destCode,
+                "standard",
+                m.totalWeightKg ?? 0
+              );
+              return { member: m, res };
+            })
           );
-          const safe = !res.error && res.source !== "error" && !SELLER_SPECIFIC_SOURCES.has(res.source);
-          return [c.originCode, safe] as const;
+
+          const bucket = new Map<string, CartGroup[]>();
+          const groups: CartGroup[][] = [];
+          memberResults.forEach(({ member, res }) => {
+            const mergeable =
+              res && !res.error && res.source !== "error" &&
+              !SELLER_SPECIFIC_SOURCES.has(res.source) &&
+              !MUNICIPALITY_EXACT_SOURCES.has(res.source);
+            if (!mergeable) {
+              groups.push([member]);
+              return;
+            }
+            // Duas rotas só são "a mesma tarifa" se vierem da mesma fonte E,
+            // no caso de transportadora, da mesma empresa.
+            const key = `${res.source}:${res.company_name ?? ""}`;
+            if (!bucket.has(key)) bucket.set(key, []);
+            bucket.get(key)!.push(member);
+          });
+          bucket.forEach((members) => groups.push(members));
+
+          return [c.provinceId, groups] as const;
         })
       );
       if (!cancelled) {
-        setMergeSafety((prev) => {
+        setMergeGroups((prev) => {
           const next = { ...prev };
-          results.forEach(([code, safe]) => { next[code] = safe; });
+          results.forEach(([pid, groups]) => { next[pid] = groups; });
           return next;
         });
       }
@@ -885,20 +907,6 @@ export default function FreightCalculator({
     });
   }, []);
 
-  // Marca uma loja como "resolvida" assim que o seu primeiro cálculo termina,
-  // encontre rota ou não. Sem isto, o indicador de "Total de frete" não tem
-  // forma de distinguir "ainda a calcular" de "sem rota automática, à espera
-  // que o comprador escolha uma alternativa ou levantamento" — e fica a girar
-  // para sempre nesse segundo caso, dando a ideia de estar preso a processar.
-  const handleSettled = useCallback((sellerId: string) => {
-    setSettledIds((prev) => {
-      if (prev.has(sellerId)) return prev;
-      const next = new Set(prev);
-      next.add(sellerId);
-      return next;
-    });
-  }, []);
-
   useEffect(() => {
     const selectionArray = Array.from(selections.values());
     const total = selectionArray.reduce((sum, s) => sum + s.price, 0);
@@ -907,9 +915,6 @@ export default function FreightCalculator({
 
   const totalFreight = Array.from(selections.values()).reduce((sum, s) => sum + s.price, 0);
   const allSelected = cartGroups.length > 0 && selections.size === cartGroups.length;
-  const allSettled =
-    cartGroups.length > 0 &&
-    cartGroups.every((g) => settledIds.has(g.seller.sellerId));
 
   if (cartGroups.length === 0) return null;
 
@@ -932,55 +937,52 @@ export default function FreightCalculator({
       ) : (
         <div className="rounded-2xl border border-border bg-card overflow-hidden divide-y divide-border">
           {clusters.map((cluster) => {
-            if (cluster.members.length === 1) {
-              return (
+            if (cluster.provinceId === -1 || cluster.members.length === 1) {
+              return cluster.members.map((member) => (
                 <SellerFreightRow
-                  key={cluster.members[0].seller.sellerId}
-                  group={cluster.members[0]}
+                  key={member.seller.sellerId}
+                  group={member}
                   destMunicipalityCode={destCode}
                   provinces={provinces}
                   municipalities={municipalities}
                   calculateFreight={calculateFreight}
                   onSelect={handleSelect}
-                  onSettled={handleSettled}
                 />
-              );
+              ));
             }
 
-            const safety = mergeSafety[cluster.originCode];
+            const groups = mergeGroups[cluster.provinceId];
 
-            if (safety === null || safety === undefined) {
-              return <PendingMergeRow key={cluster.originCode} members={cluster.members} />;
+            if (!groups) {
+              return <PendingMergeRow key={cluster.provinceId} members={cluster.members} />;
             }
 
-            if (safety === true) {
+            return groups.map((members, idx) => {
+              if (members.length > 1) {
+                return (
+                  <MergedShipmentRow
+                    key={`merged-${cluster.provinceId}-${idx}`}
+                    members={members}
+                    originCode={members[0].seller.originMunicipalityCode}
+                    destMunicipalityCode={destCode}
+                    calculateFreight={calculateFreight}
+                    onSelect={handleSelect}
+                  />
+                );
+              }
+              const member = members[0];
               return (
-                <MergedShipmentRow
-                  key={cluster.originCode}
-                  members={cluster.members}
-                  originCode={cluster.originCode}
+                <SellerFreightRow
+                  key={member.seller.sellerId}
+                  group={member}
                   destMunicipalityCode={destCode}
+                  provinces={provinces}
+                  municipalities={municipalities}
                   calculateFreight={calculateFreight}
                   onSelect={handleSelect}
-                  onSettled={handleSettled}
                 />
               );
-            }
-
-            // Alguma loja do grupo tem tarifa própria — não é seguro combinar,
-            // cada uma volta a mostrar a sua própria opção de entrega.
-            return cluster.members.map((member) => (
-              <SellerFreightRow
-                key={member.seller.sellerId}
-                group={member}
-                destMunicipalityCode={destCode}
-                provinces={provinces}
-                municipalities={municipalities}
-                calculateFreight={calculateFreight}
-                onSelect={handleSelect}
-                onSettled={handleSettled}
-              />
-            ));
+            });
           })}
 
           {cartGroups.length > 1 && (
@@ -991,13 +993,8 @@ export default function FreightCalculator({
                 <span className="opacity-70">· {clusters.length} {clusters.length === 1 ? "envio" : "envios"}</span>
               </span>
               <span className="shrink-0">
-                {!allSettled ? (
+                {!allSelected ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
-                ) : !allSelected ? (
-                  <span className="flex items-center gap-1 text-xs font-medium text-amber-500">
-                    <AlertCircle className="w-3.5 h-3.5" />
-                    Escolhe a entrega acima
-                  </span>
                 ) : totalFreight === 0 ? (
                   <span className="flex items-center gap-1 text-sm font-bold text-green-500">
                     <Gift className="w-3.5 h-3.5" /> Grátis
