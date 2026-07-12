@@ -1,8 +1,8 @@
 import { useNavigate } from "react-router-dom";
-import { Minus, Plus, Trash2, ShoppingCart, Loader2, Star, Heart, ImageOff, Check, Pencil, X, Store, ShieldCheck, RotateCcw, Truck, Lock, Sparkles, CreditCard, Banknote, Smartphone } from "lucide-react";
+import { Minus, Plus, Trash2, ShoppingCart, Loader2, Star, Heart, ImageOff, Check, Pencil, X, Store, ShieldCheck, RotateCcw, Truck, Lock, CreditCard, Banknote, Smartphone } from "lucide-react";
 import { useCart } from "@/hooks/useSupabaseData";
 import { useUpdateCartItem, useRemoveCartItem, useAddToCart } from "@/hooks/useCartActions";
-import FreeShippingBar from "@/components/FreeShippingBar";
+import { useFreeShippingThreshold } from "@/hooks/useFreight";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -153,6 +153,39 @@ const Carrinho = () => {
     enabled: cartProductIds.length > 0,
   });
 
+  // Prazo de entrega real dentro de Luanda — vem da zona "intra_municipal"
+  // Luanda→Luanda em freight_zones, exactamente o que o Admin configura no
+  // painel de Frete (AdminFreightTab). Nunca hardcoded: se o Admin não tiver
+  // essa zona activa, simplesmente não mostramos um prazo.
+  const { data: luandaDelivery } = useQuery({
+    queryKey: ["luanda_delivery_estimate"],
+    queryFn: async () => {
+      const { data: province } = await supabase
+        .from("provinces")
+        .select("id")
+        .ilike("name", "Luanda")
+        .limit(1)
+        .maybeSingle();
+      if (!province) return null;
+
+      const { data: zone } = await supabase
+        .from("freight_zones")
+        .select("standard_days_min, standard_days_max")
+        .eq("origin_province_id", province.id)
+        .eq("dest_province_id", province.id)
+        .eq("zone_type", "intra_municipal")
+        .eq("is_active", true)
+        .order("id", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      return zone
+        ? { min: zone.standard_days_min, max: zone.standard_days_max }
+        : null;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
   const getSellerName = (item: any): string => {
     const prod = cartProductSellers.find((p: any) => p.id === item.products?.id);
     if (!prod) return "Zangu";
@@ -260,7 +293,17 @@ const Carrinho = () => {
   const subtotalOriginal = selectedItems.reduce((sum: number, item: any) =>
     sum + (item.products?.old_price || item.products?.price || 0) * item.quantity, 0);
   const savings = Math.max(0, subtotalOriginal - subtotal);
+  const savingsPercent = subtotalOriginal > 0 ? (savings / subtotalOriginal) * 100 : 0;
   const [bannerDismissed, setBannerDismissed] = useState(false);
+
+  // ── Garantia de frete grátis — dado real (freight_settings.free_shipping_threshold,
+  // configurado pelo Admin). Sem valor configurado, a secção simplesmente não aparece.
+  const { threshold: freeShippingThreshold, loading: thresholdLoading } = useFreeShippingThreshold();
+  const shippingRemaining = freeShippingThreshold ? Math.max(0, freeShippingThreshold - subtotal) : 0;
+  const shippingAchieved = !!freeShippingThreshold && shippingRemaining <= 0;
+  const shippingProgress = freeShippingThreshold
+    ? Math.min(100, (subtotal / freeShippingThreshold) * 100)
+    : 0;
 
   const totalItemsCount = (cartItems as any[]).length;
 
@@ -383,27 +426,90 @@ const Carrinho = () => {
               </span>
             </button>
 
-            {/* ── Barra de frete grátis ── */}
-            <FreeShippingBar subtotal={subtotal} />
+            {/* ── Poupança + garantia de frete grátis ──────────────────────────
+                Um único cartão dinâmico, com dois dados 100% reais:
+                1) "savings" — diferença entre preço actual e preço antigo dos
+                   itens seleccionados (já calculado acima).
+                2) o progresso para o frete grátis — vem de
+                   freight_settings.free_shipping_threshold, configurado pelo
+                   Admin — mais o prazo real de entrega em Luanda, vindo da
+                   zona "intra_municipal" em freight_zones (luandaDelivery). */}
+            {(savings > 0 || (!thresholdLoading && freeShippingThreshold)) && (
+              <div className="rounded-2xl overflow-hidden" style={{ boxShadow: cardShadow }}>
 
-            {/* ── Banner de poupança total — dado real, calculado a partir
-                do preço actual vs. preço antigo dos itens seleccionados ── */}
-            {savings > 0 && (
-              <div
-                className="rounded-2xl px-4 py-3 flex items-center gap-3"
-                style={{ background: `linear-gradient(90deg, ${green} 0%, #17b06a 100%)`, boxShadow: cardShadow }}
-              >
-                <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "rgba(255,255,255,0.22)" }}>
-                  <Sparkles className="w-4.5 h-4.5 text-white" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-black text-white leading-tight">
-                    Está a poupar {formatPrice(savings)}
-                  </p>
-                  <p className="text-[11px] text-white/85">
-                    Nos {selectedItems.length} {selectedItems.length === 1 ? "item seleccionado" : "itens seleccionados"} deste carrinho
-                  </p>
-                </div>
+                {/* Bloco de poupança — anel de progresso mostra a % real
+                    poupada sobre o preço original (savings / subtotalOriginal) */}
+                {savings > 0 && (
+                  <div
+                    className="flex items-center gap-3.5 px-4 py-3.5"
+                    style={{ background: `linear-gradient(120deg, ${green} 0%, #17b06a 100%)` }}
+                  >
+                    <div className="relative w-12 h-12 flex-shrink-0">
+                      <svg viewBox="0 0 44 44" className="w-12 h-12 -rotate-90">
+                        <circle cx="22" cy="22" r="18" fill="none" stroke="rgba(255,255,255,0.28)" strokeWidth="4" />
+                        <circle
+                          cx="22" cy="22" r="18" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round"
+                          strokeDasharray={2 * Math.PI * 18}
+                          strokeDashoffset={2 * Math.PI * 18 * (1 - Math.min(100, savingsPercent) / 100)}
+                          style={{ transition: "stroke-dashoffset 0.6s ease-out" }}
+                        />
+                      </svg>
+                      <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-white">
+                        {Math.round(savingsPercent)}%
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-black text-white leading-tight">
+                        Está a poupar {formatPrice(savings)}
+                      </p>
+                      <p className="text-[11px] text-white/85">
+                        {Math.round(savingsPercent)}% abaixo do preço original, em {selectedItems.length}{" "}
+                        {selectedItems.length === 1 ? "item seleccionado" : "itens seleccionados"}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Bloco de frete grátis — barra dinâmica com o valor real que
+                    falta, mais o prazo real de entrega em Luanda (quando o
+                    Admin tiver essa zona configurada) */}
+                {!thresholdLoading && freeShippingThreshold && freeShippingThreshold > 0 && (
+                  <div
+                    className="px-4 py-3.5"
+                    style={{
+                      background: "#fff",
+                      boxShadow: savings > 0 ? `inset 0 1px 0 ${brownLight}` : "none",
+                    }}
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <p className="text-xs font-bold flex items-center gap-1.5" style={{ color: shippingAchieved ? green : brown }}>
+                        {shippingAchieved ? (
+                          <>🎉 Garantiste frete grátis neste pedido</>
+                        ) : (
+                          <>🚚 Falta {formatPrice(shippingRemaining)} para frete grátis</>
+                        )}
+                      </p>
+                      {luandaDelivery && (
+                        <span
+                          className="flex items-center gap-1 text-[9.5px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
+                          style={{ background: goldBg, color: gold }}
+                        >
+                          <Truck className="w-2.5 h-2.5" />
+                          Luanda: {luandaDelivery.min}–{luandaDelivery.max}d
+                        </span>
+                      )}
+                    </div>
+                    <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: brownLight }}>
+                      <div
+                        className="h-full rounded-full transition-all duration-500 ease-out"
+                        style={{
+                          width: `${shippingProgress}%`,
+                          background: shippingAchieved ? green : `linear-gradient(90deg, ${gold}, ${pink})`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -421,7 +527,9 @@ const Carrinho = () => {
                         só é calculado no checkout, quando há morada real) */}
                     <div className="flex items-center justify-between px-3 pt-2.5 pb-1.5">
                       <span className="text-xs font-bold" style={{ color: green }}>
-                        🚚 Chega em 3–6 dias úteis
+                        🚚 {luandaDelivery
+                          ? `Chega em ${luandaDelivery.min}–${luandaDelivery.max} dias úteis`
+                          : "Prazo calculado no checkout"}
                       </span>
                       <span className="text-[11px]" style={{ color: sandDark }}>
                         {store.items.length} {store.items.length === 1 ? "item" : "itens"}
@@ -678,15 +786,18 @@ const Carrinho = () => {
                   <span className="text-base font-black" style={{ color: savings > 0 ? green : brown }}>{formatPrice(subtotal)}</span>
                 </div>
 
-                {/* Formas de pagamento aceites — as mesmas disponíveis no checkout */}
+                {/* Formas de pagamento aceites — exactamente as 3 opções reais
+                    do checkout (Checkout.tsx linha ~960): cash_on_delivery,
+                    multicaixa_express e bank_transfer. Nada de Unitel/Visa
+                    aqui — essas só existem na página de Pagamentos do perfil,
+                    não são opções de checkout. */}
                 <div className="mt-3 pt-3" style={{ boxShadow: `inset 0 1px 0 ${brownLight}` }}>
                   <p className="text-[10px] font-bold mb-1.5" style={{ color: sandDark }}>Pague como preferir</p>
                   <div className="flex items-center gap-1.5 flex-wrap">
                     {[
+                      { icon: Banknote, label: "Pagamento na entrega" },
                       { icon: Smartphone, label: "Multicaixa Express" },
-                      { icon: Smartphone, label: "Unitel Money" },
-                      { icon: CreditCard, label: "Visa" },
-                      { icon: Banknote, label: "Na entrega" },
+                      { icon: CreditCard, label: "Transferência bancária" },
                     ].map(({ icon: Icon, label }) => (
                       <span
                         key={label}
