@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Minus, Plus, Trash2, ShoppingCart, Loader2, Star, Heart, ImageOff, Check, Pencil, X, Store, ShieldCheck } from "lucide-react";
+import { Minus, Plus, Trash2, ShoppingCart, Loader2, Star, Heart, ImageOff, Check, Pencil, X, Store, ShieldCheck, RotateCcw } from "lucide-react";
 import { useCart } from "@/hooks/useSupabaseData";
 import { useUpdateCartItem, useRemoveCartItem, useAddToCart } from "@/hooks/useCartActions";
 import FreeShippingBar from "@/components/FreeShippingBar";
@@ -16,7 +16,7 @@ const brownLight = "rgba(74,46,10,0.10)";
 const danger     = "#E53935";
 const green      = "#1E9E4E";
 const greenBg    = "#E8F7EE";
-const blueBanner = "#0B2A5B";
+const bannerDark = "#2A1B0E";
 
 const formatPrice = (price: number) =>
   price.toLocaleString("pt-AO").replace(/,/g, " ") + " Kz";
@@ -247,12 +247,9 @@ const Carrinho = () => {
   const subtotal = selectedItems.reduce((sum: number, item: any) =>
     sum + (item.products?.price || 0) * item.quantity, 0);
 
-  // Subtotal "de origem" (antes dos descontos) e poupança total — só dos
-  // itens seleccionados, para alimentar o selo verde e o banner de poupança.
   const subtotalOriginal = selectedItems.reduce((sum: number, item: any) =>
     sum + (item.products?.old_price || item.products?.price || 0) * item.quantity, 0);
   const savings = Math.max(0, subtotalOriginal - subtotal);
-
   const [bannerDismissed, setBannerDismissed] = useState(false);
 
   const totalItemsCount = (cartItems as any[]).length;
@@ -379,10 +376,21 @@ const Carrinho = () => {
                     className="rounded-2xl overflow-hidden"
                     style={{ background: "#fff", border: `1px solid ${sand}` }}
                   >
+                    {/* Estimativa de entrega — intervalo honesto (o prazo exacto
+                        só é calculado no checkout, quando há morada real) */}
+                    <div className="flex items-center justify-between px-3 pt-2.5 pb-1.5">
+                      <span className="text-xs font-bold" style={{ color: brown }}>
+                        Chega em 3–6 dias úteis
+                      </span>
+                      <span className="text-[11px]" style={{ color: sandDark }}>
+                        {store.items.length} {store.items.length === 1 ? "item" : "itens"}
+                      </span>
+                    </div>
+
                     {/* Cabeçalho da loja */}
                     <div
                       className="flex items-center gap-2.5 px-3 py-2.5"
-                      style={{ borderBottom: `1px solid ${sand}`, background: brownLight }}
+                      style={{ borderTop: `1px solid ${sand}`, borderBottom: `1px solid ${sand}`, background: brownLight }}
                     >
                       <button
                         onClick={() => toggleGroupSelect(store.items)}
@@ -402,16 +410,10 @@ const Carrinho = () => {
                       <span className="text-xs font-black flex-1 truncate" style={{ color: brown }}>
                         {store.name}
                       </span>
-                      <span
-                        className="text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
-                        style={{ background: "#fff", color: sandDark }}
-                      >
-                        {store.items.length} {store.items.length === 1 ? "item" : "itens"}
-                      </span>
                     </div>
 
                     {/* Itens da loja */}
-                    <div className="p-3 space-y-3">
+                    <div className="p-3 space-y-4">
                       {store.items.map((item: any) => {
                         const product = item.products;
                         if (!product) return null;
@@ -424,128 +426,148 @@ const Carrinho = () => {
                         return (
                           <div
                             key={item.id}
-                            className="rounded-2xl p-3 flex gap-3"
+                            className="rounded-2xl p-3"
                             style={{
                               background: "#fff",
                               border: `1px solid ${isSelected ? brown : sand}`,
                               opacity: isSelected ? 1 : 0.6,
                             }}
                           >
-                            <button
-                              onClick={() => toggleSelect(item.id)}
-                              className="flex items-start pt-1 flex-shrink-0"
-                              aria-label="Seleccionar item"
-                            >
-                              <div
-                                className="w-5 h-5 rounded-full flex items-center justify-center"
-                                style={isSelected
-                                  ? { background: brown, border: `1.5px solid ${brown}` }
-                                  : { background: "#fff", border: `1.5px solid ${sand}` }}
+                            {/* Vendido por X | Loja verificada — mesma posição do
+                                "Sold by X | Pro Seller" nas imagens de referência */}
+                            <div className="flex items-start gap-2.5 mb-2">
+                              <button
+                                onClick={() => toggleSelect(item.id)}
+                                className="flex items-center pt-0.5 flex-shrink-0"
+                                aria-label="Seleccionar item"
                               >
-                                {isSelected && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                                <div
+                                  className="w-5 h-5 rounded-full flex items-center justify-center"
+                                  style={isSelected
+                                    ? { background: brown, border: `1.5px solid ${brown}` }
+                                    : { background: "#fff", border: `1.5px solid ${sand}` }}
+                                >
+                                  {isSelected && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                                </div>
+                              </button>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-xs" style={{ color: sandDark }}>Vendido por</span>
+                                  <span className="text-xs font-bold underline" style={{ color: brown }}>{store.name}</span>
+                                  <span
+                                    className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                                    style={{ background: brownLight, color: brown }}
+                                  >
+                                    <ShieldCheck className="w-2.5 h-2.5" /> Loja verificada
+                                  </span>
+                                </div>
+                                <p className="text-[11px] mt-0.5" style={{ color: sandDark }}>
+                                  Entregue por parceiros da Zangu
+                                </p>
+                                {product.free_shipping && (
+                                  <p className="text-[11px] font-bold underline mt-0.5" style={{ color: brown }}>
+                                    Envio grátis
+                                  </p>
+                                )}
                               </div>
-                            </button>
+                              {editMode && (
+                                <button
+                                  onClick={() => removeItem.mutate(item.id)}
+                                  className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
+                                  style={{ background: "rgba(229,57,53,0.08)", color: danger }}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
 
-                            {coverUrl ? (
-                              <img
-                                src={coverUrl}
-                                alt={product.title}
-                                className="w-24 h-24 rounded-xl object-cover flex-shrink-0 cursor-pointer"
-                                onClick={() => navigate(`/produto/${product.id}`)}
-                                onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                              />
-                            ) : (
-                              <div className="cursor-pointer" onClick={() => navigate(`/produto/${product.id}`)}>
-                                <ImagePlaceholder className="w-24 h-24" />
-                              </div>
+                            {/* Selo "Mais vendido" — acima da imagem, como o "Best seller" */}
+                            {isBestSeller && (
+                              <span
+                                className="inline-block text-[10px] font-black px-2 py-0.5 rounded-md mb-2"
+                                style={{ background: brownLight, color: brown }}
+                              >
+                                Mais vendido
+                              </span>
                             )}
 
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-start justify-between gap-2">
+                            <div className="flex gap-3">
+                              {coverUrl ? (
+                                <img
+                                  src={coverUrl}
+                                  alt={product.title}
+                                  className="w-24 h-24 rounded-xl object-cover flex-shrink-0 cursor-pointer"
+                                  onClick={() => navigate(`/produto/${product.id}`)}
+                                  onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                                />
+                              ) : (
+                                <div className="cursor-pointer" onClick={() => navigate(`/produto/${product.id}`)}>
+                                  <ImagePlaceholder className="w-24 h-24" />
+                                </div>
+                              )}
+
+                              <div className="flex-1 min-w-0">
+                                {/* Preço + riscado + poupança — mesma ordem das imagens */}
+                                <div className="flex items-baseline gap-2 flex-wrap">
+                                  <span className="text-lg font-black" style={{ color: brown }}>
+                                    {formatPrice(product.price)}
+                                  </span>
+                                  {hasDiscount && (
+                                    <span className="text-xs line-through" style={{ color: sandDark }}>
+                                      {formatPrice(product.old_price)}
+                                    </span>
+                                  )}
+                                </div>
+                                {hasDiscount && (
+                                  <span
+                                    className="inline-block text-[11px] font-bold px-2 py-0.5 rounded-md mt-1"
+                                    style={{ background: greenBg, color: green }}
+                                  >
+                                    Poupa {formatPrice(savedHere)}
+                                  </span>
+                                )}
+
                                 <p
-                                  className="text-sm font-bold line-clamp-2 cursor-pointer"
+                                  className="text-xs font-medium line-clamp-2 leading-tight mt-1.5 cursor-pointer"
                                   style={{ color: brown }}
                                   onClick={() => navigate(`/produto/${product.id}`)}
                                 >
                                   {product.title}
                                 </p>
-                                {editMode && (
-                                  <button
-                                    onClick={() => removeItem.mutate(item.id)}
-                                    className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
-                                    style={{ background: "rgba(229,57,53,0.08)", color: danger }}
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
-                              </div>
 
-                              {/* Selo de loja verificada + entrega */}
-                              <div className="flex items-center gap-1 flex-wrap mt-0.5">
-                                <span
-                                  className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                                  style={{ background: brownLight, color: brown }}
-                                >
-                                  <ShieldCheck className="w-2.5 h-2.5" /> Loja verificada
-                                </span>
-                                {isBestSeller && (
-                                  <span
-                                    className="text-[9px] font-black px-1.5 py-0.5 rounded-md"
-                                    style={{ background: brownLight, color: brown }}
-                                  >
-                                    Mais vendido
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-[10px] mt-0.5" style={{ color: sandDark }}>
-                                Entregue por parceiros da Zangu
-                              </p>
-                              {product.free_shipping && (
-                                <p className="text-[10px] font-bold" style={{ color: brown }}>
-                                  Envio grátis
+                                <p className="flex items-center gap-1 text-[10px] mt-1" style={{ color: sandDark }}>
+                                  <RotateCcw className="w-2.5 h-2.5" /> Devolução grátis em 3 dias
                                 </p>
-                              )}
+                              </div>
+                            </div>
 
-                              <div className="flex items-center justify-between mt-2">
-                                <div>
-                                  <div className="flex items-baseline gap-1.5 flex-wrap">
-                                    <p className="text-base font-black" style={{ color: brown }}>
-                                      {formatPrice(product.price)}
-                                    </p>
-                                    {hasDiscount && (
-                                      <span className="text-[11px] line-through" style={{ color: sandDark }}>
-                                        {formatPrice(product.old_price)}
-                                      </span>
-                                    )}
-                                  </div>
-                                  {hasDiscount && (
-                                    <span
-                                      className="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-md mt-0.5"
-                                      style={{ background: greenBg, color: green }}
-                                    >
-                                      Poupa {formatPrice(savedHere)}
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="flex items-center rounded-xl overflow-hidden" style={{ border: `1.5px solid ${sand}` }}>
-                                  <button
-                                    onClick={() => handleQuantity(item, -1)}
-                                    className="w-8 h-8 flex items-center justify-center"
-                                    style={{ color: sandDark }}
-                                  >
-                                    <Minus className="w-3 h-3" />
-                                  </button>
-                                  <span className="w-8 text-center text-sm font-black" style={{ color: brown }}>
-                                    {item.quantity}
-                                  </span>
-                                  <button
-                                    onClick={() => handleQuantity(item, +1)}
-                                    className="w-8 h-8 flex items-center justify-center"
-                                    style={{ color: sandDark }}
-                                  >
-                                    <Plus className="w-3 h-3" />
-                                  </button>
-                                </div>
+                            {/* Remover / Guardar + quantidade — linha própria, como nas imagens */}
+                            <div className="flex items-center justify-between mt-3 pt-2.5" style={{ borderTop: `1px solid ${sand}` }}>
+                              <button
+                                onClick={() => removeItem.mutate(item.id)}
+                                className="text-xs font-bold underline"
+                                style={{ color: sandDark }}
+                              >
+                                Remover
+                              </button>
+                              <div className="flex items-center rounded-xl overflow-hidden" style={{ border: `1.5px solid ${sand}` }}>
+                                <button
+                                  onClick={() => handleQuantity(item, -1)}
+                                  className="w-8 h-8 flex items-center justify-center"
+                                  style={{ color: sandDark }}
+                                >
+                                  <Minus className="w-3 h-3" />
+                                </button>
+                                <span className="w-8 text-center text-sm font-black" style={{ color: brown }}>
+                                  {item.quantity}
+                                </span>
+                                <button
+                                  onClick={() => handleQuantity(item, +1)}
+                                  className="w-8 h-8 flex items-center justify-center"
+                                  style={{ color: sandDark }}
+                                >
+                                  <Plus className="w-3 h-3" />
+                                </button>
                               </div>
                             </div>
                           </div>
@@ -583,11 +605,11 @@ const Carrinho = () => {
                     <span style={{ color: sandDark }}>
                       Subtotal ({selectedItems.length} {selectedItems.length === 1 ? "item seleccionado" : "itens seleccionados"})
                     </span>
-                    <span className="font-bold" style={{ color: brown }}>{formatPrice(subtotal)}</span>
+                    <span className="font-bold" style={{ color: brown }}>{formatPrice(subtotalOriginal)}</span>
                   </div>
                   {savings > 0 && (
                     <div className="flex justify-between text-sm">
-                      <span style={{ color: sandDark }}>Poupança</span>
+                      <span className="flex items-center gap-1" style={{ color: sandDark }}>Poupança</span>
                       <span className="font-bold" style={{ color: green }}>-{formatPrice(savings)}</span>
                     </div>
                   )}
@@ -598,7 +620,7 @@ const Carrinho = () => {
                 </div>
                 <div className="border-t pt-3 flex justify-between" style={{ borderColor: sand }}>
                   <span className="text-base font-black" style={{ color: brown }}>Subtotal</span>
-                  <span className="text-base font-black" style={{ color: brown }}>{formatPrice(subtotal)}</span>
+                  <span className="text-base font-black" style={{ color: savings > 0 ? green : brown }}>{formatPrice(subtotal)}</span>
                 </div>
               </div>
             )}
@@ -737,23 +759,7 @@ const Carrinho = () => {
         )}
       </div>
 
-      {/* ── Banner de poupança — dispensável, igual ao das imagens ── */}
-      {!editMode && savings > 0 && !bannerDismissed && (
-        <div
-          className="fixed left-0 right-0 z-40 px-4 py-3 flex items-start gap-3"
-          style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 92px)", background: blueBanner }}
-        >
-          <span className="text-xl flex-shrink-0">🎉</span>
-          <p className="text-xs text-white flex-1 leading-snug">
-            Os itens do seu carrinho tiveram os preços reduzidos. Finalize agora para garantir a poupança de {formatPrice(savings)}!
-          </p>
-          <button onClick={() => setBannerDismissed(true)} aria-label="Fechar">
-            <X className="w-4 h-4 text-white flex-shrink-0" />
-          </button>
-        </div>
-      )}
-
-      {/* ── Botão fixo — total estimado, riscado + verde, tal como nas imagens ── */}
+      {/* ── Botão fixo ── */}
       {totalItemsCount > 0 && (
         <div
           className="fixed bottom-14 md:bottom-0 left-0 right-0 z-50 px-4 py-3"
@@ -763,12 +769,12 @@ const Carrinho = () => {
             borderTop: `1px solid ${sand}`,
           }}
         >
-          <div className="max-w-2xl mx-auto">
+          <div className="max-w-2xl mx-auto flex items-center gap-4">
             {editMode ? (
               <button
                 onClick={handleBulkRemove}
                 disabled={selectedIds.length === 0 || removingBulk}
-                className="w-full py-3.5 rounded-2xl font-black text-sm text-white flex items-center justify-center gap-2 disabled:opacity-50"
+                className="flex-1 py-3.5 rounded-2xl font-black text-sm text-white flex items-center justify-center gap-2 disabled:opacity-50"
                 style={{ background: danger }}
               >
                 {removingBulk ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
@@ -776,26 +782,17 @@ const Carrinho = () => {
               </button>
             ) : (
               <>
-                <div className="flex items-center justify-between mb-2.5">
-                  <span className="text-sm font-bold" style={{ color: brown }}>Total estimado</span>
-                  <div className="text-right">
-                    {savings > 0 && (
-                      <span className="text-xs line-through mr-2" style={{ color: sandDark }}>
-                        {formatPrice(subtotalOriginal)}
-                      </span>
-                    )}
-                    <span className="text-lg font-black" style={{ color: savings > 0 ? green : brown }}>
-                      {formatPrice(subtotal)}
-                    </span>
-                  </div>
+                <div>
+                  <p className="text-[11px]" style={{ color: sandDark }}>Subtotal</p>
+                  <p className="text-lg font-black" style={{ color: brown }}>{formatPrice(subtotal)}</p>
                 </div>
                 <button
                   onClick={handleCheckout}
                   disabled={selectedItems.length === 0}
-                  className="w-full py-3.5 rounded-2xl font-black text-sm text-white flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="flex-1 py-3.5 rounded-2xl font-black text-sm text-white flex items-center justify-center gap-2 disabled:opacity-50"
                   style={{ background: `linear-gradient(135deg, ${sandDark} 0%, ${brown} 100%)` }}
                 >
-                  Continuar para o pagamento {selectedItems.length > 0 ? `(${selectedItems.length})` : ""}
+                  ⚡ Finalizar compra {selectedItems.length > 0 ? `(${selectedItems.length})` : ""}
                 </button>
               </>
             )}
