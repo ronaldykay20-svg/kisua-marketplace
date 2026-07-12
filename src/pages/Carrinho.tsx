@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Minus, Plus, Trash2, ShoppingCart, Loader2, Star, Heart, ImageOff, Check, Pencil, X, Store } from "lucide-react";
+import { Minus, Plus, Trash2, ShoppingCart, Loader2, Star, Heart, ImageOff, Check, Pencil, X, Store, ShieldCheck } from "lucide-react";
 import { useCart } from "@/hooks/useSupabaseData";
 import { useUpdateCartItem, useRemoveCartItem, useAddToCart } from "@/hooks/useCartActions";
 import FreeShippingBar from "@/components/FreeShippingBar";
@@ -14,6 +14,9 @@ const cream      = "#FFFFFF";
 const brown      = "#4A2E0A";
 const brownLight = "rgba(74,46,10,0.10)";
 const danger     = "#E53935";
+const green      = "#1E9E4E";
+const greenBg    = "#E8F7EE";
+const blueBanner = "#0B2A5B";
 
 const formatPrice = (price: number) =>
   price.toLocaleString("pt-AO").replace(/,/g, " ") + " Kz";
@@ -244,6 +247,14 @@ const Carrinho = () => {
   const subtotal = selectedItems.reduce((sum: number, item: any) =>
     sum + (item.products?.price || 0) * item.quantity, 0);
 
+  // Subtotal "de origem" (antes dos descontos) e poupança total — só dos
+  // itens seleccionados, para alimentar o selo verde e o banner de poupança.
+  const subtotalOriginal = selectedItems.reduce((sum: number, item: any) =>
+    sum + (item.products?.old_price || item.products?.price || 0) * item.quantity, 0);
+  const savings = Math.max(0, subtotalOriginal - subtotal);
+
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+
   const totalItemsCount = (cartItems as any[]).length;
 
   const handleCheckout = () => {
@@ -406,6 +417,9 @@ const Carrinho = () => {
                         if (!product) return null;
                         const coverUrl: string | null = product.cover_url || product.image_url || null;
                         const isSelected = selectedIds.includes(item.id);
+                        const hasDiscount = product.old_price && product.old_price > product.price;
+                        const savedHere = hasDiscount ? (product.old_price - product.price) * item.quantity : 0;
+                        const isBestSeller = (product.sales_count ?? 0) >= 20 || product.badge === "best_seller";
 
                         return (
                           <div
@@ -466,14 +480,53 @@ const Carrinho = () => {
                                 )}
                               </div>
 
-                              <p className="text-[10px] flex items-center gap-1" style={{ color: sandDark }}>
-                                🛡 Entregue por parceiros confiáveis da Zangu
+                              {/* Selo de loja verificada + entrega */}
+                              <div className="flex items-center gap-1 flex-wrap mt-0.5">
+                                <span
+                                  className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                                  style={{ background: brownLight, color: brown }}
+                                >
+                                  <ShieldCheck className="w-2.5 h-2.5" /> Loja verificada
+                                </span>
+                                {isBestSeller && (
+                                  <span
+                                    className="text-[9px] font-black px-1.5 py-0.5 rounded-md"
+                                    style={{ background: brownLight, color: brown }}
+                                  >
+                                    Mais vendido
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[10px] mt-0.5" style={{ color: sandDark }}>
+                                Entregue por parceiros da Zangu
                               </p>
+                              {product.free_shipping && (
+                                <p className="text-[10px] font-bold" style={{ color: brown }}>
+                                  Envio grátis
+                                </p>
+                              )}
 
                               <div className="flex items-center justify-between mt-2">
-                                <p className="text-base font-black" style={{ color: brown }}>
-                                  {formatPrice(product.price)}
-                                </p>
+                                <div>
+                                  <div className="flex items-baseline gap-1.5 flex-wrap">
+                                    <p className="text-base font-black" style={{ color: brown }}>
+                                      {formatPrice(product.price)}
+                                    </p>
+                                    {hasDiscount && (
+                                      <span className="text-[11px] line-through" style={{ color: sandDark }}>
+                                        {formatPrice(product.old_price)}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {hasDiscount && (
+                                    <span
+                                      className="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-md mt-0.5"
+                                      style={{ background: greenBg, color: green }}
+                                    >
+                                      Poupa {formatPrice(savedHere)}
+                                    </span>
+                                  )}
+                                </div>
                                 <div className="flex items-center rounded-xl overflow-hidden" style={{ border: `1.5px solid ${sand}` }}>
                                   <button
                                     onClick={() => handleQuantity(item, -1)}
@@ -532,6 +585,12 @@ const Carrinho = () => {
                     </span>
                     <span className="font-bold" style={{ color: brown }}>{formatPrice(subtotal)}</span>
                   </div>
+                  {savings > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span style={{ color: sandDark }}>Poupança</span>
+                      <span className="font-bold" style={{ color: green }}>-{formatPrice(savings)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-sm">
                     <span style={{ color: sandDark }}>Frete e cupões</span>
                     <span className="font-semibold text-xs" style={{ color: sandDark }}>No checkout</span>
@@ -678,7 +737,23 @@ const Carrinho = () => {
         )}
       </div>
 
-      {/* ── Botão fixo ── */}
+      {/* ── Banner de poupança — dispensável, igual ao das imagens ── */}
+      {!editMode && savings > 0 && !bannerDismissed && (
+        <div
+          className="fixed left-0 right-0 z-40 px-4 py-3 flex items-start gap-3"
+          style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 92px)", background: blueBanner }}
+        >
+          <span className="text-xl flex-shrink-0">🎉</span>
+          <p className="text-xs text-white flex-1 leading-snug">
+            Os itens do seu carrinho tiveram os preços reduzidos. Finalize agora para garantir a poupança de {formatPrice(savings)}!
+          </p>
+          <button onClick={() => setBannerDismissed(true)} aria-label="Fechar">
+            <X className="w-4 h-4 text-white flex-shrink-0" />
+          </button>
+        </div>
+      )}
+
+      {/* ── Botão fixo — total estimado, riscado + verde, tal como nas imagens ── */}
       {totalItemsCount > 0 && (
         <div
           className="fixed bottom-14 md:bottom-0 left-0 right-0 z-50 px-4 py-3"
@@ -688,12 +763,12 @@ const Carrinho = () => {
             borderTop: `1px solid ${sand}`,
           }}
         >
-          <div className="max-w-2xl mx-auto flex items-center gap-4">
+          <div className="max-w-2xl mx-auto">
             {editMode ? (
               <button
                 onClick={handleBulkRemove}
                 disabled={selectedIds.length === 0 || removingBulk}
-                className="flex-1 py-3.5 rounded-2xl font-black text-sm text-white flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full py-3.5 rounded-2xl font-black text-sm text-white flex items-center justify-center gap-2 disabled:opacity-50"
                 style={{ background: danger }}
               >
                 {removingBulk ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
@@ -701,17 +776,26 @@ const Carrinho = () => {
               </button>
             ) : (
               <>
-                <div>
-                  <p className="text-[11px]" style={{ color: sandDark }}>Subtotal</p>
-                  <p className="text-lg font-black" style={{ color: brown }}>{formatPrice(subtotal)}</p>
+                <div className="flex items-center justify-between mb-2.5">
+                  <span className="text-sm font-bold" style={{ color: brown }}>Total estimado</span>
+                  <div className="text-right">
+                    {savings > 0 && (
+                      <span className="text-xs line-through mr-2" style={{ color: sandDark }}>
+                        {formatPrice(subtotalOriginal)}
+                      </span>
+                    )}
+                    <span className="text-lg font-black" style={{ color: savings > 0 ? green : brown }}>
+                      {formatPrice(subtotal)}
+                    </span>
+                  </div>
                 </div>
                 <button
                   onClick={handleCheckout}
                   disabled={selectedItems.length === 0}
-                  className="flex-1 py-3.5 rounded-2xl font-black text-sm text-white flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full py-3.5 rounded-2xl font-black text-sm text-white flex items-center justify-center gap-2 disabled:opacity-50"
                   style={{ background: `linear-gradient(135deg, ${sandDark} 0%, ${brown} 100%)` }}
                 >
-                  ⚡ Finalizar compra {selectedItems.length > 0 ? `(${selectedItems.length})` : ""}
+                  Continuar para o pagamento {selectedItems.length > 0 ? `(${selectedItems.length})` : ""}
                 </button>
               </>
             )}
