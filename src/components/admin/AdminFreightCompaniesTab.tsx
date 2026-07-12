@@ -105,6 +105,8 @@ interface RateForm {
   company_id: string;
   origin_province_id: string;
   dest_province_id: string;
+  origin_municipality_id: string; // "" = província toda
+  dest_municipality_id: string; // "" = província toda
   material_type_id: string; // "" = todos os materiais
   min_weight_kg: string;
   max_weight_kg: string; // "" = sem limite
@@ -119,6 +121,8 @@ const emptyRate = (companyId: string): RateForm => ({
   company_id: companyId,
   origin_province_id: "",
   dest_province_id: "",
+  origin_municipality_id: "",
+  dest_municipality_id: "",
   material_type_id: "",
   min_weight_kg: "0",
   max_weight_kg: "",
@@ -134,6 +138,7 @@ const emptyRate = (companyId: string): RateForm => ({
 export default function AdminFreightCompaniesTab() {
   const {
     provinces,
+    municipalities,
     materialTypes,
     companies,
     rates,
@@ -246,6 +251,12 @@ export default function AdminFreightCompaniesTab() {
       company_id: r.company_id,
       origin_province_id: String(r.origin_province_id),
       dest_province_id: String(r.dest_province_id),
+      origin_municipality_id: r.origin_municipality_id
+        ? String(r.origin_municipality_id)
+        : "",
+      dest_municipality_id: r.dest_municipality_id
+        ? String(r.dest_municipality_id)
+        : "",
       material_type_id: r.material_type_id ? String(r.material_type_id) : "",
       min_weight_kg: String(r.min_weight_kg),
       max_weight_kg: r.max_weight_kg !== null ? String(r.max_weight_kg) : "",
@@ -260,6 +271,22 @@ export default function AdminFreightCompaniesTab() {
 
   const setRateField = <K extends keyof RateForm>(key: K, value: RateForm[K]) =>
     setRateForm((prev) => (prev ? { ...prev, [key]: value } : prev));
+
+  // Ao mudar a província, limpa o município seleccionado dessa ponta
+  // (evita ficar com um município "órfão" de outra província).
+  const setRateProvince = (side: "origin" | "dest", value: string) => {
+    setRateForm((prev) => {
+      if (!prev) return prev;
+      return side === "origin"
+        ? { ...prev, origin_province_id: value, origin_municipality_id: "" }
+        : { ...prev, dest_province_id: value, dest_municipality_id: "" };
+    });
+  };
+
+  const municipalitiesForProvince = (provinceId: string) =>
+    provinceId
+      ? municipalities.filter((m) => String(m.province_id) === provinceId)
+      : [];
 
   const handleSubmitRate = async () => {
     if (!rateForm) return;
@@ -279,6 +306,12 @@ export default function AdminFreightCompaniesTab() {
       company_id: rateForm.company_id,
       origin_province_id: Number(rateForm.origin_province_id),
       dest_province_id: Number(rateForm.dest_province_id),
+      origin_municipality_id: rateForm.origin_municipality_id
+        ? Number(rateForm.origin_municipality_id)
+        : null,
+      dest_municipality_id: rateForm.dest_municipality_id
+        ? Number(rateForm.dest_municipality_id)
+        : null,
       material_type_id: rateForm.material_type_id
         ? Number(rateForm.material_type_id)
         : null,
@@ -644,10 +677,19 @@ export default function AdminFreightCompaniesTab() {
                   <TableRow key={r.id}>
                     <TableCell className="text-sm">
                       <div className="flex items-center gap-1.5">
-                        {r.origin_province?.name ?? provinceName(r.origin_province_id)}
+                        {r.origin_municipality?.name ??
+                          r.origin_province?.name ??
+                          provinceName(r.origin_province_id)}
                         <ArrowRight className="w-3 h-3 text-muted-foreground" />
-                        {r.dest_province?.name ?? provinceName(r.dest_province_id)}
+                        {r.dest_municipality?.name ??
+                          r.dest_province?.name ??
+                          provinceName(r.dest_province_id)}
                       </div>
+                      {(r.origin_municipality || r.dest_municipality) && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Rota exacta por município
+                        </p>
+                      )}
                     </TableCell>
                     <TableCell className="text-sm">
                       {r.material_type?.name ?? (
@@ -729,9 +771,7 @@ export default function AdminFreightCompaniesTab() {
                   <select
                     className={nativeSelectClass}
                     value={rateForm.origin_province_id}
-                    onChange={(e) =>
-                      setRateField("origin_province_id", e.target.value)
-                    }
+                    onChange={(e) => setRateProvince("origin", e.target.value)}
                   >
                     <option value="">Seleccionar…</option>
                     {provinces.map((p) => (
@@ -746,9 +786,7 @@ export default function AdminFreightCompaniesTab() {
                   <select
                     className={nativeSelectClass}
                     value={rateForm.dest_province_id}
-                    onChange={(e) =>
-                      setRateField("dest_province_id", e.target.value)
-                    }
+                    onChange={(e) => setRateProvince("dest", e.target.value)}
                   >
                     <option value="">Seleccionar…</option>
                     {provinces.map((p) => (
@@ -758,7 +796,65 @@ export default function AdminFreightCompaniesTab() {
                     ))}
                   </select>
                 </div>
+                <div className="space-y-2">
+                  <Label>
+                    Município de origem{" "}
+                    <span className="text-muted-foreground text-xs">
+                      (opcional)
+                    </span>
+                  </Label>
+                  <select
+                    className={nativeSelectClass}
+                    value={rateForm.origin_municipality_id}
+                    disabled={!rateForm.origin_province_id}
+                    onChange={(e) =>
+                      setRateField("origin_municipality_id", e.target.value)
+                    }
+                  >
+                    <option value="">Toda a província</option>
+                    {municipalitiesForProvince(rateForm.origin_province_id).map(
+                      (m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name}
+                        </option>
+                      )
+                    )}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label>
+                    Município de destino{" "}
+                    <span className="text-muted-foreground text-xs">
+                      (opcional)
+                    </span>
+                  </Label>
+                  <select
+                    className={nativeSelectClass}
+                    value={rateForm.dest_municipality_id}
+                    disabled={!rateForm.dest_province_id}
+                    onChange={(e) =>
+                      setRateField("dest_municipality_id", e.target.value)
+                    }
+                  >
+                    <option value="">Toda a província</option>
+                    {municipalitiesForProvince(rateForm.dest_province_id).map(
+                      (m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name}
+                        </option>
+                      )
+                    )}
+                  </select>
+                </div>
               </div>
+              <p className="text-xs text-muted-foreground -mt-1">
+                Se deixares o município em branco, a tarifa cobre a província
+                inteira (como já funcionava). Se escolheres um município
+                específico, essa rota exacta ganha prioridade sobre a tarifa
+                provincial — e um comprador noutro município da mesma
+                província que não tenha rota própria vê sugestões de
+                municípios vizinhos com rota disponível.
+              </p>
 
               <SectionDivider label="Material e peso" />
               <div className="space-y-2">
