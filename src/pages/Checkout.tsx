@@ -1,737 +1,1294 @@
-import { useNavigate } from "react-router-dom";
-import { Minus, Plus, Trash2, ShoppingCart, Loader2, Star, Heart, ImageOff, Check, Pencil, X, Store } from "lucide-react";
+import { useState, useCallback, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { ArrowLeft, MapPin, CreditCard, Truck, CheckCircle, Loader2, ShieldCheck, ImageOff, Upload, FileCheck, X, Building2, Smartphone, Tag, Lock, PackageCheck } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useCart } from "@/hooks/useSupabaseData";
-import { useUpdateCartItem, useRemoveCartItem, useAddToCart } from "@/hooks/useCartActions";
-import FreeShippingBar from "@/components/FreeShippingBar";
+import { useClearCart, useRemoveCartItem } from "@/hooks/useCartActions";
 import { useAuth } from "@/contexts/AuthContext";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useState, useMemo, useEffect } from "react";
-
-const sand       = "#D4B896";
-const sandDark   = "#B8956A";
-const cream      = "#FFFFFF";
-const brown      = "#4A2E0A";
-const brownLight = "rgba(74,46,10,0.10)";
-const danger     = "#E53935";
+import { toast } from "sonner";
+import FreightCalculator from "@/components/freight/FreightCalculator";
+import { useFreight } from "@/hooks/useFreight";
+import { validateCouponCode, redeemCouponCode, fetchWalletCoupons, markWalletCouponUsed, ValidateCouponResult, WalletCoupon } from "@/lib/coupons";
+import { trackEvent } from "@/lib/analytics";
+import { isFreeShippingEligible } from "@/lib/freeShipping";
 
 const formatPrice = (price: number) =>
-  price.toLocaleString("pt-AO").replace(/,/g, " ") + " Kz";
+  price.toLocaleString("pt-AO").replace(/,/g, ".") + " Kz";
 
-const ImagePlaceholder = ({ className = "w-24 h-24" }: { className?: string }) => (
-  <div
-    className={`${className} rounded-xl flex flex-col items-center justify-center flex-shrink-0`}
-    style={{ background: brownLight, border: `1.5px dashed ${sand}` }}
-  >
-    <ImageOff className="w-5 h-5 mb-1" style={{ color: sandDark }} />
-    <span className="text-[9px] font-medium" style={{ color: sandDark }}>Sem foto</span>
-  </div>
-);
+type Step = "address" | "payment" | "confirm" | "success";
 
-const Carrinho = () => {
+// Métodos que exigem envio de comprovativo antes de confirmar o pedido
+const METHODS_REQUIRING_PROOF = ["bank_transfer", "multicaixa_express"];
+
+// Formato do state passado pelo botão "Comprar agora" em ProductDetail.tsx
+type SoloProductState = {
+  productId: string;
+  quantity: number;
+  variantId: string | null;
+};
+
+// Traduz os motivos devolvidos por validate_coupon (RPC) para mensagens amigáveis.
+// A RPC é a fonte da verdade; aqui só cobrimos os casos mais comuns e caímos
+// num texto genérico para qualquer motivo que não reconheçamos.
+const couponErrorMessage = (reason?: string): string => {
+  switch (reason) {
+    case "not_found":
+      return "Cupom não encontrado.";
+    case "inactive":
+      return "Este cupom já não está activo.";
+    case "expired":
+      return "Este cupom expirou.";
+    case "usage_limit_reached":
+      return "Este cupom atingiu o limite de utilizações.";
+    case "user_limit_reached":
+      return "Já utilizou este cupom o número máximo de vezes.";
+    case "min_purchase":
+      return "O valor da compra não atinge o mínimo exigido por este cupom.";
+    default:
+      return "Cupom inválido ou expirado.";
+  }
+};
+
+const Checkout = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
+  const clearCart = useClearCart();
+  const removeCartItem = useRemoveCartItem();
   const queryClient = useQueryClient();
-  const { data: cartItems = [], isLoading } = useCart();
-  const updateItem = useUpdateCartItem();
-  const removeItem = useRemoveCartItem();
-  const addToCart = useAddToCart();
-  const [favorites, setFavorites] = useState<string[]>([]);
+  const { provinces, municipalities: allMunicipalities, getMunicipalitiesByProvince } = useFreight();
 
-  // ── Selecção de itens (estilo Shein) ─────────────────────────────────────
-  // Por padrão todos os itens vêm seleccionados — o utilizador desmarca o
-  // que não quer levar já. Só os itens seleccionados entram no checkout.
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [editMode, setEditMode] = useState(false);
-  const [removingBulk, setRemovingBulk] = useState(false);
+  // ── Modo da compra ────────────────────────────────────────────────────────
+  // "solo"      → veio do botão "Comprar agora" (ignora totalmente o carrinho)
+  // "selection" → veio do carrinho, mas só com os itens que o utilizador
+  //               marcou como seleccionados (o resto do carrinho fica intacto)
+  // "cart"      → fallback: usa o carrinho completo (compatibilidade)
+  const soloProduct = (location.state as { soloProduct?: SoloProductState } | null)?.soloProduct;
+  const isSoloCheckout = !!soloProduct;
 
-  // Mantém a selecção sincronizada quando o carrinho muda (novo item entra
-  // já seleccionado; item removido sai da lista de seleccionados sozinho).
-  useEffect(() => {
-    const ids = (cartItems as any[]).map((i: any) => i.id);
-    setSelectedIds(prev => {
-      const kept = prev.filter(id => ids.includes(id));
-      const newOnes = ids.filter(id => !prev.includes(id));
-      return [...kept, ...newOnes];
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [(cartItems as any[]).map((i: any) => i.id).join(",")]);
+  const selectedCartItems = (location.state as { selectedCartItems?: any[] } | null)?.selectedCartItems;
+  const isSelectionCheckout = !isSoloCheckout && Array.isArray(selectedCartItems) && selectedCartItems.length > 0;
 
-  const toggleSelect = (id: string) => {
-    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-  };
+  // Carrinho real — só é buscado quando NÃO é compra avulsa nem por selecção
+  const { data: realCartItems = [], isLoading: realCartLoading } = useCart();
 
-  const allSelected = (cartItems as any[]).length > 0 && selectedIds.length === (cartItems as any[]).length;
-
-  const toggleSelectAll = () => {
-    if (allSelected) {
-      setSelectedIds([]);
-    } else {
-      setSelectedIds((cartItems as any[]).map((i: any) => i.id));
-    }
-  };
-
-  const selectedItems = useMemo(
-    () => (cartItems as any[]).filter((i: any) => selectedIds.includes(i.id)),
-    [cartItems, selectedIds]
-  );
-
-  const handleBulkRemove = async () => {
-    if (selectedIds.length === 0) return;
-    setRemovingBulk(true);
-    try {
-      for (const id of selectedIds) {
-        await removeItem.mutateAsync(id);
-      }
-      setSelectedIds([]);
-      setEditMode(false);
-    } finally {
-      setRemovingBulk(false);
-    }
-  };
-
-  // ── Optimistic quantity update ──────────────────────────────────────────────
-  const handleQuantity = (item: any, delta: number) => {
-    const newQty = item.quantity + delta;
-    if (newQty < 1) return;
-
-    // Actualiza o cache imediatamente (sem esperar pelo servidor)
-    queryClient.setQueryData(["cart"], (old: any[]) =>
-      (old ?? []).map((i: any) =>
-        i.id === item.id ? { ...i, quantity: newQty } : i
-      )
-    );
-
-    // Sincroniza com o servidor em background
-    updateItem.mutate(
-      { id: item.id, quantity: newQty },
-      {
-        onError: () => {
-          // Se falhar, reverte
-          queryClient.setQueryData(["cart"], (old: any[]) =>
-            (old ?? []).map((i: any) =>
-              i.id === item.id ? { ...i, quantity: item.quantity } : i
-            )
-          );
-        },
-      }
-    );
-  };
-
-  /* ── IDs dos produtos no carrinho ── */
-  const cartProductIds = useMemo(
-    () => (cartItems as any[]).map((i: any) => i.products?.id).filter(Boolean),
-    [cartItems]
-  );
-
-  // Nome real de quem vende cada produto (vendedor, empresa ou dropshipper).
-  // A entrega em si é sempre feita por parceiros logísticos da Zangu, nunca
-  // pelo vendedor directamente — por isso separamos as duas informações.
-  const { data: cartProductSellers = [] } = useQuery({
-    queryKey: ["cart_product_sellers", cartProductIds.join(",")],
+  // Produto avulso — só é buscado quando É compra avulsa
+  const { data: soloProductData, isLoading: soloLoading, isError: soloError } = useQuery({
+    queryKey: ["checkout_solo_product", soloProduct?.productId, soloProduct?.variantId],
     queryFn: async () => {
-      if (!cartProductIds.length) return [];
+      const { data: product, error } = await supabase
+        .from("products")
+        .select("*")
+        .eq("id", soloProduct!.productId)
+        .maybeSingle();
+      if (error || !product) throw new Error("Produto não encontrado");
+
+      let unitPrice = product.price;
+      if (soloProduct!.variantId) {
+        const { data: variant } = await supabase
+          .from("product_variants")
+          .select("id, price_override")
+          .eq("id", soloProduct!.variantId)
+          .maybeSingle();
+        if (variant?.price_override) unitPrice = variant.price_override;
+      }
+
+      const { data: cover } = await supabase
+        .from("product_media")
+        .select("url")
+        .eq("product_id", product.id)
+        .eq("is_cover", true)
+        .maybeSingle();
+
+      return { ...product, price: unitPrice, image_url: cover?.url || product.image_url };
+    },
+    enabled: isSoloCheckout,
+    retry: false,
+  });
+
+  // ── "cartItems" unificado: a partir daqui, TODO o resto da página usa
+  // esta variável e nem sabe se veio do carrinho completo, de uma selecção
+  // parcial do carrinho, ou de "Comprar agora".
+  const cartItems = isSoloCheckout
+    ? (soloProductData
+        ? [{
+            id: `solo-${soloProduct!.productId}`,
+            product_id: soloProduct!.productId,
+            variant_id: soloProduct!.variantId,
+            quantity: soloProduct!.quantity,
+            products: soloProductData,
+          }]
+        : [])
+    : isSelectionCheckout
+      ? selectedCartItems!
+      : realCartItems;
+
+  const cartLoading = isSoloCheckout ? soloLoading : (isSelectionCheckout ? false : realCartLoading);
+
+  const [step, setStep] = useState<Step>("address");
+  const [address, setAddress] = useState({
+    name: "",
+    phone: "",
+    street: "",
+    provinceId: "",
+    provinceName: "",
+    municipalityCode: "" as string | null,
+    municipalityName: "",
+  });
+  const [paymentMethod, setPaymentMethod] = useState("cash_on_delivery");
+  const [freightSelections, setFreightSelections] = useState<any[]>([]);
+  const [freightTotal, setFreightTotal] = useState(0);
+
+  // ── Comprovativo de pagamento ──
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofPreviewUrl, setProofPreviewUrl] = useState<string | null>(null);
+  const [uploadingProof, setUploadingProof] = useState(false);
+  const [proofError, setProofError] = useState("");
+
+  // ── Cupom de desconto ──
+  // O cupom é um desconto que o vendedor/empresa/dropshipper assume — nunca
+  // desconta o frete, que é calculado e cobrado à parte pela plataforma.
+  const [couponInput, setCouponInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<ValidateCouponResult | null>(null);
+  const [couponError, setCouponError] = useState("");
+  const [validatingCoupon, setValidatingCoupon] = useState(false);
+  const [autoApplyDismissed, setAutoApplyDismissed] = useState(false);
+
+  const handleFreightChange = useCallback((selections: any[], total: number) => {
+    setFreightSelections(selections);
+    setFreightTotal(total);
+  }, []);
+
+  const municipalities = address.provinceId
+    ? getMunicipalitiesByProvince(Number(address.provinceId))
+    : [];
+
+  const productIds = cartItems.map((item: any) => item.product_id);
+
+  // Busca produtos com seller OU company — municipality_code vem SEMPRE do seller/company
+  const { data: productSellers = [] } = useQuery({
+    queryKey: ["checkout_product_sellers", productIds],
+    queryFn: async () => {
+      if (!productIds.length) return [];
       const { data } = await supabase
         .from("products")
-        .select("id, seller_id, company_id, sellers(id, name), companies(id, name)")
-        .in("id", cartProductIds);
+        .select(`
+          id, title, price, image_url, seller_id, company_id, weight_kg,
+          free_shipping, free_shipping_scope, free_shipping_province_id, free_shipping_municipality_ids,
+          sellers(id, name, municipality_code, logo_url, cover_url),
+          companies(id, name, municipality_code, logo_url, banner_url)
+        `)
+        .in("id", productIds);
       return data || [];
     },
-    enabled: cartProductIds.length > 0,
+    enabled: productIds.length > 0,
   });
 
-  const getSellerName = (item: any): string => {
-    const prod = cartProductSellers.find((p: any) => p.id === item.products?.id);
-    if (!prod) return "Zangu";
-    const sellerRel: any = Array.isArray(prod.sellers) ? prod.sellers[0] : prod.sellers;
-    const companyRel: any = Array.isArray(prod.companies) ? prod.companies[0] : prod.companies;
-    return sellerRel?.name || companyRel?.name || "Zangu";
-  };
-
-  // ── Agrupamento por loja/vendedor (estilo Shein) ────────────────────────────
-  // Usa a mesma chave (seller_id ou company_id) que o Checkout.tsx usa para
-  // calcular o frete — assim a loja que o utilizador vê aqui é sempre a mesma
-  // que vai gerar uma linha de frete separada no checkout.
-  const getSellerKey = (item: any): string => {
-    const prod = cartProductSellers.find((p: any) => p.id === item.products?.id);
-    if (!prod) return "zangu";
-    const sellerRel: any = Array.isArray(prod.sellers) ? prod.sellers[0] : prod.sellers;
-    const companyRel: any = Array.isArray(prod.companies) ? prod.companies[0] : prod.companies;
-    return sellerRel?.id || companyRel?.id || "zangu";
-  };
-
-  const storeGroups = useMemo(() => {
-    const map = new Map<string, { key: string; name: string; items: any[] }>();
-    for (const item of cartItems as any[]) {
-      if (!item.products) continue;
-      const key = getSellerKey(item);
-      if (!map.has(key)) {
-        map.set(key, { key, name: getSellerName(item), items: [] });
-      }
-      map.get(key)!.items.push(item);
-    }
-    return Array.from(map.values());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cartItems, cartProductSellers]);
-
-  const isGroupFullySelected = (items: any[]) =>
-    items.length > 0 && items.every((i: any) => selectedIds.includes(i.id));
-
-  const toggleGroupSelect = (items: any[]) => {
-    const ids = items.map((i: any) => i.id);
-    const allIn = ids.every((id: string) => selectedIds.includes(id));
-    setSelectedIds(prev =>
-      allIn ? prev.filter(id => !ids.includes(id)) : Array.from(new Set([...prev, ...ids]))
-    );
-  };
-
-  const categoryIds = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          (cartItems as any[])
-            .map((item: any) => item.products?.category_id)
-            .filter(Boolean)
-        )
-      ) as string[],
-    [cartItems]
-  );
-
-  const { data: suggestions = [] } = useQuery({
-    queryKey: ["cart_suggestions", categoryIds.join(","), cartProductIds.join(",")],
+  // A foto REAL do produto vive em product_media (is_cover = true), não na coluna
+  // image_url de products (que ficou obsoleta após a migração R2 → Supabase Storage).
+  // Mesmo padrão usado em SearchResults.tsx para listagens de produtos.
+  const { data: coverMediaMap = {} } = useQuery({
+    queryKey: ["checkout_cover_media", productIds],
     queryFn: async () => {
-      let query = supabase
-        .from("products")
-        .select("id, title, price, image_url, rating, total_reviews, category_id")
-        .eq("is_active", true)
-        .order("created_at", { ascending: false })
-        .limit(20);
-
-      if (categoryIds.length > 0) {
-        query = query.in("category_id", categoryIds);
-      }
-
-      const { data, error } = await query;
-      if (error) return [];
-
-      const filtered = (data || []).filter(
-        (p: any) => !cartProductIds.includes(p.id)
-      );
-      if (filtered.length === 0) return [];
-
-      const ids = filtered.map((p: any) => p.id);
-      const { data: mediaData } = await supabase
+      if (!productIds.length) return {};
+      const { data } = await supabase
         .from("product_media")
         .select("product_id, url")
-        .in("product_id", ids)
+        .in("product_id", productIds)
         .eq("is_cover", true);
-
-      const coverMap: Record<string, string> = {};
-      (mediaData || []).forEach((m: any) => { coverMap[m.product_id] = m.url; });
-
-      return filtered.map((p: any) => ({
-        ...p,
-        cover_url: coverMap[p.id] || null,
-      }));
+      const map: Record<string, string> = {};
+      (data || []).forEach((m: any) => { map[m.product_id] = m.url; });
+      return map;
     },
-    enabled: !isLoading && cartProductIds.length > 0,
+    enabled: productIds.length > 0,
   });
 
-  /* ── Totais (sem frete — calculado no checkout) ── */
-  // Apenas os itens SELECCIONADOS entram no subtotal e no checkout —
-  // tal como na Shein, o carrinho pode ter mais itens do que os que o
-  // utilizador quer comprar agora.
-  const subtotal = selectedItems.reduce((sum: number, item: any) =>
-    sum + (item.products?.price || 0) * item.quantity, 0);
-
-  const totalItemsCount = (cartItems as any[]).length;
-
-  const handleCheckout = () => {
-    if (selectedItems.length === 0) return;
-    navigate("/checkout", { state: { selectedCartItems: selectedItems } });
+  // Resolve a imagem correta de um item do carrinho: capa real -> image_url (legado) -> nada
+  const getItemImageUrl = (item: any): string | null => {
+    return coverMediaMap[item.product_id] || item.products?.image_url || null;
   };
 
-  /* ── Não autenticado ── */
+  // Contas de pagamento ativas (geridas pelo Adm) — busca conforme o método escolhido
+  const { data: paymentAccounts = [], isLoading: loadingAccounts } = useQuery({
+    queryKey: ["payment_accounts", paymentMethod],
+    queryFn: async () => {
+      if (!METHODS_REQUIRING_PROOF.includes(paymentMethod)) return [];
+      const { data, error } = await supabase
+        .from("payment_accounts")
+        .select("*")
+        .eq("type", paymentMethod)
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
+      if (error) return [];
+      return data || [];
+    },
+    enabled: METHODS_REQUIRING_PROOF.includes(paymentMethod),
+  });
+
+  const requiresProof = METHODS_REQUIRING_PROOF.includes(paymentMethod);
+
+  // Agrupa por vendedor OU empresa
+  // municipality_code vem SEMPRE do seller ou company em tempo real
+  const cartGroups = (() => {
+    const map = new Map<string, any>();
+    for (const item of cartItems as any[]) {
+      const prod = productSellers.find((p: any) => p.id === item.product_id);
+      if (!prod) continue;
+
+      let entityId: string | null = null;
+      let entityName: string = "Vendedor";
+      let originMunicipalityCode: string = "";
+      let isCompany = false;
+      let entityLogoUrl: string | null = null;
+      let entityCoverUrl: string | null = null;
+
+      const sellerRel: any = Array.isArray(prod.sellers) ? prod.sellers[0] : prod.sellers;
+      const companyRel: any = Array.isArray(prod.companies) ? prod.companies[0] : prod.companies;
+      if (sellerRel) {
+        entityId = sellerRel.id;
+        entityName = sellerRel.name;
+        originMunicipalityCode = sellerRel.municipality_code ?? "";
+        isCompany = false;
+        entityLogoUrl = sellerRel.logo_url ?? null;
+        entityCoverUrl = sellerRel.cover_url ?? null;
+      } else if (companyRel) {
+        entityId = companyRel.id;
+        entityName = companyRel.name;
+        originMunicipalityCode = companyRel.municipality_code ?? "";
+        isCompany = true;
+        entityLogoUrl = companyRel.logo_url ?? null;
+        entityCoverUrl = companyRel.banner_url ?? null;
+      }
+
+
+      if (!entityId || !originMunicipalityCode) continue;
+
+      if (!map.has(entityId)) {
+        map.set(entityId, {
+          seller: {
+            sellerId: entityId,
+            sellerName: entityName,
+            originMunicipalityCode,
+            logoUrl: entityLogoUrl,
+            coverUrl: entityCoverUrl,
+          },
+          items: [],
+          subtotal: 0,
+          totalWeightKg: 0,
+          isCompany,
+        });
+      }
+      const group = map.get(entityId)!;
+      group.items.push({
+        id: item.id,
+        name: prod.title,
+        quantity: item.quantity,
+        price: prod.price,
+        imageUrl: coverMediaMap[prod.id] || prod.image_url,
+        freeShipping: {
+          free_shipping_scope: prod.free_shipping_scope,
+          free_shipping_province_id: prod.free_shipping_province_id,
+          free_shipping_municipality_ids: prod.free_shipping_municipality_ids,
+        },
+      });
+      group.subtotal += prod.price * item.quantity;
+      // Peso usado no tarifário das empresas transportadoras (frete interprovincial)
+      group.totalWeightKg += (prod.weight_kg ?? 0) * item.quantity;
+    }
+    return Array.from(map.values());
+  })();
+
+  // Município de destino seleccionado (id, não código) — usado para saber se
+  // algum produto do carrinho tem frete grátis para essa zona.
+  const destMunicipalityId = address.municipalityCode
+    ? (allMunicipalities.find((m: any) => m.code === address.municipalityCode)?.id ?? null)
+    : null;
+
+  // Um grupo (vendedor/empresa) só fica com frete grátis se TODOS os seus
+  // itens no carrinho tiverem frete grátis para o município de destino —
+  // caso contrário o frete continua a ser calculado normalmente.
+  for (const group of cartGroups as any[]) {
+    const eligibleItems = group.items.filter((it: any) =>
+      isFreeShippingEligible(it.freeShipping ?? {}, destMunicipalityId, allMunicipalities)
+    );
+    group.freeShippingEligible =
+      destMunicipalityId !== null &&
+      group.items.length > 0 &&
+      eligibleItems.length === group.items.length;
+    // "Parcial" = há pelo menos um produto com frete grátis para este
+    // município, mas não todos — o frete continua a ser cobrado, e por isso
+    // mostramos um aviso a explicar porquê.
+    group.freeShippingPartial =
+      destMunicipalityId !== null &&
+      eligibleItems.length > 0 &&
+      eligibleItems.length < group.items.length;
+    group.freeShippingEligibleItemNames = eligibleItems.map((it: any) => it.name);
+  }
+
+  const subtotal = cartItems.reduce((sum: number, item: any) => {
+    return sum + (item.products?.price || 0) * item.quantity;
+  }, 0);
+
+  // ── Cálculo do desconto do cupom ──────────────────────────────────────────
+  // eligibleSubtotal = só a parte do carrinho que pertence ao dono do cupom
+  // (vendedor/empresa/loja de dropship), ou o carrinho todo se for cupom de
+  // plataforma. O desconto NUNCA é aplicado sobre o frete.
+  const getEligibleSubtotal = (c: ValidateCouponResult | null): number => {
+    if (!c || !c.valid) return 0;
+    if (c.scope === "platform") return subtotal;
+    const group = cartGroups.find((g: any) => g.seller.sellerId === c.owner_id);
+    return group ? group.subtotal : 0;
+  };
+
+  const eligibleSubtotal = getEligibleSubtotal(appliedCoupon);
+
+  const discountAmount = (() => {
+    if (!appliedCoupon || eligibleSubtotal <= 0) return 0;
+    if (appliedCoupon.discount_type === "percent") {
+      const raw = eligibleSubtotal * ((appliedCoupon.discount_value || 0) / 100);
+      const capped = appliedCoupon.max_discount_amount
+        ? Math.min(raw, appliedCoupon.max_discount_amount)
+        : raw;
+      return Math.min(capped, eligibleSubtotal);
+    }
+    // fixo — nunca pode exceder o subtotal elegível (não desconta frete)
+    return Math.min(appliedCoupon.discount_value || 0, eligibleSubtotal);
+  })();
+
+  // Frete fica sempre de fora do cálculo do desconto.
+  const total = subtotal - discountAmount + freightTotal;
+
+  // ── Carteira de cupons (estilo Shein): aplica sozinho o melhor cupom elegível ──
+  const { data: walletCoupons = [] } = useQuery({
+    queryKey: ["wallet_coupons", user?.id],
+    queryFn: fetchWalletCoupons,
+    enabled: !!user,
+  });
+
+  useEffect(() => {
+    if (appliedCoupon || autoApplyDismissed) return;
+    if ((walletCoupons as WalletCoupon[]).length === 0) return;
+    if (cartGroups.length === 0 || subtotal <= 0) return;
+
+    let best: { coupon: WalletCoupon; elig: number; discount: number } | null = null;
+    for (const wc of walletCoupons as WalletCoupon[]) {
+      const elig = wc.scope === "platform"
+        ? subtotal
+        : (cartGroups.find((g: any) => g.seller.sellerId === wc.owner_id)?.subtotal ?? 0);
+      if (elig <= 0) continue;
+      if (wc.min_purchase_amount && elig < wc.min_purchase_amount) continue;
+
+      const raw = wc.discount_type === "percent"
+        ? elig * ((wc.discount_value || 0) / 100)
+        : (wc.discount_value || 0);
+      const discount = Math.min(
+        wc.max_discount_amount ? Math.min(raw, wc.max_discount_amount) : raw,
+        elig
+      );
+      if (!best || discount > best.discount) best = { coupon: wc, elig, discount };
+    }
+
+    if (best) {
+      validateCouponCode(best.coupon.code)
+        .then((result) => {
+          if (result.valid) {
+            setAppliedCoupon(result);
+            toast.success(`Cupom aplicado automaticamente da tua carteira 🎟️`);
+          }
+        })
+        .catch(() => {/* silencioso — não bloqueia o checkout */});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walletCoupons, cartGroups.length, subtotal, appliedCoupon, autoApplyDismissed]);
+
+
+  const handleApplyCoupon = async () => {
+    const code = couponInput.trim();
+    if (!code) return;
+    setCouponError("");
+    setValidatingCoupon(true);
+    try {
+      const result = await validateCouponCode(code);
+      if (!result.valid) {
+        setAppliedCoupon(null);
+        setCouponError(couponErrorMessage(result.reason));
+        return;
+      }
+      const elig = result.scope === "platform"
+        ? subtotal
+        : (cartGroups.find((g: any) => g.seller.sellerId === result.owner_id)?.subtotal ?? 0);
+
+      if (elig <= 0) {
+        setAppliedCoupon(null);
+        setCouponError("Este cupom não se aplica a nenhum produto no seu carrinho.");
+        return;
+      }
+      if (result.min_purchase_amount && elig < result.min_purchase_amount) {
+        setAppliedCoupon(null);
+        setCouponError(`Este cupom exige uma compra mínima de ${formatPrice(result.min_purchase_amount)} nos produtos elegíveis.`);
+        return;
+      }
+
+      setAppliedCoupon(result);
+      toast.success("Cupom aplicado!");
+    } catch (e: any) {
+      setAppliedCoupon(null);
+      setCouponError("Não foi possível validar o cupom. Tente novamente.");
+    } finally {
+      setValidatingCoupon(false);
+    }
+  };
+
+  const removeCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponInput("");
+    setCouponError("");
+    setAutoApplyDismissed(true);
+  };
+
+  // ── Seleção e validação do ficheiro de comprovativo ──
+  const handleProofSelect = (file: File | undefined | null) => {
+    setProofError("");
+    if (!file) return;
+
+    const isImage = file.type.startsWith("image/");
+    const isPdf = file.type === "application/pdf";
+    if (!isImage && !isPdf) {
+      setProofError("Envie uma imagem (JPG/PNG) ou um PDF.");
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      setProofError("O ficheiro deve ter no máximo 8MB.");
+      return;
+    }
+
+    setProofFile(file);
+    if (isImage) {
+      setProofPreviewUrl(URL.createObjectURL(file));
+    } else {
+      setProofPreviewUrl(null); // PDF não tem preview de imagem
+    }
+  };
+
+  const removeProof = () => {
+    setProofFile(null);
+    setProofPreviewUrl(null);
+    setProofError("");
+  };
+
+  // Faz upload do comprovativo para o bucket privado payment-proofs e devolve o path
+  const uploadProof = async (): Promise<string> => {
+    if (!proofFile || !user) throw new Error("Comprovativo não selecionado");
+    const ext = proofFile.name.split(".").pop() || "jpg";
+    const path = `${user.id}/${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from("payment-proofs").upload(path, proofFile, {
+      contentType: proofFile.type,
+    });
+    if (error) throw error;
+    return path;
+  };
+
+  const placeOrder = useMutation({
+    mutationFn: async () => {
+      let paymentProofPath: string | null = null;
+
+      if (requiresProof) {
+        if (!proofFile) throw new Error("Por favor anexe o comprovativo de pagamento.");
+        setUploadingProof(true);
+        try {
+          paymentProofPath = await uploadProof();
+        } finally {
+          setUploadingProof(false);
+        }
+      }
+
+      const primaryGroup = cartGroups[0];
+      const primarySellerId = primaryGroup?.isCompany ? null : primaryGroup?.seller?.sellerId ?? null;
+
+      // NOTA: total, subtotal, discount_amount, freight_amount e
+      // payment_verified NÃO são mandados aqui de propósito. Esses valores
+      // são calculados e validados no servidor (triggers no Supabase), a
+      // partir do preço real dos produtos e do payment_method — o valor
+      // que o browser mandar para esses campos é ignorado. Buscamos os
+      // valores reais de volta com .select() para usar no resto do fluxo
+      // (notificações, analytics), em vez de confiar no cálculo local.
+      const { data: order, error: orderError } = await supabase
+        .from("orders")
+        .insert({
+          user_id: user!.id,
+          seller_id: primarySellerId,
+          status: "pending",
+          shipping_name: address.name,
+          shipping_phone: address.phone,
+          shipping_province: address.provinceName,
+          shipping_city: address.municipalityName,
+          shipping_address: address.street,
+          shipping_municipality_code: address.municipalityCode,
+          payment_method: paymentMethod,
+          payment_proof_url: paymentProofPath,
+        })
+        .select("id, total, subtotal, discount_amount, freight_amount, payment_verified")
+        .single();
+
+      if (orderError) throw orderError;
+
+      // unit_price também não é mandado: o servidor busca o preço real do
+      // produto/variante no momento do insert e ignora o que vier daqui.
+      const items = cartItems.map((item: any) => ({
+        order_id: order.id,
+        product_id: item.product_id,
+        variant_id: item.variant_id || null,
+        quantity: item.quantity,
+      }));
+
+      const { error: itemsError } = await supabase.from("order_items").insert(items);
+      if (itemsError) throw itemsError;
+
+      // Regista o evento de compra no analytics. Feito como "fire and forget"
+      // (mesma convenção do useCartActions): se falhar, não deve travar o
+      // pedido, que já está criado nas duas linhas acima.
+      trackEvent("purchase", {
+        metadata: {
+          order_id: order.id,
+          total: order.total,
+          items_count: items.length,
+          payment_method: paymentMethod,
+          discount_amount: order.discount_amount,
+        },
+      });
+
+      if (freightSelections.length > 0) {
+        const freightRows = freightSelections.map((s: any) => {
+          const group = cartGroups.find((g: any) => g.seller.sellerId === s.sellerId);
+          const originMun = group
+            ? allMunicipalities.find(
+                (m: any) => m.code === group.seller.originMunicipalityCode
+              )
+            : null;
+          return {
+            order_id: order.id,
+            seller_id: s.sellerId,
+            delivery_type: s.deliveryType,
+            price: s.price,
+            days_min: s.daysMin,
+            days_max: s.daysMax,
+            source: s.source,
+            freight_company_id: s.freightCompanyId ?? null,
+            origin_province_id: originMun?.province_id ?? null,
+            dest_province_id: destMunicipalityId
+              ? allMunicipalities.find((m: any) => m.id === destMunicipalityId)
+                  ?.province_id ?? null
+              : null,
+          };
+        });
+        await supabase.from("order_freight").insert(freightRows);
+      }
+
+      // Regista o resgate do cupom (contabiliza uso, actualiza times_used).
+      // Feito depois do pedido criado — se falhar por qualquer razão, não
+      // travamos o pedido, só reportamos no console para investigação.
+      if (appliedCoupon?.code && discountAmount > 0) {
+        try {
+          await redeemCouponCode(appliedCoupon.code, eligibleSubtotal, order.id);
+          if (appliedCoupon.coupon_id) {
+            // Não engolir o erro em silêncio: list_display_coupons também usa
+            // user_coupons.is_used como sinal de "já esgotado por este user".
+            // Se isto falhar sem deixar rasto, o cupom pode voltar a aparecer
+            // como "Apanhar cupom" para quem já o gastou.
+            await markWalletCouponUsed(appliedCoupon.coupon_id, order.id).catch((walletErr) => {
+              console.error("Falha ao marcar cupom da carteira como usado:", walletErr);
+            });
+          }
+        } catch (couponErr) {
+          console.error("Falha ao registar resgate do cupom:", couponErr);
+        }
+      }
+
+      const payLabel =
+        paymentMethod === "cash_on_delivery" ? "Pagamento na entrega" :
+        paymentMethod === "bank_transfer" ? "Transferência bancária" :
+        paymentMethod === "multicaixa_express" ? "Multicaixa Express" :
+        paymentMethod;
+
+      if (requiresProof) {
+        // Pagamento por comprovativo: o vendedor só é notificado depois da
+        // aprovação do Admin/Moderador (feita em /admin/encomendas).
+        // Aqui notificamos quem tem de validar o comprovativo, com todos os
+        // dados necessários para decidir e cobrar com precisão.
+        const { data: reviewers } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .in("role", ["admin", "moderator"]);
+
+        if (reviewers && reviewers.length > 0) {
+          const productLines = cartGroups
+            .map((g: any) => {
+              const entityLabel = g.isCompany ? "Loja" : "Vendedor";
+              const itemLines = g.items
+                .map((it: any) => `   • ${it.quantity}× ${it.name} — ${formatPrice(it.price * it.quantity)}`)
+                .join("\n");
+              return `${entityLabel}: ${g.seller.sellerName}\n${itemLines}`;
+            })
+            .join("\n\n");
+
+          const reviewNotifications = reviewers.map((r: any) => ({
+            user_id: r.user_id,
+            title: `📄 Comprovativo por aprovar — Pedido #${order.id.slice(0, 8).toUpperCase()}`,
+            message:
+              `Comprador: ${address.name} (${address.phone})\n` +
+              `Entrega: ${address.municipalityName}, ${address.provinceName}\n` +
+              `Método: ${payLabel}\n` +
+              `Total: ${formatPrice(order.total)}\n\n` +
+              `${productLines}\n\n` +
+              `Abra o pedido para ver o comprovativo e aprovar o pagamento.`,
+            type: "payment_proof",
+            link_url: `/admin/encomendas?pedido=${order.id}`,
+            image_path: paymentProofPath,
+            is_read: false,
+          }));
+
+          await supabase.from("notifications").insert(reviewNotifications as any);
+        }
+      } else {
+        // Pagamento na entrega: segue o fluxo normal, notifica o vendedor já.
+        const sellerGroups = cartGroups.filter((g: any) => !g.isCompany);
+        const sellerIds = sellerGroups.map((g: any) => g.seller.sellerId);
+
+        if (sellerIds.length > 0) {
+          const { data: sellers } = await supabase
+            .from("sellers")
+            .select("id, user_id")
+            .in("id", sellerIds);
+
+          const notifications = (sellers || [])
+            .map((s: any) => {
+              const group = sellerGroups.find((g: any) => g.seller.sellerId === s.id);
+              if (!group) return null;
+              const totalItems = group.items.reduce((n: number, it: any) => n + it.quantity, 0);
+              const preview = group.items
+                .slice(0, 3)
+                .map((it: any) => `• ${it.quantity}× ${it.name}`)
+                .join("\n");
+              const extra = group.items.length > 3
+                ? `\n…e mais ${group.items.length - 3} artigo(s)`
+                : "";
+              return {
+                user_id: s.user_id,
+                title: `🛒 Novo pedido #${order.id.slice(0, 8).toUpperCase()} — AÇÃO NECESSÁRIA`,
+                message:
+                  `Comprador: ${address.name} (${address.phone})\n` +
+                  `Entrega: ${address.municipalityName}, ${address.provinceName}\n` +
+                  `Pagamento: ${payLabel}\n` +
+                  `Total do seu grupo: ${group.subtotal.toLocaleString("pt-AO")} Kz  •  ${totalItems} item(s)\n\n` +
+                  `${preview}${extra}\n\n` +
+                  `Abra o pedido para aceitar e preparar o envio.`,
+                type: "order",
+                link_url: `/pedido/${order.id}`,
+                is_read: false,
+              };
+            })
+            .filter(Boolean);
+
+          if (notifications.length > 0) {
+            await supabase.from("notifications").insert(notifications as any);
+          }
+        }
+      }
+
+      // ── Limpeza do carrinho após o pedido ───────────────────────────────
+      // - Compra avulsa ("Comprar agora"): o carrinho nunca foi tocado, não
+      //   mexemos em nada.
+      // - Checkout por selecção: removemos SÓ os itens que foram comprados,
+      //   preservando no carrinho tudo o que o utilizador deixou de fora.
+      // - Checkout do carrinho completo (fallback): limpa tudo, como antes.
+      if (isSelectionCheckout) {
+        for (const item of cartItems as any[]) {
+          try {
+            await removeCartItem.mutateAsync(item.id);
+          } catch (removeErr) {
+            console.error("Falha ao remover item comprado do carrinho:", removeErr);
+          }
+        }
+      } else if (!isSoloCheckout) {
+        await clearCart.mutateAsync();
+      }
+      return order;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      setStep("success");
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Erro ao criar pedido");
+    },
+  });
+
   if (!user) {
+    navigate("/auth");
+    return null;
+  }
+
+  if (cartLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center pb-20" style={{ background: cream }}>
-        <div className="text-center px-8">
-          <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: brownLight }}>
-            <ShoppingCart className="w-9 h-9" style={{ color: sandDark }} />
-          </div>
-          <h2 className="text-lg font-black mb-2" style={{ color: brown }}>Inicie sessão para ver o carrinho</h2>
-          <p className="text-sm mb-5" style={{ color: sandDark }}>Faça login para continuar as suas compras</p>
-          <button
-            onClick={() => navigate("/auth")}
-            className="px-8 py-3 rounded-2xl font-bold text-sm text-white"
-            style={{ background: `linear-gradient(135deg, ${sandDark}, ${brown})` }}
-          >
-            Entrar
-          </button>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // Compra avulsa com produto inexistente/inativo — não faz sentido mandar
+  // de volta para "/carrinho" (o usuário nem queria comprar do carrinho).
+  if (isSoloCheckout && (soloError || cartItems.length === 0) && step !== "success") {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-center px-6 bg-background">
+        <div>
+          <h2 className="text-lg font-bold mb-2 text-foreground">Não foi possível carregar este produto</h2>
+          <p className="text-sm text-muted-foreground mb-4">Ele pode ter sido removido ou estar indisponível.</p>
+          <button onClick={() => navigate(-1)} className="text-sm font-semibold text-primary">Voltar</button>
         </div>
       </div>
     );
   }
 
+  // Carrinho normal vazio — aqui sim faz sentido mandar para "/carrinho"
+  if (!isSoloCheckout && cartItems.length === 0 && step !== "success") {
+    navigate("/carrinho");
+    return null;
+  }
+
+  // O frete tem de estar calculado para TODOS os grupos (vendedor/loja) do
+  // pedido antes de poder confirmar. Se o FreightCalculator não conseguiu
+  // calcular algum grupo (ex: vendedor sem município de origem definido),
+  // "freightSelections" fica incompleto e NÃO deixamos passar em silêncio
+  // com frete "0 Kz" — isso escondia o bug de deixar confirmar sem frete real.
+  const freightReady = cartGroups.length > 0 && freightSelections.length >= cartGroups.length;
+
+  const canConfirmOrder =
+    freightReady && (!requiresProof || (!!proofFile && !proofError));
+
   return (
-    <div className="min-h-screen pb-36" style={{ background: "#FFFFFF" }}>
-
-      {/* ── Cabeçalho ── */}
-      <div
-        className="sticky top-0 z-40 px-4 py-3 flex items-center justify-between gap-3"
-        style={{
-          background: "rgba(255,255,255,0.97)",
-          backdropFilter: "blur(10px)",
-          borderBottom: `1px solid ${sand}`,
-        }}
+    <div className="min-h-screen bg-background pb-14">
+      <button
+        onClick={() => step === "success" ? navigate("/") : navigate(-1)}
+        className="fixed top-3 left-3 z-30 w-9 h-9 flex items-center justify-center rounded-full bg-background/90 backdrop-blur border border-border/60 text-foreground active:bg-muted transition-colors shadow-sm"
       >
-        <div>
-          <h1 className="text-lg font-black leading-tight" style={{ color: brown }}>Meu carrinho</h1>
-          {totalItemsCount > 0 && (
-            <span
-              className="text-xs font-semibold px-2 py-0.5 rounded-full"
-              style={{ background: brownLight, color: sandDark }}
-            >
-              {totalItemsCount} {totalItemsCount === 1 ? "item" : "itens"}
-            </span>
-          )}
+        <ArrowLeft className="w-5 h-5" />
+      </button>
+
+      {step === "success" && (
+        <div className="container mx-auto px-3 pt-16 max-w-2xl">
+          <span className="text-base font-bold text-foreground">Pedido confirmado</span>
         </div>
+      )}
 
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {totalItemsCount > 0 && (
-            <button
-              onClick={() => setEditMode(v => !v)}
-              className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-xl"
-              style={editMode
-                ? { background: danger, color: "#fff" }
-                : { background: brownLight, color: sandDark }}
-            >
-              {editMode ? <X className="w-3.5 h-3.5" /> : <Pencil className="w-3.5 h-3.5" />}
-              {editMode ? "Concluir" : "Editar"}
-            </button>
-          )}
+      <div className="container mx-auto px-3 max-w-2xl pt-14">
 
-          {/* Sair do carrinho — mesmo padrão do "X" da Shein/Walmart para
-              fechar o carrinho e voltar a navegar pela loja. */}
-          <button
-            onClick={() => navigate("/")}
-            aria-label="Sair do carrinho"
-            className="w-8 h-8 flex items-center justify-center rounded-full flex-shrink-0"
-            style={{ background: brownLight, color: sandDark }}
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      <div className="px-3 py-3 max-w-2xl mx-auto space-y-3">
-
-        {isLoading ? (
-          <div className="flex justify-center py-24">
-            <Loader2 className="w-7 h-7 animate-spin" style={{ color: sandDark }} />
-          </div>
-        ) : totalItemsCount === 0 ? (
-          <div className="text-center py-24">
-            <div className="w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-5" style={{ background: brownLight }}>
-              <ShoppingCart className="w-10 h-10" style={{ color: sandDark }} />
-            </div>
-            <h2 className="text-lg font-black mb-2" style={{ color: brown }}>Carrinho vazio</h2>
-            <p className="text-sm mb-5" style={{ color: sandDark }}>Adicione produtos para começar</p>
-            <button
-              onClick={() => navigate("/")}
-              className="px-8 py-3 rounded-2xl font-bold text-sm text-white"
-              style={{ background: `linear-gradient(135deg, ${sandDark}, ${brown})` }}
-            >
-              Explorar produtos
-            </button>
-          </div>
-        ) : (
-          <>
-            {/* ── Seleccionar tudo ── */}
-            <button
-              onClick={toggleSelectAll}
-              className="w-full rounded-2xl px-3 py-2.5 flex items-center gap-2.5"
-              style={{ background: "#fff", border: `1px solid ${sand}` }}
-            >
-              <div
-                className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
-                style={allSelected
-                  ? { background: brown, border: `1.5px solid ${brown}` }
-                  : { background: "#fff", border: `1.5px solid ${sand}` }}
-              >
-                {allSelected && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+        {/* STEP 1: Endereço */}
+        {step === "address" && (
+          <div className="space-y-4 pt-4 pb-44">
+            <div className="bg-card rounded-2xl border border-border shadow-sm p-4">
+              <div className="flex items-center gap-2.5 mb-4">
+                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                  <MapPin className="w-4 h-4 text-primary" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-bold text-foreground leading-tight">Endereço de entrega</h3>
+                  <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">
+                    Para onde enviamos o teu pedido
+                  </p>
+                </div>
               </div>
-              <span className="text-xs font-bold" style={{ color: brown }}>
-                Seleccionar tudo ({selectedIds.length}/{totalItemsCount})
-              </span>
-            </button>
-
-            {/* ── Barra de frete grátis ── */}
-            <FreeShippingBar subtotal={subtotal} />
-
-            {/* ── Itens agrupados por loja (estilo Shein) ── */}
-            <div className="space-y-3">
-              {storeGroups.map((store) => {
-                const groupSelected = isGroupFullySelected(store.items);
-                return (
-                  <div
-                    key={store.key}
-                    className="rounded-2xl overflow-hidden"
-                    style={{ background: "#fff", border: `1px solid ${sand}` }}
-                  >
-                    {/* Cabeçalho da loja */}
-                    <div
-                      className="flex items-center gap-2.5 px-3 py-2.5"
-                      style={{ borderBottom: `1px solid ${sand}`, background: brownLight }}
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground">Nome completo</label>
+                  <input
+                    value={address.name}
+                    onChange={e => setAddress(p => ({ ...p, name: e.target.value }))}
+                    className="w-full mt-1 px-3 py-2.5 rounded-xl bg-background border border-border text-base md:text-sm text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                    placeholder="Como aparece no teu B.I."
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground">Telefone</label>
+                  <input
+                    value={address.phone}
+                    onChange={e => setAddress(p => ({ ...p, phone: e.target.value }))}
+                    className="w-full mt-1 px-3 py-2.5 rounded-xl bg-background border border-border text-base md:text-sm text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                    placeholder="+244 9XX XXX XXX"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground">Província</label>
+                    <select
+                      value={address.provinceId}
+                      onChange={e => {
+                        const prov = provinces.find(p => String(p.id) === e.target.value);
+                        setAddress(prev => ({
+                          ...prev,
+                          provinceId: e.target.value,
+                          provinceName: prov?.name ?? "",
+                          municipalityCode: null,
+                          municipalityName: "",
+                        }));
+                      }}
+                      className="w-full mt-1 h-10 px-3 py-1 rounded-xl bg-background border border-border text-base md:text-sm text-foreground appearance-none transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                     >
-                      <button
-                        onClick={() => toggleGroupSelect(store.items)}
-                        className="flex items-center flex-shrink-0"
-                        aria-label="Seleccionar loja"
-                      >
-                        <div
-                          className="w-5 h-5 rounded-full flex items-center justify-center"
-                          style={groupSelected
-                            ? { background: brown, border: `1.5px solid ${brown}` }
-                            : { background: "#fff", border: `1.5px solid ${sand}` }}
-                        >
-                          {groupSelected && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
-                        </div>
-                      </button>
-                      <Store className="w-3.5 h-3.5 flex-shrink-0" style={{ color: sandDark }} />
-                      <span className="text-xs font-black flex-1 truncate" style={{ color: brown }}>
-                        {store.name}
-                      </span>
-                      <span
-                        className="text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
-                        style={{ background: "#fff", color: sandDark }}
-                      >
-                        {store.items.length} {store.items.length === 1 ? "item" : "itens"}
-                      </span>
-                    </div>
-
-                    {/* Itens da loja */}
-                    <div className="p-3 space-y-3">
-                      {store.items.map((item: any) => {
-                        const product = item.products;
-                        if (!product) return null;
-                        const coverUrl: string | null = product.cover_url || product.image_url || null;
-                        const isSelected = selectedIds.includes(item.id);
-
-                        return (
-                          <div
-                            key={item.id}
-                            className="rounded-2xl p-3 flex gap-3"
-                            style={{
-                              background: "#fff",
-                              border: `1px solid ${isSelected ? brown : sand}`,
-                              opacity: isSelected ? 1 : 0.6,
-                            }}
-                          >
-                            <button
-                              onClick={() => toggleSelect(item.id)}
-                              className="flex items-start pt-1 flex-shrink-0"
-                              aria-label="Seleccionar item"
-                            >
-                              <div
-                                className="w-5 h-5 rounded-full flex items-center justify-center"
-                                style={isSelected
-                                  ? { background: brown, border: `1.5px solid ${brown}` }
-                                  : { background: "#fff", border: `1.5px solid ${sand}` }}
-                              >
-                                {isSelected && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
-                              </div>
-                            </button>
-
-                            {coverUrl ? (
-                              <img
-                                src={coverUrl}
-                                alt={product.title}
-                                className="w-24 h-24 rounded-xl object-cover flex-shrink-0 cursor-pointer"
-                                onClick={() => navigate(`/produto/${product.id}`)}
-                                onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                              />
-                            ) : (
-                              <div className="cursor-pointer" onClick={() => navigate(`/produto/${product.id}`)}>
-                                <ImagePlaceholder className="w-24 h-24" />
-                              </div>
-                            )}
-
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-start justify-between gap-2">
-                                <p
-                                  className="text-sm font-bold line-clamp-2 cursor-pointer"
-                                  style={{ color: brown }}
-                                  onClick={() => navigate(`/produto/${product.id}`)}
-                                >
-                                  {product.title}
-                                </p>
-                                {editMode && (
-                                  <button
-                                    onClick={() => removeItem.mutate(item.id)}
-                                    className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
-                                    style={{ background: "rgba(229,57,53,0.08)", color: danger }}
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
-                              </div>
-
-                              <p className="text-[10px] flex items-center gap-1" style={{ color: sandDark }}>
-                                🛡 Entregue por parceiros confiáveis da Zangu
-                              </p>
-
-                              <div className="flex items-center justify-between mt-2">
-                                <p className="text-base font-black" style={{ color: brown }}>
-                                  {formatPrice(product.price)}
-                                </p>
-                                <div className="flex items-center rounded-xl overflow-hidden" style={{ border: `1.5px solid ${sand}` }}>
-                                  <button
-                                    onClick={() => handleQuantity(item, -1)}
-                                    className="w-8 h-8 flex items-center justify-center"
-                                    style={{ color: sandDark }}
-                                  >
-                                    <Minus className="w-3 h-3" />
-                                  </button>
-                                  <span className="w-8 text-center text-sm font-black" style={{ color: brown }}>
-                                    {item.quantity}
-                                  </span>
-                                  <button
-                                    onClick={() => handleQuantity(item, +1)}
-                                    className="w-8 h-8 flex items-center justify-center"
-                                    style={{ color: sandDark }}
-                                  >
-                                    <Plus className="w-3 h-3" />
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-
-                      {/* Subtotal da loja — dá ao utilizador uma noção do valor por loja
-                          sem ainda falar de frete (isso só aparece no checkout). */}
-                      <div className="flex justify-between pt-1">
-                        <span className="text-[11px]" style={{ color: sandDark }}>
-                          Subtotal desta loja
-                        </span>
-                        <span className="text-xs font-bold" style={{ color: brown }}>
-                          {formatPrice(
-                            store.items.reduce(
-                              (sum: number, i: any) => sum + (i.products?.price || 0) * i.quantity,
-                              0
-                            )
-                          )}
-                        </span>
-                      </div>
-                    </div>
+                      <option value="">Seleccionar…</option>
+                      {provinces.map(p => (
+                        <option key={p.id} value={String(p.id)}>{p.name}</option>
+                      ))}
+                    </select>
                   </div>
-                );
-              })}
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground">Município</label>
+                    <select
+                      value={address.municipalityCode ?? ""}
+                      onChange={e => {
+                        const mun = municipalities.find(m => m.code === e.target.value);
+                        setAddress(prev => ({
+                          ...prev,
+                          municipalityCode: e.target.value || null,
+                          municipalityName: mun?.name ?? "",
+                        }));
+                        // Município mudou: o frete antigo já não é válido para o
+                        // novo destino. Limpamos até o FreightCalculator recalcular
+                        // e chamar onFreightChange de novo com os valores certos.
+                        setFreightSelections([]);
+                        setFreightTotal(0);
+                      }}
+                      disabled={!address.provinceId}
+                      className="w-full mt-1 h-10 px-3 py-1 rounded-xl bg-background border border-border text-base md:text-sm text-foreground appearance-none transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary disabled:opacity-50"
+                    >
+                      <option value="">Seleccionar…</option>
+                      {municipalities.map(m => (
+                        <option key={m.id} value={m.code}>{m.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground">Rua / Bairro / Referência</label>
+                  <textarea
+                    value={address.street}
+                    onChange={e => setAddress(p => ({ ...p, street: e.target.value }))}
+                    rows={2}
+                    className="w-full mt-1 px-3 py-2.5 rounded-xl bg-background border border-border text-base md:text-sm text-foreground resize-none transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                    placeholder="Ex: Rua Amílcar Cabral, nº 12, perto do mercado"
+                  />
+                </div>
+              </div>
             </div>
 
+            <div className="flex items-center gap-2 px-1">
+              <Truck className="w-4 h-4 text-primary" />
+              <h3 className="text-sm font-bold text-foreground">Entrega por loja</h3>
+            </div>
 
-            {/* ── Resumo do pedido ── */}
-            {!editMode && (
-              <div className="rounded-2xl p-4" style={{ background: "#fff", border: `1px solid ${sand}` }}>
-                <h3 className="text-sm font-black mb-3" style={{ color: brown }}>Resumo do pedido</h3>
-                <div className="space-y-2 mb-3">
-                  <div className="flex justify-between text-sm">
-                    <span style={{ color: sandDark }}>
-                      Subtotal ({selectedItems.length} {selectedItems.length === 1 ? "item seleccionado" : "itens seleccionados"})
-                    </span>
-                    <span className="font-bold" style={{ color: brown }}>{formatPrice(subtotal)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span style={{ color: sandDark }}>Frete e cupões</span>
-                    <span className="font-semibold text-xs" style={{ color: sandDark }}>No checkout</span>
-                  </div>
+            <FreightCalculator
+              cartGroups={cartGroups}
+              destMunicipalityCode={address.municipalityCode}
+              onFreightChange={handleFreightChange}
+              showAddressSelector={false}
+            />
+          </div>
+        )}
+
+        {step === "address" && (
+          <div className="fixed bottom-0 inset-x-0 z-[60] bg-card border-t border-border shadow-[0_-6px_20px_-6px_rgba(0,0,0,0.12)]">
+            <div className="container mx-auto max-w-2xl px-4 pt-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+              <div className="flex items-center justify-center gap-4 mb-2">
+                <span className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+                  <Lock className="w-3 h-3 text-walmart-green" />
+                  Pagamento seguro
+                </span>
+                <span className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+                  <PackageCheck className="w-3 h-3 text-walmart-green" />
+                  Entrega rastreada
+                </span>
+                <span className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+                  <ShieldCheck className="w-3 h-3 text-walmart-green" />
+                  Compra protegida
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-muted-foreground">
+                  {freightTotal > 0 ? "Total (produtos + frete)" : "Total"}
+                </span>
+                <span className="text-lg font-extrabold text-foreground tabular-nums">
+                  {formatPrice(total)}
+                </span>
+              </div>
+
+              <button
+                onClick={() => setStep("payment")}
+                disabled={!address.name || !address.phone || !address.street || !address.municipalityCode || !freightReady}
+                className="w-full py-3.5 rounded-full bg-primary text-primary-foreground font-bold text-sm disabled:opacity-50 disabled:pointer-events-none active:scale-[0.99] transition-transform flex items-center justify-center gap-1.5"
+              >
+                Continuar para pagamento
+                <ArrowLeft className="w-4 h-4 rotate-180" />
+              </button>
+
+              {/* Não deixa avançar para o Pagamento sem uma rota de frete definida
+                  para todos os vendedores/lojas do pedido — a notificação aparece
+                  aqui, logo no Passo 1, em vez de só lá na confirmação final. */}
+              {address.municipalityCode && !freightReady && (
+                <p className="text-xs text-center text-destructive font-semibold mt-2">
+                  Aguarde o cálculo do frete, ou escolha uma rota alternativa acima
+                  (ou levantamento na loja) para poder continuar.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* STEP 2: Pagamento */}
+        {step === "payment" && (
+          <div className="space-y-4">
+            <div className="bg-card rounded-card border border-border p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <CreditCard className="w-5 h-5 text-primary" />
+                <h3 className="text-sm font-bold text-foreground">Método de pagamento</h3>
+              </div>
+              <div className="space-y-2">
+                {[
+                  { id: "cash_on_delivery", label: "Pagamento na entrega", desc: "Pague em dinheiro ao receber" },
+                  { id: "bank_transfer", label: "Transferência bancária", desc: "Transfira para a conta da Zangu" },
+                  { id: "multicaixa_express", label: "Multicaixa Express", desc: "Pague via Multicaixa Express" },
+                ].map(method => (
+                  <button
+                    key={method.id}
+                    onClick={() => setPaymentMethod(method.id)}
+                    className={`w-full text-left p-3 rounded-lg border transition ${
+                      paymentMethod === method.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"
+                    }`}
+                  >
+                    <p className="text-sm font-bold text-foreground">{method.label}</p>
+                    <p className="text-xs text-muted-foreground">{method.desc}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Contas de pagamento (banco ou Multicaixa) — geridas pelo Adm */}
+            {requiresProof && (
+              <div className="bg-card rounded-card border border-border p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  {paymentMethod === "bank_transfer" ? (
+                    <Building2 className="w-4 h-4 text-primary" />
+                  ) : (
+                    <Smartphone className="w-4 h-4 text-primary" />
+                  )}
+                  <h3 className="text-sm font-bold text-foreground">Dados para pagamento</h3>
                 </div>
-                <div className="border-t pt-3 flex justify-between" style={{ borderColor: sand }}>
-                  <span className="text-base font-black" style={{ color: brown }}>Subtotal</span>
-                  <span className="text-base font-black" style={{ color: brown }}>{formatPrice(subtotal)}</span>
-                </div>
+
+                {loadingAccounts ? (
+                  <div className="flex justify-center py-4">
+                    <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                  </div>
+                ) : paymentAccounts.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Nenhuma conta de pagamento disponível neste momento. Por favor contacte o suporte.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {paymentAccounts.map((acc: any) => (
+                      <div key={acc.id} className="rounded-lg border border-border bg-background p-3 space-y-1">
+                        {paymentMethod === "bank_transfer" ? (
+                          <>
+                            {acc.bank_name && <p className="text-xs text-muted-foreground">Banco: <span className="font-semibold text-foreground">{acc.bank_name}</span></p>}
+                            <p className="text-xs text-muted-foreground">Titular: <span className="font-semibold text-foreground">{acc.account_holder}</span></p>
+                            {acc.iban && <p className="text-xs text-muted-foreground">IBAN: <span className="font-semibold text-foreground">{acc.iban}</span></p>}
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-xs text-muted-foreground">Titular: <span className="font-semibold text-foreground">{acc.account_holder}</span></p>
+                            {acc.phone_number && <p className="text-xs text-muted-foreground">Número: <span className="font-semibold text-foreground">{acc.phone_number}</span></p>}
+                          </>
+                        )}
+                        {acc.notes && <p className="text-[11px] text-muted-foreground italic mt-1">{acc.notes}</p>}
+                      </div>
+                    ))}
+                    <p className="text-[11px] text-muted-foreground pt-1">
+                      Após transferir, anexe o comprovativo na próxima etapa para confirmarmos o seu pedido.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
-            {/* ── Sugestões ── */}
-            {suggestions.length > 0 && (
-              <div className="rounded-2xl overflow-hidden" style={{ background: "#fff", border: `1px solid ${sand}` }}>
-                <div
-                  className="flex items-center justify-between px-4 py-3"
-                  style={{ borderBottom: `1px solid ${sand}` }}
-                >
+            <div className="flex gap-3">
+              <button onClick={() => setStep("address")} className="flex-1 py-3 rounded-full border border-border text-foreground font-bold text-sm">
+                Voltar
+              </button>
+              <button onClick={() => setStep("confirm")} className="flex-1 py-3 rounded-full bg-primary text-primary-foreground font-bold text-sm">
+                Continuar
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 3: Confirmar */}
+        {step === "confirm" && (
+          <div className="space-y-4">
+            <div className="bg-card rounded-card border border-border p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-primary" />
+                  <h3 className="text-sm font-bold text-foreground">Entrega</h3>
+                </div>
+                <button onClick={() => setStep("address")} className="text-xs text-primary font-semibold">Editar</button>
+              </div>
+              <p className="text-xs text-muted-foreground">{address.name} — {address.phone}</p>
+              <p className="text-xs text-muted-foreground">
+                {address.street}, {address.municipalityName}, {address.provinceName}
+              </p>
+            </div>
+
+            <div className="bg-card rounded-card border border-border p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-primary" />
+                  <h3 className="text-sm font-bold text-foreground">Pagamento</h3>
+                </div>
+                <button onClick={() => setStep("payment")} className="text-xs text-primary font-semibold">Editar</button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {paymentMethod === "cash_on_delivery" ? "Pagamento na entrega" :
+                 paymentMethod === "bank_transfer" ? "Transferência bancária" : "Multicaixa Express"}
+              </p>
+            </div>
+
+            {/* Cupom de desconto — desconta apenas os produtos, nunca o frete.
+                Vive só aqui no checkout (o carrinho não tem campo de cupom). */}
+            <div className="bg-card rounded-card border border-border p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Tag className="w-4 h-4 text-primary" />
+                <h3 className="text-sm font-bold text-foreground">Cupom de desconto</h3>
+              </div>
+
+              {!appliedCoupon ? (
+                <>
+                  <div className="flex gap-2">
+                    <input
+                      value={couponInput}
+                      onChange={e => setCouponInput(e.target.value.toUpperCase())}
+                      placeholder="Código do cupom"
+                      className="flex-1 px-3 py-2 rounded-lg bg-background border border-border text-base md:text-sm text-foreground font-mono"
+                    />
+                    <button
+                      onClick={handleApplyCoupon}
+                      disabled={!couponInput.trim() || validatingCoupon}
+                      className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-bold disabled:opacity-50 flex items-center justify-center gap-1 min-w-[84px]"
+                    >
+                      {validatingCoupon ? <Loader2 className="w-4 h-4 animate-spin" /> : "Aplicar"}
+                    </button>
+                  </div>
+                  {couponError && <p className="text-xs text-red-500 mt-2">{couponError}</p>}
+                </>
+              ) : (
+                <div className="flex items-center justify-between p-3 rounded-lg border border-primary/30 bg-primary/5">
                   <div>
-                    <p className="text-sm font-black" style={{ color: brown }}>
-                      Você também pode gostar
-                    </p>
-                    <p className="text-[11px]" style={{ color: sandDark }}>
-                      Da mesma categoria dos seus produtos
+                    <p className="text-sm font-bold text-foreground font-mono">{appliedCoupon.code}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {appliedCoupon.discount_type === "percent"
+                        ? `-${appliedCoupon.discount_value}%`
+                        : `-${formatPrice(appliedCoupon.discount_value || 0)}`}
+                      {" "}• poupa {formatPrice(discountAmount)}
                     </p>
                   </div>
                   <button
-                    onClick={() => navigate("/")}
-                    className="text-xs font-bold px-3 py-1.5 rounded-xl"
-                    style={{ background: brownLight, color: sandDark }}
+                    onClick={removeCoupon}
+                    className="w-8 h-8 rounded-full flex items-center justify-center bg-destructive/10 text-destructive flex-shrink-0"
                   >
-                    Ver todas →
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
+              )}
 
-                {/* Grelha 2 colunas — mesmo modelo de exibição usado pela Shein
-                    na secção "You may also like" do carrinho: cartão vertical,
-                    imagem em retrato, coração para wishlist, botão de "+" para
-                    adicionar rápido, preço em destaque e avaliação por baixo. */}
-                <div className="grid grid-cols-2 gap-2.5 px-3 py-3">
-                  {suggestions.slice(0, 20).map((p: any) => {
-                    const imgUrl: string | null = p.cover_url || p.image_url || null;
-                    const isFav = favorites.includes(p.id);
-                    // Só mostra a contagem de avaliações se ela realmente existir e for > 0.
-                    // Nunca exibir "(0)" — isso sugeriria falsamente que há avaliações.
-                    const hasReviews = typeof p.total_reviews === "number" && p.total_reviews > 0;
-                    return (
-                      <div
-                        key={p.id}
-                        className="rounded-xl overflow-hidden cursor-pointer bg-white"
-                        style={{ border: `1px solid ${sand}` }}
-                        onClick={() => navigate(`/produto/${p.id}`)}
-                      >
-                        <div className="relative w-full" style={{ aspectRatio: "3 / 4" }}>
-                          {imgUrl ? (
-                            <img
-                              src={imgUrl}
-                              alt={p.title}
-                              className="w-full h-full object-cover"
-                              onError={e => {
-                                const el = e.currentTarget as HTMLImageElement;
-                                el.style.display = "none";
-                                const wrap = el.parentElement;
-                                if (wrap) {
-                                  wrap.style.background = brownLight;
-                                  wrap.style.display = "flex";
-                                  wrap.style.alignItems = "center";
-                                  wrap.style.justifyContent = "center";
-                                }
-                              }}
-                            />
-                          ) : (
-                            <div className="w-full h-full flex flex-col items-center justify-center" style={{ background: brownLight }}>
-                              <ImageOff className="w-6 h-6 mb-1" style={{ color: sandDark }} />
-                              <span className="text-[9px]" style={{ color: sandDark }}>Sem foto</span>
-                            </div>
-                          )}
+              <p className="text-[10px] text-muted-foreground mt-2">
+                O desconto aplica-se apenas ao valor dos produtos — o custo do frete não é afectado.
+              </p>
+            </div>
 
-                          {/* Coração de wishlist — canto superior direito */}
-                          <button
-                            onClick={e => {
-                              e.stopPropagation();
-                              setFavorites(fav =>
-                                fav.includes(p.id)
-                                  ? fav.filter(f => f !== p.id)
-                                  : [...fav, p.id]
-                              );
-                            }}
-                            className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center"
-                            style={{ background: "rgba(255,255,255,0.9)" }}
-                          >
-                            <Heart
-                              className="w-3.5 h-3.5"
-                              style={{
-                                color: isFav ? danger : sandDark,
-                                fill: isFav ? danger : "none",
-                              }}
-                            />
-                          </button>
-
-                          {/* Botão de adição rápida — canto inferior direito, tal como na Shein */}
-                          <button
-                            onClick={e => {
-                              e.stopPropagation();
-                              addToCart.mutate({ productId: p.id, quantity: 1 });
-                            }}
-                            disabled={addToCart.isPending && addToCart.variables?.productId === p.id}
-                            className="absolute bottom-1.5 right-1.5 w-7 h-7 rounded-full flex items-center justify-center shadow-sm disabled:opacity-70"
-                            style={{ background: brown }}
-                            aria-label="Adicionar ao carrinho"
-                          >
-                            {addToCart.isPending && addToCart.variables?.productId === p.id ? (
-                              <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
-                            ) : (
-                              <Plus className="w-4 h-4 text-white" strokeWidth={2.5} />
-                            )}
-                          </button>
-                        </div>
-
-                        <div className="p-2">
-                          <p className="text-[11px] font-medium line-clamp-2 leading-tight" style={{ color: brown }}>
-                            {p.title}
-                          </p>
-                          <p className="text-sm font-black mt-1" style={{ color: brown }}>
-                            {formatPrice(p.price)}
-                          </p>
-                          {hasReviews && (
-                            <div className="flex items-center gap-1 mt-0.5">
-                              <Star className="w-3 h-3" style={{ color: "#F9A825", fill: "#F9A825" }} />
-                              <span className="text-[10px] font-semibold" style={{ color: sandDark }}>
-                                {p.rating} ({p.total_reviews})
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
+            {/* Upload do comprovativo — obrigatório para transferência/Multicaixa */}
+            {requiresProof && (
+              <div className="bg-card rounded-card border border-border p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Upload className="w-4 h-4 text-primary" />
+                  <h3 className="text-sm font-bold text-foreground">Comprovativo de pagamento</h3>
+                  <span className="text-[10px] font-bold text-red-500 ml-auto">Obrigatório</span>
                 </div>
+
+                {!proofFile ? (
+                  <label className="flex flex-col items-center justify-center gap-2 py-6 rounded-lg border-2 border-dashed border-border cursor-pointer hover:border-primary/40 transition">
+                    <Upload className="w-6 h-6 text-muted-foreground" />
+                    <span className="text-xs font-semibold text-foreground">Toque para anexar imagem ou PDF</span>
+                    <span className="text-[10px] text-muted-foreground">JPG, PNG ou PDF — máx. 8MB</span>
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf"
+                      className="hidden"
+                      onChange={e => handleProofSelect(e.target.files?.[0])}
+                    />
+                  </label>
+                ) : (
+                  <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-background">
+                    {proofPreviewUrl ? (
+                      <img src={proofPreviewUrl} alt="Comprovativo" className="w-14 h-14 rounded-lg object-cover flex-shrink-0" />
+                    ) : (
+                      <div className="w-14 h-14 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+                        <FileCheck className="w-6 h-6 text-primary" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-foreground line-clamp-1">{proofFile.name}</p>
+                      <p className="text-[10px] text-muted-foreground">{(proofFile.size / 1024 / 1024).toFixed(1)} MB</p>
+                    </div>
+                    <button onClick={removeProof} className="w-8 h-8 rounded-full flex items-center justify-center bg-red-500/10 text-red-500 flex-shrink-0">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+
+                {proofError && <p className="text-xs text-red-500 mt-2">{proofError}</p>}
+
+                <p className="text-[11px] text-muted-foreground mt-2">
+                  O seu pedido só será encaminhado ao vendedor depois da nossa equipa confirmar o pagamento.
+                </p>
               </div>
             )}
-          </>
-        )}
-      </div>
 
-      {/* ── Botão fixo ── */}
-      {totalItemsCount > 0 && (
-        <div
-          className="fixed bottom-0 left-0 right-0 z-50 px-4 py-3"
-          style={{
-            background: "rgba(255,255,255,0.97)",
-            backdropFilter: "blur(12px)",
-            borderTop: `1px solid ${sand}`,
-            paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))",
-          }}
-        >
-          <div className="max-w-2xl mx-auto flex items-center gap-4">
-            {editMode ? (
-              <button
-                onClick={handleBulkRemove}
-                disabled={selectedIds.length === 0 || removingBulk}
-                className="flex-1 py-3.5 rounded-2xl font-black text-sm text-white flex items-center justify-center gap-2 disabled:opacity-50"
-                style={{ background: danger }}
-              >
-                {removingBulk ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                Remover ({selectedIds.length})
-              </button>
-            ) : (
-              <>
-                <div>
-                  <p className="text-[11px]" style={{ color: sandDark }}>Subtotal</p>
-                  <p className="text-lg font-black" style={{ color: brown }}>{formatPrice(subtotal)}</p>
+            <div className="bg-card rounded-card border border-border p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Truck className="w-4 h-4 text-primary" />
+                <h3 className="text-sm font-bold text-foreground">Itens ({cartItems.length})</h3>
+              </div>
+              {isSelectionCheckout && (
+                <p className="text-[11px] text-muted-foreground -mt-1 mb-2">
+                  Os restantes itens do seu carrinho continuam guardados para depois.
+                </p>
+              )}
+              <div className="space-y-2">
+                {cartItems.map((item: any) => {
+                  const imageUrl = getItemImageUrl(item);
+                  return (
+                    <div key={item.id} className="flex items-center gap-3">
+                      {imageUrl ? (
+                        <img
+                          src={imageUrl}
+                          className="w-12 h-12 rounded-lg object-cover bg-muted"
+                          alt={item.products?.title || "Produto"}
+                          onError={(e) => {
+                            // Se a URL real falhar ao carregar, mostra estado neutro em vez de uma foto de outro produto
+                            (e.target as HTMLImageElement).style.display = "none";
+                            const sibling = (e.target as HTMLImageElement).nextElementSibling as HTMLElement | null;
+                            if (sibling) sibling.style.display = "flex";
+                          }}
+                        />
+                      ) : null}
+                      <div
+                        className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center flex-shrink-0"
+                        style={{ display: imageUrl ? "none" : "flex" }}
+                      >
+                        <ImageOff className="w-5 h-5 text-muted-foreground" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-foreground line-clamp-1">{item.products?.title}</p>
+                        <p className="text-xs text-muted-foreground">Qtd: {item.quantity}</p>
+                      </div>
+                      <p className="text-sm font-bold text-foreground">
+                        {formatPrice((item.products?.price || 0) * item.quantity)}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="border-t border-border mt-3 pt-3 space-y-1.5">
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>Subtotal</span>
+                  <span>{formatPrice(subtotal)}</span>
                 </div>
-                <button
-                  onClick={handleCheckout}
-                  disabled={selectedItems.length === 0}
-                  className="flex-1 py-3.5 rounded-2xl font-black text-sm text-white flex items-center justify-center gap-2 disabled:opacity-50"
-                  style={{ background: `linear-gradient(135deg, ${sandDark} 0%, ${brown} 100%)` }}
-                >
-                  ⚡ Finalizar compra {selectedItems.length > 0 ? `(${selectedItems.length})` : ""}
-                </button>
-              </>
+                {discountAmount > 0 && (
+                  <div className="flex justify-between text-xs text-green-500">
+                    <span>Desconto ({appliedCoupon?.code})</span>
+                    <span>-{formatPrice(discountAmount)}</span>
+                  </div>
+                )}
+                {freightTotal > 0 && (
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>Frete</span>
+                    <span>{formatPrice(freightTotal)}</span>
+                  </div>
+                )}
+                {freightTotal === 0 && freightSelections.length > 0 && (
+                  <div className="flex justify-between text-xs text-green-500">
+                    <span>Frete</span>
+                    <span>Grátis</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-sm font-black text-foreground pt-1 border-t border-border">
+                  <span>Total</span>
+                  <span>{formatPrice(total)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setStep("payment")} className="flex-1 py-3 rounded-full border border-border text-foreground font-bold text-sm">
+                Voltar
+              </button>
+              <button
+                onClick={() => placeOrder.mutate()}
+                disabled={placeOrder.isPending || uploadingProof || !canConfirmOrder}
+                className="flex-1 py-3 rounded-full bg-primary text-primary-foreground font-bold text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {(placeOrder.isPending || uploadingProof) ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                Confirmar pedido
+              </button>
+            </div>
+            {!freightReady && (
+              <p className="text-[11px] text-center text-red-500 -mt-2 font-semibold">
+                Não foi possível calcular o frete para todos os itens. Volte à etapa de
+                endereço, confirme o município e aguarde o valor do frete aparecer antes
+                de continuar.
+              </p>
+            )}
+            {freightReady && requiresProof && !proofFile && (
+              <p className="text-[11px] text-center text-muted-foreground -mt-2">
+                Anexe o comprovativo acima para poder confirmar o pedido.
+              </p>
             )}
           </div>
-        </div>
-      )}
+        )}
+
+        {/* SUCCESS */}
+        {step === "success" && (
+          <div className="text-center py-16">
+            <CheckCircle className="w-20 h-20 text-primary mx-auto mb-4" />
+            <h2 className="text-xl font-black text-foreground mb-2">Pedido confirmado!</h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              {requiresProof
+                ? "Recebemos o seu comprovativo. Vamos confirmar o pagamento e o seu pedido será encaminhado ao vendedor em breve."
+                : "O seu pedido foi criado com sucesso. Acompanhe o estado na secção de pedidos."}
+            </p>
+            <div className="flex flex-col gap-3 max-w-xs mx-auto">
+              <button onClick={() => navigate("/pedidos")} className="py-3 rounded-full bg-primary text-primary-foreground font-bold text-sm">
+                Ver meus pedidos
+              </button>
+              <button onClick={() => navigate("/")} className="py-3 rounded-full border border-border text-foreground font-bold text-sm">
+                Continuar comprando
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
 
-export default Carrinho;
+export default Checkout;
