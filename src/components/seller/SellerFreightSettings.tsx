@@ -75,6 +75,9 @@ interface ZoneForm {
   origin_municipality_id: string;
   dest_province_id: string;
   dest_municipality_id: string;
+  // "all" = toda a província · "single" = um município · "multiple" = pacote de vários municípios
+  dest_municipality_mode: "all" | "single" | "multiple";
+  dest_municipality_ids: string[];
   price_kwz: string;
   has_express: boolean;
   express_price_kwz: string;
@@ -111,6 +114,8 @@ const EMPTY_FORM: ZoneForm = {
   origin_municipality_id: "",
   dest_province_id: "",
   dest_municipality_id: "",
+  dest_municipality_mode: "all",
+  dest_municipality_ids: [],
   price_kwz: "",
   has_express: false,
   express_price_kwz: "",
@@ -305,6 +310,14 @@ export default function SellerFreightSettings({ sellerId }: Props) {
   const setField = (key: keyof ZoneForm, value: any) =>
     setForm((f) => ({ ...f, [key]: value }));
 
+  const toggleDestMunicipality = (id: string) =>
+    setForm((f) => ({
+      ...f,
+      dest_municipality_ids: f.dest_municipality_ids.includes(id)
+        ? f.dest_municipality_ids.filter((m) => m !== id)
+        : [...f.dest_municipality_ids, id],
+    }));
+
   const openCreate = () => {
     setForm(EMPTY_FORM);
     setModalOpen(true);
@@ -322,6 +335,12 @@ export default function SellerFreightSettings({ sellerId }: Props) {
       dest_municipality_id: zone.dest_municipality_id
         ? String(zone.dest_municipality_id)
         : "",
+      dest_municipality_mode: zone.dest_municipality_id
+        ? "single"
+        : zone.dest_municipality_ids?.length > 0
+        ? "multiple"
+        : "all",
+      dest_municipality_ids: (zone.dest_municipality_ids ?? []).map(String),
       price_kwz: String(zone.price_kwz),
       has_express: zone.has_express,
       express_price_kwz: zone.express_price_kwz?.toString() ?? "",
@@ -384,6 +403,17 @@ export default function SellerFreightSettings({ sellerId }: Props) {
       return;
     }
 
+    if (
+      form.dest_municipality_mode === "multiple" &&
+      form.dest_municipality_ids.length < 2
+    ) {
+      toast({
+        title: "Selecciona pelo menos 2 municípios para um pacote",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (form.pricing_model === "fixed") {
       if (!form.price_kwz || isNaN(Number(form.price_kwz))) {
         toast({ title: "Preço inválido", variant: "destructive" });
@@ -423,9 +453,14 @@ export default function SellerFreightSettings({ sellerId }: Props) {
         ? Number(form.origin_municipality_id)
         : null,
       dest_province_id: Number(form.dest_province_id),
-      dest_municipality_id: form.dest_municipality_id
-        ? Number(form.dest_municipality_id)
-        : null,
+      dest_municipality_id:
+        form.dest_municipality_mode === "single" && form.dest_municipality_id
+          ? Number(form.dest_municipality_id)
+          : null,
+      dest_municipality_ids:
+        form.dest_municipality_mode === "multiple"
+          ? form.dest_municipality_ids.map(Number)
+          : [],
       price_kwz: form.pricing_model === "fixed" ? Number(form.price_kwz) : 0,
       has_express: form.has_express,
       express_price_kwz:
@@ -732,6 +767,15 @@ export default function SellerFreightSettings({ sellerId }: Props) {
                           {zone.dest_municipality && (
                             <span className="text-muted-foreground">› {zone.dest_municipality.name}</span>
                           )}
+                          {!zone.dest_municipality &&
+                            zone.dest_municipality_ids?.length > 0 && (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] px-1.5 py-0 bg-amber-500/15 text-amber-400 border-amber-500/30"
+                              >
+                                {zone.dest_municipality_ids.length} municípios
+                              </Badge>
+                            )}
                         </div>
                       </TableCell>
                       <TableCell className="text-right font-mono text-sm">
@@ -884,6 +928,8 @@ export default function SellerFreightSettings({ sellerId }: Props) {
                   onValueChange={(v) => {
                     setField("dest_province_id", v);
                     setField("dest_municipality_id", "");
+                    setField("dest_municipality_mode", "all");
+                    setField("dest_municipality_ids", []);
                   }}
                 >
                   <SelectTrigger><SelectValue placeholder="Seleccionar…" /></SelectTrigger>
@@ -895,25 +941,95 @@ export default function SellerFreightSettings({ sellerId }: Props) {
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label>Município de destino <span className="text-xs text-muted-foreground">(opcional)</span></Label>
+                <Label>Município de destino</Label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {(
+                    [
+                      ["all", "Toda a prov."],
+                      ["single", "Um"],
+                      ["multiple", "Vários"],
+                    ] as [ZoneForm["dest_municipality_mode"], string][]
+                  ).map(([mode, label]) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      disabled={!form.dest_province_id}
+                      onClick={() => {
+                        setField("dest_municipality_mode", mode);
+                        setField("dest_municipality_id", "");
+                        setField("dest_municipality_ids", []);
+                      }}
+                      className={`rounded-md border px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
+                        form.dest_municipality_mode === mode
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-input hover:bg-muted"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Um único município */}
+            {form.dest_municipality_mode === "single" && (
+              <div className="space-y-1">
+                <Label>Seleccionar município</Label>
                 <Select
                   value={form.dest_municipality_id}
                   onValueChange={(v) => setField("dest_municipality_id", v)}
                   disabled={!form.dest_province_id}
                 >
-                  <SelectTrigger><SelectValue placeholder="Todos os municípios" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Seleccionar…" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Todos os municípios</SelectItem>
                     {destMunicipalities.map((m) => (
                       <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-            </div>
+            )}
 
-            {/* Expandir municípios */}
-            {!form.dest_municipality_id && form.dest_province_id && (
+            {/* Pacote de vários municípios */}
+            {form.dest_municipality_mode === "multiple" && (
+              <div className="space-y-2">
+                <Label>
+                  Municípios do pacote{" "}
+                  <span className="text-muted-foreground text-xs">
+                    ({form.dest_municipality_ids.length} seleccionados)
+                  </span>
+                </Label>
+                <div className="grid grid-cols-2 gap-1.5 rounded-lg border p-3 max-h-48 overflow-y-auto sm:grid-cols-3">
+                  {destMunicipalities.map((m) => {
+                    const id = String(m.id);
+                    const checked = form.dest_municipality_ids.includes(id);
+                    return (
+                      <label
+                        key={id}
+                        className="flex items-center gap-2 text-sm cursor-pointer select-none"
+                      >
+                        <input
+                          type="checkbox"
+                          className="accent-primary"
+                          checked={checked}
+                          onChange={() => toggleDestMunicipality(id)}
+                        />
+                        {m.name}
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Os municípios não seleccionados aqui não entram neste pacote —
+                  seguem a regra da província inteira (se existir) ou outra que
+                  configures à parte.
+                </p>
+              </div>
+            )}
+
+            {/* Expandir municípios (só faz sentido quando o preço é para a província inteira) */}
+            {form.dest_municipality_mode === "all" && form.dest_province_id && (
               <div className="flex items-center justify-between rounded-lg border border-dashed p-3 bg-muted/30">
                 <div>
                   <p className="text-sm font-medium flex items-center gap-1.5">
