@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { Province } from "@/hooks/useFreight";
+import type { Province, Municipality } from "@/hooks/useFreight";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -27,6 +27,8 @@ export interface FreightCompanyRate {
   company_id: string;
   origin_province_id: number;
   dest_province_id: number;
+  origin_municipality_id: number | null;
+  dest_municipality_id: number | null;
   material_type_id: number | null;
   min_weight_kg: number;
   max_weight_kg: number | null;
@@ -40,6 +42,8 @@ export interface FreightCompanyRate {
   // Enriquecido no cliente
   origin_province?: Province | null;
   dest_province?: Province | null;
+  origin_municipality?: Municipality | null;
+  dest_municipality?: Municipality | null;
   material_type?: FreightMaterialType | null;
 }
 
@@ -63,17 +67,33 @@ async function fetchProvincesSafe(): Promise<Province[]> {
   return (data ?? []) as Province[];
 }
 
+async function fetchMunicipalitiesSafe(): Promise<Municipality[]> {
+  const { data } = await supabase
+    .from("municipalities")
+    .select("*")
+    .order("name");
+  return (data ?? []) as Municipality[];
+}
+
 function enrichRates(
   rawRates: any[],
   provinces: Province[],
-  materialTypes: FreightMaterialType[]
+  materialTypes: FreightMaterialType[],
+  municipalities: Municipality[] = []
 ): FreightCompanyRate[] {
   const provMap = new Map(provinces.map((p) => [p.id, p]));
   const matMap = new Map(materialTypes.map((m) => [m.id, m]));
+  const munMap = new Map(municipalities.map((m) => [m.id, m]));
   return rawRates.map((r) => ({
     ...r,
     origin_province: provMap.get(r.origin_province_id) ?? null,
     dest_province: provMap.get(r.dest_province_id) ?? null,
+    origin_municipality: r.origin_municipality_id
+      ? munMap.get(r.origin_municipality_id) ?? null
+      : null,
+    dest_municipality: r.dest_municipality_id
+      ? munMap.get(r.dest_municipality_id) ?? null
+      : null,
     material_type: r.material_type_id
       ? matMap.get(r.material_type_id) ?? null
       : null,
@@ -84,6 +104,7 @@ function enrichRates(
 
 export function useAdminFreightCompanies() {
   const [provinces, setProvinces] = useState<Province[]>([]);
+  const [municipalities, setMunicipalities] = useState<Municipality[]>([]);
   const [materialTypes, setMaterialTypes] = useState<FreightMaterialType[]>([]);
   const [companies, setCompanies] = useState<FreightCompany[]>([]);
   const [rates, setRates] = useState<FreightCompanyRate[]>([]);
@@ -118,7 +139,8 @@ export function useAdminFreightCompanies() {
   const fetchRates = useCallback(
     async (
       currentProvinces?: Province[],
-      currentMaterialTypes?: FreightMaterialType[]
+      currentMaterialTypes?: FreightMaterialType[],
+      currentMunicipalities?: Municipality[]
     ) => {
       const { data, error } = await supabase
         .from("freight_company_rates")
@@ -132,11 +154,12 @@ export function useAdminFreightCompanies() {
         enrichRates(
           data ?? [],
           currentProvinces ?? provinces,
-          currentMaterialTypes ?? materialTypes
+          currentMaterialTypes ?? materialTypes,
+          currentMunicipalities ?? municipalities
         )
       );
     },
-    [provinces, materialTypes]
+    [provinces, materialTypes, municipalities]
   );
 
   useEffect(() => {
@@ -145,8 +168,9 @@ export function useAdminFreightCompanies() {
       setLoading(true);
       setError(null);
       try {
-        const [p, mtRes, companiesRes, ratesRes] = await Promise.all([
+        const [p, m, mtRes, companiesRes, ratesRes] = await Promise.all([
           fetchProvincesSafe(),
+          fetchMunicipalitiesSafe(),
           supabase.from("freight_material_types").select("*").order("name"),
           supabase.from("freight_companies").select("*").order("name"),
           supabase
@@ -157,9 +181,10 @@ export function useAdminFreightCompanies() {
         if (cancelled) return;
         const mt = (mtRes.data ?? []) as FreightMaterialType[];
         setProvinces(p);
+        setMunicipalities(m);
         setMaterialTypes(mt);
         setCompanies((companiesRes.data ?? []) as FreightCompany[]);
-        setRates(enrichRates(ratesRes.data ?? [], p, mt));
+        setRates(enrichRates(ratesRes.data ?? [], p, mt, m));
       } catch (err: any) {
         if (!cancelled) setError(err.message ?? "Erro ao carregar dados");
       } finally {
@@ -248,6 +273,8 @@ export function useAdminFreightCompanies() {
           company_id: rate.company_id,
           origin_province_id: rate.origin_province_id,
           dest_province_id: rate.dest_province_id,
+          origin_municipality_id: rate.origin_municipality_id ?? null,
+          dest_municipality_id: rate.dest_municipality_id ?? null,
           material_type_id: rate.material_type_id ?? null,
           min_weight_kg: rate.min_weight_kg ?? 0,
           max_weight_kg: rate.max_weight_kg ?? null,
@@ -307,6 +334,7 @@ export function useAdminFreightCompanies() {
 
   return {
     provinces,
+    municipalities,
     materialTypes,
     companies,
     rates,
