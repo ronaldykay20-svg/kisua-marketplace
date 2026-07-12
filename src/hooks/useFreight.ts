@@ -92,6 +92,9 @@ export interface FreightResult {
   source: string;
   currency: string;
   pickup_address?: string;
+  company_name?: string;
+  company_logo?: string;
+  zone_type?: string;
   error?: string;
 }
 
