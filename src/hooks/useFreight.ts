@@ -59,6 +59,9 @@ export interface FreightZone {
   parent_zone_id: number | null;
   expand_all_dest_municipalities: boolean | null;
   tiers?: FreightZoneTier[];
+  // Pacote de municípios de destino específicos (2+ municípios da mesma
+  // província, diferente de "um único" e de "toda a província").
+  dest_municipality_ids?: number[];
 }
 
 export interface FreightSettings {
@@ -200,6 +203,41 @@ async function saveTiersForZone(
     max_value: t.max_value ?? null,
     price_kwz: t.price_kwz,
     express_price_kwz: t.express_price_kwz ?? null,
+  }));
+  await supabase.from(table).insert(rows);
+}
+
+// ─── Pacotes de municípios de destino ─────────────────────────────────────
+// Uma zona pode cobrir 2+ municípios específicos da mesma província de
+// destino (ex: Belas + Talatona), sem ser "um único" nem "toda a província".
+
+async function fetchDestMunicipalityPackages(
+  zoneIds: number[],
+  table: "freight_zone_dest_municipalities" | "seller_freight_zone_dest_municipalities"
+): Promise<Record<number, number[]>> {
+  if (zoneIds.length === 0) return {};
+  const { data } = await supabase
+    .from(table)
+    .select("*")
+    .in("zone_id", zoneIds);
+  const map: Record<number, number[]> = {};
+  (data ?? []).forEach((row: any) => {
+    if (!map[row.zone_id]) map[row.zone_id] = [];
+    map[row.zone_id].push(row.municipality_id);
+  });
+  return map;
+}
+
+async function saveDestMunicipalityPackage(
+  zoneId: number,
+  municipalityIds: number[],
+  table: "freight_zone_dest_municipalities" | "seller_freight_zone_dest_municipalities"
+): Promise<void> {
+  await supabase.from(table).delete().eq("zone_id", zoneId);
+  if (municipalityIds.length === 0) return;
+  const rows = municipalityIds.map((municipality_id) => ({
+    zone_id: zoneId,
+    municipality_id,
   }));
   await supabase.from(table).insert(rows);
 }
@@ -374,9 +412,14 @@ export function useAdminFreight() {
           .filter((z) => z.pricing_model === "tiers")
           .map((z) => z.id);
         const tiersMap = await fetchTiersForZones(tierZoneIds, "freight_zone_tiers");
+        const packagesMap = await fetchDestMunicipalityPackages(
+          enriched.map((z) => z.id),
+          "freight_zone_dest_municipalities"
+        );
         const withTiers = enriched.map((z) => ({
           ...z,
           tiers: tiersMap[z.id] ?? [],
+          dest_municipality_ids: packagesMap[z.id] ?? [],
         }));
 
         if (!cancelled) setZones(withTiers);
@@ -414,7 +457,17 @@ export function useAdminFreight() {
         .filter((z) => z.pricing_model === "tiers")
         .map((z) => z.id);
       const tiersMap = await fetchTiersForZones(tierZoneIds, "freight_zone_tiers");
-      setZones(enriched.map((z) => ({ ...z, tiers: tiersMap[z.id] ?? [] })));
+      const packagesMap = await fetchDestMunicipalityPackages(
+        enriched.map((z) => z.id),
+        "freight_zone_dest_municipalities"
+      );
+      setZones(
+        enriched.map((z) => ({
+          ...z,
+          tiers: tiersMap[z.id] ?? [],
+          dest_municipality_ids: packagesMap[z.id] ?? [],
+        }))
+      );
     } catch (err: any) {
       setError(err.message ?? "Erro ao carregar zonas");
     } finally {
@@ -429,7 +482,11 @@ export function useAdminFreight() {
 
   const saveZone = useCallback(
     async (
-      zone: Partial<FreightZone> & { id?: number; tiers?: FreightZoneTier[] }
+      zone: Partial<FreightZone> & {
+        id?: number;
+        tiers?: FreightZoneTier[];
+        dest_municipality_ids?: number[];
+      }
     ): Promise<boolean> => {
       setSaving(true);
       setError(null);
@@ -485,6 +542,14 @@ export function useAdminFreight() {
           await saveTiersForZone(zoneId, zone.tiers, "freight_zone_tiers");
         } else if (zoneId) {
           await supabase.from("freight_zone_tiers").delete().eq("zone_id", zoneId);
+        }
+
+        if (zoneId) {
+          await saveDestMunicipalityPackage(
+            zoneId,
+            zone.dest_municipality_id ? [] : zone.dest_municipality_ids ?? [],
+            "freight_zone_dest_municipalities"
+          );
         }
 
         await fetchZones();
@@ -617,7 +682,17 @@ export function useSellerFreight(sellerId: string | null) {
             tierZoneIds,
             "seller_freight_zone_tiers"
           );
-          setZones(enriched.map((z) => ({ ...z, tiers: tiersMap[z.id] ?? [] })));
+          const packagesMap = await fetchDestMunicipalityPackages(
+            enriched.map((z) => z.id),
+            "seller_freight_zone_dest_municipalities"
+          );
+          setZones(
+            enriched.map((z) => ({
+              ...z,
+              tiers: tiersMap[z.id] ?? [],
+              dest_municipality_ids: packagesMap[z.id] ?? [],
+            }))
+          );
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -657,7 +732,17 @@ export function useSellerFreight(sellerId: string | null) {
       tierZoneIds,
       "seller_freight_zone_tiers"
     );
-    setZones(enriched.map((z) => ({ ...z, tiers: tiersMap[z.id] ?? [] })));
+    const packagesMap = await fetchDestMunicipalityPackages(
+      enriched.map((z) => z.id),
+      "seller_freight_zone_dest_municipalities"
+    );
+    setZones(
+      enriched.map((z) => ({
+        ...z,
+        tiers: tiersMap[z.id] ?? [],
+        dest_municipality_ids: packagesMap[z.id] ?? [],
+      }))
+    );
   }, [sellerId]);
 
   const saveConfig = useCallback(
@@ -692,7 +777,11 @@ export function useSellerFreight(sellerId: string | null) {
 
   const saveZone = useCallback(
     async (
-      zone: Partial<FreightZone> & { id?: number; tiers?: FreightZoneTier[] }
+      zone: Partial<FreightZone> & {
+        id?: number;
+        tiers?: FreightZoneTier[];
+        dest_municipality_ids?: number[];
+      }
     ): Promise<boolean> => {
       if (!sellerId) return false;
       setSaving(true);
@@ -753,6 +842,14 @@ export function useSellerFreight(sellerId: string | null) {
             .from("seller_freight_zone_tiers")
             .delete()
             .eq("zone_id", zoneId);
+        }
+
+        if (zoneId) {
+          await saveDestMunicipalityPackage(
+            zoneId,
+            zone.dest_municipality_id ? [] : zone.dest_municipality_ids ?? [],
+            "seller_freight_zone_dest_municipalities"
+          );
         }
 
         await fetchZones();
