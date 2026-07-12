@@ -395,7 +395,7 @@ const ProductDetail = () => {
 
       const ids = collected.map((p: any) => p.id); const cMap: Record<string, string> = {};
       if (ids.length) { const { data: m } = await supabase.from("product_media").select("product_id,url").in("product_id", ids).eq("is_cover", true); (m || []).forEach((x: any) => { cMap[x.product_id] = x.url; }); }
-      return collected.map((p: any) => ({ id: p.id, title: p.title, price: fmt(p.price), image: cMap[p.id] || p.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop" }));
+      return collected.map((p: any) => ({ id: p.id, title: p.title, price: fmt(p.price), rawPrice: p.price, rating: p.rating || 0, image: cMap[p.id] || p.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop" }));
     },
     enabled: !!isUuid && !!dbProduct,
   });
@@ -786,6 +786,25 @@ const ProductDetail = () => {
               )}
             </div>
 
+            {/* Vendido por — linha compacta estilo Walmart, com dados reais de sellerFull/companyFull */}
+            {publisher && !loadingPublisher && (
+              <button onClick={handlePublisherNavigate} className="flex items-center gap-1.5 mt-2 text-xs flex-wrap">
+                <span className="text-gray-500">Vendido por</span>
+                <span className="font-bold underline" style={{ color: N.brown }}>{publisher.name}</span>
+                {publisher.is_verified && (
+                  <span className="flex items-center gap-0.5 text-[10px] font-bold text-blue-600">
+                    <ShieldCheck className="w-3 h-3" /> Verificado
+                  </span>
+                )}
+                {publisher.rating ? (
+                  <span className="flex items-center gap-0.5 text-[10px] text-gray-500">
+                    <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" /> {Number(publisher.rating).toFixed(1)}
+                    {publisher.__type === "company" && publisher.total_reviews ? ` (${publisher.total_reviews})` : ""}
+                  </span>
+                ) : null}
+              </button>
+            )}
+
             {/* FIX 3: banner lateral — só aparece em mobile (md:hidden) para não ficar gigante no desktop */}
             {sideBannerAd?.media_url && (
               <div className="md:hidden mt-3">
@@ -915,6 +934,38 @@ const ProductDetail = () => {
           </div>
         </div>
 
+        {/* ── ESPECIFICAÇÕES ── */}
+        {(() => {
+          const raw = dbProduct as any;
+          const specs: { label: string; value: string }[] = [
+            raw?.condition ? { label: "Condição", value: conditionLabels[raw.condition] || raw.condition } : null,
+            raw?.category ? { label: "Categoria", value: raw.category } : null,
+            raw?.weight_kg ? { label: "Peso", value: `${Number(raw.weight_kg).toLocaleString("pt-AO")} kg` } : null,
+            (raw?.length_cm && raw?.width_cm && raw?.height_cm)
+              ? { label: "Dimensões", value: `${raw.length_cm} × ${raw.width_cm} × ${raw.height_cm} cm` }
+              : null,
+            raw?.sku ? { label: "Referência (SKU)", value: raw.sku } : null,
+            typeof raw?.stock === "number" ? { label: "Stock disponível", value: `${raw.stock} unidades` } : null,
+            (raw?.city || raw?.province) ? { label: "Local de envio", value: [raw?.city, raw?.province].filter(Boolean).join(", ") } : null,
+            publisher?.name ? { label: "Vendedor", value: publisher.name } : null,
+          ].filter(Boolean) as { label: string; value: string }[];
+
+          if (specs.length === 0) return null;
+          return (
+            <div className="bg-white border-b border-gray-100 px-3 md:px-6 py-3">
+              <p className="text-sm font-bold text-gray-900 mb-2">Especificações</p>
+              <div className="rounded-lg overflow-hidden border border-gray-100">
+                {specs.map((s, i) => (
+                  <div key={s.label} className="flex text-xs" style={{ background: i % 2 === 0 ? "#fafafa" : "#fff" }}>
+                    <span className="w-2/5 px-3 py-2 font-semibold text-gray-600 border-r border-gray-100">{s.label}</span>
+                    <span className="flex-1 px-3 py-2 text-gray-800">{s.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* ── ENTREGA ── */}
         <div className="bg-white border-b border-gray-100 px-3 md:px-6 py-3">
           <p className="text-sm font-bold text-gray-900 mb-2">Entrega e devoluções</p>
@@ -1029,6 +1080,47 @@ const ProductDetail = () => {
 
         {/* ── AVALIAÇÕES ── */}
         <ProductReviewsSection productId={id || ""} product={product} dbReviews={dbReviews} userOrders={userOrders} trackEvent={trackEvent} />
+
+        {/* ── COMPARAR COM PRODUTOS SEMELHANTES ── */}
+        {relatedProducts.length >= 2 && (
+          <div className="bg-white border-b border-gray-100 px-3 md:px-6 py-3">
+            <p className="text-sm font-bold text-gray-900 mb-3">Comparar com produtos semelhantes</p>
+            <div className="overflow-x-auto scrollbar-hide">
+              <div className="flex gap-0 min-w-max border border-gray-100 rounded-lg overflow-hidden">
+                {/* Coluna: este produto */}
+                <div className="w-32 flex-shrink-0 border-r border-gray-100">
+                  <div className="p-2" style={{ background: N.brownLight }}>
+                    <p className="text-[9px] font-bold text-center mb-1" style={{ color: N.brown }}>Este produto</p>
+                    <div className="w-full rounded-md overflow-hidden mb-1" style={{ aspectRatio: "1/1", background: "#f5f5f5" }}>
+                      <img src={displayImages[0]?.url} alt={product.title} className="w-full h-full object-cover" />
+                    </div>
+                    <p className="text-[10px] font-semibold leading-snug line-clamp-2">{product.title}</p>
+                  </div>
+                  <div className="px-2 py-1.5 text-xs font-black border-t border-gray-100" style={{ color: N.brown }}>{activePrice}</div>
+                  <div className="px-2 py-1.5 text-[10px] text-gray-600 border-t border-gray-100 flex items-center gap-0.5">
+                    <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" /> {product.rating ? product.rating : "—"}
+                  </div>
+                </div>
+                {/* Colunas: produtos semelhantes reais */}
+                {relatedProducts.slice(0, 4).map((p: any) => (
+                  <button key={p.id} onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "compare" }); navigate(`/produto/${p.id}`); }} className="w-32 flex-shrink-0 border-r border-gray-100 last:border-r-0 text-left hover:bg-gray-50 transition-colors">
+                    <div className="p-2">
+                      <p className="text-[9px] text-gray-400 text-center mb-1">&nbsp;</p>
+                      <div className="w-full rounded-md overflow-hidden mb-1" style={{ aspectRatio: "1/1", background: "#f5f5f5" }}>
+                        <img src={p.image} alt={p.title} className="w-full h-full object-cover" />
+                      </div>
+                      <p className="text-[10px] font-semibold leading-snug line-clamp-2 text-gray-900">{p.title}</p>
+                    </div>
+                    <div className="px-2 py-1.5 text-xs font-black border-t border-gray-100" style={{ color: N.accent }}>{p.price}</div>
+                    <div className="px-2 py-1.5 text-[10px] text-gray-600 border-t border-gray-100 flex items-center gap-0.5">
+                      <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" /> {p.rating ? Number(p.rating).toFixed(1) : "—"}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── PRODUTOS RELACIONADOS ── */}
         {relatedProducts.length > 0 && (
