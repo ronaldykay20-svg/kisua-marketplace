@@ -5,7 +5,7 @@ import {
   Send, Loader2, ShieldCheck, X, Building2, Check, Eye,
   LayoutGrid, CheckCircle2, Lock, RotateCcw, Package, Flame, Headset,
 } from "lucide-react";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, type ReactNode } from "react";
 import { allProducts } from "@/data/products";
 import { useProduct } from "@/hooks/useSupabaseData";
 import { useAuth } from "@/contexts/AuthContext";
@@ -412,7 +412,14 @@ const ProductDetail = () => {
 
       const ids = collected.map((p: any) => p.id); const cMap: Record<string, string> = {};
       if (ids.length) { const { data: m } = await supabase.from("product_media").select("product_id,url").in("product_id", ids).eq("is_cover", true); (m || []).forEach((x: any) => { cMap[x.product_id] = x.url; }); }
-      return collected.map((p: any) => ({ id: p.id, title: p.title, price: fmt(p.price), rawPrice: p.price, rating: p.rating || 0, image: cMap[p.id] || p.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop" }));
+      return collected.map((p: any) => ({
+        id: p.id, title: p.title, price: fmt(p.price), rawPrice: p.price, rating: p.rating || 0,
+        image: cMap[p.id] || p.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop",
+        condition: p.condition || null, weight_kg: p.weight_kg || null,
+        length_cm: p.length_cm || null, width_cm: p.width_cm || null, height_cm: p.height_cm || null,
+        free_shipping: !!p.free_shipping, stock: typeof p.stock === "number" ? p.stock : null,
+        total_reviews: p.total_reviews || 0,
+      }));
     },
     enabled: !!isUuid && !!dbProduct,
   });
@@ -1099,45 +1106,79 @@ const ProductDetail = () => {
         <ProductReviewsSection productId={id || ""} product={product} dbReviews={dbReviews} userOrders={userOrders} trackEvent={trackEvent} />
 
         {/* ── COMPARAR COM PRODUTOS SEMELHANTES ── */}
-        {relatedProducts.length >= 2 && (
-          <div className="bg-white border-b px-3 md:px-6 py-4" style={{ borderColor: "#F0EBDF" }}>
-            <p className="text-sm font-bold text-gray-900 mb-3">Comparar com produtos semelhantes</p>
-            <div className="overflow-x-auto scrollbar-hide">
-              <div className="flex gap-0 min-w-max border border-gray-100 rounded-lg overflow-hidden">
-                {/* Coluna: este produto */}
-                <div className="w-32 flex-shrink-0 border-r border-gray-100">
-                  <div className="p-2" style={{ background: N.brownLight }}>
-                    <p className="text-[10px] font-bold text-center mb-1" style={{ color: N.brown }}>Este produto</p>
-                    <div className="w-full rounded-md overflow-hidden mb-1" style={{ aspectRatio: "1/1", background: "#f5f5f5" }}>
-                      <img src={displayImages[0]?.url} alt={product.title} className="w-full h-full object-cover" />
+        {/* Tabela real de especificações lado a lado — não só foto+preço.
+            Coluna de rótulos fixa (sticky) à esquerda, como no walmart.com,
+            e cada coluna de produto mostra os MESMOS atributos reais da BD
+            (peso, dimensões, condição, frete, stock), não texto inventado. */}
+        {relatedProducts.length >= 2 && (() => {
+          const raw = dbProduct as any;
+          const dims = (l?: number | null, w?: number | null, h?: number | null) => (l && w && h) ? `${l}×${w}×${h} cm` : "—";
+          const compareCols = [
+            {
+              id: "current", isCurrent: true, image: displayImages[0]?.url, title: product.title,
+              price: activePrice, rating: product.rating || null,
+              condition: product.condition ? (conditionLabels[product.condition] || product.condition) : "—",
+              weight: product.weight_kg ? `${product.weight_kg} kg` : "—",
+              dimensions: dims(product.length_cm, product.width_cm, product.height_cm),
+              shipping: product.freeShipping ? "Grátis" : "Pago",
+              stock: typeof raw?.stock === "number" ? `${raw.stock} unid.` : "—",
+            },
+            ...relatedProducts.slice(0, 4).map((p: any) => ({
+              id: p.id, isCurrent: false, image: p.image, title: p.title,
+              price: p.price, rating: p.rating || null,
+              condition: p.condition ? (conditionLabels[p.condition] || p.condition) : "—",
+              weight: p.weight_kg ? `${p.weight_kg} kg` : "—",
+              dimensions: dims(p.length_cm, p.width_cm, p.height_cm),
+              shipping: p.free_shipping ? "Grátis" : "Pago",
+              stock: typeof p.stock === "number" ? `${p.stock} unid.` : "—",
+            })),
+          ];
+          const rows: { label: string; render: (c: typeof compareCols[number]) => ReactNode }[] = [
+            { label: "Preço", render: c => <span className="font-black" style={{ color: c.isCurrent ? N.flame : N.ink, ...display }}>{c.price}</span> },
+            { label: "Avaliação", render: c => c.rating ? <span className="flex items-center gap-0.5"><Star className="w-3 h-3 fill-amber-400 text-amber-400" />{Number(c.rating).toFixed(1)}</span> : "—" },
+            { label: "Condição", render: c => c.condition },
+            { label: "Peso", render: c => c.weight },
+            { label: "Dimensões", render: c => c.dimensions },
+            { label: "Frete", render: c => c.shipping },
+            { label: "Stock", render: c => c.stock },
+          ];
+          return (
+            <div className="bg-white border-b px-3 md:px-6 py-4" style={{ borderColor: "#F0EBDF" }}>
+              <p className="text-sm font-bold text-gray-900 mb-3">Comparar com produtos semelhantes</p>
+              <div className="overflow-x-auto scrollbar-hide border rounded-lg" style={{ borderColor: "#EEE" }}>
+                <div className="flex min-w-max">
+                  {/* Coluna de rótulos — fixa à esquerda */}
+                  <div className="flex-shrink-0 sticky left-0 z-10 bg-white border-r" style={{ width: 92, borderColor: "#EEE" }}>
+                    <div className="h-[168px] border-b flex items-end p-2" style={{ borderColor: "#EEE" }}>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Produto</span>
                     </div>
-                    <p className="text-[10px] font-semibold leading-snug line-clamp-2">{product.title}</p>
+                    {rows.map(r => (
+                      <div key={r.label} className="px-2 py-2.5 text-[11px] font-bold text-gray-500 border-b" style={{ borderColor: "#F3F3F3" }}>{r.label}</div>
+                    ))}
                   </div>
-                  <div className="px-2 py-1.5 text-xs font-black border-t border-gray-100" style={{ color: N.brown }}>{activePrice}</div>
-                  <div className="px-2 py-1.5 text-[10px] text-gray-600 border-t border-gray-100 flex items-center gap-0.5">
-                    <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" /> {product.rating ? product.rating : "—"}
-                  </div>
+                  {/* Colunas de produtos */}
+                  {compareCols.map(c => (
+                    <div key={c.id} className="w-32 flex-shrink-0 border-r last:border-r-0" style={{ borderColor: "#EEE" }}>
+                      <button
+                        onClick={() => { if (!c.isCurrent) { trackEvent(id!, "card_tap", { tapped_product_id: c.id, section: "compare" }); navigate(`/produto/${c.id}`); } }}
+                        className="w-full h-[168px] p-2 border-b text-left flex flex-col"
+                        style={{ borderColor: "#EEE", background: c.isCurrent ? N.inkLight : "#fff" }}>
+                        <p className="text-[10px] font-bold text-center mb-1" style={{ color: c.isCurrent ? N.ink : "transparent" }}>{c.isCurrent ? "A ver este" : "\u00A0"}</p>
+                        <div className="w-full rounded-md overflow-hidden mb-1 flex-shrink-0" style={{ aspectRatio: "1/1", background: "#f5f5f5" }}>
+                          <img src={c.image} alt={c.title} className="w-full h-full object-cover" />
+                        </div>
+                        <p className="text-[10px] font-semibold leading-snug line-clamp-2 text-gray-900">{c.title}</p>
+                      </button>
+                      {rows.map(r => (
+                        <div key={r.label} className="px-2 py-2.5 text-[11px] text-gray-700 border-b truncate" style={{ borderColor: "#F3F3F3" }}>{r.render(c)}</div>
+                      ))}
+                    </div>
+                  ))}
                 </div>
-                {/* Colunas: produtos semelhantes reais */}
-                {relatedProducts.slice(0, 4).map((p: any) => (
-                  <button key={p.id} onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "compare" }); navigate(`/produto/${p.id}`); }} className="w-32 flex-shrink-0 border-r border-gray-100 last:border-r-0 text-left hover:bg-gray-50 transition-colors">
-                    <div className="p-2">
-                      <p className="text-[10px] text-gray-400 text-center mb-1">&nbsp;</p>
-                      <div className="w-full rounded-md overflow-hidden mb-1" style={{ aspectRatio: "1/1", background: "#f5f5f5" }}>
-                        <img src={p.image} alt={p.title} className="w-full h-full object-cover" />
-                      </div>
-                      <p className="text-[10px] font-semibold leading-snug line-clamp-2 text-gray-900">{p.title}</p>
-                    </div>
-                    <div className="px-2 py-1.5 text-xs font-black border-t border-gray-100" style={{ color: N.accent }}>{p.price}</div>
-                    <div className="px-2 py-1.5 text-[10px] text-gray-600 border-t border-gray-100 flex items-center gap-0.5">
-                      <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" /> {p.rating ? Number(p.rating).toFixed(1) : "—"}
-                    </div>
-                  </button>
-                ))}
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* ── PRODUTOS RELACIONADOS ── */}
         {relatedProducts.length > 0 && (
