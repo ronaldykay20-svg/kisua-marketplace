@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Minus, Plus, Trash2, ShoppingCart, Loader2, Star, Heart, ImageOff, Check, Pencil, X, Store, ShieldCheck, RotateCcw } from "lucide-react";
+import { Minus, Plus, Trash2, ShoppingCart, Loader2, Star, Heart, ImageOff, Check, Pencil, X, Store, ShieldCheck, RotateCcw, Truck, Lock, Sparkles, CreditCard, Banknote, Smartphone } from "lucide-react";
 import { useCart } from "@/hooks/useSupabaseData";
 import { useUpdateCartItem, useRemoveCartItem, useAddToCart } from "@/hooks/useCartActions";
 import FreeShippingBar from "@/components/FreeShippingBar";
@@ -17,6 +17,16 @@ const danger     = "#E53935";
 const green      = "#1E9E4E";
 const greenBg    = "#E8F7EE";
 const bannerDark = "#2A1B0E";
+
+// Paleta de acentos — dá vida ao carrinho sem perder a identidade sand/brown
+const gold       = "#F0A93A";
+const goldBg     = "#FFF3DE";
+const blue       = "#2E6BE0";
+const blueBg     = "#E8F0FE";
+const pink       = "#E0508A";
+const pinkBg     = "#FDEAF2";
+const cardShadow = "0 2px 10px rgba(74,46,10,0.08)";
+const cardShadowSelected = "0 4px 16px rgba(74,46,10,0.16)";
 
 const formatPrice = (price: number) =>
   price.toLocaleString("pt-AO").replace(/,/g, " ") + " Kz";
@@ -293,16 +303,26 @@ const Carrinho = () => {
           borderBottom: `1px solid ${sand}`,
         }}
       >
-        <div>
-          <h1 className="text-lg font-black leading-tight" style={{ color: brown }}>Meu carrinho</h1>
-          {totalItemsCount > 0 && (
-            <span
-              className="text-xs font-semibold px-2 py-0.5 rounded-full"
-              style={{ background: brownLight, color: sandDark }}
-            >
-              {totalItemsCount} {totalItemsCount === 1 ? "item" : "itens"}
-            </span>
-          )}
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => (window.history.length > 1 ? navigate(-1) : navigate("/"))}
+            className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+            style={{ background: brownLight, color: brown }}
+            aria-label="Fechar carrinho"
+          >
+            <X className="w-4 h-4" strokeWidth={2.5} />
+          </button>
+          <div>
+            <h1 className="text-lg font-black leading-tight" style={{ color: brown }}>Meu carrinho</h1>
+            {totalItemsCount > 0 && (
+              <span
+                className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                style={{ background: goldBg, color: gold }}
+              >
+                {totalItemsCount} {totalItemsCount === 1 ? "item" : "itens"}
+              </span>
+            )}
+          </div>
         </div>
 
         {totalItemsCount > 0 && (
@@ -348,7 +368,7 @@ const Carrinho = () => {
             <button
               onClick={toggleSelectAll}
               className="w-full rounded-2xl px-3 py-2.5 flex items-center gap-2.5"
-              style={{ background: "#fff", border: `1px solid ${sand}` }}
+              style={{ background: "#fff", boxShadow: cardShadow }}
             >
               <div
                 className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
@@ -366,6 +386,27 @@ const Carrinho = () => {
             {/* ── Barra de frete grátis ── */}
             <FreeShippingBar subtotal={subtotal} />
 
+            {/* ── Banner de poupança total — dado real, calculado a partir
+                do preço actual vs. preço antigo dos itens seleccionados ── */}
+            {savings > 0 && (
+              <div
+                className="rounded-2xl px-4 py-3 flex items-center gap-3"
+                style={{ background: `linear-gradient(90deg, ${green} 0%, #17b06a 100%)`, boxShadow: cardShadow }}
+              >
+                <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "rgba(255,255,255,0.22)" }}>
+                  <Sparkles className="w-4.5 h-4.5 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-black text-white leading-tight">
+                    Está a poupar {formatPrice(savings)}
+                  </p>
+                  <p className="text-[11px] text-white/85">
+                    Nos {selectedItems.length} {selectedItems.length === 1 ? "item seleccionado" : "itens seleccionados"} deste carrinho
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* ── Itens agrupados por loja (estilo Shein) ── */}
             <div className="space-y-3">
               {storeGroups.map((store) => {
@@ -374,13 +415,13 @@ const Carrinho = () => {
                   <div
                     key={store.key}
                     className="rounded-2xl overflow-hidden"
-                    style={{ background: "#fff", border: `1px solid ${sand}` }}
+                    style={{ background: "#fff", boxShadow: cardShadow }}
                   >
                     {/* Estimativa de entrega — intervalo honesto (o prazo exacto
                         só é calculado no checkout, quando há morada real) */}
                     <div className="flex items-center justify-between px-3 pt-2.5 pb-1.5">
-                      <span className="text-xs font-bold" style={{ color: brown }}>
-                        Chega em 3–6 dias úteis
+                      <span className="text-xs font-bold" style={{ color: green }}>
+                        🚚 Chega em 3–6 dias úteis
                       </span>
                       <span className="text-[11px]" style={{ color: sandDark }}>
                         {store.items.length} {store.items.length === 1 ? "item" : "itens"}
@@ -390,7 +431,7 @@ const Carrinho = () => {
                     {/* Cabeçalho da loja */}
                     <div
                       className="flex items-center gap-2.5 px-3 py-2.5"
-                      style={{ borderTop: `1px solid ${sand}`, borderBottom: `1px solid ${sand}`, background: brownLight }}
+                      style={{ background: `linear-gradient(90deg, ${goldBg} 0%, ${pinkBg} 100%)` }}
                     >
                       <button
                         onClick={() => toggleGroupSelect(store.items)}
@@ -426,11 +467,11 @@ const Carrinho = () => {
                         return (
                           <div
                             key={item.id}
-                            className="rounded-2xl p-3"
+                            className="rounded-2xl p-3 transition-shadow"
                             style={{
                               background: "#fff",
-                              border: `1px solid ${isSelected ? brown : sand}`,
-                              opacity: isSelected ? 1 : 0.6,
+                              boxShadow: isSelected ? cardShadowSelected : cardShadow,
+                              opacity: isSelected ? 1 : 0.55,
                             }}
                           >
                             {/* Vendido por X | Loja verificada — mesma posição do
@@ -456,7 +497,7 @@ const Carrinho = () => {
                                   <span className="text-xs font-bold underline" style={{ color: brown }}>{store.name}</span>
                                   <span
                                     className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                                    style={{ background: brownLight, color: brown }}
+                                    style={{ background: blueBg, color: blue }}
                                   >
                                     <ShieldCheck className="w-2.5 h-2.5" /> Loja verificada
                                   </span>
@@ -485,9 +526,9 @@ const Carrinho = () => {
                             {isBestSeller && (
                               <span
                                 className="inline-block text-[10px] font-black px-2 py-0.5 rounded-md mb-2"
-                                style={{ background: brownLight, color: brown }}
+                                style={{ background: goldBg, color: gold }}
                               >
-                                Mais vendido
+                                🔥 Mais vendido
                               </span>
                             )}
 
@@ -542,19 +583,19 @@ const Carrinho = () => {
                             </div>
 
                             {/* Remover / Guardar + quantidade — linha própria, como nas imagens */}
-                            <div className="flex items-center justify-between mt-3 pt-2.5" style={{ borderTop: `1px solid ${sand}` }}>
+                            <div className="flex items-center justify-between mt-3 pt-2.5" style={{ boxShadow: `inset 0 1px 0 ${brownLight}` }}>
                               <button
                                 onClick={() => removeItem.mutate(item.id)}
                                 className="text-xs font-bold underline"
-                                style={{ color: sandDark }}
+                                style={{ color: danger }}
                               >
                                 Remover
                               </button>
-                              <div className="flex items-center rounded-xl overflow-hidden" style={{ border: `1.5px solid ${sand}` }}>
+                              <div className="flex items-center rounded-xl overflow-hidden" style={{ background: goldBg }}>
                                 <button
                                   onClick={() => handleQuantity(item, -1)}
                                   className="w-8 h-8 flex items-center justify-center"
-                                  style={{ color: sandDark }}
+                                  style={{ color: gold }}
                                 >
                                   <Minus className="w-3 h-3" />
                                 </button>
@@ -564,7 +605,7 @@ const Carrinho = () => {
                                 <button
                                   onClick={() => handleQuantity(item, +1)}
                                   className="w-8 h-8 flex items-center justify-center"
-                                  style={{ color: sandDark }}
+                                  style={{ color: gold }}
                                 >
                                   <Plus className="w-3 h-3" />
                                 </button>
@@ -595,10 +636,24 @@ const Carrinho = () => {
               })}
             </div>
 
+            {/* ── Tira de confiança/garantias da Zangu ── */}
+            <div className="grid grid-cols-4 gap-2">
+              {[
+                { icon: ShieldCheck, label: "Loja verificada", color: blue, bg: blueBg },
+                { icon: RotateCcw, label: "Devolução 3 dias", color: green, bg: greenBg },
+                { icon: Truck, label: "Entrega rastreada", color: gold, bg: goldBg },
+                { icon: Lock, label: "Pagamento seguro", color: pink, bg: pinkBg },
+              ].map(({ icon: Icon, label, color, bg }) => (
+                <div key={label} className="rounded-xl px-2 py-2.5 flex flex-col items-center gap-1 text-center" style={{ background: bg }}>
+                  <Icon className="w-4 h-4" style={{ color }} />
+                  <span className="text-[9.5px] font-bold leading-tight" style={{ color }}>{label}</span>
+                </div>
+              ))}
+            </div>
 
-            {/* ── Resumo do pedido ── */}
+
             {!editMode && (
-              <div className="rounded-2xl p-4" style={{ background: "#fff", border: `1px solid ${sand}` }}>
+              <div className="rounded-2xl p-4" style={{ background: "#fff", boxShadow: cardShadow }}>
                 <h3 className="text-sm font-black mb-3" style={{ color: brown }}>Resumo do pedido</h3>
                 <div className="space-y-2 mb-3">
                   <div className="flex justify-between text-sm">
@@ -622,19 +677,40 @@ const Carrinho = () => {
                   <span className="text-base font-black" style={{ color: brown }}>Subtotal</span>
                   <span className="text-base font-black" style={{ color: savings > 0 ? green : brown }}>{formatPrice(subtotal)}</span>
                 </div>
+
+                {/* Formas de pagamento aceites — as mesmas disponíveis no checkout */}
+                <div className="mt-3 pt-3" style={{ boxShadow: `inset 0 1px 0 ${brownLight}` }}>
+                  <p className="text-[10px] font-bold mb-1.5" style={{ color: sandDark }}>Pague como preferir</p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {[
+                      { icon: Smartphone, label: "Multicaixa Express" },
+                      { icon: Smartphone, label: "Unitel Money" },
+                      { icon: CreditCard, label: "Visa" },
+                      { icon: Banknote, label: "Na entrega" },
+                    ].map(({ icon: Icon, label }) => (
+                      <span
+                        key={label}
+                        className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg"
+                        style={{ background: brownLight, color: brown }}
+                      >
+                        <Icon className="w-3 h-3" /> {label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
 
             {/* ── Sugestões ── */}
             {suggestions.length > 0 && (
-              <div className="rounded-2xl overflow-hidden" style={{ background: "#fff", border: `1px solid ${sand}` }}>
+              <div className="rounded-2xl overflow-hidden" style={{ background: "#fff", boxShadow: cardShadow }}>
                 <div
                   className="flex items-center justify-between px-4 py-3"
-                  style={{ borderBottom: `1px solid ${sand}` }}
+                  style={{ background: `linear-gradient(90deg, ${pinkBg} 0%, ${blueBg} 100%)` }}
                 >
                   <div>
                     <p className="text-sm font-black" style={{ color: brown }}>
-                      Você também pode gostar
+                      ✨ Você também pode gostar
                     </p>
                     <p className="text-[11px]" style={{ color: sandDark }}>
                       Da mesma categoria dos seus produtos
@@ -643,7 +719,7 @@ const Carrinho = () => {
                   <button
                     onClick={() => navigate("/")}
                     className="text-xs font-bold px-3 py-1.5 rounded-xl"
-                    style={{ background: brownLight, color: sandDark }}
+                    style={{ background: pink, color: "#fff" }}
                   >
                     Ver todas →
                   </button>
@@ -664,7 +740,7 @@ const Carrinho = () => {
                       <div
                         key={p.id}
                         className="rounded-xl overflow-hidden cursor-pointer bg-white"
-                        style={{ border: `1px solid ${sand}` }}
+                        style={{ boxShadow: cardShadow }}
                         onClick={() => navigate(`/produto/${p.id}`)}
                       >
                         <div className="relative w-full" style={{ aspectRatio: "3 / 4" }}>
@@ -721,8 +797,8 @@ const Carrinho = () => {
                               addToCart.mutate({ productId: p.id, quantity: 1 });
                             }}
                             disabled={addToCart.isPending && addToCart.variables?.productId === p.id}
-                            className="absolute bottom-1.5 right-1.5 w-7 h-7 rounded-full flex items-center justify-center shadow-sm disabled:opacity-70"
-                            style={{ background: brown }}
+                            className="absolute bottom-1.5 right-1.5 w-7 h-7 rounded-full flex items-center justify-center shadow-md disabled:opacity-70"
+                            style={{ background: `linear-gradient(135deg, ${pink}, ${brown})` }}
                             aria-label="Adicionar ao carrinho"
                           >
                             {addToCart.isPending && addToCart.variables?.productId === p.id ? (
