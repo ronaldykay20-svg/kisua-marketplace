@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
+import { toast } from "sonner";
 
 interface AuthContextType {
   user: User | null;
@@ -20,6 +21,25 @@ const AuthContext = createContext<AuthContextType>({
 
 export const useAuth = () => useContext(AuthContext);
 
+const blockIfSuspendedOrDeleted = async (session: Session | null) => {
+  if (!session?.user) return true;
+  const { data } = await supabase
+    .from("profiles")
+    .select("account_status")
+    .eq("id", session.user.id)
+    .maybeSingle();
+  if (data?.account_status === "suspended" || data?.account_status === "deleted") {
+    await supabase.auth.signOut();
+    toast.error(
+      data.account_status === "suspended"
+        ? "A tua conta foi suspensa por um administrador."
+        : "Esta conta foi eliminada."
+    );
+    return false;
+  }
+  return true;
+};
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -27,15 +47,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
+      blockIfSuspendedOrDeleted(session).then((ok) => {
+        setSession(ok ? session : null);
+        setUser(ok ? (session?.user ?? null) : null);
+        setLoading(false);
+      });
     });
 
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
+      blockIfSuspendedOrDeleted(session).then((ok) => {
+        setSession(ok ? session : null);
+        setUser(ok ? (session?.user ?? null) : null);
+        setLoading(false);
+      });
     });
 
     return () => subscription.unsubscribe();
