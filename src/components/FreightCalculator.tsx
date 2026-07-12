@@ -260,6 +260,7 @@ interface SellerFreightRowProps {
   municipalities: any[];
   calculateFreight: CalculateFreightFn;
   onSelect: (selection: FreightSelection) => void;
+  onSettled?: (sellerId: string) => void;
 }
 
 function SellerFreightRow({
@@ -269,6 +270,7 @@ function SellerFreightRow({
   municipalities,
   calculateFreight,
   onSelect,
+  onSettled,
 }: SellerFreightRowProps) {
   const [deliveryType, setDeliveryType] = useState<DeliveryType>("standard");
   const [expressResult, setExpressResult] = useState<any>(null);
@@ -315,6 +317,13 @@ function SellerFreightRow({
     });
   }, [result, expressResult, deliveryType, group.seller.sellerId, onSelect]);
 
+  // Avisa o pai assim que o primeiro cálculo (standard) termina — encontre
+  // rota ou não. É isto que distingue "ainda a calcular" de "resolvido, mas
+  // sem rota automática, à espera que o comprador escolha".
+  useEffect(() => {
+    if (!loading) onSettled?.(group.seller.sellerId);
+  }, [loading, group.seller.sellerId, onSettled]);
+
   const handleTypeChange = (val: DeliveryType) => {
     setDeliveryType(val);
     recalculate(val);
@@ -327,6 +336,7 @@ function SellerFreightRow({
   const hasExpress = expressResult && !expressResult.error && expressResult.source !== "pickup";
   const pickupAddress = result?.pickup_address ?? undefined;
   const isLoadingActive = deliveryType === "express" ? loadingExpress : loading;
+
 
   const hasCover = !!group.seller.coverUrl;
 
@@ -516,6 +526,7 @@ interface MergedShipmentRowProps {
   destMunicipalityCode: string;
   calculateFreight: CalculateFreightFn;
   onSelect: (selection: FreightSelection) => void;
+  onSettled?: (sellerId: string) => void;
 }
 
 function MergedShipmentRow({
@@ -524,6 +535,7 @@ function MergedShipmentRow({
   destMunicipalityCode,
   calculateFreight,
   onSelect,
+  onSettled,
 }: MergedShipmentRowProps) {
   const [deliveryType, setDeliveryType] = useState<DeliveryType>("standard");
   const [standardResult, setStandardResult] = useState<any>(null);
@@ -545,6 +557,13 @@ function MergedShipmentRow({
       .then((res) => { if (!cancelled) { setStandardResult(res); setLoadingStandard(false); } });
     return () => { cancelled = true; };
   }, [representativeSellerId, originCode, destMunicipalityCode, combinedWeight, calculateFreight]);
+
+  // Mesmo princípio do SellerFreightRow: avisa o pai assim que o cálculo
+  // combinado termina, encontre rota ou não, para todas as lojas deste grupo.
+  useEffect(() => {
+    if (!loadingStandard) members.forEach((m) => onSettled?.(m.seller.sellerId));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadingStandard]);
 
   useEffect(() => {
     let cancelled = false;
@@ -590,6 +609,7 @@ function MergedShipmentRow({
   const hasExpress = expressResult && !expressResult.error && expressResult.source !== "pickup";
   const isFree = activeResult?.price === 0;
   const isLoadingActive = deliveryType === "express" ? loadingExpress : loadingStandard;
+  const noRoute = !isLoadingActive && activeResult && (activeResult.error || activeResult.source === "error");
 
   return (
     <div className="px-4 py-3.5">
@@ -690,13 +710,23 @@ function MergedShipmentRow({
           <span className={cn("font-semibold text-sm", isFree && "text-green-500")}>
             {isLoadingActive ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : isFree ? (
+            ) : noRoute ? null : isFree ? (
               "Grátis"
             ) : activeResult ? (
               fmtKz(activeResult.price)
             ) : null}
           </span>
         </div>
+
+        {noRoute && (
+          <p className="text-xs text-amber-500 flex items-start gap-1.5 leading-snug">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+            <span>
+              Sem rota automática para este envio combinado. Contacta o
+              suporte para confirmar a entrega antes de continuar.
+            </span>
+          </p>
+        )}
 
         <p className="text-[11px] text-muted-foreground/70 flex items-center gap-1">
           <Package className="w-3 h-3" />
@@ -784,6 +814,7 @@ export default function FreightCalculator({
 }: Props) {
   const [internalDestCode, setInternalDestCode] = useState<string | null>(null);
   const [selections, setSelections] = useState<Map<string, FreightSelection>>(new Map());
+  const [settledIds, setSettledIds] = useState<Set<string>>(new Set());
   const [mergeSafety, setMergeSafety] = useState<Record<string, boolean | null>>({});
   const { provinces, municipalities, calculateFreight } = useFreight();
 
@@ -854,6 +885,20 @@ export default function FreightCalculator({
     });
   }, []);
 
+  // Marca uma loja como "resolvida" assim que o seu primeiro cálculo termina,
+  // encontre rota ou não. Sem isto, o indicador de "Total de frete" não tem
+  // forma de distinguir "ainda a calcular" de "sem rota automática, à espera
+  // que o comprador escolha uma alternativa ou levantamento" — e fica a girar
+  // para sempre nesse segundo caso, dando a ideia de estar preso a processar.
+  const handleSettled = useCallback((sellerId: string) => {
+    setSettledIds((prev) => {
+      if (prev.has(sellerId)) return prev;
+      const next = new Set(prev);
+      next.add(sellerId);
+      return next;
+    });
+  }, []);
+
   useEffect(() => {
     const selectionArray = Array.from(selections.values());
     const total = selectionArray.reduce((sum, s) => sum + s.price, 0);
@@ -862,6 +907,9 @@ export default function FreightCalculator({
 
   const totalFreight = Array.from(selections.values()).reduce((sum, s) => sum + s.price, 0);
   const allSelected = cartGroups.length > 0 && selections.size === cartGroups.length;
+  const allSettled =
+    cartGroups.length > 0 &&
+    cartGroups.every((g) => settledIds.has(g.seller.sellerId));
 
   if (cartGroups.length === 0) return null;
 
@@ -894,6 +942,7 @@ export default function FreightCalculator({
                   municipalities={municipalities}
                   calculateFreight={calculateFreight}
                   onSelect={handleSelect}
+                  onSettled={handleSettled}
                 />
               );
             }
@@ -913,6 +962,7 @@ export default function FreightCalculator({
                   destMunicipalityCode={destCode}
                   calculateFreight={calculateFreight}
                   onSelect={handleSelect}
+                  onSettled={handleSettled}
                 />
               );
             }
@@ -928,6 +978,7 @@ export default function FreightCalculator({
                 municipalities={municipalities}
                 calculateFreight={calculateFreight}
                 onSelect={handleSelect}
+                onSettled={handleSettled}
               />
             ));
           })}
@@ -940,8 +991,13 @@ export default function FreightCalculator({
                 <span className="opacity-70">· {clusters.length} {clusters.length === 1 ? "envio" : "envios"}</span>
               </span>
               <span className="shrink-0">
-                {!allSelected ? (
+                {!allSettled ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
+                ) : !allSelected ? (
+                  <span className="flex items-center gap-1 text-xs font-medium text-amber-500">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    Escolhe a entrega acima
+                  </span>
                 ) : totalFreight === 0 ? (
                   <span className="flex items-center gap-1 text-sm font-bold text-green-500">
                     <Gift className="w-3.5 h-3.5" /> Grátis
