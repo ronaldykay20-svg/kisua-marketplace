@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { Shield, Users, Search, Plus, Trash2, Crown, Building2, Store, CheckCircle, XCircle, ShieldCheck, UserCheck, UsersRound, FolderTree, ImageIcon, ShoppingBag, Settings, Star, Gavel, Upload, Eye, EyeOff, Copy, Megaphone, Play, TrendingUp, Users as UsersIcon, X, Loader2, Truck, Banknote, Ticket, MousePointerClick, Gift } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useUserRole, AppRole, TEAM_ROLES } from "@/hooks/useUserRole";
+import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AdminUsersTab from "@/components/admin/AdminUsersTab";
@@ -26,12 +26,6 @@ const roleBadge: Record<string, { label: string; color: string; icon: any }> = {
   admin: { label: "Admin", color: "bg-red-500/10 text-red-500 border-red-500/20", icon: Crown },
   moderator: { label: "Moderador", color: "bg-amber-500/10 text-amber-500 border-amber-500/20", icon: Shield },
   user: { label: "Utilizador", color: "bg-primary/10 text-primary border-primary/20", icon: Users },
-  // ── Cargos da equipa ──────────────────────────────────────────────────
-  operacoes:  { label: "Operações",  color: "bg-orange-500/10 text-orange-500 border-orange-500/20", icon: ShieldCheck },
-  financeiro: { label: "Financeiro", color: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20", icon: Banknote },
-  logistica:  { label: "Logística",  color: "bg-sky-500/10 text-sky-500 border-sky-500/20", icon: Truck },
-  parceiros:  { label: "Parceiros",  color: "bg-purple-500/10 text-purple-500 border-purple-500/20", icon: Store },
-  marketing:  { label: "Marketing",  color: "bg-pink-500/10 text-pink-500 border-pink-500/20", icon: Megaphone },
 };
 
 type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos" | "encomendas" | "categorias" | "banners" | "definicoes" | "leiloes" | "publicidade" | "frete" | "frete_gratis" | "frete_empresas" | "fornecedores" | "pagamentos" | "cupons" | "analytics" | "interacoes";
@@ -798,20 +792,9 @@ const AdminLeiloesTab = () => {
 
 const AdminPanel = () => {
   const { user } = useAuth();
-  const { isAdmin, allowedAdminTabs, hasDualRole, loading: roleLoading } = useUserRole();
+  const { isAdmin } = useUserRole();
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>("utilizadores");
-
-  // Quem não é admin nunca tem "utilizadores" (o valor por omissão) entre as
-  // suas abas permitidas — assim que soubermos o cargo real, mandamo-lo
-  // para a primeira aba que ele de facto pode ver.
-  useEffect(() => {
-    if (roleLoading || isAdmin) return;
-    if (!allowedAdminTabs.includes(tab) && allowedAdminTabs.length > 0) {
-      setTab(allowedAdminTabs[0] as Tab);
-    }
-  }, [roleLoading, isAdmin, allowedAdminTabs, tab]);
-
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [membersModal, setMembersModal] = useState<{ id: string; name: string } | null>(null);
@@ -970,6 +953,22 @@ const AdminPanel = () => {
     },
   });
 
+  const toggleFeatureCompany = useMutation({
+    mutationFn: async ({ id, featured }: { id: string; featured: boolean }) => {
+      const { error } = await (supabase as any)
+        .from("companies")
+        .update({ is_featured: featured })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["admin_companies"] });
+      queryClient.invalidateQueries({ queryKey: ["featured_companies_home"] });
+      toast.success(vars.featured ? "Empresa destacada na home" : "Empresa removida do destaque");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   const { data: applications = [] } = useQuery({
     queryKey: ["admin_seller_applications"],
     queryFn: async () => {
@@ -1028,7 +1027,7 @@ const AdminPanel = () => {
     return acc;
   }, {});
 
-  const allTabs: { key: Tab; label: string; icon: any }[] = [
+  const tabs: { key: Tab; label: string; icon: any }[] = [
     { key: "utilizadores", label: "Utilizadores", icon: UsersRound },
     { key: "analytics",    label: "Analytics",    icon: TrendingUp },
     { key: "interacoes",   label: "Interações",    icon: MousePointerClick },
@@ -1049,14 +1048,6 @@ const AdminPanel = () => {
     { key: "leiloes",      label: "Leilões",       icon: Gavel },
     { key: "definicoes",   label: "Definições",    icon: Settings },
   ];
-
-  // "utilizadores", "cargos" e "definicoes" são exclusivas do admin — dão
-  // poder ou mexem em configuração global, não pertencem a nenhum dos 5
-  // cargos de equipa. Todo o resto é filtrado por allowedAdminTabs, que já
-  // vem como a UNIÃO das abas permitidas se a pessoa tiver cargo duplo.
-  const tabs = isAdmin
-    ? allTabs
-    : allTabs.filter(t => allowedAdminTabs.includes(t.key));
 
   return (
     <div className="min-h-screen bg-background pb-14 md:pb-0">
@@ -1100,11 +1091,8 @@ const AdminPanel = () => {
 
         {tab === "cargos" && (
           <>
-            {/* Ordem lógica: poder da plataforma primeiro, depois os 5 cargos
-                de equipa, "user" por último (é o estado normal, não um cargo
-                atribuído por ninguém). */}
-            <div className="grid grid-cols-4 gap-2 mb-4">
-              {(["admin", "moderator", "operacoes", "financeiro", "logistica", "parceiros", "marketing", "user"] as const).map(role => {
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              {(["admin", "moderator", "user"] as const).map(role => {
                 const info = roleBadge[role];
                 return (
                   <div key={role} className={`rounded-xl border p-3 text-center ${info.color}`}>
@@ -1119,9 +1107,6 @@ const AdminPanel = () => {
               <h2 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
                 <Plus className="w-4 h-4" /> Atribuir Cargo
               </h2>
-              <p className="text-[11px] text-muted-foreground mb-3">
-                Podes atribuir mais do que um cargo à mesma pessoa (ex: Financeiro + Logística) — basta clicar em mais do que um botão abaixo.
-              </p>
               <div className="relative mb-3">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <input
@@ -1151,35 +1136,20 @@ const AdminPanel = () => {
                 </div>
               )}
               {selectedUserId && (
-                <>
-                  <p className="text-[10px] font-bold text-muted-foreground mb-1.5 mt-1">Poder da plataforma</p>
-                  <div className="flex gap-2 mb-3">
-                    {(["admin", "moderator", "user"] as const).map(role => (
-                      <button
-                        key={role}
-                        onClick={() => addRole.mutate({ userId: selectedUserId, role })}
-                        className={`flex-1 py-2 rounded-lg text-xs font-bold border ${roleBadge[role].color}`}
-                      >
-                        {roleBadge[role].label}
-                      </button>
-                    ))}
-                  </div>
-                  <p className="text-[10px] font-bold text-muted-foreground mb-1.5">Cargos de equipa (podes escolher mais do que um)</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {TEAM_ROLES.map(role => (
-                      <button
-                        key={role}
-                        onClick={() => addRole.mutate({ userId: selectedUserId, role })}
-                        className={`py-2 rounded-lg text-xs font-bold border ${roleBadge[role].color}`}
-                      >
-                        {roleBadge[role].label}
-                      </button>
-                    ))}
-                  </div>
-                </>
+                <div className="flex gap-2">
+                  {(["admin", "moderator", "user"] as const).map(role => (
+                    <button
+                      key={role}
+                      onClick={() => addRole.mutate({ userId: selectedUserId, role })}
+                      className={`flex-1 py-2 rounded-lg text-xs font-bold border ${roleBadge[role].color}`}
+                    >
+                      {roleBadge[role].label}
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
-            {(["admin", "moderator", "operacoes", "financeiro", "logistica", "parceiros", "marketing", "user"] as const).map(role => {
+            {(["admin", "moderator", "user"] as const).map(role => {
               const items = grouped[role] || [];
               if (!items.length) return null;
               const info = roleBadge[role];
@@ -1193,44 +1163,26 @@ const AdminPanel = () => {
                     <info.icon className="w-4 h-4" /> {info.label}s ({items.length})
                   </h3>
                   <div className="bg-card rounded-xl border border-border divide-y divide-border">
-                    {items.map((r: any) => {
-                      // Outros cargos de equipa que esta mesma pessoa já tem —
-                      // é como "cargo duplo" fica visível sem termos de
-                      // duplicar dados: basta olhar para o resto de allRoles.
-                      const otherRoles = allRoles.filter(
-                        (x: any) => x.user_id === r.user_id && x.id !== r.id && TEAM_ROLES.includes(x.role)
-                      );
-                      return (
-                        <div key={r.id} className="flex items-center justify-between px-4 py-3">
-                          <div>
-                            <p className="text-sm font-medium text-foreground">
-                              {r.profiles?.full_name || r.user_id.slice(0, 8)}
-                            </p>
-                            <p className="text-[10px] text-muted-foreground">
-                              {r.user_id.slice(0, 12)}...
-                            </p>
-                            {otherRoles.length > 0 && (
-                              <div className="flex items-center gap-1 mt-1 flex-wrap">
-                                <span className="text-[9px] text-muted-foreground">também:</span>
-                                {otherRoles.map((or: any) => (
-                                  <span key={or.id} className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${roleBadge[or.role].color}`}>
-                                    {roleBadge[or.role].label}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                          {r.user_id !== user?.id && (
-                            <button
-                              onClick={() => removeRole.mutate(r.id)}
-                              className="p-2 rounded-lg hover:bg-destructive/10 text-destructive transition"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
+                    {items.map((r: any) => (
+                      <div key={r.id} className="flex items-center justify-between px-4 py-3">
+                        <div>
+                          <p className="text-sm font-medium text-foreground">
+                            {r.profiles?.full_name || r.user_id.slice(0, 8)}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {r.user_id.slice(0, 12)}...
+                          </p>
                         </div>
-                      );
-                    })}
+                        {r.user_id !== user?.id && (
+                          <button
+                            onClick={() => removeRole.mutate(r.id)}
+                            className="p-2 rounded-lg hover:bg-destructive/10 text-destructive transition"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
               );
@@ -1368,6 +1320,7 @@ const AdminPanel = () => {
                   company={c}
                   onMembers={() => setMembersModal({ id: c.id, name: c.name })}
                   onVerify={() => toggleVerifyCompany.mutate({ id: c.id, verified: !c.is_verified })}
+                  onFeature={() => toggleFeatureCompany.mutate({ id: c.id, featured: !c.is_featured })}
                   queryClient={queryClient}
                 />
               ))}
