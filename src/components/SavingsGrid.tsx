@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useRef, useState, useEffect } from "react";
+import { useDragScroll } from "@/hooks/useDragScroll";
 import { Heart, ArrowDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -35,6 +36,7 @@ const SavingsGrid = () => {
   const { user } = useAuth();
   const { isFavorite, toggleFavorite } = useFavorites();
   const scrollRef = useRef<HTMLDivElement>(null);
+  useDragScroll(scrollRef);
   const [scrollPct, setScrollPct] = useState(0); // 0 a 1 — posição do scroll horizontal
   const [thumbWidthPct, setThumbWidthPct] = useState(30); // largura da barra, em % da faixa
 
