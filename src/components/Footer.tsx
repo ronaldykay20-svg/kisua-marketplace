@@ -68,17 +68,24 @@ const FooterAccordionItem = ({ section, isOpen, onToggle }: { section: FooterSec
       <span className="text-sm font-bold text-white">{section.title}</span>
       <ChevronDown className={`w-4 h-4 text-[#d9bfa5] transition-transform ${isOpen ? "rotate-180" : ""}`} />
     </button>
+    {/* Técnica "grid-rows 0fr → 1fr": a altura fecha/abre de acordo com o
+        conteúdo real, sem estimar um número de píxeis por link. A versão
+        anterior (maxHeight = nº de links × 40px) cortava os últimos links de
+        secções cujo texto ocupasse mais do que essa estimativa — um link
+        cortado por overflow-hidden não é clicável, mesmo estando lá. */}
     <div
-      className="overflow-hidden transition-all"
-      style={{ maxHeight: isOpen ? `${section.links.length * 40 + 8}px` : "0px" }}
+      className="grid overflow-hidden transition-[grid-template-rows] duration-300 ease-in-out"
+      style={{ gridTemplateRows: isOpen ? "1fr" : "0fr" }}
     >
-      <ul className="pb-3 space-y-2.5">
-        {section.links.map((l) => (
-          <li key={l.label}>
-            <FooterLink label={l.label} href={l.href} external={l.external} />
-          </li>
-        ))}
-      </ul>
+      <div className="min-h-0 overflow-hidden">
+        <ul className="pb-3 pt-1 space-y-2.5">
+          {section.links.map((l) => (
+            <li key={l.label}>
+              <FooterLink label={l.label} href={l.href} external={l.external} />
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   </div>
 );
