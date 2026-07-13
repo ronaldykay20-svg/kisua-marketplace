@@ -45,6 +45,11 @@ import LojasVerificadas from "./pages/LojasVerificadas.tsx";
 import VenderKwanza from "./pages/VenderKwanza.tsx";
 import Auth from "./pages/Auth.tsx";
 import AdminPanel from "./pages/AdminPanel.tsx";
+import OperacoesDashboard from "./pages/team/OperacoesDashboard.tsx";
+import FinanceiroDashboard from "./pages/team/FinanceiroDashboard.tsx";
+import LogisticaDashboard from "./pages/team/LogisticaDashboard.tsx";
+import ParceirosDashboard from "./pages/team/ParceirosDashboard.tsx";
+import MarketingDashboard from "./pages/team/MarketingDashboard.tsx";
 import AdminPaymentAccounts from "./pages/AdminPaymentAccounts.tsx";
 import AdminFullOrders from "./pages/AdminFullOrders.tsx";
 import CentralDePedidos from "./pages/CentralDePedidos.tsx";
@@ -68,8 +73,8 @@ import CatalogoFornecedores from "./pages/CatalogoFornecedores.tsx";
 
 const queryClient = new QueryClient();
 
-const HIDE_BOTTOM_NAV_PATHS = [/^\/produto\/.+/, /^\/checkout/, /^\/carrinho/];
-const HIDE_HEADER_PATHS = [/^\/produto\/.+/, /^\/checkout/, /^\/carrinho/];
+const HIDE_BOTTOM_NAV_PATHS = [/^\/produto\/.+/, /^\/checkout/, /^\/carrinho/, /^\/equipa\//];
+const HIDE_HEADER_PATHS = [/^\/produto\/.+/, /^\/checkout/, /^\/carrinho/, /^\/equipa\//];
 // Painéis internos (admin/vendedor/moderador/fornecedor) e o checkout não
 // levam rodapé — são ferramentas/fluxos de trabalho, não páginas de
 // navegação de conteúdo, e o rodapé ali só acrescentaria ruído.
@@ -80,6 +85,7 @@ const HIDE_FOOTER_PATHS = [
   /^\/painel-/,
   /^\/central-pedidos/,
   /^\/carrinho/,
+  /^\/equipa\//,
 ];
 
 const Layout = ({ children }: { children: React.ReactNode }) => {
@@ -159,7 +165,12 @@ const App = () => (
             <Route path="/seguranca" element={<Layout><ProtectedRoute><Seguranca /></ProtectedRoute></Layout>} />
             <Route path="/definicoes" element={<Layout><ProtectedRoute><Definicoes /></ProtectedRoute></Layout>} />
             <Route path="/auth" element={<Auth />} />
-            <Route path="/admin" element={<Layout><ProtectedRoute requiredRole={["admin", "operacoes", "financeiro", "logistica", "parceiros", "marketing"]}><AdminPanel /></ProtectedRoute></Layout>} />
+            <Route path="/admin" element={<Layout><ProtectedRoute requiredRole="admin"><AdminPanel /></ProtectedRoute></Layout>} />
+            <Route path="/equipa/operacoes" element={<Layout><ProtectedRoute requiredRole={["admin", "operacoes"]}><OperacoesDashboard /></ProtectedRoute></Layout>} />
+            <Route path="/equipa/financeiro" element={<Layout><ProtectedRoute requiredRole={["admin", "financeiro"]}><FinanceiroDashboard /></ProtectedRoute></Layout>} />
+            <Route path="/equipa/logistica" element={<Layout><ProtectedRoute requiredRole={["admin", "logistica"]}><LogisticaDashboard /></ProtectedRoute></Layout>} />
+            <Route path="/equipa/parceiros" element={<Layout><ProtectedRoute requiredRole={["admin", "parceiros"]}><ParceirosDashboard /></ProtectedRoute></Layout>} />
+            <Route path="/equipa/marketing" element={<Layout><ProtectedRoute requiredRole={["admin", "marketing"]}><MarketingDashboard /></ProtectedRoute></Layout>} />
             <Route path="/admin/contas-pagamento" element={<Layout><ProtectedRoute requiredRole="moderator"><AdminPaymentAccounts /></ProtectedRoute></Layout>} />
             <Route path="/admin/encomendas" element={<Layout><ProtectedRoute requiredRole="admin"><AdminFullOrders /></ProtectedRoute></Layout>} />
             <Route path="/central-pedidos" element={<Layout><ProtectedRoute><CentralDePedidos /></ProtectedRoute></Layout>} />
