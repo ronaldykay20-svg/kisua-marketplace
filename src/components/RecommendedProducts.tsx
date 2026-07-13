@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useRef } from "react";
+import { useDragScroll } from "@/hooks/useDragScroll";
 import { Sparkles, Star, Heart } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -46,6 +47,7 @@ const RecommendedProducts = () => {
   const { user } = useAuth();
   const { isFavorite, toggleFavorite } = useFavorites();
   const scrollRef = useRef<HTMLDivElement>(null);
+  useDragScroll(scrollRef);
 
   const { data: result } = useQuery({
     queryKey: ["recommended_products_home_mixed", user?.id],
