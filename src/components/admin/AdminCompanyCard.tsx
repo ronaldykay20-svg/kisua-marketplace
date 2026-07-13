@@ -1,27 +1,19 @@
-import { useRef, useState } from "react";
-import { Building2, ShieldCheck, UsersRound, Camera, ImageIcon, Trash2 } from "lucide-react";
+import { useRef } from "react";
+import { Building2, ShieldCheck, UsersRound, Camera, ImageIcon, Star } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import AdminConfirmDialog from "./AdminConfirmDialog";
 
 interface Props {
   company: any;
   onMembers: () => void;
   onVerify: () => void;
+  onFeature: () => void;
   queryClient: any;
 }
 
-const AdminCompanyCard = ({ company: c, onMembers, onVerify, queryClient }: Props) => {
+const AdminCompanyCard = ({ company: c, onMembers, onVerify, onFeature, queryClient }: Props) => {
   const logoRef = useRef<HTMLInputElement>(null);
   const bannerRef = useRef<HTMLInputElement>(null);
-  const [showDelete, setShowDelete] = useState(false);
-
-  const deleteCompany = async () => {
-    const { error } = await supabase.from("companies").update({ is_active: false } as any).eq("id", c.id);
-    if (error) { toast.error(error.message); return; }
-    queryClient.invalidateQueries({ queryKey: ["admin_companies"] });
-    toast.success("Empresa eliminada.");
-  };
 
   const uploadPhoto = async (file: File, field: "logo_url" | "banner_url") => {
     const ext = file.name.split(".").pop();
@@ -70,6 +62,11 @@ const AdminCompanyCard = ({ company: c, onMembers, onVerify, queryClient }: Prop
             <div>
               <p className="text-sm font-bold text-foreground flex items-center gap-1">
                 {c.name} {c.is_verified && <ShieldCheck className="w-3.5 h-3.5 text-blue-500" />}
+                {c.is_featured && (
+                  <span className="flex items-center gap-0.5 text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200">
+                    <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" /> Destaque
+                  </span>
+                )}
               </p>
               <p className="text-[10px] text-muted-foreground">/{c.slug}</p>
             </div>
@@ -78,26 +75,15 @@ const AdminCompanyCard = ({ company: c, onMembers, onVerify, queryClient }: Prop
             <button onClick={onMembers} className="p-2 rounded-lg text-muted-foreground hover:bg-accent" title="Gerir membros">
               <UsersRound className="w-4 h-4" />
             </button>
-            <button onClick={onVerify} className={`p-2 rounded-lg ${c.is_verified ? "text-blue-500 hover:bg-blue-500/10" : "text-muted-foreground hover:bg-accent"}`}>
-              <ShieldCheck className="w-4 h-4" />
+            <button onClick={onFeature} className={`p-2 rounded-lg ${c.is_featured ? "text-amber-500 hover:bg-amber-500/10" : "text-muted-foreground hover:bg-accent"}`} title={c.is_featured ? "Remover do destaque" : "Destacar na home"}>
+              <Star className={`w-4 h-4 ${c.is_featured ? "fill-amber-500" : ""}`} />
             </button>
-            <button onClick={() => setShowDelete(true)} className="p-2 rounded-lg text-red-500 hover:bg-red-500/10" title="Eliminar empresa">
-              <Trash2 className="w-4 h-4" />
+            <button onClick={onVerify} className={`p-2 rounded-lg ${c.is_verified ? "text-blue-500 hover:bg-blue-500/10" : "text-muted-foreground hover:bg-accent"}`} title={c.is_verified ? "Remover verificação" : "Verificar empresa"}>
+              <ShieldCheck className="w-4 h-4" />
             </button>
           </div>
         </div>
       </div>
-
-      <AdminConfirmDialog
-        open={showDelete}
-        onOpenChange={setShowDelete}
-        title="Eliminar empresa"
-        description="A empresa deixa de aparecer na plataforma. Os produtos e histórico associados são mantidos, mas ficam ocultos."
-        confirmText={c.name}
-        confirmLabel="nome da empresa"
-        actionLabel="Eliminar empresa"
-        onConfirm={deleteCompany}
-      />
     </div>
   );
 };
