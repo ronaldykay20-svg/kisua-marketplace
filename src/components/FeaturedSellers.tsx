@@ -107,22 +107,6 @@ const FeaturedSellers = ({ layout = "mobile" }: FeaturedSellersProps) => {
   const companyIds = featuredCompanies.map((c: any) => c.id);
   const sellerIdsRaw = featuredSellers.map((s: any) => s.id);
 
-  // Nº de colaboradores por empresa (equivalente ao "seguidores" do vendedor)
-  const { data: memberCountMap = {} } = useQuery({
-    queryKey: ["featured_companies_member_count", companyIds],
-    queryFn: async () => {
-      if (companyIds.length === 0) return {};
-      const { data } = await (supabase as any)
-        .from("company_members")
-        .select("company_id")
-        .in("company_id", companyIds);
-      const map: Record<string, number> = {};
-      (data || []).forEach((m: any) => { map[m.company_id] = (map[m.company_id] || 0) + 1; });
-      return map;
-    },
-    enabled: companyIds.length > 0,
-  });
-
   // ══════════════════════════════════════════════════════════════════════
   // % de avaliações positivas — vendedores (seller_reviews) e empresas
   // (company_reviews) usam tabelas diferentes, por isso 2 queries + merge.
@@ -196,8 +180,8 @@ const FeaturedSellers = ({ layout = "mobile" }: FeaturedSellersProps) => {
       is_verified: !!c.is_verified,
       rating: c.rating || 0,
       total_sales: c.total_sales || 0,
-      followersOrMembers: memberCountMap[c.id] || 0,
-      followersOrMembersLabel: "colaboradores",
+      followersOrMembers: c.followers_count || 0,
+      followersOrMembersLabel: "seguidores",
       route: `/empresa/${c.id}`,
     }));
 
@@ -208,7 +192,7 @@ const FeaturedSellers = ({ layout = "mobile" }: FeaturedSellersProps) => {
       if (companyEntities[i]) merged.push(companyEntities[i]);
     }
     return merged;
-  }, [featuredSellers, featuredCompanies, memberCountMap]);
+  }, [featuredSellers, featuredCompanies]);
 
   const positivePctFor = useCallback((e: FeaturedEntity): number | null => {
     if (e.kind === "seller") return sellerReviewsMap[e.id] ?? null;
