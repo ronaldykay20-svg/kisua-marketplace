@@ -13,7 +13,6 @@ import CookieConsentBanner from "@/components/CookieConsentBanner";
 import WelcomeCouponPopup from "@/components/WelcomeCouponPopup";
 import AbandonedCartPopup from "@/components/AbandonedCartPopup";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import ScrollToTop from "@/components/ScrollToTop";
 import { trackPageView } from "@/lib/analytics";
 import Index from "./pages/Index.tsx";
 import ProductDetail from "./pages/ProductDetail.tsx";
@@ -124,7 +123,6 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <ScrollToTop />
           <Routes>
             <Route path="/" element={<Layout><Index /></Layout>} />
             <Route path="/produto/:id" element={<Layout><ProductDetail /></Layout>} />
@@ -161,7 +159,7 @@ const App = () => (
             <Route path="/seguranca" element={<Layout><ProtectedRoute><Seguranca /></ProtectedRoute></Layout>} />
             <Route path="/definicoes" element={<Layout><ProtectedRoute><Definicoes /></ProtectedRoute></Layout>} />
             <Route path="/auth" element={<Auth />} />
-            <Route path="/admin" element={<Layout><ProtectedRoute requiredRole="admin"><AdminPanel /></ProtectedRoute></Layout>} />
+            <Route path="/admin" element={<Layout><ProtectedRoute requiredRole={["admin", "operacoes", "financeiro", "logistica", "parceiros", "marketing"]}><AdminPanel /></ProtectedRoute></Layout>} />
             <Route path="/admin/contas-pagamento" element={<Layout><ProtectedRoute requiredRole="moderator"><AdminPaymentAccounts /></ProtectedRoute></Layout>} />
             <Route path="/admin/encomendas" element={<Layout><ProtectedRoute requiredRole="admin"><AdminFullOrders /></ProtectedRoute></Layout>} />
             <Route path="/central-pedidos" element={<Layout><ProtectedRoute><CentralDePedidos /></ProtectedRoute></Layout>} />
