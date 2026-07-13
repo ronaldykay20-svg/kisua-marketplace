@@ -13,6 +13,7 @@ import CookieConsentBanner from "@/components/CookieConsentBanner";
 import WelcomeCouponPopup from "@/components/WelcomeCouponPopup";
 import AbandonedCartPopup from "@/components/AbandonedCartPopup";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import ScrollToTop from "@/components/ScrollToTop";
 import { trackPageView } from "@/lib/analytics";
 import Index from "./pages/Index.tsx";
 import ProductDetail from "./pages/ProductDetail.tsx";
@@ -129,6 +130,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
+          <ScrollToTop />
           <Routes>
             <Route path="/" element={<Layout><Index /></Layout>} />
             <Route path="/produto/:id" element={<Layout><ProductDetail /></Layout>} />
