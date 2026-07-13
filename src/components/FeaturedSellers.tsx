@@ -1,25 +1,61 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { ChevronLeft, ChevronRight, CheckCircle } from "lucide-react";
+import {
+  ChevronLeft, ChevronRight, CheckCircle, Building2, Store, Star,
+  Package, Users, TrendingUp, ShoppingBag,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
+
+// ─── Kisua Design Tokens (mesma identidade da página de produto) ──────────
+const K = {
+  ink: "#0E4F4F",
+  inkLight: "rgba(14,79,79,0.08)",
+  flame: "#E8531F",
+  flameLight: "rgba(232,83,31,0.10)",
+  paper: "#FBF8F3",
+};
+const display = { fontFamily: "'Space Grotesk', sans-serif" };
 
 interface FeaturedSellersProps {
   layout?: "mobile" | "tablet" | "desktop";
 }
 
+type EntityKind = "seller" | "company";
+
+interface FeaturedEntity {
+  kind: EntityKind;
+  id: string;
+  name: string;
+  logo_url: string | null;
+  cover_url: string | null;
+  is_verified: boolean;
+  rating: number;
+  total_sales: number;
+  followersOrMembers: number;
+  followersOrMembersLabel: string;
+  route: string;
+}
+
+const AUTOPLAY_MS = 6000;
+const PROGRESS_TICK_MS = 60;
+
+/**
+ * "Vendedores & Empresas em destaque" da home.
+ *
+ * Combina duas fontes de dados diferentes (sellers + companies) num único
+ * carrossel "spotlight" que roda automaticamente sozinho — por vezes mostra
+ * um vendedor, por vezes uma empresa, alternando (round-robin) para nunca
+ * ficar seguido demais do mesmo tipo. Inspirado no padrão "stories" (barra
+ * de progresso por item, avança sozinho, pausa ao tocar/passar o rato).
+ */
 const FeaturedSellers = ({ layout = "mobile" }: FeaturedSellersProps) => {
   const navigate = useNavigate();
 
-  // Mobile carousel
-  const mobileScrollRef = useRef<HTMLDivElement>(null);
-  const [currentIdx, setCurrentIdx] = useState(0);
-
-  // Tablet / Desktop carousel
-  const wideScrollRef = useRef<HTMLDivElement>(null);
-  const [widePage, setWidePage] = useState(0);
-
-  const { data: sellers = [] } = useQuery({
+  // ══════════════════════════════════════════════════════════════════════
+  // DADOS — vendedores em destaque
+  // ══════════════════════════════════════════════════════════════════════
+  const { data: featuredSellers = [] } = useQuery({
     queryKey: ["featured_sellers_home"],
     queryFn: async () => {
       const { data: featured } = await supabase
@@ -42,224 +78,344 @@ const FeaturedSellers = ({ layout = "mobile" }: FeaturedSellersProps) => {
     },
   });
 
-  const sellerIds = sellers.map((s: any) => s.id);
-
-  const { data: allProducts = [] } = useQuery({
-    queryKey: ["featured_sellers_products", sellerIds],
+  // ══════════════════════════════════════════════════════════════════════
+  // DADOS — empresas em destaque (mesma lógica, tabela diferente)
+  // ══════════════════════════════════════════════════════════════════════
+  const { data: featuredCompanies = [] } = useQuery({
+    queryKey: ["featured_companies_home"],
     queryFn: async () => {
-      if (sellerIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("products")
+      const { data: featured } = await (supabase as any)
+        .from("companies")
         .select("*")
-        .in("seller_id", sellerIds)
         .eq("is_active", true)
-        .order("sales_count", { ascending: false });
-      if (error) throw error;
+        .eq("is_featured", true)
+        .order("featured_order", { ascending: true })
+        .limit(20);
+      if (featured && featured.length > 0) return featured;
 
-      const ids = (data || []).map((p: any) => p.id);
-      let coverMap: Record<string, string> = {};
-      if (ids.length > 0) {
-        const { data: media } = await supabase
-          .from("product_media")
-          .select("product_id, url")
-          .in("product_id", ids)
-          .eq("is_cover", true);
-        (media || []).forEach((m: any) => { coverMap[m.product_id] = m.url; });
-      }
-      return (data || []).map((p: any) => ({ ...p, cover_url: coverMap[p.id] }));
+      const { data, error } = await (supabase as any)
+        .from("companies")
+        .select("*")
+        .eq("is_active", true)
+        .order("total_sales", { ascending: false })
+        .limit(10);
+      if (error) throw error;
+      return data || [];
     },
-    enabled: sellerIds.length > 0,
   });
 
-  const { data: reviewsMap = {} } = useQuery({
-    queryKey: ["featured_sellers_reviews", sellerIds],
+  const companyIds = featuredCompanies.map((c: any) => c.id);
+  const sellerIdsRaw = featuredSellers.map((s: any) => s.id);
+
+  // Nº de colaboradores por empresa (equivalente ao "seguidores" do vendedor)
+  const { data: memberCountMap = {} } = useQuery({
+    queryKey: ["featured_companies_member_count", companyIds],
     queryFn: async () => {
-      if (sellerIds.length === 0) return {};
+      if (companyIds.length === 0) return {};
+      const { data } = await (supabase as any)
+        .from("company_members")
+        .select("company_id")
+        .in("company_id", companyIds);
+      const map: Record<string, number> = {};
+      (data || []).forEach((m: any) => { map[m.company_id] = (map[m.company_id] || 0) + 1; });
+      return map;
+    },
+    enabled: companyIds.length > 0,
+  });
+
+  // ══════════════════════════════════════════════════════════════════════
+  // % de avaliações positivas — vendedores (seller_reviews) e empresas
+  // (company_reviews) usam tabelas diferentes, por isso 2 queries + merge.
+  // ══════════════════════════════════════════════════════════════════════
+  const { data: sellerReviewsMap = {} } = useQuery({
+    queryKey: ["featured_sellers_reviews", sellerIdsRaw],
+    queryFn: async () => {
+      if (sellerIdsRaw.length === 0) return {};
       const { data, error } = await supabase
         .from("seller_reviews")
         .select("seller_id, rating")
-        .in("seller_id", sellerIds);
+        .in("seller_id", sellerIdsRaw);
       if (error || !data) return {};
-
       const map: Record<string, number | null> = {};
-      sellerIds.forEach((id: string) => {
+      sellerIdsRaw.forEach((id: string) => {
         const reviews = data.filter((r: any) => r.seller_id === id);
-        if (reviews.length === 0) {
-          map[id] = null;
-        } else {
-          const positive = reviews.filter((r: any) => r.rating >= 4).length;
-          map[id] = Math.round((positive / reviews.length) * 100);
-        }
+        if (reviews.length === 0) { map[id] = null; return; }
+        const positive = reviews.filter((r: any) => r.rating >= 4).length;
+        map[id] = Math.round((positive / reviews.length) * 100);
       });
       return map;
     },
-    enabled: sellerIds.length > 0,
+    enabled: sellerIdsRaw.length > 0,
   });
 
-  if (sellers.length === 0) return null;
+  const { data: companyReviewsMap = {} } = useQuery({
+    queryKey: ["featured_companies_reviews", companyIds],
+    queryFn: async () => {
+      if (companyIds.length === 0) return {};
+      const { data, error } = await (supabase as any)
+        .from("company_reviews")
+        .select("company_id, rating")
+        .in("company_id", companyIds);
+      if (error || !data) return {};
+      const map: Record<string, number | null> = {};
+      companyIds.forEach((id: string) => {
+        const reviews = data.filter((r: any) => r.company_id === id);
+        if (reviews.length === 0) { map[id] = null; return; }
+        const positive = reviews.filter((r: any) => r.rating >= 4).length;
+        map[id] = Math.round((positive / reviews.length) * 100);
+      });
+      return map;
+    },
+    enabled: companyIds.length > 0,
+  });
 
-  // Agrupa lojas em pares para o carrossel tablet/desktop
-  const sellerPairs: any[][] = [];
-  for (let i = 0; i < sellers.length; i += 2) {
-    sellerPairs.push(sellers.slice(i, i + 2));
-  }
-  const totalWidePages = sellerPairs.length;
+  // ══════════════════════════════════════════════════════════════════════
+  // Unificação: intercala vendedores/empresas (round-robin) — é isto que
+  // faz "às vezes aparece um vendedor, às vezes uma empresa, e trocam"
+  // ══════════════════════════════════════════════════════════════════════
+  const entities: FeaturedEntity[] = useMemo(() => {
+    const sellerEntities: FeaturedEntity[] = featuredSellers.map((s: any) => ({
+      kind: "seller" as const,
+      id: s.id,
+      name: s.name,
+      logo_url: s.logo_url,
+      cover_url: s.cover_url,
+      is_verified: !!s.is_verified,
+      rating: s.rating || 0,
+      total_sales: s.total_sales || 0,
+      followersOrMembers: s.followers_count || 0,
+      followersOrMembersLabel: "seguidores",
+      route: `/vendedor/${s.id}`,
+    }));
+    const companyEntities: FeaturedEntity[] = featuredCompanies.map((c: any) => ({
+      kind: "company" as const,
+      id: c.id,
+      name: c.name,
+      logo_url: c.logo_url,
+      cover_url: c.banner_url,
+      is_verified: !!c.is_verified,
+      rating: c.rating || 0,
+      total_sales: c.total_sales || 0,
+      followersOrMembers: memberCountMap[c.id] || 0,
+      followersOrMembersLabel: "colaboradores",
+      route: `/empresa/${c.id}`,
+    }));
 
-  const handleWideScroll = () => {
-    const el = wideScrollRef.current;
-    if (!el) return;
-    const page = Math.round(el.scrollLeft / el.offsetWidth);
-    setWidePage(page);
+    const merged: FeaturedEntity[] = [];
+    const max = Math.max(sellerEntities.length, companyEntities.length);
+    for (let i = 0; i < max; i++) {
+      if (sellerEntities[i]) merged.push(sellerEntities[i]);
+      if (companyEntities[i]) merged.push(companyEntities[i]);
+    }
+    return merged;
+  }, [featuredSellers, featuredCompanies, memberCountMap]);
+
+  const positivePctFor = useCallback((e: FeaturedEntity): number | null => {
+    if (e.kind === "seller") return sellerReviewsMap[e.id] ?? null;
+    return companyReviewsMap[e.id] ?? null;
+  }, [sellerReviewsMap, companyReviewsMap]);
+
+  // ══════════════════════════════════════════════════════════════════════
+  // Produtos de cada entidade (sellers → seller_id, companies → company_id)
+  // ══════════════════════════════════════════════════════════════════════
+  const sellerIds = entities.filter(e => e.kind === "seller").map(e => e.id);
+  const companyIdsForProducts = entities.filter(e => e.kind === "company").map(e => e.id);
+
+  const { data: allProducts = [] } = useQuery({
+    queryKey: ["featured_entities_products", sellerIds, companyIdsForProducts],
+    queryFn: async () => {
+      const results: any[] = [];
+      if (sellerIds.length > 0) {
+        const { data } = await supabase.from("products").select("*").in("seller_id", sellerIds).eq("is_active", true).order("sales_count", { ascending: false });
+        (data || []).forEach((p: any) => results.push({ ...p, _owner_kind: "seller", _owner_id: p.seller_id }));
+      }
+      if (companyIdsForProducts.length > 0) {
+        const { data } = await (supabase as any).from("products").select("*").in("company_id", companyIdsForProducts).eq("is_active", true).order("sales_count", { ascending: false });
+        (data || []).forEach((p: any) => results.push({ ...p, _owner_kind: "company", _owner_id: p.company_id }));
+      }
+      const ids = results.map(p => p.id);
+      let coverMap: Record<string, string> = {};
+      if (ids.length > 0) {
+        const { data: media } = await supabase.from("product_media").select("product_id, url").in("product_id", ids).eq("is_cover", true);
+        (media || []).forEach((m: any) => { coverMap[m.product_id] = m.url; });
+      }
+      return results.map(p => ({ ...p, cover_url: coverMap[p.id] || p.cover_url }));
+    },
+    enabled: sellerIds.length > 0 || companyIdsForProducts.length > 0,
+  });
+
+  const productsFor = useCallback((e: FeaturedEntity, limit: number) =>
+    allProducts.filter((p: any) => p._owner_kind === e.kind && p._owner_id === e.id).slice(0, limit),
+    [allProducts]);
+
+  // ══════════════════════════════════════════════════════════════════════
+  // MOTOR DE AUTOPLAY — avança sozinho, pausa ao interagir, retoma depois
+  // ══════════════════════════════════════════════════════════════════════
+  const [activeIdx, setActiveIdx] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const [progress, setProgress] = useState(0); // 0–100 dentro do item atual
+  const resumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => { if (activeIdx >= entities.length) setActiveIdx(0); }, [entities.length, activeIdx]);
+
+  useEffect(() => {
+    if (paused || entities.length <= 1) return;
+    setProgress(0);
+    const start = Date.now();
+    const tick = setInterval(() => {
+      const pct = Math.min(100, ((Date.now() - start) / AUTOPLAY_MS) * 100);
+      setProgress(pct);
+      if (pct >= 100) {
+        setActiveIdx(i => (i + 1) % entities.length);
+      }
+    }, PROGRESS_TICK_MS);
+    return () => clearInterval(tick);
+  }, [activeIdx, paused, entities.length]);
+
+  const pauseThenResume = useCallback(() => {
+    setPaused(true);
+    if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
+    resumeTimerRef.current = setTimeout(() => setPaused(false), 4000);
+  }, []);
+
+  useEffect(() => () => { if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current); }, []);
+
+  const goTo = useCallback((idx: number) => {
+    setActiveIdx(((idx % entities.length) + entities.length) % entities.length);
+    pauseThenResume();
+  }, [entities.length, pauseThenResume]);
+
+  const goNext = useCallback(() => goTo(activeIdx + 1), [activeIdx, goTo]);
+  const goPrev = useCallback(() => goTo(activeIdx - 1), [activeIdx, goTo]);
+
+  // Swipe (mobile/tablet)
+  const touchStartX = useRef<number | null>(null);
+  const onTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0].clientX; pauseThenResume(); };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null) return;
+    const delta = e.changedTouches[0].clientX - touchStartX.current;
+    if (Math.abs(delta) > 40) delta > 0 ? goPrev() : goNext();
+    touchStartX.current = null;
   };
 
-  const scrollWide = (dir: "left" | "right") => {
-    const el = wideScrollRef.current;
-    if (!el) return;
-    const newPage = dir === "left"
-      ? Math.max(0, widePage - 1)
-      : Math.min(totalWidePages - 1, widePage + 1);
-    setWidePage(newPage);
-    el.scrollTo({ left: newPage * el.offsetWidth, behavior: "smooth" });
-  };
+  if (entities.length === 0) return null;
+  const active = entities[activeIdx];
 
-  const scrollMobile = (dir: "left" | "right") => {
-    const el = mobileScrollRef.current;
-    if (!el) return;
-    const newIdx = dir === "left"
-      ? Math.max(0, currentIdx - 1)
-      : Math.min(sellers.length - 1, currentIdx + 1);
-    setCurrentIdx(newIdx);
-    const card = el.children[newIdx] as HTMLElement;
-    if (card) card.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
-  };
+  // ══════════════════════════════════════════════════════════════════════
+  // Selo visual por tipo (Empresa = ink/teal · Vendedor = flame/laranja)
+  // ══════════════════════════════════════════════════════════════════════
+  const kindBadge = (kind: EntityKind) => kind === "company"
+    ? { label: "Empresa", Icon: Building2, bg: K.ink, }
+    : { label: "Vendedor", Icon: Store, bg: K.flame };
 
-  /* ── Card de uma loja ── */
-  const SellerCard = ({ seller, productsLimit = 3 }: { seller: any; productsLimit?: number }) => {
-    const sellerProducts = allProducts
-      .filter((p: any) => p.seller_id === seller.id)
-      .slice(0, productsLimit);
-
-    const positivePct: number | null = reviewsMap[seller.id] ?? null;
+  // ══════════════════════════════════════════════════════════════════════
+  // CARD "SPOTLIGHT" — o card grande, bonito, que roda sozinho
+  // ══════════════════════════════════════════════════════════════════════
+  const SpotlightCard = ({ e, heightClass }: { e: FeaturedEntity; heightClass: string }) => {
+    const badge = kindBadge(e.kind);
+    const positivePct = positivePctFor(e);
+    const products = productsFor(e, layout === "desktop" ? 5 : 4);
 
     return (
-      <div className="rounded-gpu-fix border border-border rounded-2xl overflow-hidden flex flex-col bg-card">
+      <div className="relative rounded-2xl overflow-hidden bg-white border" style={{ borderColor: "#EEE6D8", boxShadow: "0 8px 30px rgba(14,79,79,0.08)" }}>
         {/* Banner */}
-        <div className="relative overflow-hidden h-[160px] bg-muted flex-shrink-0">
-          {seller.cover_url ? (
-            <img src={seller.cover_url} alt="" className="w-full h-full object-cover" />
+        <div className={`relative ${heightClass} bg-muted overflow-hidden`}>
+          {e.cover_url ? (
+            <img src={e.cover_url} alt="" className="w-full h-full object-cover" />
           ) : (
-            <div className="w-full h-full bg-gradient-to-r from-primary/20 to-primary/5" />
+            <div className="w-full h-full" style={{ background: `linear-gradient(135deg, ${K.inkLight}, ${K.flameLight})` }} />
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-          <div className="absolute bottom-3 left-3 flex items-center gap-2">
-            <div className="w-10 h-10 rounded-full overflow-hidden bg-card border-2 border-white flex-shrink-0">
-              {seller.logo_url ? (
-                <img src={seller.logo_url} alt="" className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-sm font-bold text-primary bg-primary/10">
-                  {seller.name.charAt(0)}
-                </div>
-              )}
-            </div>
-            <div>
-              <div className="flex items-center gap-1">
-                <span className="text-sm font-bold text-white">{seller.name}</span>
-                {seller.is_verified && <CheckCircle className="w-3.5 h-3.5 text-white" />}
-              </div>
-              <span className="text-[10px] text-white/70">
-                {seller.type === "company" ? "Empresa" : seller.type === "dropship" ? "Afiliado" : "Vendedor"}
-              </span>
-            </div>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+
+          {/* Selo tipo (Empresa/Vendedor) */}
+          <div className="absolute top-3 left-3 flex items-center gap-1 px-2.5 py-1 rounded-full text-white text-[11px] font-bold" style={{ background: badge.bg }}>
+            <badge.Icon className="w-3 h-3" /> {badge.label}
           </div>
-          <button
-            onClick={() => navigate(`/vendedor/${seller.id}`)}
-            className="absolute bottom-3 right-3 px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-[11px] font-bold hover:brightness-110 transition"
-          >
-            Ver loja
-          </button>
+
+          {/* Selo "vendas" para dar credibilidade */}
+          {e.total_sales > 0 && (
+            <div className="absolute top-3 right-3 flex items-center gap-1 px-2.5 py-1 rounded-full text-white text-[11px] font-bold bg-black/40 backdrop-blur-sm">
+              <TrendingUp className="w-3 h-3" /> {e.total_sales}+ vendas
+            </div>
+          )}
+
+          {/* Identidade + CTA */}
+          <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between gap-2">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-12 h-12 rounded-full overflow-hidden bg-white border-2 border-white flex-shrink-0 shadow-lg">
+                {e.logo_url ? (
+                  <img src={e.logo_url} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-base font-bold" style={{ color: K.ink, background: K.inkLight, ...display }}>
+                    {e.name.charAt(0)}
+                  </div>
+                )}
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1">
+                  <span className="text-base font-bold text-white truncate" style={display}>{e.name}</span>
+                  {e.is_verified && <CheckCircle className="w-4 h-4 text-white flex-shrink-0" />}
+                </div>
+                <span className="text-[11px] text-white/80">{e.followersOrMembers} {e.followersOrMembersLabel}</span>
+              </div>
+            </div>
+            <button
+              onClick={() => navigate(e.route)}
+              className="flex-shrink-0 px-3.5 py-2 rounded-full text-white text-[12px] font-bold hover:opacity-90 transition"
+              style={{ background: K.flame, boxShadow: "0 4px 14px rgba(232,83,31,0.4)" }}
+            >
+              {e.kind === "company" ? "Ver empresa" : "Ver loja"}
+            </button>
+          </div>
         </div>
 
         {/* Estatísticas */}
-        <div className="flex items-center justify-around px-3 py-2 border-b border-border text-[10px] text-muted-foreground">
-          {positivePct !== null ? (
-            <div className="flex items-center gap-1">
-              <span>☆</span>
-              <span className="font-bold text-foreground">{positivePct}%</span>
-              <span>Avaliações positivas</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1">
-              <span>☆</span>
-              <span>Sem avaliações ainda</span>
-            </div>
-          )}
+        <div className="flex items-center justify-around px-3 py-2 border-b text-[11px] text-gray-600" style={{ borderColor: "#F0EBDF" }}>
           <div className="flex items-center gap-1">
-            <span>📦</span>
-            <span>Envio rápido</span>
+            {positivePct !== null ? (
+              <>
+                <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                <span className="font-bold text-gray-900">{positivePct}%</span>
+                <span className="hidden sm:inline">positivas</span>
+              </>
+            ) : (
+              <>
+                <Star className="w-3 h-3 text-gray-300" />
+                <span>Sem avaliações</span>
+              </>
+            )}
           </div>
           <div className="flex items-center gap-1">
-            <span>🛡️</span>
-            <span>Compra segura</span>
+            <Package className="w-3 h-3" /> <span>Envio rápido</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Users className="w-3 h-3" /> <span>{e.followersOrMembers} {e.followersOrMembersLabel}</span>
           </div>
         </div>
 
-        {/* Cabeçalho produtos */}
-        <div className="flex items-center justify-between px-3 pt-3 pb-2">
-          <div className="flex items-center gap-3 flex-1">
-            <span className="text-sm font-bold text-foreground whitespace-nowrap">Produtos da loja</span>
-            <div className="flex-1 h-px bg-border" />
+        {/* Produtos */}
+        <div className="px-3 py-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-gray-900 flex items-center gap-1"><ShoppingBag className="w-3.5 h-3.5" style={{ color: K.ink }} /> Produtos</span>
+            <button onClick={() => navigate(e.route)} className="flex items-center gap-0.5 text-[11px] font-bold" style={{ color: K.flame }}>
+              Ver tudo <ChevronRight className="w-3.5 h-3.5" />
+            </button>
           </div>
-          <button
-            onClick={() => navigate(`/vendedor/${seller.id}`)}
-            className="flex items-center gap-0.5 text-sm font-semibold text-primary ml-3 whitespace-nowrap"
-          >
-            Veja agora <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Grid de produtos */}
-        <div className="px-3 pb-3 flex-1">
-          {sellerProducts.length === 0 ? (
-            <p className="text-[10px] text-muted-foreground py-4 w-full text-center">
-              Sem produtos publicados
-            </p>
+          {products.length === 0 ? (
+            <p className="text-[11px] text-gray-400 py-3 text-center">Sem produtos publicados ainda</p>
           ) : (
-            <div className="grid grid-cols-3 gap-2">
-              {sellerProducts.map((p: any) => {
+            <div className={`grid gap-2 ${layout === "desktop" ? "grid-cols-5" : "grid-cols-4"}`}>
+              {products.map((p: any) => {
                 const img = p.cover_url || p.image_url;
                 return (
-                  <div
-                    key={p.id}
-                    onClick={() => navigate(`/produto/${p.id}`)}
-                    className="rounded-gpu-fix cursor-pointer hover:opacity-90 transition bg-card rounded-xl border border-border overflow-hidden"
-                  >
-                    <div className="aspect-square bg-muted overflow-hidden">
-                      {img ? (
-                        <img src={img} alt={p.title} className="w-full h-full object-cover" loading="lazy" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-[10px] text-muted-foreground">
-                          Sem foto
-                        </div>
-                      )}
+                  <button key={p.id} onClick={() => navigate(`/produto/${p.id}`)} className="text-left rounded-lg overflow-hidden border hover:opacity-90 transition" style={{ borderColor: "#F0EBDF" }}>
+                    <div className="aspect-square bg-gray-100 overflow-hidden">
+                      {img ? <img src={img} alt={p.title} className="w-full h-full object-cover" loading="lazy" /> : <div className="w-full h-full flex items-center justify-center text-[9px] text-gray-400">Sem foto</div>}
                     </div>
-                    <div className="p-1.5">
-                      {/* Botão "Ver em loja" — mesma posição do "Add"/"Options" da Walmart */}
-                      <button
-                        onClick={e => { e.stopPropagation(); navigate(`/vendedor/${seller.id}`); }}
-                        className="w-full mb-1.5 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold py-1 text-center hover:brightness-110 transition"
-                      >
-                        Ver em loja
-                      </button>
-
-                      <span className="block text-[12px] font-black text-primary mb-0.5">
-                        {Number(p.price).toLocaleString("pt-AO")} Kz
-                      </span>
-
-                      <p className="text-[11px] font-semibold text-foreground line-clamp-2 leading-tight">
-                        {p.title}
-                      </p>
+                    <div className="p-1">
+                      <span className="block text-[10px] font-black truncate" style={{ color: K.flame }}>{Number(p.price).toLocaleString("pt-AO")} Kz</span>
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -269,195 +425,146 @@ const FeaturedSellers = ({ layout = "mobile" }: FeaturedSellersProps) => {
     );
   };
 
-  /* ══ TABLET ══ */
+  // ══════════════════════════════════════════════════════════════════════
+  // Barra de progresso tipo "stories" — um segmento por entidade
+  // ══════════════════════════════════════════════════════════════════════
+  const ProgressBar = () => (
+    <div className="flex gap-1 mb-3">
+      {entities.map((_, i) => (
+        <button key={i} onClick={() => goTo(i)} className="flex-1 h-1 rounded-full overflow-hidden bg-gray-200" aria-label={`Ir para destaque ${i + 1}`}>
+          <div
+            className="h-full rounded-full transition-none"
+            style={{
+              width: i < activeIdx ? "100%" : i === activeIdx ? `${progress}%` : "0%",
+              background: K.flame,
+            }}
+          />
+        </button>
+      ))}
+    </div>
+  );
+
+  // ══════════════════════════════════════════════════════════════════════
+  // Tira de acesso rápido — avatares clicáveis para saltar direto
+  // ══════════════════════════════════════════════════════════════════════
+  const QuickJumpStrip = () => (
+    <div className="flex gap-2.5 overflow-x-auto scrollbar-hide mt-3 pb-1">
+      {entities.map((e, i) => {
+        const badge = kindBadge(e.kind);
+        const isActive = i === activeIdx;
+        return (
+          <button key={`${e.kind}:${e.id}`} onClick={() => goTo(i)} className="flex-shrink-0 flex flex-col items-center gap-1 w-14">
+            <div className="relative w-12 h-12 rounded-full overflow-hidden border-2 transition-all" style={{ borderColor: isActive ? K.flame : "#EEE6D8", opacity: isActive ? 1 : 0.65 }}>
+              {e.logo_url ? <img src={e.logo_url} alt="" className="w-full h-full object-cover" /> : (
+                <div className="w-full h-full flex items-center justify-center text-xs font-bold" style={{ color: K.ink, background: K.inkLight }}>{e.name.charAt(0)}</div>
+              )}
+              <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center border border-white" style={{ background: badge.bg }}>
+                <badge.Icon className="w-2 h-2 text-white" />
+              </div>
+            </div>
+            <span className="text-[9px] font-semibold text-gray-600 truncate w-full text-center">{e.name}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const SectionHeader = () => (
+    <div className="flex items-center justify-between mb-3">
+      <h2 className="text-base font-bold" style={{ color: "#101B1B", ...display }}>Vendedores &amp; empresas em destaque</h2>
+      <div className="flex items-center gap-1.5">
+        {entities.length > 1 && (
+          <>
+            <button onClick={goPrev} className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition"><ChevronLeft className="w-4 h-4 text-gray-700" /></button>
+            <button onClick={goNext} className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition"><ChevronRight className="w-4 h-4 text-gray-700" /></button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+
+  // ══════════════════════════════════════════════════════════════════════
+  // LAYOUT — MOBILE: um spotlight de cada vez, tira de avatares por baixo
+  // ══════════════════════════════════════════════════════════════════════
+  if (layout === "mobile") {
+    return (
+      <section className="container mx-auto px-3 pt-4" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+        <SectionHeader />
+        <ProgressBar />
+        <SpotlightCard e={active} heightClass="h-[190px]" />
+        <QuickJumpStrip />
+      </section>
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // LAYOUT — TABLET: spotlight maior + pré-visualização do próximo
+  // ══════════════════════════════════════════════════════════════════════
   if (layout === "tablet") {
-    // 2 lojas ou menos — grelha estática
-    if (sellers.length <= 2) {
-      return (
-        <section className="pt-4">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-bold text-foreground">Lojas em destaque</h2>
-            <button onClick={() => navigate("/vendedores")} className="text-xs font-semibold text-primary">
-              Ver todas →
-            </button>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            {sellers.map((seller: any) => (
-              <SellerCard key={seller.id} seller={seller} productsLimit={3} />
-            ))}
-          </div>
-        </section>
-      );
-    }
-
-    // Mais de 2 lojas — carrossel de pares com pontos
+    const next = entities[(activeIdx + 1) % entities.length];
     return (
-      <section className="pt-4">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-bold text-foreground">Lojas em destaque</h2>
-          <div className="flex items-center gap-2">
-            <div className="flex gap-1">
-              {widePage > 0 && (
-                <button
-                  onClick={() => scrollWide("left")}
-                  className="w-7 h-7 rounded-full bg-muted flex items-center justify-center hover:bg-border transition"
-                >
-                  <ChevronLeft className="w-4 h-4 text-foreground" />
-                </button>
-              )}
-              {widePage < totalWidePages - 1 && (
-                <button
-                  onClick={() => scrollWide("right")}
-                  className="w-7 h-7 rounded-full bg-muted flex items-center justify-center hover:bg-border transition"
-                >
-                  <ChevronRight className="w-4 h-4 text-foreground" />
-                </button>
-              )}
-            </div>
-            <button onClick={() => navigate("/vendedores")} className="text-xs font-semibold text-primary">
-              Ver todas →
+      <section className="pt-4" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+        <SectionHeader />
+        <ProgressBar />
+        <div className="grid grid-cols-3 gap-3">
+          <div className="col-span-2">
+            <SpotlightCard e={active} heightClass="h-[220px]" />
+          </div>
+          {next && next.id !== active.id && (
+            <button onClick={goNext} className="text-left rounded-2xl overflow-hidden border relative group" style={{ borderColor: "#EEE6D8" }}>
+              <div className="h-full min-h-[220px] bg-muted relative">
+                {next.cover_url ? <img src={next.cover_url} alt="" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition" /> : <div className="w-full h-full" style={{ background: K.inkLight }} />}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-black/10" />
+                <div className="absolute bottom-3 left-3 right-3">
+                  <p className="text-[10px] font-bold text-white/70 uppercase tracking-wide mb-0.5">A seguir</p>
+                  <p className="text-sm font-bold text-white truncate" style={display}>{next.name}</p>
+                </div>
+              </div>
             </button>
-          </div>
+          )}
         </div>
-
-        <div
-          ref={wideScrollRef}
-          onScroll={handleWideScroll}
-          className="flex overflow-x-auto scrollbar-hide snap-x snap-mandatory"
-        >
-          {sellerPairs.map((pair, pageIdx) => (
-            <div key={pageIdx} className="flex-shrink-0 w-full snap-start grid grid-cols-2 gap-3">
-              {pair.map((seller: any) => (
-                <SellerCard key={seller.id} seller={seller} productsLimit={3} />
-              ))}
-            </div>
-          ))}
-        </div>
-
-        {totalWidePages > 1 && (
-          <div className="flex justify-center gap-1.5 mt-3">
-            {Array.from({ length: totalWidePages }).map((_, i) => (
-              <div
-                key={i}
-                className={`h-1.5 rounded-full transition-all duration-300 ${i === widePage ? "w-5 bg-primary" : "w-1.5 bg-muted-foreground/30"}`}
-              />
-            ))}
-          </div>
-        )}
+        <QuickJumpStrip />
       </section>
     );
   }
 
-  /* ══ DESKTOP ══ */
-  if (layout === "desktop") {
-    // 2 lojas ou menos — grelha estática
-    if (sellers.length <= 2) {
-      return (
-        <section className="pt-4">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-bold text-foreground">Lojas em destaque</h2>
-            <button onClick={() => navigate("/vendedores")} className="text-xs font-semibold text-primary">
-              Ver todas →
-            </button>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            {sellers.map((seller: any) => (
-              <SellerCard key={seller.id} seller={seller} productsLimit={6} />
-            ))}
-          </div>
-        </section>
-      );
-    }
+  // ══════════════════════════════════════════════════════════════════════
+  // LAYOUT — DESKTOP: spotlight grande + coluna com os próximos 2
+  // ══════════════════════════════════════════════════════════════════════
+  const upNext = [1, 2].map(off => entities[(activeIdx + off) % entities.length]).filter((e, i, arr) => e.id !== active.id && arr.findIndex(x => x.id === e.id) === i);
 
-    // Mais de 2 lojas — carrossel de pares com pontos
-    return (
-      <section className="pt-4">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-bold text-foreground">Lojas em destaque</h2>
-          <div className="flex items-center gap-2">
-            <div className="flex gap-1">
-              {widePage > 0 && (
-                <button
-                  onClick={() => scrollWide("left")}
-                  className="w-7 h-7 rounded-full bg-muted flex items-center justify-center hover:bg-border transition"
-                >
-                  <ChevronLeft className="w-4 h-4 text-foreground" />
-                </button>
-              )}
-              {widePage < totalWidePages - 1 && (
-                <button
-                  onClick={() => scrollWide("right")}
-                  className="w-7 h-7 rounded-full bg-muted flex items-center justify-center hover:bg-border transition"
-                >
-                  <ChevronRight className="w-4 h-4 text-foreground" />
-                </button>
-              )}
-            </div>
-            <button onClick={() => navigate("/vendedores")} className="text-xs font-semibold text-primary">
-              Ver todas →
-            </button>
-          </div>
-        </div>
-
-        <div
-          ref={wideScrollRef}
-          onScroll={handleWideScroll}
-          className="flex overflow-x-auto scrollbar-hide snap-x snap-mandatory"
-        >
-          {sellerPairs.map((pair, pageIdx) => (
-            <div key={pageIdx} className="flex-shrink-0 w-full snap-start grid grid-cols-2 gap-4">
-              {pair.map((seller: any) => (
-                <SellerCard key={seller.id} seller={seller} productsLimit={6} />
-              ))}
-            </div>
-          ))}
-        </div>
-
-        {totalWidePages > 1 && (
-          <div className="flex justify-center gap-1.5 mt-3">
-            {Array.from({ length: totalWidePages }).map((_, i) => (
-              <div
-                key={i}
-                className={`h-1.5 rounded-full transition-all duration-300 ${i === widePage ? "w-5 bg-primary" : "w-1.5 bg-muted-foreground/30"}`}
-              />
-            ))}
-          </div>
-        )}
-      </section>
-    );
-  }
-
-  /* ══ MOBILE — carrossel original ══ */
   return (
-    <section className="container mx-auto px-3 pt-4">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-bold text-foreground">Lojas em destaque</h2>
-        <div className="flex gap-1">
-          {currentIdx > 0 && (
-            <button
-              onClick={() => scrollMobile("left")}
-              className="w-7 h-7 rounded-full bg-muted flex items-center justify-center hover:bg-border transition"
-            >
-              <ChevronLeft className="w-4 h-4 text-foreground" />
-            </button>
-          )}
-          {currentIdx < sellers.length - 1 && (
-            <button
-              onClick={() => scrollMobile("right")}
-              className="w-7 h-7 rounded-full bg-muted flex items-center justify-center hover:bg-border transition"
-            >
-              <ChevronRight className="w-4 h-4 text-foreground" />
-            </button>
-          )}
+    <section className="pt-4" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+      <SectionHeader />
+      <ProgressBar />
+      <div className="grid grid-cols-3 gap-4">
+        <div className="col-span-2">
+          <SpotlightCard e={active} heightClass="h-[260px]" />
+        </div>
+        <div className="flex flex-col gap-3">
+          {upNext.map(e => {
+            const badge = kindBadge(e.kind);
+            return (
+              <button key={`${e.kind}:${e.id}`} onClick={() => goTo(entities.findIndex(x => x.id === e.id && x.kind === e.kind))} className="text-left rounded-2xl overflow-hidden border relative flex-1 group" style={{ borderColor: "#EEE6D8" }}>
+                <div className="h-full min-h-[122px] bg-muted relative">
+                  {e.cover_url ? <img src={e.cover_url} alt="" className="w-full h-full object-cover opacity-85 group-hover:opacity-100 transition" /> : <div className="w-full h-full" style={{ background: K.inkLight }} />}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
+                  <div className="absolute top-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded-full text-white text-[9px] font-bold" style={{ background: badge.bg }}>
+                    <badge.Icon className="w-2.5 h-2.5" /> {badge.label}
+                  </div>
+                  <div className="absolute bottom-2 left-2 right-2 flex items-center gap-1.5">
+                    <div className="w-6 h-6 rounded-full overflow-hidden border border-white flex-shrink-0">
+                      {e.logo_url ? <img src={e.logo_url} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-white/20" />}
+                    </div>
+                    <p className="text-xs font-bold text-white truncate" style={display}>{e.name}</p>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
-      <div ref={mobileScrollRef} className="flex gap-3 overflow-x-auto scrollbar-hide snap-x snap-mandatory">
-        {sellers.map((seller: any) => (
-          <div key={seller.id} className="flex-shrink-0 w-full snap-start">
-            <SellerCard seller={seller} productsLimit={3} />
-          </div>
-        ))}
-      </div>
+      <QuickJumpStrip />
     </section>
   );
 };
