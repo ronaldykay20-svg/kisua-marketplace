@@ -5,7 +5,9 @@ import { useUserRole, AppRole } from "@/hooks/useUserRole";
 
 interface ProtectedRouteProps {
   children: ReactNode;
-  requiredRole?: AppRole;
+  // Aceita um único cargo (como antes) ou uma lista — usado em /admin para
+  // deixar entrar tanto o admin como qualquer um dos 5 cargos de equipa.
+  requiredRole?: AppRole | AppRole[];
   requireAuth?: boolean;
 }
 
@@ -25,8 +27,10 @@ const ProtectedRoute = ({ children, requiredRole, requireAuth = true }: Protecte
     return <Navigate to="/auth" replace />;
   }
 
-  if (requiredRole && !hasRole(requiredRole) && !hasRole("admin")) {
-    return <Navigate to="/" replace />;
+  if (requiredRole) {
+    const required = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
+    const allowed = required.some((r) => hasRole(r)) || hasRole("admin");
+    if (!allowed) return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;
