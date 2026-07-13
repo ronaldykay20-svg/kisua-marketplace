@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { Truck, Star, Heart, ArrowRight, ChevronRight, ChevronLeft, Flame, Trophy } from "lucide-react";
 import { useState, useRef } from "react";
+import { useDragScroll } from "@/hooks/useDragScroll";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFreight } from "@/hooks/useFreight";
@@ -16,6 +17,7 @@ const PromoProductCards = () => {
   const [activeIndex, setActiveIndex] = useState(0);
   const [itemsPerView, setItemsPerView] = useState(1);
   const scrollRef = useRef<HTMLDivElement>(null);
+  useDragScroll(scrollRef);
 
   const { data: products = [] } = useQuery({
     queryKey: ["free_shipping_products_home"],
