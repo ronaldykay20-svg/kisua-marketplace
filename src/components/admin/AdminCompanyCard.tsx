@@ -1,7 +1,8 @@
-import { useRef } from "react";
-import { Building2, ShieldCheck, UsersRound, Camera, ImageIcon, Star } from "lucide-react";
+import { useRef, useState } from "react";
+import { Building2, ShieldCheck, UsersRound, Camera, ImageIcon, Trash2, Star } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import AdminConfirmDialog from "./AdminConfirmDialog";
 
 interface Props {
   company: any;
@@ -14,6 +15,14 @@ interface Props {
 const AdminCompanyCard = ({ company: c, onMembers, onVerify, onFeature, queryClient }: Props) => {
   const logoRef = useRef<HTMLInputElement>(null);
   const bannerRef = useRef<HTMLInputElement>(null);
+  const [showDelete, setShowDelete] = useState(false);
+
+  const deleteCompany = async () => {
+    const { error } = await supabase.from("companies").update({ is_active: false } as any).eq("id", c.id);
+    if (error) { toast.error(error.message); return; }
+    queryClient.invalidateQueries({ queryKey: ["admin_companies"] });
+    toast.success("Empresa eliminada.");
+  };
 
   const uploadPhoto = async (file: File, field: "logo_url" | "banner_url") => {
     const ext = file.name.split(".").pop();
@@ -81,9 +90,23 @@ const AdminCompanyCard = ({ company: c, onMembers, onVerify, onFeature, queryCli
             <button onClick={onVerify} className={`p-2 rounded-lg ${c.is_verified ? "text-blue-500 hover:bg-blue-500/10" : "text-muted-foreground hover:bg-accent"}`} title={c.is_verified ? "Remover verificação" : "Verificar empresa"}>
               <ShieldCheck className="w-4 h-4" />
             </button>
+            <button onClick={() => setShowDelete(true)} className="p-2 rounded-lg text-red-500 hover:bg-red-500/10" title="Eliminar empresa">
+              <Trash2 className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </div>
+
+      <AdminConfirmDialog
+        open={showDelete}
+        onOpenChange={setShowDelete}
+        title="Eliminar empresa"
+        description="A empresa deixa de aparecer na plataforma. Os produtos e histórico associados são mantidos, mas ficam ocultos."
+        confirmText={c.name}
+        confirmLabel="nome da empresa"
+        actionLabel="Eliminar empresa"
+        onConfirm={deleteCompany}
+      />
     </div>
   );
 };
