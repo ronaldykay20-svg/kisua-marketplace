@@ -9,9 +9,9 @@ export type Database = {
         Update: { full_name?: string | null; avatar_url?: string | null; phone?: string | null; province?: string | null; city?: string | null; address?: string | null };
       };
       user_roles: {
-        Row: { id: string; user_id: string; role: "admin" | "moderator" | "user" };
-        Insert: { user_id: string; role?: "admin" | "moderator" | "user" };
-        Update: { role?: "admin" | "moderator" | "user" };
+        Row: { id: string; user_id: string; role: "admin" | "moderator" | "user" | "operacoes" | "financeiro" | "logistica" | "parceiros" | "marketing" };
+        Insert: { user_id: string; role?: "admin" | "moderator" | "user" | "operacoes" | "financeiro" | "logistica" | "parceiros" | "marketing" };
+        Update: { role?: "admin" | "moderator" | "user" | "operacoes" | "financeiro" | "logistica" | "parceiros" | "marketing" };
       };
       categories: {
         Row: { id: string; name: string; slug: string; icon: string | null; image_url: string | null; cover_image_url: string | null; color: string | null; parent_id: string | null; sort_order: number; is_active: boolean; created_at: string };
@@ -110,7 +110,7 @@ export type Database = {
       };
     };
     Enums: {
-      app_role: "admin" | "moderator" | "user";
+      app_role: "admin" | "moderator" | "user" | "operacoes" | "financeiro" | "logistica" | "parceiros" | "marketing";
       company_role: "owner" | "manager" | "editor" | "viewer";
       order_status: "pending" | "confirmed" | "shipped" | "delivered" | "cancelled";
       seller_type: "individual" | "company";
