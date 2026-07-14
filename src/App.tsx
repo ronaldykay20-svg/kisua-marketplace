@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
+import { BrowserRouter, Route, Routes, useLocation, Outlet } from "react-router-dom";
 import { useEffect } from "react";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
@@ -76,9 +76,6 @@ const queryClient = new QueryClient();
 
 const HIDE_BOTTOM_NAV_PATHS = [/^\/produto\/.+/, /^\/checkout/, /^\/carrinho/, /^\/equipa\//];
 const HIDE_HEADER_PATHS = [/^\/produto\/.+/, /^\/checkout/, /^\/carrinho/, /^\/equipa\//];
-// Painéis internos (admin/vendedor/moderador/fornecedor) e o checkout não
-// levam rodapé — são ferramentas/fluxos de trabalho, não páginas de
-// navegação de conteúdo, e o rodapé ali só acrescentaria ruído.
 const HIDE_FOOTER_PATHS = [
   /^\/produto\/.+/,
   /^\/checkout/,
@@ -89,7 +86,17 @@ const HIDE_FOOTER_PATHS = [
   /^\/equipa\//,
 ];
 
-const Layout = ({ children }: { children: React.ReactNode }) => {
+// ── Layout partilhado ────────────────────────────────────────────────────
+// Este componente é montado UMA ÚNICA VEZ, como "pai" de todas as rotas
+// (ver <Route element={<Layout />}> mais abaixo). Só o conteúdo dentro de
+// <Outlet /> é que muda quando navegas — o BottomNav, o cabeçalho, o
+// rodapé e os popups NUNCA são destruídos/recriados ao mudar de página.
+//
+// Antes, cada rota tinha o seu <Layout><Pagina /></Layout> próprio, o que
+// fazia o React destruir e recriar o BottomNav em CADA navegação. Tocar
+// num botão do bottomnav destruía esse mesmo botão a meio do toque — daí
+// a sensação de os botões "ficarem presos" / não responderem bem.
+const Layout = () => {
   const location = useLocation();
   const hideBottomNav = HIDE_BOTTOM_NAV_PATHS.some((pattern) =>
     pattern.test(location.pathname)
@@ -113,7 +120,9 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
           <DesktopNavbar />
         </>
       )}
-      <ErrorBoundary key={location.pathname}>{children}</ErrorBoundary>
+      <ErrorBoundary key={location.pathname}>
+        <Outlet />
+      </ErrorBoundary>
       {!hideFooter && <Footer />}
       {!hideBottomNav && <BottomNav />}
       <CookieConsentBanner />
@@ -132,61 +141,63 @@ const App = () => (
         <BrowserRouter>
           <ScrollToTop />
           <Routes>
-            <Route path="/" element={<Layout><Index /></Layout>} />
-            <Route path="/produto/:id" element={<Layout><ProductDetail /></Layout>} />
-            <Route path="/ranking" element={<Layout><Ranking /></Layout>} />
-            <Route path="/empresas" element={<Layout><Empresas /></Layout>} />
-            <Route path="/empresa/:id" element={<Layout><EmpresaPerfil /></Layout>} />
-            <Route path="/pesquisa" element={<Layout><SearchResults /></Layout>} />
-            <Route path="/leilao" element={<Layout><Leilao /></Layout>} />
-            <Route path="/live" element={<Layout><Live /></Layout>} />
-            <Route path="/vendedores" element={<Layout><Vendedores /></Layout>} />
-            <Route path="/vendedor/:id" element={<Layout><VendedorPerfil /></Layout>} />
-            <Route path="/categorias" element={<Layout><Categorias /></Layout>} />
-            <Route path="/categoria/:nome" element={<Layout><CategoriaDetalhe /></Layout>} />
-            <Route path="/promocoes" element={<Layout><Promocoes /></Layout>} />
-            <Route path="/conta" element={<Layout><ProtectedRoute><MinhaConta /></ProtectedRoute></Layout>} />
-            <Route path="/pedidos" element={<Layout><ProtectedRoute><Pedidos /></ProtectedRoute></Layout>} />
-            <Route path="/pedido/:id" element={<Layout><ProtectedRoute><PedidoDetalhe /></ProtectedRoute></Layout>} />
-            <Route path="/favoritos" element={<Layout><ProtectedRoute><Favoritos /></ProtectedRoute></Layout>} />
-            <Route path="/ajuda" element={<Layout><Ajuda /></Layout>} />
-            <Route path="/como-comprar" element={<Layout><ComoComprar /></Layout>} />
-            <Route path="/formas-pagamento" element={<Layout><FormasPagamento /></Layout>} />
-            <Route path="/entrega-frete" element={<Layout><EntregaFrete /></Layout>} />
-            <Route path="/devolucoes" element={<Layout><Devolucoes /></Layout>} />
-            <Route path="/reportar-problema" element={<Layout><ReportarProblema /></Layout>} />
-            <Route path="/sobre-nos" element={<Layout><SobreNos /></Layout>} />
-            <Route path="/termos-uso" element={<Layout><TermosUso /></Layout>} />
-            <Route path="/privacidade" element={<Layout><Privacidade /></Layout>} />
-            <Route path="/comissoes" element={<Layout><Comissoes /></Layout>} />
-            <Route path="/lojas-verificadas" element={<Layout><LojasVerificadas /></Layout>} />
-            <Route path="/vender" element={<Layout><ProtectedRoute><VenderKwanza /></ProtectedRoute></Layout>} />
-            <Route path="/enderecos" element={<Layout><ProtectedRoute><Enderecos /></ProtectedRoute></Layout>} />
-            <Route path="/pagamentos" element={<Layout><ProtectedRoute><Pagamentos /></ProtectedRoute></Layout>} />
-            <Route path="/notificacoes" element={<Layout><ProtectedRoute><Notificacoes /></ProtectedRoute></Layout>} />
-            <Route path="/seguranca" element={<Layout><ProtectedRoute><Seguranca /></ProtectedRoute></Layout>} />
-            <Route path="/definicoes" element={<Layout><ProtectedRoute><Definicoes /></ProtectedRoute></Layout>} />
+            <Route element={<Layout />}>
+              <Route path="/" element={<Index />} />
+              <Route path="/produto/:id" element={<ProductDetail />} />
+              <Route path="/ranking" element={<Ranking />} />
+              <Route path="/empresas" element={<Empresas />} />
+              <Route path="/empresa/:id" element={<EmpresaPerfil />} />
+              <Route path="/pesquisa" element={<SearchResults />} />
+              <Route path="/leilao" element={<Leilao />} />
+              <Route path="/live" element={<Live />} />
+              <Route path="/vendedores" element={<Vendedores />} />
+              <Route path="/vendedor/:id" element={<VendedorPerfil />} />
+              <Route path="/categorias" element={<Categorias />} />
+              <Route path="/categoria/:nome" element={<CategoriaDetalhe />} />
+              <Route path="/promocoes" element={<Promocoes />} />
+              <Route path="/conta" element={<ProtectedRoute><MinhaConta /></ProtectedRoute>} />
+              <Route path="/pedidos" element={<ProtectedRoute><Pedidos /></ProtectedRoute>} />
+              <Route path="/pedido/:id" element={<ProtectedRoute><PedidoDetalhe /></ProtectedRoute>} />
+              <Route path="/favoritos" element={<ProtectedRoute><Favoritos /></ProtectedRoute>} />
+              <Route path="/ajuda" element={<Ajuda />} />
+              <Route path="/como-comprar" element={<ComoComprar />} />
+              <Route path="/formas-pagamento" element={<FormasPagamento />} />
+              <Route path="/entrega-frete" element={<EntregaFrete />} />
+              <Route path="/devolucoes" element={<Devolucoes />} />
+              <Route path="/reportar-problema" element={<ReportarProblema />} />
+              <Route path="/sobre-nos" element={<SobreNos />} />
+              <Route path="/termos-uso" element={<TermosUso />} />
+              <Route path="/privacidade" element={<Privacidade />} />
+              <Route path="/comissoes" element={<Comissoes />} />
+              <Route path="/lojas-verificadas" element={<LojasVerificadas />} />
+              <Route path="/vender" element={<ProtectedRoute><VenderKwanza /></ProtectedRoute>} />
+              <Route path="/enderecos" element={<ProtectedRoute><Enderecos /></ProtectedRoute>} />
+              <Route path="/pagamentos" element={<ProtectedRoute><Pagamentos /></ProtectedRoute>} />
+              <Route path="/notificacoes" element={<ProtectedRoute><Notificacoes /></ProtectedRoute>} />
+              <Route path="/seguranca" element={<ProtectedRoute><Seguranca /></ProtectedRoute>} />
+              <Route path="/definicoes" element={<ProtectedRoute><Definicoes /></ProtectedRoute>} />
+              <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminPanel /></ProtectedRoute>} />
+              <Route path="/equipa/operacoes" element={<ProtectedRoute requiredRole={["admin", "operacoes"]}><OperacoesDashboard /></ProtectedRoute>} />
+              <Route path="/equipa/financeiro" element={<ProtectedRoute requiredRole={["admin", "financeiro"]}><FinanceiroDashboard /></ProtectedRoute>} />
+              <Route path="/equipa/logistica" element={<ProtectedRoute requiredRole={["admin", "logistica"]}><LogisticaDashboard /></ProtectedRoute>} />
+              <Route path="/equipa/parceiros" element={<ProtectedRoute requiredRole={["admin", "parceiros"]}><ParceirosDashboard /></ProtectedRoute>} />
+              <Route path="/equipa/marketing" element={<ProtectedRoute requiredRole={["admin", "marketing"]}><MarketingDashboard /></ProtectedRoute>} />
+              <Route path="/admin/contas-pagamento" element={<ProtectedRoute requiredRole="moderator"><AdminPaymentAccounts /></ProtectedRoute>} />
+              <Route path="/admin/encomendas" element={<ProtectedRoute requiredRole="admin"><AdminFullOrders /></ProtectedRoute>} />
+              <Route path="/central-pedidos" element={<ProtectedRoute><CentralDePedidos /></ProtectedRoute>} />
+              <Route path="/painel-moderador" element={<ProtectedRoute requiredRole="moderator"><ModeratorPanel /></ProtectedRoute>} />
+              <Route path="/carrinho" element={<ProtectedRoute><Carrinho /></ProtectedRoute>} />
+              <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
+              <Route path="/painel-vendedor" element={<ProtectedRoute><SellerDashboard /></ProtectedRoute>} />
+              <Route path="/painel-empresa" element={<ProtectedRoute><CompanyDashboard /></ProtectedRoute>} />
+              <Route path="/seja-fornecedor" element={<SejFornecedor />} />
+              <Route path="/painel-fornecedor" element={<ProtectedRoute><FornecedorDashboard /></ProtectedRoute>} />
+              <Route path="/criar-loja" element={<ProtectedRoute><CriarLoja /></ProtectedRoute>} />
+              <Route path="/painel-dropship" element={<ProtectedRoute><DropshipDashboard /></ProtectedRoute>} />
+              <Route path="/catalogo-fornecedores" element={<ProtectedRoute><CatalogoFornecedores /></ProtectedRoute>} />
+              <Route path="*" element={<NotFound />} />
+            </Route>
             <Route path="/auth" element={<Auth />} />
-            <Route path="/admin" element={<Layout><ProtectedRoute requiredRole="admin"><AdminPanel /></ProtectedRoute></Layout>} />
-            <Route path="/equipa/operacoes" element={<Layout><ProtectedRoute requiredRole={["admin", "operacoes"]}><OperacoesDashboard /></ProtectedRoute></Layout>} />
-            <Route path="/equipa/financeiro" element={<Layout><ProtectedRoute requiredRole={["admin", "financeiro"]}><FinanceiroDashboard /></ProtectedRoute></Layout>} />
-            <Route path="/equipa/logistica" element={<Layout><ProtectedRoute requiredRole={["admin", "logistica"]}><LogisticaDashboard /></ProtectedRoute></Layout>} />
-            <Route path="/equipa/parceiros" element={<Layout><ProtectedRoute requiredRole={["admin", "parceiros"]}><ParceirosDashboard /></ProtectedRoute></Layout>} />
-            <Route path="/equipa/marketing" element={<Layout><ProtectedRoute requiredRole={["admin", "marketing"]}><MarketingDashboard /></ProtectedRoute></Layout>} />
-            <Route path="/admin/contas-pagamento" element={<Layout><ProtectedRoute requiredRole="moderator"><AdminPaymentAccounts /></ProtectedRoute></Layout>} />
-            <Route path="/admin/encomendas" element={<Layout><ProtectedRoute requiredRole="admin"><AdminFullOrders /></ProtectedRoute></Layout>} />
-            <Route path="/central-pedidos" element={<Layout><ProtectedRoute><CentralDePedidos /></ProtectedRoute></Layout>} />
-            <Route path="/painel-moderador" element={<Layout><ProtectedRoute requiredRole="moderator"><ModeratorPanel /></ProtectedRoute></Layout>} />
-            <Route path="/carrinho" element={<Layout><ProtectedRoute><Carrinho /></ProtectedRoute></Layout>} />
-            <Route path="/checkout" element={<Layout><ProtectedRoute><Checkout /></ProtectedRoute></Layout>} />
-            <Route path="/painel-vendedor" element={<Layout><ProtectedRoute><SellerDashboard /></ProtectedRoute></Layout>} />
-            <Route path="/painel-empresa" element={<Layout><ProtectedRoute><CompanyDashboard /></ProtectedRoute></Layout>} />
-            <Route path="/seja-fornecedor" element={<Layout><SejFornecedor /></Layout>} />
-            <Route path="/painel-fornecedor" element={<Layout><ProtectedRoute><FornecedorDashboard /></ProtectedRoute></Layout>} />
-            <Route path="/criar-loja" element={<Layout><ProtectedRoute><CriarLoja /></ProtectedRoute></Layout>} />
-            <Route path="/painel-dropship" element={<Layout><ProtectedRoute><DropshipDashboard /></ProtectedRoute></Layout>} />
-            <Route path="/catalogo-fornecedores" element={<Layout><ProtectedRoute><CatalogoFornecedores /></ProtectedRoute></Layout>} />
-            <Route path="*" element={<Layout><NotFound /></Layout>} />
           </Routes>
         </BrowserRouter>
       </AuthProvider>
