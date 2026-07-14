@@ -55,7 +55,7 @@ const CookieConsentBanner = () => {
 
   return (
     <div
-      className="fixed bottom-0 left-0 right-0 z-50 px-4 py-4"
+      className="fixed bottom-14 md:bottom-0 left-0 right-0 z-[55] px-4 py-4"
       style={{ background: "#ffffff", borderTop: "1px solid #ecdfcf", boxShadow: "0 -4px 16px rgba(0,0,0,0.08)" }}
     >
       <div className="max-w-screen-md mx-auto">
