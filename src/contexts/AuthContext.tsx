@@ -46,23 +46,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      blockIfSuspendedOrDeleted(session).then((ok) => {
-        setSession(ok ? session : null);
-        setUser(ok ? (session?.user ?? null) : null);
+    let cancelled = false;
+
+    // onAuthStateChange já dispara imediatamente ao subscrever, com o evento
+    // "INITIAL_SESSION" e a sessão atual incluída — por isso não precisamos
+    // de chamar getSession() em paralelo. Antes, as duas corriam ao mesmo
+    // tempo e podiam resolver-se por qualquer ordem (corrida/race condition).
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      blockIfSuspendedOrDeleted(newSession).then((ok) => {
+        if (cancelled) return;
+        setSession(ok ? newSession : null);
+        setUser(ok ? (newSession?.user ?? null) : null);
         setLoading(false);
       });
     });
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      blockIfSuspendedOrDeleted(session).then((ok) => {
-        setSession(ok ? session : null);
-        setUser(ok ? (session?.user ?? null) : null);
-        setLoading(false);
-      });
-    });
-
-    return () => subscription.unsubscribe();
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signOut = async () => {
