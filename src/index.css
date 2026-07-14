@@ -89,29 +89,3 @@
     transform: translateZ(0);
   }
 }
-/* ── Remover marca de água Lovable ──────────────────────────────────────
-   IMPORTANTE: só seletores específicos ao Lovable (classe, id, src, texto
-   literal). NUNCA usar heurísticas genéricas de posição (fixed/bottom/right)
-   — isso apanha também os menus dropdown, selects, tooltips e popovers do
-   Radix UI, que TÊM de usar position:fixed inline para se posicionarem.
-   Foi exactamente isso que estava a "colar" botões em toda a app: qualquer
-   componente que abrisse um menu flutuante ficava invisível, escondido por
-   engano por esta regra. */
-a[href*="lovable.dev"],
-a[href*="lovable.app"],
-iframe[src*="lovable.dev"],
-iframe[src*="lovable.app"],
-img[src*="lovable"],
-div[style*="Edit with Lovable"],
-[class*="lovable-badge"],
-[id*="lovable-badge"] {
-  display: none !important;
-  opacity: 0 !important;
-  visibility: hidden !important;
-  pointer-events: none !important;
-  position: absolute !important;
-  z-index: -9999 !important;
-  width: 0 !important;
-  height: 0 !important;
-  overflow: hidden !important;
-}
