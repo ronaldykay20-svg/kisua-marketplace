@@ -303,10 +303,17 @@ const ProductCardBase = ({
   // enquanto a pessoa faz scroll no feed.
   const [cardInView, setCardInView] = useState(false);
   const liveViewerCount = useProductViewers(String(p.id), { track: false, enabled: cardInView });
+  const viewersTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleOwnViewportChange = useCallback((cardId: string, inView: boolean, imageCount: number) => {
-    setCardInView(inView);
     onViewportChange(cardId, inView, imageCount);
+    if (viewersTimeoutRef.current) clearTimeout(viewersTimeoutRef.current);
+    if (!inView) { setCardInView(false); return; }
+    // Só liga o canal de "pessoas a ver agora" se o card ficar parado no ecrã
+    // por 400ms — durante um scroll rápido, o card entra e sai de vista antes
+    // disso, e nunca chega a abrir/fechar o WebSocket desnecessariamente.
+    viewersTimeoutRef.current = setTimeout(() => setCardInView(true), 400);
   }, [onViewportChange]);
+  useEffect(() => () => { if (viewersTimeoutRef.current) clearTimeout(viewersTimeoutRef.current); }, []);
 
   const stockQty = p.stock_quantity ?? p.stock ?? null;
   const lowStock = stockQty != null && Number(stockQty) > 0 && Number(stockQty) <= 5;
