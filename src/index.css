@@ -14,18 +14,6 @@
   }
 }
 
-/* ── Elimina o "duplo-toque" no iOS/Android ──
-   Sem isto, o telemóvel espera uns instantes depois do primeiro toque para
-   decidir se é um duplo-toque a pedir zoom. Nesse tempo de espera, o botão
-   só mostra o estado "tocado" (parece selecionado) e só o segundo toque é
-   que de facto dispara o clique — em qualquer botão/link do site, incluindo
-   cabeçalho e rodapé. "manipulation" diz ao navegador para não esperar por
-   um duplo-toque aqui, sem desativar o pinch-to-zoom (acessibilidade).
-*/
-html {
-  touch-action: manipulation;
-}
-
 @layer base {
   :root {
     --background: 210 20% 98%;
