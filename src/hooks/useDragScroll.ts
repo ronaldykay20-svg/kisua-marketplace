@@ -24,6 +24,20 @@ export function useDragScroll<T extends HTMLElement>(ref: RefObject<T | null>) {
     const el = ref.current;
     if (!el) return;
 
+    // Este hook serve só para dar "arrastar com o rato" no desktop. Em
+    // telemóveis, o Android/Chrome dispara automaticamente eventos de rato
+    // sintéticos (mousedown, mousemove, mouseup, click) a seguir a um toque
+    // normal, por compatibilidade com sites antigos. Pequenas variações
+    // naturais de posição do dedo eram interpretadas por este hook como um
+    // "arrasto", o que bloqueava o clique real (ver onClickCapture abaixo) —
+    // e explicava produtos/botões que não abriam ao tocar, sobretudo nos
+    // carrosséis da página inicial. Em dispositivos táteis, saímos sem ligar
+    // nenhum destes listeners de rato.
+    const isTouchDevice =
+      typeof window !== "undefined" &&
+      (("ontouchstart" in window) || navigator.maxTouchPoints > 0);
+    if (isTouchDevice) return;
+
     let isDown = false;
     let moved = false;
     let startX = 0;
