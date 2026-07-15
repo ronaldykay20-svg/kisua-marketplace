@@ -1,13 +1,11 @@
 import { useState, useRef } from "react";
 import { Trophy, Medal, Crown, TrendingUp, Loader2, Store, Package, ChevronRight } from "lucide-react";
-import { useDragScroll } from "@/hooks/useDragScroll";
 import { useSellerRanking, useProductRanking, useCompanyRanking } from "@/hooks/useSalesCount";
 import { useNavigate } from "react-router-dom";
 
 const RankingSection = () => {
   const navigate = useNavigate();
   const scrollRef = useRef<HTMLDivElement>(null);
-  useDragScroll(scrollRef);
   const [activeSlide, setActiveSlide] = useState(0);
 
   const { data: sellers = [], isLoading: ls } = useSellerRanking();
