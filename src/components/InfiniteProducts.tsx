@@ -177,7 +177,7 @@ const ImageSwiper = ({
 
   return (
     <div ref={wrapRef} className="relative w-full overflow-hidden aspect-square" style={{ background: "#ffffff" }}>
-      {(!visible || !loaded) && <div className="absolute inset-0 zg-shimmer" />}
+      {(!visible || !loaded) && <div className="absolute inset-0 zg-shimmer pointer-events-none" />}
 
       {visible && (
         <div
