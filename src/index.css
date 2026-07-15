@@ -85,7 +85,11 @@
    * Usar em qualquer cartão/botão que junte rounded-* + bg-gradient-to-*.
    */
   .rounded-gpu-fix {
-    -webkit-mask-image: -webkit-radial-gradient(white, black);
+    /* A máscara (-webkit-mask-image) foi removida: era a parte mais pesada
+     * para GPUs fracas (Mali/PowerVR), e aplicada a dezenas de cartões de
+     * uma vez na página inicial deixava o telemóvel sem responder ao toque
+     * durante alguns segundos logo ao abrir. O translateZ(0) sozinho já
+     * costuma resolver o "rasgar" das imagens que motivou esta classe. */
     transform: translateZ(0);
   }
 }
