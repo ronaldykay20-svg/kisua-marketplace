@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { Heart, Flame, Star, Truck, Users, Eye, Clock, Ticket, ShoppingBag } from "lucide-react";
 import { useFavorites } from "@/hooks/useFavorites";
-import { useDragScroll } from "@/hooks/useDragScroll";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAddToCart } from "@/hooks/useCartActions";
 import { fetchDisplayCoupons, collectCoupon, fetchWalletCoupons, DisplayCoupon } from "@/lib/coupons";
@@ -106,7 +105,6 @@ const ImageSwiper = ({
 }) => {
   const wrapRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  useDragScroll(scrollRef);
   const [visible, setVisible] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [active, setActive] = useState(0);
