@@ -60,7 +60,7 @@ const Navbar = () => {
   const [searchBarOpen, setSearchBarOpen]                 = useState(false);
   const [categoriesExpanded, setCategoriesExpanded]       = useState(true);
   const [categorySearchVisible, setCategorySearchVisible] = useState(false);
-  const [scrollY, setScrollY]                             = useState(0);
+  const [scrolled, setScrolled]                           = useState(false);
   const [showLocation, setShowLocation]                   = useState(true);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -127,11 +127,28 @@ const Navbar = () => {
     ? decodeURIComponent(location.pathname.replace("/categoria/", ""))
     : null;
 
+  // ── Scroll do cabeçalho ─────────────────────────────────────────────────
+  // Antes: setScrollY(window.scrollY) corria a CADA evento de scroll (dezenas
+  // por segundo), o que re-renderizava o Navbar inteiro — incluindo a faixa
+  // de categorias e as transições de max-height — mesmo quando nada mudava
+  // visualmente. Isso engasgava a thread principal e fazia os toques (tap)
+  // "falharem" durante/logo após rolar a página.
+  // Agora: só guardamos os DOIS booleanos que realmente mudam a UI (scrolled,
+  // showLocation), só chamamos setState quando um deles de facto muda de
+  // valor, e limitamos a leitura do scroll a, no máximo, uma vez por frame
+  // (requestAnimationFrame) em vez de uma vez por evento nativo.
   useEffect(() => {
-    const handler = () => {
+    let ticking = false;
+    const applyScrollState = () => {
+      ticking = false;
       const current = window.scrollY;
-      setScrollY(current);
-      setShowLocation(current < 30);
+      setScrolled((prev) => (prev !== current > 4 ? current > 4 : prev));
+      setShowLocation((prev) => (prev !== current < 30 ? current < 30 : prev));
+    };
+    const handler = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(applyScrollState);
     };
     window.addEventListener("scroll", handler, { passive: true });
     return () => window.removeEventListener("scroll", handler);
@@ -226,7 +243,6 @@ const Navbar = () => {
   const cream      = "#F7F0E6";
   const brown      = "#4A2E0A";
   const brownLight = "rgba(74,46,10,0.12)";
-  const scrolled   = scrollY > 4;
 
   // ── Safe area top: preenche a barra de status do iOS com a cor do header ──
   const safeAreaTop = "env(safe-area-inset-top)";
@@ -456,16 +472,16 @@ const Navbar = () => {
           {/* ══ PÍLULA LOCALIZAÇÃO ══ */}
           {!isCategoriasPage && !isPesquisaPage && !isCategoriaDetalhePage && (
             <div
-              className="overflow-hidden"
+              className="grid overflow-hidden"
               style={{
-                maxHeight: showLocation && !searchBarOpen && !categoriesExpanded ? "60px" : "0px",
+                gridTemplateRows: showLocation && !searchBarOpen && !categoriesExpanded ? "1fr" : "0fr",
                 opacity: showLocation && !searchBarOpen && !categoriesExpanded ? 1 : 0,
-                transition: "max-height 0.3s ease, opacity 0.25s ease",
+                transition: "grid-template-rows 0.3s ease, opacity 0.25s ease",
                 paddingBottom: showLocation && !searchBarOpen && !categoriesExpanded ? 8 : 0,
               }}
             >
               <div
-                className="flex items-stretch rounded-2xl"
+                className="flex items-stretch rounded-2xl min-h-0"
                 style={{
                   background: "rgba(255,255,255,0.55)",
                   border: "1px solid rgba(74,46,10,0.10)",
@@ -511,14 +527,14 @@ const Navbar = () => {
               </button>
 
               <div
-                className="overflow-hidden"
+                className="grid overflow-hidden"
                 style={{
-                  maxHeight: !searchBarOpen && categoriesExpanded ? "52px" : "0px",
+                  gridTemplateRows: !searchBarOpen && categoriesExpanded ? "1fr" : "0fr",
                   opacity: !searchBarOpen && categoriesExpanded ? 1 : 0,
-                  transition: "max-height 0.4s cubic-bezier(0.4,0,0.2,1), opacity 0.3s ease",
+                  transition: "grid-template-rows 0.4s cubic-bezier(0.4,0,0.2,1), opacity 0.3s ease",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", paddingTop: 6, paddingBottom: 10, gap: 6 }}>
+                <div style={{ display: "flex", alignItems: "center", paddingTop: 6, paddingBottom: 10, gap: 6, minHeight: 0, overflow: "hidden" }}>
                   <div
                     className="overflow-x-auto scrollbar-hide flex-1"
                     style={{ display: "flex", gap: 8, alignItems: "center", paddingRight: 4 }}
