@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { ArrowLeft, MapPin, CreditCard, Truck, CheckCircle, Loader2, ShieldCheck, ImageOff, Upload, FileCheck, X, Building2, Smartphone, Tag, Lock, PackageCheck } from "lucide-react";
+import { ArrowLeft, MapPin, CreditCard, Truck, CheckCircle, Loader2, ShieldCheck, ImageOff, Upload, FileCheck, X, Building2, Smartphone, Tag, Lock, PackageCheck, Copy, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCart } from "@/hooks/useSupabaseData";
 import { useClearCart, useRemoveCartItem } from "@/hooks/useCartActions";
@@ -20,7 +20,12 @@ const formatPrice = (price: number) =>
 type Step = "address" | "payment" | "confirm" | "success";
 
 // Métodos que exigem envio de comprovativo antes de confirmar o pedido
-const METHODS_REQUIRING_PROOF = ["bank_transfer", "multicaixa_express"];
+const METHODS_REQUIRING_PROOF = ["bank_transfer"];
+
+// Métodos processados automaticamente pela AppyPay (Pay4All) — substituem o
+// antigo "multicaixa_express" manual. O pagamento é confirmado sozinho pelo
+// webhook appypay-webhook assim que o cliente paga, sem precisar de comprovativo.
+const APPYPAY_METHODS = ["appypay_gpo", "appypay_ref"];
 
 // Formato do state passado pelo botão "Comprar agora" em ProductDetail.tsx
 type SoloProductState = {
@@ -141,6 +146,15 @@ const Checkout = () => {
   const [freightSelections, setFreightSelections] = useState<any[]>([]);
   const [freightTotal, setFreightTotal] = useState(0);
 
+  // ── Pagamento automático AppyPay (Multicaixa Express / Referência) ──
+  const [appypayPhone, setAppypayPhone] = useState("");
+  const [appypayResult, setAppypayResult] = useState<{
+    referenceNumber: string | null;
+    entityNumber: string | null;
+  } | null>(null);
+  const [appypayError, setAppypayError] = useState<string | null>(null);
+  const [createdOrderId, setCreatedOrderId] = useState<string | null>(null);
+
   // ── Comprovativo de pagamento ──
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [proofPreviewUrl, setProofPreviewUrl] = useState<string | null>(null);
@@ -228,6 +242,9 @@ const Checkout = () => {
   });
 
   const requiresProof = METHODS_REQUIRING_PROOF.includes(paymentMethod);
+  const isAppyPay = APPYPAY_METHODS.includes(paymentMethod);
+  const isAppypayGpo = paymentMethod === "appypay_gpo";
+  const appypayPhoneValid = appypayPhone.replace(/\D/g, "").length >= 9;
 
   // Agrupa por vendedor OU empresa
   // municipality_code vem SEMPRE do seller ou company em tempo real
@@ -546,6 +563,40 @@ const Checkout = () => {
       const { error: itemsError } = await supabase.from("order_items").insert(items);
       if (itemsError) throw itemsError;
 
+      // ── Cobrança AppyPay (Multicaixa Express automático ou Referência) ──
+      // O pedido já existe nesta altura (é exigido pela Edge Function). Uma
+      // falha aqui não invalida o pedido já criado — fica registada para
+      // mostrarmos na tela de sucesso, em vez de rebentar todo o checkout.
+      let appypayChargeResult: { referenceNumber: string | null; entityNumber: string | null } | null = null;
+      let appypayChargeError: string | null = null;
+
+      if (isAppyPay) {
+        try {
+          const { data: chargeData, error: chargeError } = await supabase.functions.invoke(
+            "appypay-create-charge",
+            {
+              body: {
+                order_id: order.id,
+                method: isAppypayGpo ? "gpo" : "ref",
+                phone_number: isAppypayGpo ? appypayPhone.replace(/\D/g, "") : undefined,
+              },
+            }
+          );
+          if (chargeError) throw chargeError;
+          if (chargeData?.error) throw new Error(chargeData.error);
+
+          appypayChargeResult = {
+            referenceNumber: chargeData?.reference_number ?? null,
+            entityNumber: chargeData?.entity_number ?? null,
+          };
+        } catch (chargeCatchErr: any) {
+          console.error("Falha ao criar cobrança AppyPay:", chargeCatchErr);
+          appypayChargeError =
+            chargeCatchErr?.message ||
+            "Não foi possível iniciar o pagamento automático. Tente novamente ou escolha outro método.";
+        }
+      }
+
       // Regista o evento de compra no analytics. Feito como "fire and forget"
       // (mesma convenção do useCartActions): se falhar, não deve travar o
       // pedido, que já está criado nas duas linhas acima.
@@ -609,7 +660,8 @@ const Checkout = () => {
       const payLabel =
         paymentMethod === "cash_on_delivery" ? "Pagamento na entrega" :
         paymentMethod === "bank_transfer" ? "Transferência bancária" :
-        paymentMethod === "multicaixa_express" ? "Multicaixa Express" :
+        paymentMethod === "appypay_gpo" ? "Multicaixa Express" :
+        paymentMethod === "appypay_ref" ? "Referência Multicaixa" :
         paymentMethod;
 
       if (requiresProof) {
@@ -651,6 +703,11 @@ const Checkout = () => {
 
           await supabase.from("notifications").insert(reviewNotifications as any);
         }
+      } else if (isAppyPay) {
+        // Pagamento automático AppyPay: o vendedor só deve saber depois do
+        // pagamento estar confirmado. Essa notificação (e a do comprador)
+        // é feita pela Edge Function appypay-webhook quando a AppyPay
+        // avisa que o pagamento foi concluído — não fazemos nada aqui.
       } else {
         // Pagamento na entrega: segue o fluxo normal, notifica o vendedor já.
         const sellerGroups = cartGroups.filter((g: any) => !g.isCompany);
@@ -714,16 +771,44 @@ const Checkout = () => {
       } else if (!isSoloCheckout) {
         await clearCart.mutateAsync();
       }
-      return order;
+      return { order, appypayChargeResult, appypayChargeError };
     },
-    onSuccess: () => {
+    onSuccess: ({ order, appypayChargeResult, appypayChargeError }) => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
+      setCreatedOrderId(order.id);
+      setAppypayResult(appypayChargeResult);
+      setAppypayError(appypayChargeError);
       setStep("success");
     },
     onError: (err: any) => {
       toast.error(err.message || "Erro ao criar pedido");
     },
   });
+
+  // Enquanto estiver na tela de sucesso à espera de um pagamento AppyPay,
+  // verifica periodicamente se o webhook já confirmou (payment_verified).
+  // Pára assim que confirmado — não precisa de continuar a perguntar.
+  const { data: paymentStatus } = useQuery({
+    queryKey: ["checkout_payment_status", createdOrderId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("orders")
+        .select("payment_verified")
+        .eq("id", createdOrderId!)
+        .maybeSingle();
+      return data;
+    },
+    enabled: step === "success" && isAppyPay && !!createdOrderId && !appypayError,
+    refetchInterval: (query) => (query.state.data?.payment_verified ? false : 4000),
+  });
+  const appypayConfirmed = !!paymentStatus?.payment_verified;
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text).then(
+      () => toast.success(`${label} copiada`),
+      () => toast.error("Não foi possível copiar")
+    );
+  };
 
   if (!user) {
     navigate("/auth");
@@ -766,7 +851,9 @@ const Checkout = () => {
   const freightReady = cartGroups.length > 0 && freightSelections.length >= cartGroups.length;
 
   const canConfirmOrder =
-    freightReady && (!requiresProof || (!!proofFile && !proofError));
+    freightReady &&
+    (!requiresProof || (!!proofFile && !proofError)) &&
+    (!isAppypayGpo || appypayPhoneValid);
 
   return (
     <div className="min-h-screen bg-background pb-14">
@@ -957,7 +1044,8 @@ const Checkout = () => {
                 {[
                   { id: "cash_on_delivery", label: "Pagamento na entrega", desc: "Pague em dinheiro ao receber" },
                   { id: "bank_transfer", label: "Transferência bancária", desc: "Transfira para a conta da Zangu" },
-                  { id: "multicaixa_express", label: "Multicaixa Express", desc: "Pague via Multicaixa Express" },
+                  { id: "appypay_gpo", label: "Multicaixa Express", desc: "Receba um pedido no telemóvel e autorize na hora" },
+                  { id: "appypay_ref", label: "Referência Multicaixa", desc: "Pague depois num ATM ou home banking" },
                 ].map(method => (
                   <button
                     key={method.id}
@@ -973,15 +1061,11 @@ const Checkout = () => {
               </div>
             </div>
 
-            {/* Contas de pagamento (banco ou Multicaixa) — geridas pelo Adm */}
+            {/* Dados da conta bancária (transferência) — geridos pelo Adm */}
             {requiresProof && (
               <div className="bg-card rounded-card border border-border p-4">
                 <div className="flex items-center gap-2 mb-3">
-                  {paymentMethod === "bank_transfer" ? (
-                    <Building2 className="w-4 h-4 text-primary" />
-                  ) : (
-                    <Smartphone className="w-4 h-4 text-primary" />
-                  )}
+                  <Building2 className="w-4 h-4 text-primary" />
                   <h3 className="text-sm font-bold text-foreground">Dados para pagamento</h3>
                 </div>
 
@@ -997,18 +1081,9 @@ const Checkout = () => {
                   <div className="space-y-2">
                     {paymentAccounts.map((acc: any) => (
                       <div key={acc.id} className="rounded-lg border border-border bg-background p-3 space-y-1">
-                        {paymentMethod === "bank_transfer" ? (
-                          <>
-                            {acc.bank_name && <p className="text-xs text-muted-foreground">Banco: <span className="font-semibold text-foreground">{acc.bank_name}</span></p>}
-                            <p className="text-xs text-muted-foreground">Titular: <span className="font-semibold text-foreground">{acc.account_holder}</span></p>
-                            {acc.iban && <p className="text-xs text-muted-foreground">IBAN: <span className="font-semibold text-foreground">{acc.iban}</span></p>}
-                          </>
-                        ) : (
-                          <>
-                            <p className="text-xs text-muted-foreground">Titular: <span className="font-semibold text-foreground">{acc.account_holder}</span></p>
-                            {acc.phone_number && <p className="text-xs text-muted-foreground">Número: <span className="font-semibold text-foreground">{acc.phone_number}</span></p>}
-                          </>
-                        )}
+                        {acc.bank_name && <p className="text-xs text-muted-foreground">Banco: <span className="font-semibold text-foreground">{acc.bank_name}</span></p>}
+                        <p className="text-xs text-muted-foreground">Titular: <span className="font-semibold text-foreground">{acc.account_holder}</span></p>
+                        {acc.iban && <p className="text-xs text-muted-foreground">IBAN: <span className="font-semibold text-foreground">{acc.iban}</span></p>}
                         {acc.notes && <p className="text-[11px] text-muted-foreground italic mt-1">{acc.notes}</p>}
                       </div>
                     ))}
@@ -1017,6 +1092,42 @@ const Checkout = () => {
                     </p>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Multicaixa Express automático — precisa do número que vai receber o pedido de autorização */}
+            {isAppypayGpo && (
+              <div className="bg-card rounded-card border border-border p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Smartphone className="w-4 h-4 text-primary" />
+                  <h3 className="text-sm font-bold text-foreground">Número Multicaixa Express</h3>
+                </div>
+                <input
+                  type="tel"
+                  inputMode="tel"
+                  value={appypayPhone}
+                  onChange={e => setAppypayPhone(e.target.value)}
+                  placeholder="9XX XXX XXX"
+                  className="w-full px-3 py-2.5 rounded-lg bg-background border border-border text-base md:text-sm text-foreground"
+                />
+                <p className="text-[11px] text-muted-foreground mt-2">
+                  Vai receber uma notificação neste número para autorizar o pagamento assim que confirmar o pedido.
+                </p>
+              </div>
+            )}
+
+            {/* Referência Multicaixa — a referência só é gerada depois de confirmar o pedido */}
+            {paymentMethod === "appypay_ref" && (
+              <div className="bg-card rounded-card border border-border p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <CreditCard className="w-4 h-4 text-primary" />
+                  <h3 className="text-sm font-bold text-foreground">Referência Multicaixa</h3>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Ao confirmar o pedido, geramos uma referência de pagamento. Pode pagá-la depois num
+                  ATM ou no home banking, dentro do prazo indicado — o pedido é confirmado automaticamente
+                  assim que o pagamento for recebido.
+                </p>
               </div>
             )}
 
@@ -1058,7 +1169,9 @@ const Checkout = () => {
               </div>
               <p className="text-xs text-muted-foreground">
                 {paymentMethod === "cash_on_delivery" ? "Pagamento na entrega" :
-                 paymentMethod === "bank_transfer" ? "Transferência bancária" : "Multicaixa Express"}
+                 paymentMethod === "bank_transfer" ? "Transferência bancária" :
+                 paymentMethod === "appypay_gpo" ? `Multicaixa Express${appypayPhone ? ` — ${appypayPhone}` : ""}` :
+                 "Referência Multicaixa"}
               </p>
             </div>
 
@@ -1263,19 +1376,91 @@ const Checkout = () => {
                 Anexe o comprovativo acima para poder confirmar o pedido.
               </p>
             )}
+            {freightReady && isAppypayGpo && !appypayPhoneValid && (
+              <p className="text-[11px] text-center text-muted-foreground -mt-2">
+                Indique o número Multicaixa Express na etapa de pagamento para poder confirmar o pedido.
+              </p>
+            )}
           </div>
         )}
 
         {/* SUCCESS */}
         {step === "success" && (
           <div className="text-center py-16">
-            <CheckCircle className="w-20 h-20 text-primary mx-auto mb-4" />
-            <h2 className="text-xl font-black text-foreground mb-2">Pedido confirmado!</h2>
-            <p className="text-sm text-muted-foreground mb-6">
-              {requiresProof
-                ? "Recebemos o seu comprovativo. Vamos confirmar o pagamento e o seu pedido será encaminhado ao vendedor em breve."
-                : "O seu pedido foi criado com sucesso. Acompanhe o estado na secção de pedidos."}
-            </p>
+            {isAppyPay && appypayError ? (
+              <>
+                <ShieldCheck className="w-20 h-20 text-yellow-500 mx-auto mb-4" />
+                <h2 className="text-xl font-black text-foreground mb-2">Pedido criado, pagamento pendente</h2>
+                <p className="text-sm text-muted-foreground mb-6 px-2">
+                  O seu pedido foi registado, mas não conseguimos iniciar o pagamento automático agora
+                  ({appypayError}). Pode tentar novamente a partir dos seus pedidos, ou contactar o suporte.
+                </p>
+              </>
+            ) : isAppyPay && !appypayConfirmed ? (
+              <>
+                {isAppypayGpo ? (
+                  <Smartphone className="w-20 h-20 text-primary mx-auto mb-4" />
+                ) : (
+                  <Clock className="w-20 h-20 text-primary mx-auto mb-4" />
+                )}
+                <h2 className="text-xl font-black text-foreground mb-2">
+                  {isAppypayGpo ? "A aguardar autorização" : "A aguardar pagamento"}
+                </h2>
+                <p className="text-sm text-muted-foreground mb-4 px-2">
+                  {isAppypayGpo
+                    ? `Enviámos um pedido de pagamento para ${appypayPhone}. Abra a app ou o menu Multicaixa Express no seu telemóvel e autorize o pagamento.`
+                    : "Pague a referência abaixo num ATM ou no home banking, dentro do prazo. O pedido é confirmado automaticamente assim que recebermos o pagamento."}
+                </p>
+
+                {!isAppypayGpo && (appypayResult?.entityNumber || appypayResult?.referenceNumber) && (
+                  <div className="max-w-xs mx-auto mb-6 space-y-2">
+                    {appypayResult?.entityNumber && (
+                      <button
+                        onClick={() => copyToClipboard(appypayResult.entityNumber!, "Entidade")}
+                        className="w-full flex items-center justify-between p-3 rounded-lg border border-border bg-card"
+                      >
+                        <div className="text-left">
+                          <p className="text-[10px] text-muted-foreground">Entidade</p>
+                          <p className="text-sm font-bold text-foreground font-mono">{appypayResult.entityNumber}</p>
+                        </div>
+                        <Copy className="w-4 h-4 text-muted-foreground" />
+                      </button>
+                    )}
+                    {appypayResult?.referenceNumber && (
+                      <button
+                        onClick={() => copyToClipboard(appypayResult.referenceNumber!, "Referência")}
+                        className="w-full flex items-center justify-between p-3 rounded-lg border border-border bg-card"
+                      >
+                        <div className="text-left">
+                          <p className="text-[10px] text-muted-foreground">Referência</p>
+                          <p className="text-sm font-bold text-foreground font-mono">{appypayResult.referenceNumber}</p>
+                        </div>
+                        <Copy className="w-4 h-4 text-muted-foreground" />
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground mb-6">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  A verificar automaticamente…
+                </div>
+              </>
+            ) : (
+              <>
+                <CheckCircle className="w-20 h-20 text-primary mx-auto mb-4" />
+                <h2 className="text-xl font-black text-foreground mb-2">
+                  {isAppyPay ? "Pagamento confirmado!" : "Pedido confirmado!"}
+                </h2>
+                <p className="text-sm text-muted-foreground mb-6">
+                  {requiresProof
+                    ? "Recebemos o seu comprovativo. Vamos confirmar o pagamento e o seu pedido será encaminhado ao vendedor em breve."
+                    : isAppyPay
+                      ? "O seu pagamento foi confirmado e o pedido já foi encaminhado ao vendedor."
+                      : "O seu pedido foi criado com sucesso. Acompanhe o estado na secção de pedidos."}
+                </p>
+              </>
+            )}
             <div className="flex flex-col gap-3 max-w-xs mx-auto">
               <button onClick={() => navigate("/pedidos")} className="py-3 rounded-full bg-primary text-primary-foreground font-bold text-sm">
                 Ver meus pedidos
