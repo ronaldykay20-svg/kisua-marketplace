@@ -102,3 +102,11 @@
   from { width: 0%; }
   to { width: 100%; }
 }
+
+/* Transição suave (crossfade) quando o cartão "spotlight" do FeaturedSellers
+   troca de vendedor/empresa — evita a sensação de "deformar" que a troca
+   instantânea de conteúdo (nome, foto, produtos) dava antes. */
+@keyframes zg-spotlight-fade {
+  from { opacity: 0.35; }
+  to { opacity: 1; }
+}
