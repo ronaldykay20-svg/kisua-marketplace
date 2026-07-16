@@ -93,3 +93,12 @@
     transform: translateZ(0);
   }
 }
+
+/* Barra de progresso do carrossel "Vendedores & empresas em destaque"
+   (FeaturedSellers) — preenche sozinha via GPU, sem nenhum JS a correr
+   entre o início e o fim (substitui um setInterval de 60ms que existia
+   antes e que estava a travar o toque na Home). */
+@keyframes zg-progress-fill {
+  from { width: 0%; }
+  to { width: 100%; }
+}
