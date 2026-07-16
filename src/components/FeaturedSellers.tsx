@@ -234,26 +234,32 @@ const FeaturedSellers = ({ layout = "mobile" }: FeaturedSellersProps) => {
 
   // ══════════════════════════════════════════════════════════════════════
   // MOTOR DE AUTOPLAY — avança sozinho, pausa ao interagir, retoma depois
+  //
+  // ANTES: um setInterval a cada 60ms recalculava a % da barra de progresso
+  // via JS e chamava setProgress() — ou seja, ~16 re-renders do cartão
+  // inteiro (produtos, avaliações, imagens) POR SEGUNDO, sem parar, enquanto
+  // esta secção estivesse visível. Num telemóvel de gama média isso ocupava
+  // a thread principal ao ponto de os toques ficarem "presos" em toda a Home
+  // (o scroll continuava bem porque corre à parte, no compositor/GPU).
+  //
+  // AGORA: só existe UM temporizador (setTimeout, não setInterval) que
+  // dispara UMA vez por item, ao fim de AUTOPLAY_MS — só para avançar para
+  // o próximo. A barra em si é pintada por uma animação CSS (@keyframes,
+  // ver <style> mais abaixo), que corre no processador gráfico e não exige
+  // nenhum JS a correr entre o início e o fim do preenchimento.
   // ══════════════════════════════════════════════════════════════════════
   const [activeIdx, setActiveIdx] = useState(0);
   const [paused, setPaused] = useState(false);
-  const [progress, setProgress] = useState(0); // 0–100 dentro do item atual
   const resumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { if (activeIdx >= entities.length) setActiveIdx(0); }, [entities.length, activeIdx]);
 
   useEffect(() => {
     if (paused || entities.length <= 1) return;
-    setProgress(0);
-    const start = Date.now();
-    const tick = setInterval(() => {
-      const pct = Math.min(100, ((Date.now() - start) / AUTOPLAY_MS) * 100);
-      setProgress(pct);
-      if (pct >= 100) {
-        setActiveIdx(i => (i + 1) % entities.length);
-      }
-    }, PROGRESS_TICK_MS);
-    return () => clearInterval(tick);
+    const t = setTimeout(() => {
+      setActiveIdx(i => (i + 1) % entities.length);
+    }, AUTOPLAY_MS);
+    return () => clearTimeout(t);
   }, [activeIdx, paused, entities.length]);
 
   const pauseThenResume = useCallback(() => {
@@ -417,10 +423,13 @@ const FeaturedSellers = ({ layout = "mobile" }: FeaturedSellersProps) => {
       {entities.map((_, i) => (
         <button key={i} onClick={() => goTo(i)} className="flex-1 h-1 rounded-full overflow-hidden bg-gray-200" aria-label={`Ir para destaque ${i + 1}`}>
           <div
-            className="h-full rounded-full transition-none"
+            key={i === activeIdx ? `${activeIdx}-${paused}` : `${i}-idle`}
+            className="h-full rounded-full"
             style={{
-              width: i < activeIdx ? "100%" : i === activeIdx ? `${progress}%` : "0%",
               background: K.flame,
+              width: i < activeIdx ? "100%" : i === activeIdx ? undefined : "0%",
+              animation: i === activeIdx ? `zg-progress-fill ${AUTOPLAY_MS}ms linear forwards` : "none",
+              animationPlayState: paused ? "paused" : "running",
             }}
           />
         </button>
