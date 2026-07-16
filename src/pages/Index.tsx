@@ -81,10 +81,8 @@ const MobileLayout = () => {
 
   return (
     <>
-      {/* ── DIAGNÓSTICO TEMPORÁRIO: desligado para testar o toque preso ──
-          <FlashSaleBar />
-          <LiveActivityTicker />
-      */}
+      <FlashSaleBar />
+      <LiveActivityTicker />
       {/* Acima da dobra — carrega imediatamente */}
       <HomeBannerSlot slot={1} device="mobile" />
       <HomeBannerSlot slot={2} device="mobile" />
@@ -114,11 +112,9 @@ const MobileLayout = () => {
       <LazySection estimatedHeight={420}>
         <SavingsGrid />
       </LazySection>
-      {/* ── DIAGNÓSTICO TEMPORÁRIO: FeaturedSellers desligado ──
       <LazySection estimatedHeight={420}>
         <FeaturedSellers />
       </LazySection>
-      */}
       <LazySection estimatedHeight={420}>
         <RecommendedProducts />
       </LazySection>
@@ -140,11 +136,9 @@ const MobileLayout = () => {
           <HomeBannerSlot slot={8} device="mobile" />
         </LazySection>
       )}
-      {/* ── DIAGNÓSTICO TEMPORÁRIO: GroupedVideoStories desligado ──
       <LazySection estimatedHeight={480}>
         <GroupedVideoStories />
       </LazySection>
-      */}
       {(bannersLoading || occupiedSlots.has(9)) && (
         <LazySection estimatedHeight={280}>
           <HomeBannerSlot slot={9} device="mobile" />
