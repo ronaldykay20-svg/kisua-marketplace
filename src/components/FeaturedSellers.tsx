@@ -37,7 +37,7 @@ interface FeaturedEntity {
   route: string;
 }
 
-const AUTOPLAY_MS = 6000;
+const AUTOPLAY_MS = 20000;
 const PROGRESS_TICK_MS = 60;
 
 /**
@@ -307,7 +307,11 @@ const FeaturedSellers = ({ layout = "mobile" }: FeaturedSellersProps) => {
     const products = productsFor(e, layout === "desktop" ? 5 : 4);
 
     return (
-      <div className="relative rounded-2xl overflow-hidden bg-white border" style={{ borderColor: "#EEE6D8", boxShadow: "0 8px 30px rgba(14,79,79,0.08)" }}>
+      <div
+        key={`${e.kind}:${e.id}`}
+        className="relative rounded-2xl overflow-hidden bg-white border"
+        style={{ borderColor: "#EEE6D8", boxShadow: "0 8px 30px rgba(14,79,79,0.08)", animation: "zg-spotlight-fade 0.4s ease" }}
+      >
         {/* Banner */}
         <div className={`relative ${heightClass} bg-muted overflow-hidden`}>
           {e.cover_url ? (
@@ -392,9 +396,9 @@ const FeaturedSellers = ({ layout = "mobile" }: FeaturedSellersProps) => {
             </button>
           </div>
           {products.length === 0 ? (
-            <p className="text-[11px] text-gray-400 py-3 text-center">Sem produtos publicados ainda</p>
+            <p className="text-[11px] text-gray-400 py-3 text-center" style={{ minHeight: layout === "desktop" ? 96 : 78 }}>Sem produtos publicados ainda</p>
           ) : (
-            <div className={`grid gap-2 ${layout === "desktop" ? "grid-cols-5" : "grid-cols-4"}`}>
+            <div className={`grid gap-2 ${layout === "desktop" ? "grid-cols-5" : "grid-cols-4"}`} style={{ minHeight: layout === "desktop" ? 96 : 78 }}>
               {products.map((p: any) => {
                 const img = p.cover_url || p.image_url;
                 return (
