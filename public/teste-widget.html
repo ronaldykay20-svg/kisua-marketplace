@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Teste isolado — AppyPay Widget</title>
+  <title>Teste isolado — AppyPay Widget (com consola)</title>
   <style>
     body {
       font-family: -apple-system, system-ui, sans-serif;
@@ -19,7 +19,17 @@
       border-radius: 12px;
       padding: 16px;
       margin-top: 16px;
+      min-height: 60px;
       box-shadow: 0 1px 4px rgba(0,0,0,.08);
+    }
+    #status {
+      margin-top: 12px;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 10px;
+      border-radius: 8px;
+      background: #fff3cd;
+      color: #664d03;
     }
   </style>
 </head>
@@ -28,19 +38,12 @@
   <p>
     Esta página não depende do site Zango nem do Supabase — serve só para
     confirmar se as credenciais (ClientID + ApiKey) funcionam diretamente
-    com o widget oficial da AppyPay. Se o widget carregar e mostrar o ecrã
-    de pagamento, as credenciais estão OK. Se der erro de autenticação,
-    o problema é mesmo nas credenciais / conta.
+    com o widget oficial da AppyPay.
   </p>
 
-  <div class="box">
-    <!--
-      Valores preenchidos com os dados que forneceste:
-      - data-client-id  -> ClientID (PRD)
-      - data-api-key    -> Api key (e-kwanza)
-      Ajusta "data-merchant-name" para o nome legal exato da tua empresa
-      registado na AppyPay, se não for este.
-    -->
+  <div id="status">A carregar o script do widget...</div>
+
+  <div class="box" id="widget-box">
     <script
       src="https://widget.appypay.co.ao/main.js"
       id="appyPay-charges-widget-v2"
@@ -50,14 +53,18 @@
       data-payment-amount="10.00"
       data-payment-description="Teste de validacao AppyPay"
       async
+      onload="document.getElementById('status').textContent='Script carregado com sucesso. Se a caixa acima continuar vazia, o problema é de autenticacao (ver consola abaixo).'; document.getElementById('status').style.background='#d1e7dd'; document.getElementById('status').style.color='#0f5132';"
+      onerror="document.getElementById('status').textContent='ERRO: nao foi possivel carregar o script do widget (URL errado ou bloqueado). Ver consola abaixo.'; document.getElementById('status').style.background='#f8d7da'; document.getElementById('status').style.color='#842029';"
     ></script>
   </div>
 
   <p style="margin-top:24px;font-size:12px;color:#999;">
-    Nota: se o quadro acima ficar em branco, abre a consola do browser
-    (Definições → Avançado → Web Inspector no Safari, ou F12 no desktop)
-    e vê se aparece algum erro de rede ou de autenticação — copia esse
-    erro e envia.
+    Consola de erros (visível abaixo, aparece em baixo do tudo, arrasta para ver):
   </p>
+
+  <!-- Eruda: mini-consola de browser que funciona dentro da própria página,
+       sem precisar de Mac/Web Inspector. Mostra erros de rede, JS, etc. -->
+  <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
+  <script>eruda.init();</script>
 </body>
 </html>
