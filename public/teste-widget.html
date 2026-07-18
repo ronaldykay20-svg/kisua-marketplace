@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Teste isolado — AppyPay Widget</title>
+  <style>
+    body {
+      font-family: -apple-system, system-ui, sans-serif;
+      background: #f5f5f5;
+      padding: 24px;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+    h1 { font-size: 18px; }
+    p { color: #555; font-size: 14px; line-height: 1.4; }
+    .box {
+      background: #fff;
+      border-radius: 12px;
+      padding: 16px;
+      margin-top: 16px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.08);
+    }
+  </style>
+</head>
+<body>
+  <h1>Teste isolado do Widget AppyPay</h1>
+  <p>
+    Esta página não depende do site Zango nem do Supabase — serve só para
+    confirmar se as credenciais (ClientID + ApiKey) funcionam diretamente
+    com o widget oficial da AppyPay. Se o widget carregar e mostrar o ecrã
+    de pagamento, as credenciais estão OK. Se der erro de autenticação,
+    o problema é mesmo nas credenciais / conta.
+  </p>
+
+  <div class="box">
+    <!--
+      Valores preenchidos com os dados que forneceste:
+      - data-client-id  -> ClientID (PRD)
+      - data-api-key    -> Api key (e-kwanza)
+      Ajusta "data-merchant-name" para o nome legal exato da tua empresa
+      registado na AppyPay, se não for este.
+    -->
+    <script
+      src="https://widget.appypay.co.ao/main.js"
+      id="appyPay-charges-widget-v2"
+      data-merchant-name="Zango Shopping"
+      data-api-key="8UmVR3yf7HwBMkNbdK1749jzTQhlf5jey5BeQ4YZtOtgLWNX"
+      data-client-id="af273fba-d170-40c6-8500-d23e5b696456"
+      data-payment-amount="10.00"
+      data-payment-description="Teste de validacao AppyPay"
+      async
+    ></script>
+  </div>
+
+  <p style="margin-top:24px;font-size:12px;color:#999;">
+    Nota: se o quadro acima ficar em branco, abre a consola do browser
+    (Definições → Avançado → Web Inspector no Safari, ou F12 no desktop)
+    e vê se aparece algum erro de rede ou de autenticação — copia esse
+    erro e envia.
+  </p>
+</body>
+</html>
