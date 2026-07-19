@@ -1,6 +1,6 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { ArrowLeft, MapPin, CreditCard, Truck, CheckCircle, Loader2, ShieldCheck, ImageOff, Upload, FileCheck, X, Building2, Smartphone, Tag, Lock, PackageCheck } from "lucide-react";
+import { ArrowLeft, MapPin, CreditCard, Truck, CheckCircle, Loader2, ShieldCheck, ImageOff, Upload, FileCheck, X, Building2, Smartphone, Tag, Lock, PackageCheck, Copy, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCart } from "@/hooks/useSupabaseData";
 import { useClearCart, useRemoveCartItem } from "@/hooks/useCartActions";
@@ -26,18 +26,6 @@ const METHODS_REQUIRING_PROOF = ["bank_transfer"];
 // antigo "multicaixa_express" manual. O pagamento é confirmado sozinho pelo
 // webhook appypay-webhook assim que o cliente paga, sem precisar de comprovativo.
 const APPYPAY_METHODS = ["appypay_gpo", "appypay_ref"];
-
-// ── Widget oficial da AppyPay ──
-// Ao contrário da API direta (que exige OAuth2 do lado do servidor e tem
-// dado erro 401), o Widget corre no browser do cliente e já traz a UI
-// pronta (escolha do método, campo de telefone, progresso, sucesso).
-// A própria documentação da AppyPay instrui a embutir estes dois valores
-// diretamente no HTML da página — não são segredos, são feitos para
-// aparecer no código-fonte do browser (equivalente a uma "publishable key").
-const APPYPAY_WIDGET_SRC = "https://widget.appypay.co.ao/main.js";
-const APPYPAY_WIDGET_API_KEY = "8UmVR3yf7HwBMkNbdK1749jzTQhlf5jey5BeQ4YZtOtgLWNX";
-const APPYPAY_WIDGET_CLIENT_ID = "af273fba-d170-40c6-8500-d23e5b696456";
-const APPYPAY_MERCHANT_NAME = "Kisua Marketplace";
 
 // Formato do state passado pelo botão "Comprar agora" em ProductDetail.tsx
 type SoloProductState = {
@@ -158,13 +146,14 @@ const Checkout = () => {
   const [freightSelections, setFreightSelections] = useState<any[]>([]);
   const [freightTotal, setFreightTotal] = useState(0);
 
-  // ── Pagamento automático AppyPay via Widget oficial ──
+  // ── Pagamento automático AppyPay (Multicaixa Express / Referência) ──
+  const [appypayPhone, setAppypayPhone] = useState("");
+  const [appypayResult, setAppypayResult] = useState<{
+    referenceNumber: string | null;
+    entityNumber: string | null;
+  } | null>(null);
   const [appypayError, setAppypayError] = useState<string | null>(null);
   const [createdOrderId, setCreatedOrderId] = useState<string | null>(null);
-  const [appypayMerchantTxId, setAppypayMerchantTxId] = useState<string | null>(null);
-  const [appypayAmount, setAppypayAmount] = useState<number | null>(null);
-  const [widgetInjected, setWidgetInjected] = useState(false);
-  const appypayWidgetContainerRef = useRef<HTMLDivElement | null>(null);
 
   // ── Comprovativo de pagamento ──
   const [proofFile, setProofFile] = useState<File | null>(null);
@@ -255,6 +244,7 @@ const Checkout = () => {
   const requiresProof = METHODS_REQUIRING_PROOF.includes(paymentMethod);
   const isAppyPay = APPYPAY_METHODS.includes(paymentMethod);
   const isAppypayGpo = paymentMethod === "appypay_gpo";
+  const appypayPhoneValid = appypayPhone.replace(/\D/g, "").length >= 9;
 
   // Agrupa por vendedor OU empresa
   // municipality_code vem SEMPRE do seller ou company em tempo real
@@ -573,31 +563,37 @@ const Checkout = () => {
       const { error: itemsError } = await supabase.from("order_items").insert(items);
       if (itemsError) throw itemsError;
 
-      // ── Registo da cobrança AppyPay (o Widget é quem cria a cobrança) ──
-      // O pedido já existe nesta altura. Aqui só reservamos um
-      // merchantTransactionId e guardamos uma linha "pending" — é o que o
-      // webhook (appypay-webhook) usa depois para saber a que pedido
-      // corresponde o pagamento, quando o Widget o concluir no browser.
-      let appypayMerchantTxIdResult: string | null = null;
-      let appypayAmountResult: number | null = null;
+      // ── Cobrança AppyPay (Multicaixa Express automático ou Referência) ──
+      // O pedido já existe nesta altura (é exigido pela Edge Function). Uma
+      // falha aqui não invalida o pedido já criado — fica registada para
+      // mostrarmos na tela de sucesso, em vez de rebentar todo o checkout.
+      let appypayChargeResult: { referenceNumber: string | null; entityNumber: string | null } | null = null;
       let appypayChargeError: string | null = null;
 
       if (isAppyPay) {
         try {
-          const { data: regData, error: regError } = await supabase.functions.invoke(
-            "appypay-register-widget-charge",
-            { body: { order_id: order.id, method: isAppypayGpo ? "gpo" : "ref" } }
+          const { data: chargeData, error: chargeError } = await supabase.functions.invoke(
+            "appypay-create-charge",
+            {
+              body: {
+                order_id: order.id,
+                method: isAppypayGpo ? "gpo" : "ref",
+                phone_number: isAppypayGpo ? appypayPhone.replace(/\D/g, "") : undefined,
+              },
+            }
           );
-          if (regError) throw regError;
-          if (regData?.error) throw new Error(regData.error);
+          if (chargeError) throw chargeError;
+          if (chargeData?.error) throw new Error(chargeData.error);
 
-          appypayMerchantTxIdResult = regData?.merchant_transaction_id ?? null;
-          appypayAmountResult = regData?.amount ?? null;
+          appypayChargeResult = {
+            referenceNumber: chargeData?.reference_number ?? null,
+            entityNumber: chargeData?.entity_number ?? null,
+          };
         } catch (chargeCatchErr: any) {
-          console.error("Falha ao registar cobrança AppyPay:", chargeCatchErr);
+          console.error("Falha ao criar cobrança AppyPay:", chargeCatchErr);
           appypayChargeError =
             chargeCatchErr?.message ||
-            "Não foi possível preparar o pagamento automático. Tente novamente ou escolha outro método.";
+            "Não foi possível iniciar o pagamento automático. Tente novamente ou escolha outro método.";
         }
       }
 
@@ -775,13 +771,12 @@ const Checkout = () => {
       } else if (!isSoloCheckout) {
         await clearCart.mutateAsync();
       }
-      return { order, appypayMerchantTxIdResult, appypayAmountResult, appypayChargeError };
+      return { order, appypayChargeResult, appypayChargeError };
     },
-    onSuccess: ({ order, appypayMerchantTxIdResult, appypayAmountResult, appypayChargeError }) => {
+    onSuccess: ({ order, appypayChargeResult, appypayChargeError }) => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       setCreatedOrderId(order.id);
-      setAppypayMerchantTxId(appypayMerchantTxIdResult);
-      setAppypayAmount(appypayAmountResult);
+      setAppypayResult(appypayChargeResult);
       setAppypayError(appypayChargeError);
       setStep("success");
     },
@@ -808,48 +803,12 @@ const Checkout = () => {
   });
   const appypayConfirmed = !!paymentStatus?.payment_verified;
 
-  // ── Injeção do Widget oficial da AppyPay ──
-  // Assim que chegamos ao ecrã de sucesso com um pedido AppyPay pendente e
-  // já temos o merchantTransactionId (reservado pela appypay-register-widget-charge),
-  // criamos o <script> exatamente como a documentação da AppyPay instrui,
-  // dentro do contentor da tela. É o próprio script que desenha a UI
-  // (escolha do método, telefone, progresso, sucesso) — não escrevemos essa
-  // parte, é tudo gerido pela AppyPay no browser do cliente.
-  useEffect(() => {
-    if (
-      step !== "success" ||
-      !isAppyPay ||
-      appypayError ||
-      appypayConfirmed ||
-      !appypayMerchantTxId ||
-      !appypayAmount ||
-      widgetInjected ||
-      !appypayWidgetContainerRef.current
-    ) {
-      return;
-    }
-
-    const container = appypayWidgetContainerRef.current;
-    container.innerHTML = "";
-
-    const script = document.createElement("script");
-    script.src = APPYPAY_WIDGET_SRC;
-    script.id = "appyPay-charges-widget-v2";
-    script.async = true;
-    script.setAttribute("data-merchant-name", APPYPAY_MERCHANT_NAME);
-    script.setAttribute("data-api-key", APPYPAY_WIDGET_API_KEY);
-    script.setAttribute("data-client-id", APPYPAY_WIDGET_CLIENT_ID);
-    script.setAttribute("data-payment-amount", appypayAmount.toFixed(2));
-    script.setAttribute("data-payment-description", `Pedido Kisua Marketplace`);
-    script.setAttribute("data-merchant-tx-id", appypayMerchantTxId);
-
-    container.appendChild(script);
-    setWidgetInjected(true);
-
-    return () => {
-      container.innerHTML = "";
-    };
-  }, [step, isAppyPay, appypayError, appypayConfirmed, appypayMerchantTxId, appypayAmount, widgetInjected]);
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text).then(
+      () => toast.success(`${label} copiada`),
+      () => toast.error("Não foi possível copiar")
+    );
+  };
 
   if (!user) {
     navigate("/auth");
@@ -893,7 +852,8 @@ const Checkout = () => {
 
   const canConfirmOrder =
     freightReady &&
-    (!requiresProof || (!!proofFile && !proofError));
+    (!requiresProof || (!!proofFile && !proofError)) &&
+    (!isAppypayGpo || appypayPhoneValid);
 
   return (
     <div className="min-h-screen bg-background pb-14">
@@ -1084,8 +1044,12 @@ const Checkout = () => {
                 {[
                   { id: "cash_on_delivery", label: "Pagamento na entrega", desc: "Pague em dinheiro ao receber" },
                   { id: "bank_transfer", label: "Transferência bancária", desc: "Transfira para a conta da Zangu" },
-                  { id: "appypay_gpo", label: "Multicaixa Express", desc: "Receba um pedido no telemóvel e autorize na hora" },
-                  { id: "appypay_ref", label: "Referência Multicaixa", desc: "Pague depois num ATM ou home banking" },
+                  // AppyPay (Multicaixa Express / Referência) temporariamente escondido:
+                  // a conta AppyPay ainda está a devolver 401 (Unauthorized) tanto na
+                  // integração direta como no widget oficial deles — a reativar assim
+                  // que o suporte da AppyPay confirmar que a conta PRD está ativa.
+                  // { id: "appypay_gpo", label: "Multicaixa Express", desc: "Receba um pedido no telemóvel e autorize na hora" },
+                  // { id: "appypay_ref", label: "Referência Multicaixa", desc: "Pague depois num ATM ou home banking" },
                 ].map(method => (
                   <button
                     key={method.id}
@@ -1135,16 +1099,23 @@ const Checkout = () => {
               </div>
             )}
 
-            {/* Multicaixa Express automático — o telefone é pedido pelo próprio Widget da AppyPay, depois de confirmar o pedido */}
+            {/* Multicaixa Express automático — precisa do número que vai receber o pedido de autorização */}
             {isAppypayGpo && (
               <div className="bg-card rounded-card border border-border p-4">
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-2 mb-3">
                   <Smartphone className="w-4 h-4 text-primary" />
-                  <h3 className="text-sm font-bold text-foreground">Multicaixa Express</h3>
+                  <h3 className="text-sm font-bold text-foreground">Número Multicaixa Express</h3>
                 </div>
-                <p className="text-[11px] text-muted-foreground">
-                  Ao confirmar o pedido, vai poder indicar o seu número Multicaixa Express e autorizar
-                  o pagamento na hora, diretamente no ecrã seguinte.
+                <input
+                  type="tel"
+                  inputMode="tel"
+                  value={appypayPhone}
+                  onChange={e => setAppypayPhone(e.target.value)}
+                  placeholder="9XX XXX XXX"
+                  className="w-full px-3 py-2.5 rounded-lg bg-background border border-border text-base md:text-sm text-foreground"
+                />
+                <p className="text-[11px] text-muted-foreground mt-2">
+                  Vai receber uma notificação neste número para autorizar o pagamento assim que confirmar o pedido.
                 </p>
               </div>
             )}
@@ -1203,7 +1174,7 @@ const Checkout = () => {
               <p className="text-xs text-muted-foreground">
                 {paymentMethod === "cash_on_delivery" ? "Pagamento na entrega" :
                  paymentMethod === "bank_transfer" ? "Transferência bancária" :
-                 paymentMethod === "appypay_gpo" ? "Multicaixa Express" :
+                 paymentMethod === "appypay_gpo" ? `Multicaixa Express${appypayPhone ? ` — ${appypayPhone}` : ""}` :
                  "Referência Multicaixa"}
               </p>
             </div>
@@ -1409,6 +1380,11 @@ const Checkout = () => {
                 Anexe o comprovativo acima para poder confirmar o pedido.
               </p>
             )}
+            {freightReady && isAppypayGpo && !appypayPhoneValid && (
+              <p className="text-[11px] text-center text-muted-foreground -mt-2">
+                Indique o número Multicaixa Express na etapa de pagamento para poder confirmar o pedido.
+              </p>
+            )}
           </div>
         )}
 
@@ -1426,23 +1402,48 @@ const Checkout = () => {
               </>
             ) : isAppyPay && !appypayConfirmed ? (
               <>
-                <h2 className="text-xl font-black text-foreground mb-2">Finalize o pagamento</h2>
+                {isAppypayGpo ? (
+                  <Smartphone className="w-20 h-20 text-primary mx-auto mb-4" />
+                ) : (
+                  <Clock className="w-20 h-20 text-primary mx-auto mb-4" />
+                )}
+                <h2 className="text-xl font-black text-foreground mb-2">
+                  {isAppypayGpo ? "A aguardar autorização" : "A aguardar pagamento"}
+                </h2>
                 <p className="text-sm text-muted-foreground mb-4 px-2">
                   {isAppypayGpo
-                    ? "Indique o seu número Multicaixa Express abaixo e autorize o pagamento no telemóvel."
-                    : "Gere a sua referência de pagamento abaixo. O pedido é confirmado automaticamente assim que recebermos o pagamento."}
+                    ? `Enviámos um pedido de pagamento para ${appypayPhone}. Abra a app ou o menu Multicaixa Express no seu telemóvel e autorize o pagamento.`
+                    : "Pague a referência abaixo num ATM ou no home banking, dentro do prazo. O pedido é confirmado automaticamente assim que recebermos o pagamento."}
                 </p>
 
-                {/* Contentor onde o script oficial da AppyPay injeta a sua própria
-                    interface (escolha do método, telefone, progresso, sucesso) */}
-                <div ref={appypayWidgetContainerRef} className="max-w-xs mx-auto mb-4 min-h-[120px]">
-                  {!widgetInjected && (
-                    <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground py-8">
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      A carregar pagamento…
-                    </div>
-                  )}
-                </div>
+                {!isAppypayGpo && (appypayResult?.entityNumber || appypayResult?.referenceNumber) && (
+                  <div className="max-w-xs mx-auto mb-6 space-y-2">
+                    {appypayResult?.entityNumber && (
+                      <button
+                        onClick={() => copyToClipboard(appypayResult.entityNumber!, "Entidade")}
+                        className="w-full flex items-center justify-between p-3 rounded-lg border border-border bg-card"
+                      >
+                        <div className="text-left">
+                          <p className="text-[10px] text-muted-foreground">Entidade</p>
+                          <p className="text-sm font-bold text-foreground font-mono">{appypayResult.entityNumber}</p>
+                        </div>
+                        <Copy className="w-4 h-4 text-muted-foreground" />
+                      </button>
+                    )}
+                    {appypayResult?.referenceNumber && (
+                      <button
+                        onClick={() => copyToClipboard(appypayResult.referenceNumber!, "Referência")}
+                        className="w-full flex items-center justify-between p-3 rounded-lg border border-border bg-card"
+                      >
+                        <div className="text-left">
+                          <p className="text-[10px] text-muted-foreground">Referência</p>
+                          <p className="text-sm font-bold text-foreground font-mono">{appypayResult.referenceNumber}</p>
+                        </div>
+                        <Copy className="w-4 h-4 text-muted-foreground" />
+                      </button>
+                    )}
+                  </div>
+                )}
 
                 <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground mb-6">
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
