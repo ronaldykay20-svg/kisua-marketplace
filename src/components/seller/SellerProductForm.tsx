@@ -125,6 +125,38 @@ const colorPresets = [
   { name: "Castanho", value: "#92400E" }, { name: "Bege", value: "#D2B48C" },
 ];
 
+// Interpreta uma lista de tamanhos escrita pelo vendedor num único campo.
+// Regras:
+//  - "," ";" "." separam tamanhos distintos (ex: "36, 37; 38. 40" → 36, 37, 38, 40)
+//  - "N-M" (hífen entre dois números) expande para todos os inteiros consecutivos
+//    entre N e M, inclusive (ex: "36-40" → 36, 37, 38, 39, 40)
+//  - As duas formas podem ser combinadas livremente, o que também permite ao
+//    vendedor "saltar" um número que falte dentro de um intervalo, escrevendo-o
+//    como dois sub-intervalos (ex: "36-37, 39-40" fica sem o 38)
+//  - Tamanhos não-numéricos (ex: "M", "L", "XL") passam tal como escritos
+export const parseSizeInput = (raw: string): string[] => {
+  const tokens = raw.split(/[,;.]+/).map(t => t.trim()).filter(Boolean);
+  const result: string[] = [];
+  const seen = new Set<string>();
+
+  for (const token of tokens) {
+    const rangeMatch = token.match(/^(\d+)\s*-\s*(\d+)$/);
+    if (rangeMatch) {
+      let start = parseInt(rangeMatch[1], 10);
+      let end = parseInt(rangeMatch[2], 10);
+      if (start > end) [start, end] = [end, start];
+      for (let n = start; n <= end; n++) {
+        const label = String(n);
+        if (!seen.has(label)) { seen.add(label); result.push(label); }
+      }
+    } else if (!seen.has(token)) {
+      seen.add(token);
+      result.push(token);
+    }
+  }
+  return result;
+};
+
 const getPlaceholder = (type: string) => {
   switch (type) {
     case "color": return "Ex: Azul";
@@ -470,6 +502,29 @@ const SellerProductForm = ({
   // ── Variações CRUD ────────────────────────────────────
   const addVariant = () => setVariants(prev => [...prev, createEmptyVariant()]);
   const addSubVariant = (parentTempId: string) => setVariants(prev => [...prev, createEmptyVariant(parentTempId)]);
+
+  // Gerador em massa de tamanhos: "36-40, 42" cria 6 linhas de variação
+  // (tipo "size") de uma só vez, em vez de o vendedor ter de clicar
+  // "+ Variação"/"+ Sub-variação" e escrever cada tamanho manualmente.
+  const [bulkSizeDrafts, setBulkSizeDrafts] = useState<Record<string, string>>({});
+  const [bulkSizeOpen, setBulkSizeOpen] = useState<Record<string, boolean>>({});
+  const setBulkSizeDraft = (key: string, value: string) => setBulkSizeDrafts(prev => ({ ...prev, [key]: value }));
+  const toggleBulkSizeOpen = (key: string) => setBulkSizeOpen(prev => ({ ...prev, [key]: !prev[key] }));
+
+  const addSizesFromInput = (key: string, parentTempId: string | null) => {
+    const sizes = parseSizeInput(bulkSizeDrafts[key] || "");
+    if (sizes.length === 0) return;
+    setVariants(prev => [
+      ...prev,
+      ...sizes.map(sizeLabel => ({
+        ...createEmptyVariant(parentTempId),
+        variant_type: "size",
+        name: sizeLabel,
+      })),
+    ]);
+    setBulkSizeDraft(key, "");
+    setBulkSizeOpen(prev => ({ ...prev, [key]: false }));
+  };
   const updateVariant = (tempId: string, key: keyof VariantItem, value: any) =>
     setVariants(prev => prev.map(v => v._tempId === tempId ? { ...v, [key]: value } : v));
   const removeVariant = (tempId: string) =>
@@ -604,10 +659,29 @@ const SellerProductForm = ({
         {!isChild && variant._expanded && (
           <div className="mt-2 space-y-2">
             {children.map(child => renderVariantCard(child, true))}
-            <button type="button" onClick={() => addSubVariant(variant._tempId)}
-              className="flex items-center gap-1 ml-4 px-2 py-1 rounded-lg text-[10px] font-bold text-primary border border-primary/30 hover:bg-primary/5 transition">
-              <Plus className="w-3 h-3" /> Sub-variação (ex: tamanho)
-            </button>
+            <div className="ml-4 flex flex-wrap items-center gap-2">
+              <button type="button" onClick={() => addSubVariant(variant._tempId)}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-primary border border-primary/30 hover:bg-primary/5 transition">
+                <Plus className="w-3 h-3" /> Sub-variação (ex: tamanho)
+              </button>
+              <button type="button" onClick={() => toggleBulkSizeOpen(variant._tempId)}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-muted-foreground border border-border hover:bg-accent transition">
+                <Ruler className="w-3 h-3" /> Vários tamanhos
+              </button>
+            </div>
+            {bulkSizeOpen[variant._tempId] && (
+              <div className="ml-4 flex items-center gap-1.5">
+                <input value={bulkSizeDrafts[variant._tempId] || ""}
+                  onChange={e => setBulkSizeDraft(variant._tempId, e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addSizesFromInput(variant._tempId, variant._tempId); } }}
+                  placeholder="Ex: 36-40, 42"
+                  className="flex-1 px-2 py-1.5 rounded-lg bg-muted border border-border text-xs text-foreground" />
+                <button type="button" onClick={() => addSizesFromInput(variant._tempId, variant._tempId)}
+                  className="px-2 py-1.5 rounded-lg text-[10px] font-bold bg-primary text-primary-foreground hover:opacity-90 transition">
+                  Gerar
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1062,11 +1136,30 @@ const SellerProductForm = ({
                 </p>
               )}
             </div>
-            <button type="button" onClick={addVariant}
-              className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-primary border border-primary/30 hover:bg-primary/5 transition">
-              <Plus className="w-3 h-3" /> Variação
-            </button>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={addVariant}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-primary border border-primary/30 hover:bg-primary/5 transition">
+                <Plus className="w-3 h-3" /> Variação
+              </button>
+              <button type="button" onClick={() => toggleBulkSizeOpen("__root__")}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-muted-foreground border border-border hover:bg-accent transition">
+                <Ruler className="w-3 h-3" /> Vários tamanhos
+              </button>
+            </div>
           </div>
+          {bulkSizeOpen["__root__"] && (
+            <div className="flex items-center gap-1.5 mb-2">
+              <input value={bulkSizeDrafts["__root__"] || ""}
+                onChange={e => setBulkSizeDraft("__root__", e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addSizesFromInput("__root__", null); } }}
+                placeholder="Ex: 36-40, 42 (produto que só varia por tamanho)"
+                className="flex-1 px-2 py-1.5 rounded-lg bg-muted border border-border text-xs text-foreground" />
+              <button type="button" onClick={() => addSizesFromInput("__root__", null)}
+                className="px-2 py-1.5 rounded-lg text-[10px] font-bold bg-primary text-primary-foreground hover:opacity-90 transition">
+                Gerar
+              </button>
+            </div>
+          )}
           {variants.length === 0 && (
             <p className="text-[10px] text-muted-foreground">Sem variações. Adicione cores, tamanhos ou outros atributos.</p>
           )}
