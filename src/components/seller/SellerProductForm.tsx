@@ -125,16 +125,22 @@ const colorPresets = [
   { name: "Castanho", value: "#92400E" }, { name: "Bege", value: "#D2B48C" },
 ];
 
-// Interpreta uma lista de tamanhos escrita pelo vendedor num único campo.
+// Interpreta uma lista de VALORES escrita pelo vendedor num único campo —
+// funciona para qualquer tipo de variação (cor, tamanho, peso, capacidade,
+// modelo, voltagem, material, estilo, pacote, outro).
 // Regras:
-//  - "," ";" "." separam tamanhos distintos (ex: "36, 37; 38. 40" → 36, 37, 38, 40)
-//  - "N-M" (hífen entre dois números) expande para todos os inteiros consecutivos
-//    entre N e M, inclusive (ex: "36-40" → 36, 37, 38, 39, 40)
+//  - "," ";" "." separam valores distintos (ex: "36, 37; 38. 40" → 36, 37, 38, 40;
+//    ou "Azul, Vermelho; Verde" → Azul, Vermelho, Verde)
+//  - "N-M" (hífen entre dois números, e SÓ números) expande para todos os
+//    inteiros consecutivos entre N e M, inclusive (ex: "36-40" → 36,37,38,39,40).
+//    Isto só dispara quando o token inteiro são dígitos-hífen-dígitos, por isso
+//    é seguro para outros tipos: "110-220V" ou "Azul-Marinho" ficam tal como
+//    escritos, sem expansão indevida.
 //  - As duas formas podem ser combinadas livremente, o que também permite ao
-//    vendedor "saltar" um número que falte dentro de um intervalo, escrevendo-o
+//    vendedor "saltar" um valor que falte dentro de um intervalo, escrevendo-o
 //    como dois sub-intervalos (ex: "36-37, 39-40" fica sem o 38)
-//  - Tamanhos não-numéricos (ex: "M", "L", "XL") passam tal como escritos
-export const parseSizeInput = (raw: string): string[] => {
+//  - Valores não-numéricos (ex: "M", "L", "Azul", "220V") passam tal como escritos
+export const parseVariantValueList = (raw: string): string[] => {
   const tokens = raw.split(/[,;.]+/).map(t => t.trim()).filter(Boolean);
   const result: string[] = [];
   const seen = new Set<string>();
@@ -155,6 +161,24 @@ export const parseSizeInput = (raw: string): string[] => {
     }
   }
   return result;
+};
+
+// Para o gerador em massa de tipo "cor": tenta mapear o nome que o vendedor
+// escreveu (ex: "Azul") para o preset correspondente, ignorando acentos e
+// maiúsculas/minúsculas. Se o vendedor escrever um hex (ex: "#FF0000" ou
+// "FF0000"), usa-o diretamente. Caso não reconheça, deixa a cor por escolher
+// manualmente — a linha gerada continua a mostrar a paleta de cores como
+// qualquer outra variação de cor, o vendedor só tem de clicar na certa.
+const normalizeColorToken = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+const colorPresetByName: Record<string, { name: string; value: string }> =
+  colorPresets.reduce((acc, c) => { acc[normalizeColorToken(c.name)] = c; return acc; }, {} as Record<string, { name: string; value: string }>);
+
+const resolveColorToken = (token: string): { name: string; value: string } => {
+  const hexMatch = token.match(/^#?([0-9a-fA-F]{6})$/);
+  if (hexMatch) return { name: token, value: `#${hexMatch[1]}` };
+  const preset = colorPresetByName[normalizeColorToken(token)];
+  if (preset) return { name: preset.name, value: preset.value };
+  return { name: token, value: "" };
 };
 
 const getPlaceholder = (type: string) => {
@@ -503,24 +527,35 @@ const SellerProductForm = ({
   const addVariant = () => setVariants(prev => [...prev, createEmptyVariant()]);
   const addSubVariant = (parentTempId: string) => setVariants(prev => [...prev, createEmptyVariant(parentTempId)]);
 
-  // Gerador em massa de tamanhos: "36-40, 42" cria 6 linhas de variação
-  // (tipo "size") de uma só vez, em vez de o vendedor ter de clicar
-  // "+ Variação"/"+ Sub-variação" e escrever cada tamanho manualmente.
+  // Gerador em massa de variações: "36-40, 42" cria 6 linhas de uma vez em
+  // vez de o vendedor ter de clicar "+ Variação"/"+ Sub-variação" e escrever
+  // cada valor manualmente. Funciona para qualquer tipo (cor, tamanho, peso,
+  // capacidade, modelo, voltagem, material, estilo, pacote, outro) — o
+  // vendedor escolhe o tipo no próprio bloco antes de gerar.
   const [bulkSizeDrafts, setBulkSizeDrafts] = useState<Record<string, string>>({});
   const [bulkSizeOpen, setBulkSizeOpen] = useState<Record<string, boolean>>({});
+  const [bulkVariantType, setBulkVariantType] = useState<Record<string, string>>({});
   const setBulkSizeDraft = (key: string, value: string) => setBulkSizeDrafts(prev => ({ ...prev, [key]: value }));
-  const toggleBulkSizeOpen = (key: string) => setBulkSizeOpen(prev => ({ ...prev, [key]: !prev[key] }));
+  const setBulkType = (key: string, value: string) => setBulkVariantType(prev => ({ ...prev, [key]: value }));
+  const toggleBulkSizeOpen = (key: string, defaultType: string) => {
+    setBulkSizeOpen(prev => ({ ...prev, [key]: !prev[key] }));
+    setBulkVariantType(prev => prev[key] ? prev : { ...prev, [key]: defaultType });
+  };
 
-  const addSizesFromInput = (key: string, parentTempId: string | null) => {
-    const sizes = parseSizeInput(bulkSizeDrafts[key] || "");
-    if (sizes.length === 0) return;
+  const addVariantsFromInput = (key: string, parentTempId: string | null) => {
+    const type = bulkVariantType[key] || "size";
+    const values = parseVariantValueList(bulkSizeDrafts[key] || "");
+    if (values.length === 0) return;
     setVariants(prev => [
       ...prev,
-      ...sizes.map(sizeLabel => ({
-        ...createEmptyVariant(parentTempId),
-        variant_type: "size",
-        name: sizeLabel,
-      })),
+      ...values.map(rawValue => {
+        const base = { ...createEmptyVariant(parentTempId), variant_type: type };
+        if (type === "color") {
+          const { name, value } = resolveColorToken(rawValue);
+          return { ...base, name, value };
+        }
+        return { ...base, name: rawValue };
+      }),
     ]);
     setBulkSizeDraft(key, "");
     setBulkSizeOpen(prev => ({ ...prev, [key]: false }));
@@ -664,19 +699,23 @@ const SellerProductForm = ({
                 className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-primary border border-primary/30 hover:bg-primary/5 transition">
                 <Plus className="w-3 h-3" /> Sub-variação (ex: tamanho)
               </button>
-              <button type="button" onClick={() => toggleBulkSizeOpen(variant._tempId)}
+              <button type="button" onClick={() => toggleBulkSizeOpen(variant._tempId, "size")}
                 className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-muted-foreground border border-border hover:bg-accent transition">
-                <Ruler className="w-3 h-3" /> Vários tamanhos
+                <Ruler className="w-3 h-3" /> Vários valores
               </button>
             </div>
             {bulkSizeOpen[variant._tempId] && (
               <div className="ml-4 flex items-center gap-1.5">
+                <select value={bulkVariantType[variant._tempId] || "size"} onChange={e => setBulkType(variant._tempId, e.target.value)}
+                  className="px-1.5 py-1.5 rounded-lg bg-muted border border-border text-[10px] text-foreground shrink-0">
+                  {variantTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                </select>
                 <input value={bulkSizeDrafts[variant._tempId] || ""}
                   onChange={e => setBulkSizeDraft(variant._tempId, e.target.value)}
-                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addSizesFromInput(variant._tempId, variant._tempId); } }}
-                  placeholder="Ex: 36-40, 42"
+                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addVariantsFromInput(variant._tempId, variant._tempId); } }}
+                  placeholder={(bulkVariantType[variant._tempId] || "size") === "color" ? "Ex: Azul, Vermelho, #22C55E" : "Ex: 36-40, 42"}
                   className="flex-1 px-2 py-1.5 rounded-lg bg-muted border border-border text-xs text-foreground" />
-                <button type="button" onClick={() => addSizesFromInput(variant._tempId, variant._tempId)}
+                <button type="button" onClick={() => addVariantsFromInput(variant._tempId, variant._tempId)}
                   className="px-2 py-1.5 rounded-lg text-[10px] font-bold bg-primary text-primary-foreground hover:opacity-90 transition">
                   Gerar
                 </button>
@@ -1141,20 +1180,24 @@ const SellerProductForm = ({
                 className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-primary border border-primary/30 hover:bg-primary/5 transition">
                 <Plus className="w-3 h-3" /> Variação
               </button>
-              <button type="button" onClick={() => toggleBulkSizeOpen("__root__")}
+              <button type="button" onClick={() => toggleBulkSizeOpen("__root__", "color")}
                 className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-muted-foreground border border-border hover:bg-accent transition">
-                <Ruler className="w-3 h-3" /> Vários tamanhos
+                <Ruler className="w-3 h-3" /> Vários valores
               </button>
             </div>
           </div>
           {bulkSizeOpen["__root__"] && (
             <div className="flex items-center gap-1.5 mb-2">
+              <select value={bulkVariantType["__root__"] || "color"} onChange={e => setBulkType("__root__", e.target.value)}
+                className="px-1.5 py-1.5 rounded-lg bg-muted border border-border text-[10px] text-foreground shrink-0">
+                {variantTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
               <input value={bulkSizeDrafts["__root__"] || ""}
                 onChange={e => setBulkSizeDraft("__root__", e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addSizesFromInput("__root__", null); } }}
-                placeholder="Ex: 36-40, 42 (produto que só varia por tamanho)"
+                onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addVariantsFromInput("__root__", null); } }}
+                placeholder={(bulkVariantType["__root__"] || "color") === "color" ? "Ex: Azul, Vermelho, #22C55E" : "Ex: 36-40, 42"}
                 className="flex-1 px-2 py-1.5 rounded-lg bg-muted border border-border text-xs text-foreground" />
-              <button type="button" onClick={() => addSizesFromInput("__root__", null)}
+              <button type="button" onClick={() => addVariantsFromInput("__root__", null)}
                 className="px-2 py-1.5 rounded-lg text-[10px] font-bold bg-primary text-primary-foreground hover:opacity-90 transition">
                 Gerar
               </button>
