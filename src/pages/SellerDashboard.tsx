@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Store, Package, Plus, Edit, Trash2, Eye, EyeOff, ShoppingCart, Settings, Image as ImageIcon, ClipboardList, Gavel, Truck, Ticket } from "lucide-react";
+import { Store, Package, Plus, Edit, Trash2, Eye, EyeOff, ShoppingCart, Settings, Image as ImageIcon, ClipboardList, Gavel, Truck, Ticket, FileSpreadsheet } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import SellerProductForm from "@/components/seller/SellerProductForm";
+import ProductBulkImport from "@/components/ProductBulkImport";
 import SellerProfileEditor from "@/components/seller/SellerProfileEditor";
 import SellerOrdersTab from "@/components/seller/SellerOrdersTab";
 import SellerStoriesTab from "@/components/seller/SellerStoriesTab";
@@ -21,6 +22,7 @@ const SellerDashboard = () => {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>("produtos");
   const [showForm, setShowForm] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const { hasAccess: hasLeiloesAccess } = useFeatureAccess("leiloes");
 
@@ -227,12 +229,20 @@ const SellerDashboard = () => {
             </div>
           </div>
           {tab === "produtos" && (
-            <button
-              onClick={() => { setEditingProduct(null); setShowForm(true); }}
-              className="flex items-center gap-1 px-3 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-lg flex-shrink-0"
-            >
-              <Plus className="w-4 h-4" /> Produto
-            </button>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                onClick={() => setShowImport(v => !v)}
+                className="flex items-center gap-1 px-3 py-2 bg-card border border-border text-foreground text-xs font-bold rounded-lg"
+              >
+                <FileSpreadsheet className="w-4 h-4" /> Importar
+              </button>
+              <button
+                onClick={() => { setEditingProduct(null); setShowForm(true); }}
+                className="flex items-center gap-1 px-3 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-lg"
+              >
+                <Plus className="w-4 h-4" /> Produto
+              </button>
+            </div>
           )}
         </div>
 
@@ -288,6 +298,16 @@ const SellerDashboard = () => {
                 <p className="text-[10px] text-muted-foreground">Vendas</p>
               </div>
             </div>
+
+            {showImport && (
+              <div className="mb-4">
+                <ProductBulkImport
+                  sellerId={seller.id}
+                  onClose={() => setShowImport(false)}
+                  onImported={() => queryClient.invalidateQueries({ queryKey: ["seller_products", seller.id] })}
+                />
+              </div>
+            )}
 
             {showForm && (
               <SellerProductForm
