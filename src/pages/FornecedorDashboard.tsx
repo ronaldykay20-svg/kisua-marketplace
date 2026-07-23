@@ -9,7 +9,7 @@ import {
   Plus, Trash2, BarChart3, Star,
   AlertCircle, Clock, ArrowLeft, Camera,
   ImageIcon, X, Upload, Save, Weight,
-  Ruler, Package2, Info, AlertTriangle, Edit, Eye, EyeOff, FileSpreadsheet,
+  Ruler, Package2, Info, AlertTriangle, Edit, Eye, EyeOff, FileSpreadsheet, Link as LinkIcon,
 } from "lucide-react";
 import ProductBulkImport from "@/components/ProductBulkImport";
 
@@ -102,6 +102,21 @@ const SupplierProductForm = ({
   const [uploading, setUploading] = useState(false);
   const [photoError, setPhotoError] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showUrlInput, setShowUrlInput] = useState(false);
+  const [urlDraft, setUrlDraft] = useState("");
+
+  const addMediaFromUrl = () => {
+    const url = urlDraft.trim();
+    if (!url) return;
+    if (!/^https?:\/\//i.test(url)) {
+      toast.error("O link tem de começar por http:// ou https://");
+      return;
+    }
+    setPhotoError(false);
+    setMedia(prev => [...prev, { url, is_cover: prev.length === 0 }]);
+    setUrlDraft("");
+    setShowUrlInput(false);
+  };
 
   const set = (key: keyof ProductFormData, value: string) =>
     setForm(f => ({ ...f, [key]: value }));
@@ -469,11 +484,33 @@ const SupplierProductForm = ({
           <span className="text-[9px] text-destructive font-bold">(mínimo 1 obrigatória)</span>
         </label>
 
-        <label className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold cursor-pointer border transition mb-2 w-fit ${uploading ? "opacity-50" : "bg-accent text-foreground border-border hover:bg-accent/80"}`}>
-          <ImageIcon className="w-3.5 h-3.5" />
-          {uploading ? "A enviar..." : "Adicionar Imagens"}
-          <input type="file" accept="image/*" multiple onChange={handleImagesUpload} className="hidden" disabled={uploading} />
-        </label>
+        <div className="flex flex-wrap items-center gap-2 mb-2">
+          <label className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold cursor-pointer border transition w-fit ${uploading ? "opacity-50" : "bg-accent text-foreground border-border hover:bg-accent/80"}`}>
+            <ImageIcon className="w-3.5 h-3.5" />
+            {uploading ? "A enviar..." : "Adicionar Imagens"}
+            <input type="file" accept="image/*" multiple onChange={handleImagesUpload} className="hidden" disabled={uploading} />
+          </label>
+          <button type="button" onClick={() => setShowUrlInput(v => !v)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border bg-accent text-foreground border-border hover:bg-accent/80 transition w-fit">
+            <LinkIcon className="w-3.5 h-3.5" /> Adicionar por link
+          </button>
+        </div>
+
+        {showUrlInput && (
+          <div className="flex items-center gap-1.5 mb-2">
+            <input
+              value={urlDraft}
+              onChange={e => setUrlDraft(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addMediaFromUrl(); } }}
+              placeholder="Cola aqui o link da imagem (https://...)"
+              className="flex-1 px-3 py-2 rounded-lg bg-muted border border-border text-xs text-foreground"
+            />
+            <button type="button" onClick={addMediaFromUrl}
+              className="px-3 py-2 rounded-lg text-xs font-bold bg-primary text-primary-foreground hover:opacity-90 transition">
+              Adicionar
+            </button>
+          </div>
+        )}
 
         {photoError && media.length === 0 && (
           <div className="flex items-center gap-2 rounded-lg px-3 py-2 mb-2" style={{ background: "#FFF0F0", border: "1.5px solid #C0392B55" }}>
