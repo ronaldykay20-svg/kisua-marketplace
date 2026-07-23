@@ -152,10 +152,17 @@ const SellerDashboard = () => {
 
   const toggleActive = useMutation({
     mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
+      if (active) {
+        const { count, error: mediaErr } = await supabase
+          .from("product_media").select("id", { count: "exact", head: true }).eq("product_id", id);
+        if (mediaErr) throw mediaErr;
+        if (!count) throw new Error("Este produto ainda não tem nenhuma foto — adiciona pelo menos uma imagem antes de o ativar.");
+      }
       const { error } = await supabase.from("products").update({ is_active: active }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["seller_products"] }); toast.success("Estado alterado"); },
+    onError: (e: any) => toast.error(e.message),
   });
 
   const deleteProduct = useMutation({
@@ -302,7 +309,7 @@ const SellerDashboard = () => {
             {showImport && (
               <div className="mb-4">
                 <ProductBulkImport
-                  sellerId={seller.id}
+                  target={{ kind: "seller", id: seller.id }}
                   onClose={() => setShowImport(false)}
                   onImported={() => queryClient.invalidateQueries({ queryKey: ["seller_products", seller.id] })}
                 />
