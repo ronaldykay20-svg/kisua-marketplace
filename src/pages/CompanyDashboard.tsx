@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
-import { Building2, Package, Plus, Edit, Trash2, Eye, EyeOff, Users, UserPlus, Save, X, Crown, ShieldCheck, Image as ImageIcon, Camera, Search, ShoppingCart, AlertTriangle, Ticket } from "lucide-react";
+import { Building2, Package, Plus, Edit, Trash2, Eye, EyeOff, Users, UserPlus, Save, X, Crown, ShieldCheck, Image as ImageIcon, Camera, Search, ShoppingCart, AlertTriangle, Ticket, FileSpreadsheet } from "lucide-react";
 import SellerProductForm from "@/components/seller/SellerProductForm";
+import ProductBulkImport from "@/components/ProductBulkImport";
 import CouponManagerTab from "@/components/coupons/CouponManagerTab";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,6 +14,7 @@ const CompanyDashboard = () => {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<"produtos" | "membros" | "cupons" | "perfil">("produtos");
   const [showForm, setShowForm] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [memberSearch, setMemberSearch] = useState("");
   const logoRef = useRef<HTMLInputElement>(null);
@@ -289,6 +291,12 @@ const CompanyDashboard = () => {
 
   const toggleActive = useMutation({
     mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
+      if (active) {
+        const { count, error: mediaErr } = await supabase
+          .from("product_media").select("id", { count: "exact", head: true }).eq("product_id", id);
+        if (mediaErr) throw mediaErr;
+        if (!count) throw new Error("Este produto ainda não tem nenhuma foto — adiciona pelo menos uma imagem antes de o ativar.");
+      }
       const { error } = await supabase
         .from("products")
         .update({ is_active: active })
@@ -296,6 +304,7 @@ const CompanyDashboard = () => {
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["company_products"] }),
+    onError: (e: any) => toast.error(e.message),
   });
 
   const deleteProduct = useMutation({
@@ -520,12 +529,30 @@ const CompanyDashboard = () => {
         {tab === "produtos" && (
           <>
             {canEdit && !showForm && (
-              <button
-                onClick={() => { setEditingProduct(null); setShowForm(true); }}
-                className="w-full mb-3 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-lg flex items-center justify-center gap-1"
-              >
-                <Plus className="w-4 h-4" /> Novo Produto
-              </button>
+              <div className="flex items-center gap-2 mb-3">
+                <button
+                  onClick={() => setShowImport(v => !v)}
+                  className="flex-1 py-2 bg-card border border-border text-foreground text-xs font-bold rounded-lg flex items-center justify-center gap-1"
+                >
+                  <FileSpreadsheet className="w-4 h-4" /> Importar
+                </button>
+                <button
+                  onClick={() => { setEditingProduct(null); setShowForm(true); }}
+                  className="flex-1 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-lg flex items-center justify-center gap-1"
+                >
+                  <Plus className="w-4 h-4" /> Novo Produto
+                </button>
+              </div>
+            )}
+
+            {showImport && (
+              <div className="mb-3">
+                <ProductBulkImport
+                  target={{ kind: "company", id: company.id }}
+                  onClose={() => setShowImport(false)}
+                  onImported={() => queryClient.invalidateQueries({ queryKey: ["company_products", company.id] })}
+                />
+              </div>
             )}
 
             <div className="grid grid-cols-3 gap-2 mb-4">
