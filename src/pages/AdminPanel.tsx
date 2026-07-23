@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Shield, Users, Search, Plus, Trash2, Crown, Building2, Store, CheckCircle, XCircle, ShieldCheck, UserCheck, UsersRound, FolderTree, ImageIcon, ShoppingBag, Settings, Star, Gavel, Upload, Eye, EyeOff, Copy, Megaphone, Play, TrendingUp, Users as UsersIcon, X, Loader2, Truck, Banknote, Ticket, MousePointerClick, Gift } from "lucide-react";
+import { Shield, Users, Search, Plus, Trash2, Crown, Building2, Store, CheckCircle, XCircle, ShieldCheck, UserCheck, UsersRound, FolderTree, ImageIcon, ShoppingBag, Settings, Star, Gavel, Upload, Eye, EyeOff, Copy, Megaphone, Play, TrendingUp, Users as UsersIcon, X, Loader2, Truck, Banknote, Ticket, MousePointerClick, Gift, FileSpreadsheet } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole, AppRole, TEAM_ROLES } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,6 +17,7 @@ import AdminFreightTab from "@/components/admin/AdminFreightTab";
 import AdminFreightCompaniesTab from "@/components/admin/AdminFreightCompaniesTab";
 import AdminFreeShippingTab from "@/components/admin/AdminFreeShippingTab";
 import AdminSuppliersTab from "@/components/admin/AdminSuppliersTab";
+import AdminProductImportTab from "@/components/admin/AdminProductImportTab";
 import AdminPaymentReviewTab from "@/components/admin/AdminPaymentReviewTab";
 import CouponManagerTab from "@/components/coupons/CouponManagerTab";
 import AdminAnalyticsTab from "@/components/admin/AdminAnalyticsTab";
@@ -36,7 +37,7 @@ const roleBadge: Record<string, { label: string; color: string; icon: any }> = {
   marketing:  { label: "Marketing",  color: "bg-pink-500/10 text-pink-500 border-pink-500/20", icon: Megaphone },
 };
 
-type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos" | "encomendas" | "categorias" | "banners" | "definicoes" | "leiloes" | "publicidade" | "frete" | "frete_gratis" | "frete_empresas" | "fornecedores" | "pagamentos" | "cupons" | "analytics" | "interacoes";
+type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos" | "encomendas" | "categorias" | "banners" | "definicoes" | "leiloes" | "publicidade" | "frete" | "frete_gratis" | "frete_empresas" | "fornecedores" | "importar_produtos" | "pagamentos" | "cupons" | "analytics" | "interacoes";
 
 const AdminPanel = () => {
   const { user } = useAuth();
@@ -132,6 +133,7 @@ const AdminPanel = () => {
     { key: "frete_gratis", label: "Frete Grátis",  icon: Gift },
     { key: "frete_empresas", label: "Transportadoras", icon: Truck },
     { key: "fornecedores", label: "Fornecedores",  icon: Building2 },
+    { key: "importar_produtos", label: "Importar Produtos", icon: FileSpreadsheet },
     { key: "cupons",       label: "Cupons",        icon: Ticket },
     { key: "pedidos",      label: "Candidaturas",  icon: UserCheck },
     { key: "leiloes",      label: "Leilões",       icon: Gavel },
@@ -184,6 +186,7 @@ const AdminPanel = () => {
         {tab === "frete_gratis" && <AdminFreeShippingTab />}
         {tab === "frete_empresas" && <AdminFreightCompaniesTab />}
         {tab === "fornecedores" && <AdminSuppliersTab />}
+        {tab === "importar_produtos" && <AdminProductImportTab />}
         {tab === "cupons"       && <CouponManagerTab scope="platform" ownerId={null} heading="Cupons da Plataforma" />}
 
         {tab === "cargos" && (
