@@ -77,11 +77,11 @@ const HEADER_ALIASES: Record<string, string[]> = {
   height_cm: ["altura", "altura_cm", "height_cm"],
 };
 
-const buildHeaderMap = (headerRow: string[]): Record<string, number> => {
+const buildHeaderMap = (headerRow: string[], aliasMap: Record<string, string[]>): Record<string, number> => {
   const map: Record<string, number> = {};
   headerRow.forEach((rawHeader, index) => {
     const h = normalize(String(rawHeader || ""));
-    for (const [field, aliases] of Object.entries(HEADER_ALIASES)) {
+    for (const [field, aliases] of Object.entries(aliasMap)) {
       if (aliases.some(a => normalize(a) === h) && map[field] === undefined) {
         map[field] = index;
       }
@@ -130,7 +130,7 @@ export const parseProductRows = (rows: any[][], categories: CategoryOption[]): P
 
   if (rows.length === 0) return { valid, errors: [{ rowNumber: 0, message: "Ficheiro vazio." }] };
 
-  const headerMap = buildHeaderMap(rows[0].map(String));
+  const headerMap = buildHeaderMap(rows[0].map(String), HEADER_ALIASES);
   if (headerMap.title === undefined) {
     return { valid, errors: [{ rowNumber: 1, message: 'Falta a coluna "Nome" (ou "Produto"/"Título") no cabeçalho.' }] };
   }
@@ -200,4 +200,116 @@ export const downloadImportTemplate = () => {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Produtos");
   XLSX.writeFile(wb, "modelo-importacao-produtos.xlsx");
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+// Catálogo de FORNECEDOR (dropship) — vive na tabela `supplier_products`,
+// com um esquema diferente do dos produtos normais: "name" em vez de
+// "title", "cost_price" em vez de "price", "category" é texto livre (não
+// há category_id), e tem ainda "suggested_price"/"min_price" próprios do
+// modelo de dropshipping. Por isso tem o seu próprio parser e modelo.
+// ═══════════════════════════════════════════════════════════════════════
+
+export interface ParsedSupplierProductRow {
+  rowNumber: number;
+  name: string;
+  description: string | null;
+  category: string | null;
+  cost_price: number;
+  suggested_price: number | null;
+  min_price: number | null;
+  stock_quantity: number;
+  sku: string | null;
+  weight_kg: number | null;
+  length_cm: number | null;
+  width_cm: number | null;
+  height_cm: number | null;
+  volume_m3: number | null;
+}
+
+const SUPPLIER_HEADER_ALIASES: Record<string, string[]> = {
+  name: ["nome", "produto", "titulo", "título", "name"],
+  description: ["descricao", "descrição", "description"],
+  category: ["categoria", "category"],
+  cost_price: ["preco_custo", "preço de custo", "preco de custo", "cost_price", "custo"],
+  suggested_price: ["preco_sugerido", "preço sugerido", "preco sugerido", "suggested_price"],
+  min_price: ["preco_minimo", "preço mínimo", "preco minimo", "min_price"],
+  stock_quantity: ["stock", "estoque", "quantidade", "qtd", "stock_quantity"],
+  sku: ["sku", "referencia", "referência", "codigo", "código"],
+  weight_kg: ["peso", "peso_kg", "weight_kg"],
+  length_cm: ["comprimento", "comprimento_cm", "length_cm"],
+  width_cm: ["largura", "largura_cm", "width_cm"],
+  height_cm: ["altura", "altura_cm", "height_cm"],
+};
+
+export const parseSupplierProductRows = (rows: any[][]): { valid: ParsedSupplierProductRow[]; errors: ProductImportError[] } => {
+  const valid: ParsedSupplierProductRow[] = [];
+  const errors: ProductImportError[] = [];
+
+  if (rows.length === 0) return { valid, errors: [{ rowNumber: 0, message: "Ficheiro vazio." }] };
+
+  const headerMap = buildHeaderMap(rows[0].map(String), SUPPLIER_HEADER_ALIASES);
+  if (headerMap.name === undefined) {
+    return { valid, errors: [{ rowNumber: 1, message: 'Falta a coluna "Nome" no cabeçalho.' }] };
+  }
+  if (headerMap.cost_price === undefined) {
+    return { valid, errors: [{ rowNumber: 1, message: 'Falta a coluna "Preço de custo" no cabeçalho.' }] };
+  }
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    const rowNumber = i + 1;
+    const isEmpty = row.every(cell => String(cell ?? "").trim() === "");
+    if (isEmpty) continue;
+
+    const get = (field: string) => (headerMap[field] !== undefined ? row[headerMap[field]] : undefined);
+
+    const name = String(get("name") ?? "").trim();
+    if (!name) { errors.push({ rowNumber, message: "Nome do produto em falta." }); continue; }
+
+    const cost_price = toNumberOrNull(get("cost_price"));
+    if (cost_price === null || cost_price <= 0) { errors.push({ rowNumber, message: `Preço de custo inválido para "${name}".` }); continue; }
+
+    const weight_kg = toNumberOrNull(get("weight_kg"));
+    const length_cm = toNumberOrNull(get("length_cm"));
+    const width_cm = toNumberOrNull(get("width_cm"));
+    const height_cm = toNumberOrNull(get("height_cm"));
+    const volume_m3 = (length_cm && width_cm && height_cm)
+      ? Number(((length_cm * width_cm * height_cm) / 1_000_000).toFixed(4))
+      : null;
+
+    valid.push({
+      rowNumber,
+      name,
+      description: String(get("description") ?? "").trim() || null,
+      category: String(get("category") ?? "").trim() || null,
+      cost_price,
+      suggested_price: toNumberOrNull(get("suggested_price")),
+      min_price: toNumberOrNull(get("min_price")),
+      stock_quantity: toNumberOrNull(get("stock_quantity")) ?? 1,
+      sku: String(get("sku") ?? "").trim() || null,
+      weight_kg,
+      length_cm,
+      width_cm,
+      height_cm,
+      volume_m3,
+    } as ParsedSupplierProductRow);
+  }
+
+  return { valid, errors };
+};
+
+export const downloadSupplierImportTemplate = () => {
+  const headers = [
+    "Nome", "Descrição", "Categoria", "Preço de custo", "Preço sugerido",
+    "Preço mínimo", "Stock", "SKU", "Peso (kg)", "Comprimento (cm)", "Largura (cm)", "Altura (cm)",
+  ];
+  const example = [
+    "Fone Bluetooth X200", "Fone sem fio com cancelamento de ruído", "Eletrónica",
+    5000, 8000, 6500, 50, "FN-200", 0.15, 12, 8, 4,
+  ];
+  const ws = XLSX.utils.aoa_to_sheet([headers, example]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Catálogo");
+  XLSX.writeFile(wb, "modelo-importacao-catalogo-fornecedor.xlsx");
 };
