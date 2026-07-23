@@ -26,7 +26,7 @@ export const ADMIN_TAB_PERMISSIONS: Record<string, string[]> = {
   operacoes:  ["encomendas"],
   financeiro: ["pagamentos"],
   logistica:  ["frete", "frete_gratis", "frete_empresas"],
-  parceiros:  ["categorias", "vendedores", "empresas", "fornecedores", "pedidos"],
+  parceiros:  ["categorias", "vendedores", "empresas", "fornecedores", "importar_produtos", "pedidos"],
   marketing:  ["analytics", "interacoes", "banners", "publicidade", "cupons", "leiloes"],
 };
 
