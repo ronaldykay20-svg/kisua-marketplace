@@ -2,8 +2,9 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Save, X, Trash2, Image as ImageIcon, Film, Plus,
   ChevronDown, ChevronRight, AlertTriangle, Clock, Camera,
-  Weight, Package2, Ruler, Info, Tag, Sparkles, FileText, DollarSign, Search,
+  Weight, Package2, Ruler, Info, Tag, Sparkles, FileText, DollarSign, Search, Link as LinkIcon,
 } from "lucide-react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { STORAGE_BUCKETS } from "@/lib/storage";
@@ -487,6 +488,7 @@ const SellerProductForm = ({
       }
     } catch (err: any) {
       console.error("Upload error:", err.message);
+      toast.error(`Falha ao enviar imagem: ${err.message || "erro desconhecido"}. Tenta a opção "Adicionar por link" em baixo.`);
     }
     setUploading(false);
     e.target.value = "";
@@ -522,6 +524,26 @@ const SellerProductForm = ({
   };
 
   const setCover = (index: number) => setMedia(prev => prev.map((m, i) => ({ ...m, is_cover: i === index })));
+
+  // ── Adicionar imagem por link ──────────────────────────
+  // Alternativa ao upload de ficheiro: não depende do Storage, por isso não
+  // falha pelos mesmos motivos (tamanho, tipo, rede) — só grava o URL tal
+  // como está. Útil quando o upload direto não funciona no telemóvel/rede.
+  const [showUrlInput, setShowUrlInput] = useState(false);
+  const [urlDraft, setUrlDraft] = useState("");
+
+  const addMediaFromUrl = () => {
+    const url = urlDraft.trim();
+    if (!url) return;
+    if (!/^https?:\/\//i.test(url)) {
+      toast.error("O link tem de começar por http:// ou https://");
+      return;
+    }
+    setPhotoError(false);
+    setMedia(prev => [...prev, { url, type: "image", is_cover: prev.length === 0, sort_order: prev.length }]);
+    setUrlDraft("");
+    setShowUrlInput(false);
+  };
 
   // ── Variações CRUD ────────────────────────────────────
   const addVariant = () => setVariants(prev => [...prev, createEmptyVariant()]);
@@ -799,13 +821,36 @@ const SellerProductForm = ({
             </label>
           </div>
 
-          <label className={cn(
-            "mt-2 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold cursor-pointer border transition w-fit",
-            uploading ? "opacity-50 pointer-events-none" : "bg-accent text-foreground border-border hover:bg-accent/80"
-          )}>
-            <Film className="w-3.5 h-3.5" /> Adicionar vídeo
-            <input type="file" accept="video/*" multiple onChange={e => handleFilesUpload(e, "video")} className="hidden" disabled={uploading} />
-          </label>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <label className={cn(
+              "flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold cursor-pointer border transition w-fit",
+              uploading ? "opacity-50 pointer-events-none" : "bg-accent text-foreground border-border hover:bg-accent/80"
+            )}>
+              <Film className="w-3.5 h-3.5" /> Adicionar vídeo
+              <input type="file" accept="video/*" multiple onChange={e => handleFilesUpload(e, "video")} className="hidden" disabled={uploading} />
+            </label>
+
+            <button type="button" onClick={() => setShowUrlInput(v => !v)}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold border bg-accent text-foreground border-border hover:bg-accent/80 transition w-fit">
+              <LinkIcon className="w-3.5 h-3.5" /> Adicionar por link
+            </button>
+          </div>
+
+          {showUrlInput && (
+            <div className="mt-2 flex items-center gap-1.5">
+              <input
+                value={urlDraft}
+                onChange={e => setUrlDraft(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addMediaFromUrl(); } }}
+                placeholder="Cola aqui o link da imagem (https://...)"
+                className="flex-1 px-3 py-2 rounded-lg bg-muted border border-border text-xs text-foreground"
+              />
+              <button type="button" onClick={addMediaFromUrl}
+                className="px-3 py-2 rounded-lg text-xs font-bold bg-primary text-primary-foreground hover:opacity-90 transition">
+                Adicionar
+              </button>
+            </div>
+          )}
 
           {media.length === 0 && !photoError && (
             <p className="text-[10px] text-muted-foreground mt-1.5 flex items-center gap-1">
