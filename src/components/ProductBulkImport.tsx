@@ -5,25 +5,33 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   readSpreadsheetFile, parseProductRows, downloadImportTemplate,
-  ParsedProductRow, ProductImportError, CategoryOption,
+  parseSupplierProductRows, downloadSupplierImportTemplate,
+  ParsedProductRow, ParsedSupplierProductRow, ProductImportError, CategoryOption,
 } from "@/lib/productImport";
 
+export type ImportTarget =
+  | { kind: "seller"; id: string }
+  | { kind: "company"; id: string }
+  | { kind: "supplier"; id: string };
+
 interface Props {
-  sellerId: string;
-  sellerLabel?: string; // nome da loja, só para contexto visual no modo Admin
+  target: ImportTarget;
+  targetLabel?: string;
   onClose?: () => void;
   onImported?: () => void;
 }
 
-const ProductBulkImport = ({ sellerId, sellerLabel, onClose, onImported }: Props) => {
+const ProductBulkImport = ({ target, targetLabel, onClose, onImported }: Props) => {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [parsing, setParsing] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [validRows, setValidRows] = useState<ParsedProductRow[]>([]);
+  const [validRows, setValidRows] = useState<(ParsedProductRow | ParsedSupplierProductRow)[]>([]);
   const [errorRows, setErrorRows] = useState<ProductImportError[]>([]);
   const [importedCount, setImportedCount] = useState<number | null>(null);
+
+  const isSupplier = target.kind === "supplier";
 
   const { data: categories = [] } = useQuery({
     queryKey: ["categories_with_subs"],
@@ -34,6 +42,7 @@ const ProductBulkImport = ({ sellerId, sellerLabel, onClose, onImported }: Props
       if (error) throw error;
       return data as CategoryOption[];
     },
+    enabled: !isSupplier,
   });
 
   const reset = () => {
@@ -52,7 +61,7 @@ const ProductBulkImport = ({ sellerId, sellerLabel, onClose, onImported }: Props
     setParsing(true);
     try {
       const rows = await readSpreadsheetFile(file);
-      const { valid, errors } = parseProductRows(rows, categories);
+      const { valid, errors } = isSupplier ? parseSupplierProductRows(rows) : parseProductRows(rows, categories);
       setValidRows(valid);
       setErrorRows(errors);
       if (valid.length === 0 && errors.length === 0) {
@@ -69,40 +78,66 @@ const ProductBulkImport = ({ sellerId, sellerLabel, onClose, onImported }: Props
     if (validRows.length === 0) return;
     setImporting(true);
     try {
-      const payload = validRows.map(r => ({
-        seller_id: sellerId,
-        title: r.title,
-        description: r.description,
-        price: r.price,
-        old_price: r.old_price,
-        discount_percent: r.discount_percent,
-        stock: r.stock,
-        sku: r.sku,
-        condition: r.condition,
-        category_id: r.category_id,
-        free_shipping: r.free_shipping,
-        weight_kg: r.weight_kg,
-        length_cm: r.length_cm,
-        width_cm: r.width_cm,
-        height_cm: r.height_cm,
-        is_active: true,
-      }));
-
-      // Inserido em blocos de 200 para não sobrecarregar um único pedido
-      // caso o vendedor carregue uma folha muito grande.
       const chunkSize = 200;
       let inserted = 0;
-      for (let i = 0; i < payload.length; i += chunkSize) {
-        const chunk = payload.slice(i, i + chunkSize);
-        const { error } = await supabase.from("products").insert(chunk);
-        if (error) throw error;
-        inserted += chunk.length;
+
+      if (isSupplier) {
+        const payload = (validRows as ParsedSupplierProductRow[]).map(r => ({
+          supplier_id: target.id,
+          name: r.name,
+          description: r.description,
+          category: r.category,
+          cost_price: r.cost_price,
+          suggested_price: r.suggested_price,
+          min_price: r.min_price,
+          stock_quantity: r.stock_quantity,
+          sku: r.sku,
+          weight_kg: r.weight_kg,
+          length_cm: r.length_cm,
+          width_cm: r.width_cm,
+          height_cm: r.height_cm,
+          volume_m3: r.volume_m3,
+          images: [],
+          status: "suspended",
+        }));
+        for (let i = 0; i < payload.length; i += chunkSize) {
+          const chunk = payload.slice(i, i + chunkSize);
+          const { error } = await supabase.from("supplier_products").insert(chunk);
+          if (error) throw error;
+          inserted += chunk.length;
+        }
+      } else {
+        const payload = (validRows as ParsedProductRow[]).map(r => ({
+          ...(target.kind === "seller" ? { seller_id: target.id } : { company_id: target.id }),
+          title: r.title,
+          description: r.description,
+          price: r.price,
+          old_price: r.old_price,
+          discount_percent: r.discount_percent,
+          stock: r.stock,
+          sku: r.sku,
+          condition: r.condition,
+          category_id: r.category_id,
+          free_shipping: r.free_shipping,
+          weight_kg: r.weight_kg,
+          length_cm: r.length_cm,
+          width_cm: r.width_cm,
+          height_cm: r.height_cm,
+          is_active: false,
+        }));
+        for (let i = 0; i < payload.length; i += chunkSize) {
+          const chunk = payload.slice(i, i + chunkSize);
+          const { error } = await supabase.from("products").insert(chunk);
+          if (error) throw error;
+          inserted += chunk.length;
+        }
       }
 
       setImportedCount(inserted);
-      toast.success(`${inserted} produto${inserted === 1 ? "" : "s"} importado${inserted === 1 ? "" : "s"}! Falta só adicionar as fotos a cada um.`);
+      toast.success(`${inserted} produto${inserted === 1 ? "" : "s"} importado${inserted === 1 ? "" : "s"} como inativo${inserted === 1 ? "" : "s"} — adiciona as fotos e ativa cada um.`);
       queryClient.invalidateQueries({ queryKey: ["seller_products"] });
-      queryClient.invalidateQueries({ queryKey: ["admin_products"] });
+      queryClient.invalidateQueries({ queryKey: ["company_products"] });
+      queryClient.invalidateQueries({ queryKey: ["supplier_catalog"] });
       onImported?.();
     } catch (err: any) {
       toast.error(`Falha ao importar: ${err.message}`);
@@ -110,12 +145,14 @@ const ProductBulkImport = ({ sellerId, sellerLabel, onClose, onImported }: Props
     setImporting(false);
   };
 
+  const kindLabel = target.kind === "seller" ? "Vendedor" : target.kind === "company" ? "Empresa" : "Fornecedor";
+
   return (
     <div className="bg-card rounded-2xl border border-border shadow-sm p-4 space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-bold text-foreground">Importar produtos (Excel/CSV)</h3>
-          {sellerLabel && <p className="text-[11px] text-muted-foreground">Loja: {sellerLabel}</p>}
+          {targetLabel && <p className="text-[11px] text-muted-foreground">{kindLabel}: {targetLabel}</p>}
         </div>
         {onClose && (
           <button onClick={onClose} className="p-1.5 rounded-full text-muted-foreground hover:bg-muted transition-colors">
@@ -125,9 +162,12 @@ const ProductBulkImport = ({ sellerId, sellerLabel, onClose, onImported }: Props
       </div>
 
       <div className="rounded-lg bg-muted/50 border border-border p-3 text-xs text-muted-foreground space-y-1.5">
-        <p>Carrega um ficheiro <strong>.xlsx</strong> ou <strong>.csv</strong> com uma linha por produto (colunas: Nome, Preço, Stock, Categoria, etc.).</p>
-        <p>As <strong>fotos não vêm no ficheiro</strong> — depois de importar, entra em cada produto para adicionar as imagens.</p>
-        <button type="button" onClick={downloadImportTemplate}
+        <p>Carrega um ficheiro <strong>.xlsx</strong> ou <strong>.csv</strong> com uma linha por produto.</p>
+        <p>
+          As <strong>fotos não vêm no ficheiro</strong> — os produtos são criados <strong>inativos</strong> e só
+          ficam visíveis {isSupplier ? "no catálogo" : "na loja"} depois de adicionares pelo menos uma imagem a cada um e o(a) ativares.
+        </p>
+        <button type="button" onClick={isSupplier ? downloadSupplierImportTemplate : downloadImportTemplate}
           className="flex items-center gap-1 text-primary font-bold mt-1">
           <Download className="w-3 h-3" /> Descarregar modelo em branco
         </button>
@@ -184,18 +224,18 @@ const ProductBulkImport = ({ sellerId, sellerLabel, onClose, onImported }: Props
                       <thead className="bg-muted sticky top-0">
                         <tr>
                           <th className="text-left px-2 py-1.5 font-bold text-muted-foreground">Produto</th>
-                          <th className="text-right px-2 py-1.5 font-bold text-muted-foreground">Preço</th>
+                          <th className="text-right px-2 py-1.5 font-bold text-muted-foreground">{isSupplier ? "Custo" : "Preço"}</th>
                           <th className="text-right px-2 py-1.5 font-bold text-muted-foreground">Stock</th>
                           <th className="text-left px-2 py-1.5 font-bold text-muted-foreground">Categoria</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {validRows.map((r, i) => (
+                        {validRows.map((r: any, i) => (
                           <tr key={i} className="border-t border-border">
-                            <td className="px-2 py-1.5 text-foreground truncate max-w-[140px]">{r.title}</td>
-                            <td className="px-2 py-1.5 text-right text-foreground">{r.price.toLocaleString("pt-AO")} Kz</td>
-                            <td className="px-2 py-1.5 text-right text-foreground">{r.stock}</td>
-                            <td className="px-2 py-1.5 text-muted-foreground truncate max-w-[100px]">{r.category_label || "—"}</td>
+                            <td className="px-2 py-1.5 text-foreground truncate max-w-[140px]">{isSupplier ? r.name : r.title}</td>
+                            <td className="px-2 py-1.5 text-right text-foreground">{(isSupplier ? r.cost_price : r.price).toLocaleString("pt-AO")} Kz</td>
+                            <td className="px-2 py-1.5 text-right text-foreground">{isSupplier ? r.stock_quantity : r.stock}</td>
+                            <td className="px-2 py-1.5 text-muted-foreground truncate max-w-[100px]">{(isSupplier ? r.category : r.category_label) || "—"}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -220,7 +260,7 @@ const ProductBulkImport = ({ sellerId, sellerLabel, onClose, onImported }: Props
                 <CheckCircle2 className="w-4 h-4" /> {importedCount} produtos importados com sucesso.
               </p>
               <p className="text-[11px] text-emerald-700/80 flex items-center gap-1.5">
-                <ImageIcon className="w-3.5 h-3.5 shrink-0" /> Já estão na lista de produtos, mas sem fotos — abre cada um para adicionar as imagens antes de ativar a venda.
+                <ImageIcon className="w-3.5 h-3.5 shrink-0" /> Entraram <strong>inativos</strong> — abre cada um, adiciona a foto, e só depois ativa.
               </p>
               <button onClick={reset} className="text-[11px] font-bold text-primary">Importar outro ficheiro</button>
             </div>
