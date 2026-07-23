@@ -9,8 +9,9 @@ import {
   Plus, Trash2, BarChart3, Star,
   AlertCircle, Clock, ArrowLeft, Camera,
   ImageIcon, X, Upload, Save, Weight,
-  Ruler, Package2, Info, AlertTriangle, Edit, Eye, EyeOff,
+  Ruler, Package2, Info, AlertTriangle, Edit, Eye, EyeOff, FileSpreadsheet,
 } from "lucide-react";
+import ProductBulkImport from "@/components/ProductBulkImport";
 
 type Tab = "visao" | "catalogo" | "pedidos" | "ganhos";
 
@@ -536,6 +537,7 @@ export default function FornecedorDashboard() {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>("visao");
   const [showProductForm, setShowProductForm] = useState(false);
+  const [showImportPanel, setShowImportPanel] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
 
   const { data: supplier, isLoading } = useQuery({
@@ -612,6 +614,14 @@ export default function FornecedorDashboard() {
 
   const toggleCatalogActive = useMutation({
     mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
+      if (active) {
+        const { data: prod, error: fetchErr } = await supabase
+          .from("supplier_products").select("images").eq("id", id).single();
+        if (fetchErr) throw fetchErr;
+        if (!Array.isArray(prod?.images) || prod.images.length === 0) {
+          throw new Error("Este produto ainda não tem nenhuma foto — adiciona pelo menos uma imagem antes de o ativar.");
+        }
+      }
       const { error } = await supabase
         .from("supplier_products")
         .update({ status: active ? "active" : "suspended" })
@@ -904,14 +914,30 @@ export default function FornecedorDashboard() {
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-bold text-foreground">O meu Catálogo ({catalog.length})</h2>
               {!showProductForm && (
-                <button
-                  onClick={() => { setEditingProduct(null); setShowProductForm(true); }}
-                  className="flex items-center gap-1 px-3 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-lg"
-                >
-                  <Plus className="w-3.5 h-3.5" /> Adicionar
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowImportPanel(v => !v)}
+                    className="flex items-center gap-1 px-3 py-2 bg-card border border-border text-foreground text-xs font-bold rounded-lg"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5" /> Importar
+                  </button>
+                  <button
+                    onClick={() => { setEditingProduct(null); setShowProductForm(true); }}
+                    className="flex items-center gap-1 px-3 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-lg"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Adicionar
+                  </button>
+                </div>
               )}
             </div>
+
+            {showImportPanel && (
+              <ProductBulkImport
+                target={{ kind: "supplier", id: supplier.id }}
+                onClose={() => setShowImportPanel(false)}
+                onImported={() => queryClient.invalidateQueries({ queryKey: ["supplier_catalog", supplier.id] })}
+              />
+            )}
 
             {showProductForm && (
               <SupplierProductForm
