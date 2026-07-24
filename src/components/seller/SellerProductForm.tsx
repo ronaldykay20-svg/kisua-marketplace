@@ -584,6 +584,38 @@ const SellerProductForm = ({
   };
   const updateVariant = (tempId: string, key: keyof VariantItem, value: any) =>
     setVariants(prev => prev.map(v => v._tempId === tempId ? { ...v, [key]: value } : v));
+
+  // Se o vendedor escrever "36, 37, 38" (ou um intervalo "36-40") diretamente
+  // no campo normal de Nome — sem passar pelo botão "Vários valores" — isto
+  // separa automaticamente ao sair do campo, para nunca ficar gravado como
+  // uma única linha com o texto todo junto.
+  const handleNameAutoSplit = (variant: VariantItem) => {
+    const values = parseVariantValueList(variant.name);
+    if (values.length <= 1) return;
+    const type = variant.variant_type;
+    const parentTempId = variant.parent_id ?? null;
+
+    const makeRow = (raw: string) => {
+      if (type === "color") {
+        const { name, value } = resolveColorToken(raw);
+        return { name, value };
+      }
+      return { name: raw, value: variant.value };
+    };
+
+    setVariants(prev => {
+      const updatedFirst = prev.map(v =>
+        v._tempId === variant._tempId ? { ...v, ...makeRow(values[0]) } : v
+      );
+      const extraRows = values.slice(1).map(raw => ({
+        ...createEmptyVariant(parentTempId),
+        variant_type: type,
+        ...makeRow(raw),
+      }));
+      return [...updatedFirst, ...extraRows];
+    });
+  };
+
   const removeVariant = (tempId: string) =>
     setVariants(prev => prev.filter(v => v._tempId !== tempId && v.parent_id !== tempId));
   const toggleExpanded = (tempId: string) =>
@@ -655,6 +687,8 @@ const SellerProductForm = ({
           <div>
             <label className="text-[10px] font-bold text-muted-foreground mb-0.5 block">Nome *</label>
             <input value={variant.name} onChange={e => updateVariant(variant._tempId, "name", e.target.value)}
+              onBlur={() => handleNameAutoSplit(variant)}
+              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleNameAutoSplit(variant); } }}
               placeholder={getPlaceholder(variant.variant_type)}
               className="w-full px-2 py-1.5 rounded-lg bg-muted border border-border text-xs text-foreground" />
           </div>
