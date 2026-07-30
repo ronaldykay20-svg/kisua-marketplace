@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Store, ShieldCheck, Star, CheckCircle, XCircle, Plus, Building2, UserCheck } from "lucide-react";
+import { Store, ShieldCheck, Star, CheckCircle, XCircle, Plus, Building2, UserCheck, Banknote } from "lucide-react";
 import { toast } from "sonner";
 import AdminCompanyCard from "./AdminCompanyCard";
 import AdminCompanyMembersModal from "./AdminCompanyMembersModal";
@@ -45,6 +45,18 @@ const AdminPartnersTab = () => {
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_sellers"] }); toast.success("Estado alterado"); },
+  });
+
+  const toggleCodSeller = useMutation({
+    mutationFn: async ({ id, codEnabled }: { id: string; codEnabled: boolean }) => {
+      const { error } = await (supabase as any).from("sellers").update({ cod_enabled: codEnabled }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["admin_sellers"] });
+      toast.success(vars.codEnabled ? "Pagamento na entrega ativado" : "Pagamento na entrega desativado");
+    },
+    onError: (e: any) => toast.error(e.message),
   });
 
   const toggleFeaturedSeller = useMutation({
@@ -90,6 +102,18 @@ const AdminPartnersTab = () => {
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["admin_companies"] }); toast.success("Empresa atualizada"); },
+  });
+
+  const toggleCodCompany = useMutation({
+    mutationFn: async ({ id, codEnabled }: { id: string; codEnabled: boolean }) => {
+      const { error } = await (supabase as any).from("companies").update({ cod_enabled: codEnabled }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["admin_companies"] });
+      toast.success(vars.codEnabled ? "Pagamento na entrega ativado" : "Pagamento na entrega desativado");
+    },
+    onError: (e: any) => toast.error(e.message),
   });
 
   const toggleFeatureCompany = useMutation({
@@ -179,6 +203,9 @@ const AdminPartnersTab = () => {
                   <button onClick={() => toggleVerifySeller.mutate({ id: s.id, verified: !s.is_verified })} className={`p-2 rounded-lg text-xs ${s.is_verified ? "text-blue-500 hover:bg-blue-500/10" : "text-muted-foreground hover:bg-accent"}`}>
                     <ShieldCheck className="w-4 h-4" />
                   </button>
+                  <button onClick={() => toggleCodSeller.mutate({ id: s.id, codEnabled: !s.cod_enabled })} title={s.cod_enabled ? "Desativar pagamento na entrega" : "Ativar pagamento na entrega"} className={`p-2 rounded-lg text-xs ${s.cod_enabled ? "text-emerald-500 hover:bg-emerald-500/10" : "text-muted-foreground hover:bg-accent"}`}>
+                    <Banknote className="w-4 h-4" />
+                  </button>
                   <button onClick={() => toggleActiveSeller.mutate({ id: s.id, active: !s.is_active })} className={`p-2 rounded-lg text-xs ${s.is_active ? "text-green-500 hover:bg-green-500/10" : "text-muted-foreground hover:bg-accent"}`}>
                     {s.is_active ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
                   </button>
@@ -216,6 +243,7 @@ const AdminPartnersTab = () => {
                 onMembers={() => setMembersModal({ id: c.id, name: c.name })}
                 onVerify={() => toggleVerifyCompany.mutate({ id: c.id, verified: !c.is_verified })}
                 onFeature={() => toggleFeatureCompany.mutate({ id: c.id, featured: !c.is_featured })}
+                onToggleCod={() => toggleCodCompany.mutate({ id: c.id, codEnabled: !c.cod_enabled })}
                 queryClient={queryClient}
               />
             ))}
