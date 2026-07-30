@@ -182,7 +182,11 @@ const Checkout = () => {
   const productIds = cartItems.map((item: any) => item.product_id);
 
   // Busca produtos com seller OU company — municipality_code vem SEMPRE do seller/company
-  const { data: productSellers = [] } = useQuery({
+  // Também traz os campos de elegibilidade de "pagamento na entrega": se o
+  // próprio produto tem a opção desativada, se o vendedor/empresa está
+  // autorizado pelo Adm, e — quando o produto vem de um fornecedor — se
+  // esse fornecedor também está autorizado.
+  const { data: productSellers = [], isLoading: productSellersLoading } = useQuery({
     queryKey: ["checkout_product_sellers", productIds],
     queryFn: async () => {
       if (!productIds.length) return [];
@@ -191,14 +195,59 @@ const Checkout = () => {
         .select(`
           id, title, price, image_url, seller_id, company_id, weight_kg,
           free_shipping, free_shipping_scope, free_shipping_province_id, free_shipping_municipality_ids,
-          sellers(id, name, municipality_code, logo_url, cover_url),
-          companies(id, name, municipality_code, logo_url, banner_url)
+          cod_disabled, supplier_product_id,
+          sellers(id, name, municipality_code, logo_url, cover_url, cod_enabled),
+          companies(id, name, municipality_code, logo_url, banner_url, cod_enabled),
+          supplier_products(supplier_id, suppliers(cod_enabled))
         `)
         .in("id", productIds);
       return data || [];
     },
     enabled: productIds.length > 0,
   });
+
+  // Elegibilidade de "pagamento na entrega" de um produto: o próprio produto
+  // não pode ter a opção desativada, o vendedor/empresa que vende tem de
+  // estar autorizado pelo Adm, e — se o produto vier de um fornecedor
+  // (dropship) — esse fornecedor também tem de estar autorizado.
+  const getProductCodEligible = (prod: any): boolean => {
+    if (!prod) return false;
+    if (prod.cod_disabled) return false;
+
+    const companyRel: any = Array.isArray(prod.companies) ? prod.companies[0] : prod.companies;
+    const sellerRel: any = Array.isArray(prod.sellers) ? prod.sellers[0] : prod.sellers;
+    const entityCodEnabled = companyRel ? !!companyRel.cod_enabled : !!sellerRel?.cod_enabled;
+    if (!entityCodEnabled) return false;
+
+    if (prod.supplier_product_id) {
+      const supplierProductRel: any = Array.isArray(prod.supplier_products) ? prod.supplier_products[0] : prod.supplier_products;
+      const supplierRel: any = supplierProductRel
+        ? (Array.isArray(supplierProductRel.suppliers) ? supplierProductRel.suppliers[0] : supplierProductRel.suppliers)
+        : null;
+      if (!supplierRel?.cod_enabled) return false;
+    }
+
+    return true;
+  };
+
+  // O pedido inteiro só pode usar "pagamento na entrega" se TODOS os itens
+  // do carrinho forem elegíveis — a app só suporta um método de pagamento
+  // por pedido, não dá para misturar COD com transferência no mesmo pedido.
+  const cartCodEligible =
+    !productSellersLoading &&
+    cartItems.length > 0 &&
+    cartItems.every((item: any) => getProductCodEligible(productSellers.find((p: any) => p.id === item.product_id)));
+
+  // Se o carrinho deixar de ser elegível para "pagamento na entrega" (ex:
+  // o utilizador voltou atrás e mudou o carrinho, ou os dados ainda
+  // estavam a carregar quando o método por omissão foi escolhido), troca
+  // automaticamente para transferência bancária.
+  useEffect(() => {
+    if (productSellersLoading) return;
+    if (paymentMethod === "cash_on_delivery" && !cartCodEligible) {
+      setPaymentMethod("bank_transfer");
+    }
+  }, [cartCodEligible, paymentMethod, productSellersLoading]);
 
   // A foto REAL do produto vive em product_media (is_cover = true), não na coluna
   // image_url de products (que ficou obsoleta após a migração R2 → Supabase Storage).
@@ -1050,19 +1099,30 @@ const Checkout = () => {
                   // que o suporte da AppyPay confirmar que a conta PRD está ativa.
                   // { id: "appypay_gpo", label: "Multicaixa Express", desc: "Receba um pedido no telemóvel e autorize na hora" },
                   // { id: "appypay_ref", label: "Referência Multicaixa", desc: "Pague depois num ATM ou home banking" },
-                ].map(method => (
-                  <button
-                    key={method.id}
-                    onClick={() => setPaymentMethod(method.id)}
-                    className={`w-full text-left p-3 rounded-lg border transition ${
-                      paymentMethod === method.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"
-                    }`}
-                  >
-                    <p className="text-sm font-bold text-foreground">{method.label}</p>
-                    <p className="text-xs text-muted-foreground">{method.desc}</p>
-                  </button>
-                ))}
+                ]
+                  // "Pagamento na entrega" só aparece se TODOS os itens do carrinho
+                  // forem de vendedores/empresas (e fornecedores, quando aplicável)
+                  // autorizados pelo Adm, e nenhum produto individualmente a tiver
+                  // desativado.
+                  .filter(method => method.id !== "cash_on_delivery" || cartCodEligible)
+                  .map(method => (
+                    <button
+                      key={method.id}
+                      onClick={() => setPaymentMethod(method.id)}
+                      className={`w-full text-left p-3 rounded-lg border transition ${
+                        paymentMethod === method.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"
+                      }`}
+                    >
+                      <p className="text-sm font-bold text-foreground">{method.label}</p>
+                      <p className="text-xs text-muted-foreground">{method.desc}</p>
+                    </button>
+                  ))}
               </div>
+              {!productSellersLoading && cartItems.length > 0 && !cartCodEligible && (
+                <p className="text-[11px] text-muted-foreground pt-2">
+                  Pagamento na entrega não está disponível para um ou mais produtos deste pedido — só transferência bancária.
+                </p>
+              )}
             </div>
 
             {/* Dados da conta bancária (transferência) — geridos pelo Adm */}
