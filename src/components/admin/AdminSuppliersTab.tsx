@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Building2, Store, CheckCircle, XCircle, Clock,
-  Ban, Search, Phone, Mail, MapPin, FileText,
+  Ban, Search, Phone, Mail, MapPin, FileText, Banknote,
 } from "lucide-react";
 
 type SubTab = "visao" | "fornecedores" | "dropshippers";
@@ -68,6 +68,18 @@ export default function AdminSuppliersTab() {
       }
       return stores.map((d: any) => ({ ...d, seller: sellerByUser[d.user_id] || null }));
     },
+  });
+
+  const toggleCodSupplier = useMutation({
+    mutationFn: async ({ id, codEnabled }: { id: string; codEnabled: boolean }) => {
+      const { error } = await (supabase as any).from("suppliers").update({ cod_enabled: codEnabled }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["admin_suppliers"] });
+      toast.success(vars.codEnabled ? "Pagamento na entrega ativado" : "Pagamento na entrega desativado");
+    },
+    onError: (e: any) => toast.error(e.message),
   });
 
   const approveSupplier = useMutation({
@@ -496,6 +508,20 @@ export default function AdminSuppliersTab() {
                       </div>
                     ))}
                   </div>
+
+                  {/* Pagamento na entrega — separado das ações de estado porque
+                      é uma permissão que pode ser ligada/desligada a qualquer
+                      momento, independente do fornecedor estar pendente,
+                      aprovado ou suspenso. */}
+                  <button
+                    onClick={() => toggleCodSupplier.mutate({ id: s.id, codEnabled: !s.cod_enabled })}
+                    className={`w-full mb-2 py-2 text-xs font-bold rounded-xl flex items-center justify-center gap-1 ${
+                      s.cod_enabled ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    <Banknote className="w-3.5 h-3.5" />
+                    {s.cod_enabled ? "Pagamento na entrega ativado" : "Pagamento na entrega desativado"}
+                  </button>
 
                   {/* Ações */}
                   <div className="flex gap-2">
