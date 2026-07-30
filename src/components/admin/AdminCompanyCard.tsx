@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Building2, ShieldCheck, UsersRound, Camera, ImageIcon, Trash2, Star } from "lucide-react";
+import { Building2, ShieldCheck, UsersRound, Camera, ImageIcon, Trash2, Star, Banknote } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import AdminConfirmDialog from "./AdminConfirmDialog";
@@ -9,10 +9,11 @@ interface Props {
   onMembers: () => void;
   onVerify: () => void;
   onFeature: () => void;
+  onToggleCod: () => void;
   queryClient: any;
 }
 
-const AdminCompanyCard = ({ company: c, onMembers, onVerify, onFeature, queryClient }: Props) => {
+const AdminCompanyCard = ({ company: c, onMembers, onVerify, onFeature, onToggleCod, queryClient }: Props) => {
   const logoRef = useRef<HTMLInputElement>(null);
   const bannerRef = useRef<HTMLInputElement>(null);
   const [showDelete, setShowDelete] = useState(false);
@@ -89,6 +90,9 @@ const AdminCompanyCard = ({ company: c, onMembers, onVerify, onFeature, queryCli
             </button>
             <button onClick={onVerify} className={`p-2 rounded-lg ${c.is_verified ? "text-blue-500 hover:bg-blue-500/10" : "text-muted-foreground hover:bg-accent"}`} title={c.is_verified ? "Remover verificação" : "Verificar empresa"}>
               <ShieldCheck className="w-4 h-4" />
+            </button>
+            <button onClick={onToggleCod} className={`p-2 rounded-lg ${c.cod_enabled ? "text-emerald-500 hover:bg-emerald-500/10" : "text-muted-foreground hover:bg-accent"}`} title={c.cod_enabled ? "Desativar pagamento na entrega" : "Ativar pagamento na entrega"}>
+              <Banknote className="w-4 h-4" />
             </button>
             <button onClick={() => setShowDelete(true)} className="p-2 rounded-lg text-red-500 hover:bg-red-500/10" title="Eliminar empresa">
               <Trash2 className="w-4 h-4" />
