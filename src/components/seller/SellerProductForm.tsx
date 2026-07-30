@@ -26,6 +26,7 @@ interface ProductFormData {
   free_shipping: boolean;
   badge: string;
   is_sponsored: boolean;
+  cod_disabled: boolean;
   promotion_ends_at: string;
   // Medidas
   weight_kg: string;
@@ -83,7 +84,7 @@ const createEmptyVariant = (parentId?: string | null): VariantItem => ({
 const emptyForm: ProductFormData = {
   title: "", description: "", price: "", old_price: "", discount_percent: "",
   stock: "1", sku: "", condition: "new",
-  category_id: "", free_shipping: false, badge: "", is_sponsored: false,
+  category_id: "", free_shipping: false, badge: "", is_sponsored: false, cod_disabled: false,
   promotion_ends_at: "",
   weight_kg: "", volume_m3: "", length_cm: "", width_cm: "", height_cm: "",
 };
@@ -243,6 +244,7 @@ const SellerProductForm = ({
         free_shipping: editingProduct.free_shipping || false,
         badge: editingProduct.badge || "",
         is_sponsored: editingProduct.is_sponsored || false,
+        cod_disabled: editingProduct.cod_disabled || false,
         promotion_ends_at: toLocalDatetimeValue(editingProduct.promotion_ends_at),
         weight_kg: editingProduct.weight_kg ? String(editingProduct.weight_kg) : "",
         volume_m3: editingProduct.volume_m3 ? String(editingProduct.volume_m3) : "",
@@ -639,6 +641,7 @@ const SellerProductForm = ({
       free_shipping: form.free_shipping,
       badge: form.badge || null,
       is_sponsored: form.is_sponsored,
+      cod_disabled: form.cod_disabled,
       promotion_ends_at: form.promotion_ends_at
         ? new Date(form.promotion_ends_at).toISOString()
         : null,
@@ -1295,6 +1298,17 @@ const SellerProductForm = ({
             <span className="text-xs text-muted-foreground">— aparecerá nas secções "Patrocinado"</span>
           </label>
         )}
+
+        {/* Pagamento na entrega: só tem efeito se a conta (vendedor/empresa)
+            já estiver autorizada pelo Adm a oferecer esse método — aqui
+            escolhe-se apenas se ESTE produto em particular aceita ou não. */}
+        <label className="flex items-center gap-2 text-sm text-foreground p-2 rounded-lg border border-border bg-muted/40">
+          <input type="checkbox" checked={!form.cod_disabled} onChange={e => set("cod_disabled", !e.target.checked)} className="rounded" />
+          <span className="font-semibold">💵 Aceitar pagamento na entrega neste produto</span>
+        </label>
+        <p className="text-[10px] text-muted-foreground -mt-2 px-1">
+          Desmarque para este produto só poder ser pago por transferência, mesmo que a sua conta aceite pagamento na entrega.
+        </p>
 
       </div>
 
