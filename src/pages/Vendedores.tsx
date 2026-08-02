@@ -93,8 +93,8 @@ const Vendedores = () => {
       followers: (followersMap as Record<string, number>)[s.id] ?? s.followers_count ?? 0,
       verified: s.is_verified,
       isAffiliate: s.type === "dropship",
-      image: s.logo_url || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop",
-      cover: s.cover_url || "https://images.unsplash.com/photo-1556761175-b413da4baf72?w=600&h=200&fit=crop",
+      image: s.logo_url || null,
+      cover: s.cover_url || null,
     })),
     [dbSellers, salesMap, followersMap]
   );
@@ -148,12 +148,22 @@ const Vendedores = () => {
             <div key={seller.id} onClick={() => navigate(`/vendedor/${seller.id}`)}
               className="rounded-gpu-fix bg-card rounded-card border border-border overflow-hidden hover:shadow-lg transition-shadow cursor-pointer">
               <div className="h-24 overflow-hidden relative">
-                <img src={seller.cover} alt="" className="w-full h-full object-cover" loading="lazy" />
+                {seller.cover ? (
+                  <img src={seller.cover} alt="" className="w-full h-full object-cover" loading="lazy" />
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-br from-primary/30 via-primary/10 to-secondary/25" />
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-foreground/30 to-transparent" />
               </div>
               <div className="p-3 -mt-6 relative">
                 <div className="flex items-end gap-3">
-                  <img src={seller.image} alt={seller.name} className="w-14 h-14 rounded-card border-2 border-card object-cover" />
+                  {seller.image ? (
+                    <img src={seller.image} alt={seller.name} className="w-14 h-14 rounded-card border-2 border-card object-cover flex-shrink-0" />
+                  ) : (
+                    <div className="w-14 h-14 rounded-card border-2 border-card bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <span className="text-lg font-black text-primary">{(seller.name || "Z").charAt(0).toUpperCase()}</span>
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0 pb-1">
                     <div className="flex items-center gap-1">
                       <h3 className="text-sm font-bold text-foreground truncate">{seller.name}</h3>
