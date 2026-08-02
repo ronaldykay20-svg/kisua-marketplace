@@ -186,8 +186,8 @@ const VendedorPerfil = () => {
     );
   }
 
-  const coverImg = seller.cover_url || "https://images.unsplash.com/photo-1556761175-b413da4baf72?w=800&h=300&fit=crop";
-  const logoImg = seller.logo_url || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop";
+  const coverImg = seller.cover_url;
+  const logoImg = seller.logo_url;
   const location = [seller.province, seller.city].filter(Boolean).join(", ") || "Angola";
   const createdYear = seller.created_at ? new Date(seller.created_at).getFullYear().toString() : "2024";
 
@@ -195,14 +195,28 @@ const VendedorPerfil = () => {
     <div className="min-h-screen bg-background">
 
       <div className="h-32 md:h-44 overflow-hidden relative">
-        <img src={coverImg} alt="" className="w-full h-full object-cover" />
+        {coverImg ? (
+          <img src={coverImg} alt="" className="w-full h-full object-cover" />
+        ) : (
+          // Sem foto de capa definida: gradiente da marca, nunca uma imagem
+          // aleatória de banco de imagens sem relação com a loja.
+          <div className="w-full h-full bg-gradient-to-br from-primary/30 via-primary/10 to-secondary/25" />
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
       </div>
 
       <section className="container mx-auto px-3 -mt-10 relative z-10">
         <div className="bg-card rounded-card border border-border p-4 shadow-md">
-          <div className="flex items-end gap-3 -mt-10">
-            <img src={logoImg} alt={seller.name} className="w-20 h-20 rounded-card border-3 border-card object-cover" />
+          <div className="flex items-end gap-3">
+            {logoImg ? (
+              <img src={logoImg} alt={seller.name} className="w-20 h-20 rounded-card border-3 border-card object-cover flex-shrink-0" />
+            ) : (
+              // Sem logótipo definido: avatar genérico com a inicial do nome,
+              // nunca a foto de uma pessoa aleatória.
+              <div className="w-20 h-20 rounded-card border-3 border-card bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <span className="text-2xl font-black text-primary">{(seller.name || "Z").charAt(0).toUpperCase()}</span>
+              </div>
+            )}
             <div className="flex-1 min-w-0 pb-1">
               <div className="flex items-center gap-1.5">
                 <h1 className="text-base font-black text-foreground">{seller.name}</h1>
@@ -213,7 +227,7 @@ const VendedorPerfil = () => {
                   </span>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground">{seller.description || "Vendedor"}</p>
+              <p className="text-xs text-muted-foreground line-clamp-2">{seller.description || "Vendedor"}</p>
             </div>
           </div>
 
