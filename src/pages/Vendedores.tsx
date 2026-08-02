@@ -113,11 +113,11 @@ const Vendedores = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <section className="bg-primary py-6">
+      <section className="bg-gradient-to-br from-primary/15 via-background to-secondary/15 py-6 border-b border-border">
         <div className="container mx-auto px-3 text-center">
-          <Users className="w-8 h-8 text-secondary mx-auto mb-2" />
-          <h1 className="text-xl md:text-2xl font-black text-primary-foreground">Vendedores</h1>
-          <p className="text-xs text-primary-foreground/70 mt-1">Encontre os melhores vendedores de Angola</p>
+          <Users className="w-8 h-8 text-primary mx-auto mb-2" />
+          <h1 className="text-xl md:text-2xl font-black text-foreground">Vendedores</h1>
+          <p className="text-xs text-muted-foreground mt-1">Encontre os melhores vendedores de Angola</p>
         </div>
       </section>
 
@@ -156,7 +156,7 @@ const Vendedores = () => {
                 <div className="absolute inset-0 bg-gradient-to-t from-foreground/30 to-transparent" />
               </div>
               <div className="p-3 -mt-6 relative">
-                <div className="flex items-end gap-3">
+                <div className="flex items-start gap-3">
                   {seller.image ? (
                     <img src={seller.image} alt={seller.name} className="w-14 h-14 rounded-card border-2 border-card object-cover flex-shrink-0" />
                   ) : (
@@ -174,7 +174,7 @@ const Vendedores = () => {
                         </span>
                       )}
                     </div>
-                    <p className="text-[10px] text-muted-foreground">{seller.specialty}</p>
+                    <p className="text-[10px] text-muted-foreground line-clamp-2">{seller.specialty}</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-1.5 mt-3 text-[10px] text-muted-foreground">
