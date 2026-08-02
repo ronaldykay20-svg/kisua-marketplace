@@ -103,7 +103,7 @@ const Navbar = () => {
     ? dbCategories.map((c: any) => ({
         id: c.id,
         name: c.name,
-        image: c.image_url || staticCategories.find((s) => s.name === c.name)?.image || "",
+        image: c.display_image_url || staticCategories.find((s) => s.name === c.name)?.image || "",
       }))
     : staticCategories.map((c) => ({ id: c.name, name: c.name, image: c.image }));
 
