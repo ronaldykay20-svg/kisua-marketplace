@@ -96,7 +96,7 @@ const DesktopNavbar = () => {
   const cats = dbCats?.length
     ? dbCats.map((c: any) => ({
         name: c.name,
-        image: c.image_url || staticCategories.find(s => s.name === c.name)?.image || "",
+        image: c.display_image_url || staticCategories.find(s => s.name === c.name)?.image || "",
       }))
     : staticCategories;
 
