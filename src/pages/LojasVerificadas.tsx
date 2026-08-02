@@ -66,7 +66,7 @@ const useVerifiedCompanies = () =>
         followers: followersMap[c.id] ?? c.followers_count ?? 0,
         products: 0,
         logo: c.logo_url || null,
-        cover: c.banner_url || "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=600&h=300&fit=crop",
+        cover: c.banner_url || null,
         verified: true,
       }));
     },
@@ -85,12 +85,16 @@ const LojaCard = ({ item, onClick }: { item: any; onClick: () => void }) => {
     >
       {/* Cover */}
       <div className="h-24 overflow-hidden relative">
-        <img
-          src={item.cover}
-          alt={item.name}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-          loading="lazy"
-        />
+        {item.cover ? (
+          <img
+            src={item.cover}
+            alt={item.name}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            loading="lazy"
+          />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-primary/30 via-primary/10 to-secondary/25" />
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-foreground/30 to-transparent" />
         <div className={`absolute top-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
           isEmpresa ? "bg-secondary text-[#3a2412]" : "bg-primary text-primary-foreground"
@@ -197,7 +201,7 @@ const LojasVerificadas = () => {
       followers: s.followers_count ?? 0,
       products: s.products_count ?? 0,
       logo: s.logo_url || null,
-      cover: s.cover_url || "https://images.unsplash.com/photo-1556761175-b413da4baf72?w=600&h=200&fit=crop",
+      cover: s.cover_url || null,
       verified: true,
     })),
     [dbSellers]
