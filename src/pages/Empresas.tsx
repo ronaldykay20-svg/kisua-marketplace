@@ -77,7 +77,7 @@ const Empresas = () => {
         visits: c.visits_count ?? 0,
         followers: followersMap[c.id] ?? c.followers_count ?? 0,
         products: productsMap[c.id] ?? 0,
-        cover: c.banner_url || "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=600&h=300&fit=crop",
+        cover: c.banner_url || null,
         logo: c.logo_url || null,
         verified: c.is_verified,
       }));
@@ -150,7 +150,11 @@ const Empresas = () => {
               <div key={empresa.id} onClick={() => navigate(`/empresa/${empresa.id}`)}
                 className="bg-card rounded-card border border-border overflow-hidden cursor-pointer hover:shadow-lg transition group">
                 <div className="h-28 overflow-hidden relative">
-                  <img src={empresa.cover} alt={empresa.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
+                  {empresa.cover ? (
+                    <img src={empresa.cover} alt={empresa.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-primary/30 via-primary/10 to-secondary/25" />
+                  )}
                 </div>
                 <div className="p-3 pt-0 relative">
                   <div className="w-14 h-14 rounded-full bg-card border-2 border-border flex items-center justify-center -mt-7 relative z-10 shadow-sm overflow-hidden">
