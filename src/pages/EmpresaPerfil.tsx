@@ -180,7 +180,13 @@ const EmpresaPerfil = () => {
 
       <div className="relative">
         <div className="h-36 md:h-48 overflow-hidden">
-          <img src={company.banner_url || "https://images.unsplash.com/photo-1531297484001-80022131f5a1?w=800&h=400&fit=crop"} alt={company.name} className="w-full h-full object-cover" />
+          {company.banner_url ? (
+            <img src={company.banner_url} alt={company.name} className="w-full h-full object-cover" />
+          ) : (
+            // Sem foto de capa definida: gradiente da marca, nunca uma imagem
+            // aleatória de banco de imagens sem relação com a empresa.
+            <div className="w-full h-full bg-gradient-to-br from-primary/30 via-primary/10 to-secondary/25" />
+          )}
         </div>
         <div className="container mx-auto px-4 relative">
           <div className="w-20 h-20 md:w-24 md:h-24 rounded-card border-4 border-card bg-card overflow-hidden -mt-10 md:-mt-12 relative z-10 shadow-md">
