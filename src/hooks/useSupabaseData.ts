@@ -22,17 +22,20 @@ const mapDbProduct = (p: any): Product => ({
 });
 
 // ── Categories ──
+// Para navegação pública: só devolve categorias com pelo menos um produto
+// ativo (via RPC get_categories_with_products), e já traz display_image_url
+// pronta a usar — a imagem própria da categoria, ou (quando não existe) a
+// do produto mais popular dessa categoria.
+// NOTA: o formulário de cadastro de produto (SellerProductForm) NÃO usa
+// este hook — busca diretamente da tabela "categories" para continuar a
+// mostrar todas as categorias, mesmo as que ainda não têm produtos.
 export const useCategories = () =>
   useQuery({
-    queryKey: ["categories"],
+    queryKey: ["categories_with_products"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("categories")
-        .select("*")
-        .eq("is_active", true)
-        .order("sort_order");
+      const { data, error } = await supabase.rpc("get_categories_with_products");
       if (error) throw error;
-      return data;
+      return (data || []).filter((c: any) => Number(c.product_count) > 0);
     },
   });
 
