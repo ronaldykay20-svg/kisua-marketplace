@@ -149,8 +149,11 @@ const Layout = () => {
         </>
       )}
       <ErrorBoundary key={location.pathname}>
-        <Outlet />
+        <Suspense fallback={<PageFallback />}>
+          <Outlet />
+        </Suspense>
       </ErrorBoundary>
+
       {!hideFooter && <Footer />}
       {!hideBottomNav && <BottomNav />}
       <CookieConsentBanner />
