@@ -62,12 +62,17 @@ const AdminPanel = () => {
   const { data: allRoles = [], isLoading } = useQuery({
     queryKey: ["admin_all_roles"],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("user_roles")
-        .select("*, profiles(full_name)")
-        .order("role");
+      const { data, error } = await (supabase as any).rpc("get_user_roles_overview");
       if (error) throw error;
-      return data;
+      // Mantém a mesma forma que o resto do código já espera: r.id, r.role,
+      // r.user_id, r.profiles.full_name — só troca a fonte dos dados.
+      return (data || []).map((r: any) => ({
+        id: r.role_id,
+        user_id: r.user_id,
+        role: r.role,
+        profiles: { full_name: r.full_name },
+        email: r.email,
+      }));
     },
     enabled: isAdmin && tab === "cargos",
   });
@@ -304,9 +309,9 @@ const AdminPanel = () => {
                             <p className="text-sm font-medium text-foreground">
                               {r.profiles?.full_name || r.user_id.slice(0, 8)}
                             </p>
-                            <p className="text-[10px] text-muted-foreground">
-                              {r.user_id.slice(0, 12)}...
-                            </p>
+                            {r.email && (
+                              <p className="text-[10px] text-muted-foreground">{r.email}</p>
+                            )}
                             {otherRoles.length > 0 && (
                               <div className="flex items-center gap-1 mt-1 flex-wrap">
                                 <span className="text-[9px] text-muted-foreground">também:</span>
