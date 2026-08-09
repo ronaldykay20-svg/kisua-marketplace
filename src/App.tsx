@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes, useLocation, Outlet } from "react-router-dom";
 import { useEffect } from "react";
+import { TEAM_ROLES } from "@/hooks/useUserRole";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -176,7 +177,7 @@ const App = () => (
               <Route path="/notificacoes" element={<ProtectedRoute><Notificacoes /></ProtectedRoute>} />
               <Route path="/seguranca" element={<ProtectedRoute><Seguranca /></ProtectedRoute>} />
               <Route path="/definicoes" element={<ProtectedRoute><Definicoes /></ProtectedRoute>} />
-              <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminPanel /></ProtectedRoute>} />
+              <Route path="/admin" element={<ProtectedRoute requiredRole={["admin", ...TEAM_ROLES]}><AdminPanel /></ProtectedRoute>} />
               <Route path="/equipa/operacoes" element={<ProtectedRoute requiredRole={["admin", "operacoes"]}><OperacoesDashboard /></ProtectedRoute>} />
               <Route path="/equipa/financeiro" element={<ProtectedRoute requiredRole={["admin", "financeiro"]}><FinanceiroDashboard /></ProtectedRoute>} />
               <Route path="/equipa/logistica" element={<ProtectedRoute requiredRole={["admin", "logistica"]}><LogisticaDashboard /></ProtectedRoute>} />
