@@ -228,7 +228,7 @@ const App = () => (
               <Route path="/catalogo-fornecedores" element={<ProtectedRoute><CatalogoFornecedores /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Route>
-            <Route path="/auth" element={<Auth />} />
+            <Route path="/auth" element={<Suspense fallback={<PageFallback />}><Auth /></Suspense>} />
           </Routes>
         </BrowserRouter>
       </AuthProvider>
