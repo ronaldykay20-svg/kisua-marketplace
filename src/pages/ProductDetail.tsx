@@ -124,6 +124,59 @@ const AvatarWithFallback = ({ src, name, isCompany }: { src: string | null; name
   return <div className="w-9 h-9 rounded-full flex items-center justify-center bg-gray-100 border border-gray-200">{isCompany ? <Building2 className="w-4 h-4 text-gray-500" /> : <Store className="w-4 h-4 text-gray-500" />}</div>;
 };
 
+// ─── Skeleton da página de produto ──────────────────────────────────────────
+// Substitui o spinner genérico enquanto os dados chegam. Desenha já a forma
+// final da página (cabeçalho, imagem, título, preço, botões) com um pulso
+// suave — assim a pessoa vê logo "a silhueta" do que vai aparecer, em vez de
+// um círculo a girar sozinho no meio do ecrã. Quando os dados chegam, o
+// conteúdo real substitui o skeleton peça a peça, sem salto brusco.
+const ProductDetailSkeleton = () => (
+  <div className="min-h-screen bg-white">
+    {/* Mini header — igual ao real, para não haver "salto" quando o
+        conteúdo verdadeiro aparecer por cima */}
+    <div className="sticky top-0 z-50 flex items-center gap-2 px-3 h-12 bg-white border-b border-gray-200">
+      <div className="w-9 h-9 rounded-full bg-gray-100 animate-pulse" />
+      <div className="h-3 w-24 rounded bg-gray-100 animate-pulse" />
+      <div className="flex items-center gap-1.5 ml-auto">
+        <div className="w-9 h-9 rounded-full bg-gray-100 animate-pulse" />
+        <div className="w-9 h-9 rounded-full bg-gray-100 animate-pulse" />
+        <div className="w-9 h-9 rounded-full bg-gray-100 animate-pulse" />
+      </div>
+    </div>
+
+    <div className="max-w-5xl mx-auto md:px-6 md:pt-4 md:grid md:grid-cols-2 md:gap-8">
+      {/* Imagem principal */}
+      <div className="w-full aspect-square md:rounded-xl bg-gray-100 animate-pulse" />
+
+      <div className="px-3 md:px-0 pt-3 md:pt-0 space-y-3">
+        {/* Título — duas linhas de tamanhos diferentes, como texto real */}
+        <div className="h-4 w-[85%] rounded bg-gray-100 animate-pulse" />
+        <div className="h-4 w-[55%] rounded bg-gray-100 animate-pulse" />
+        {/* Preço */}
+        <div className="h-7 w-32 rounded bg-gray-100 animate-pulse mt-2" />
+        {/* Selo de avaliação/vendas */}
+        <div className="h-3 w-40 rounded bg-gray-100 animate-pulse" />
+        {/* Pills de variantes */}
+        <div className="flex gap-2 pt-2">
+          <div className="w-14 h-14 rounded-lg bg-gray-100 animate-pulse" />
+          <div className="w-14 h-14 rounded-lg bg-gray-100 animate-pulse" />
+          <div className="w-14 h-14 rounded-lg bg-gray-100 animate-pulse" />
+        </div>
+        {/* Vendedor */}
+        <div className="flex items-center gap-2 pt-3">
+          <div className="w-9 h-9 rounded-full bg-gray-100 animate-pulse" />
+          <div className="h-3 w-28 rounded bg-gray-100 animate-pulse" />
+        </div>
+        {/* Botões de ação */}
+        <div className="flex gap-2 pt-4">
+          <div className="flex-1 h-11 rounded-full bg-gray-100 animate-pulse" />
+          <div className="flex-1 h-11 rounded-full bg-gray-100 animate-pulse" />
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -516,7 +569,7 @@ const ProductDetail = () => {
   const handleZoom = () => { trackEvent(id!, "image_zoom", { image_index: selectedImage }); setZoomOpen(true); };
 
   if (!dbProduct && isUuid && loadingProduct)
-    return <div className="min-h-screen flex items-center justify-center bg-white"><Loader2 className="w-6 h-6 animate-spin" style={{ color: N.brown }} /></div>;
+    return <ProductDetailSkeleton />;
 
   const staticProduct = allProducts.find(p => p.id === Number(id));
   const productBase: any = dbProduct || staticProduct;
@@ -655,7 +708,7 @@ const ProductDetail = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white animate-zg-fade-in">
       {zoomOpen && <ZoomLightbox images={displayImages} index={selectedImage} onClose={() => setZoomOpen(false)} onChange={setSelectedImage} onShare={handleShare} />}
 
       {/* ── MINI HEADER ── */}
