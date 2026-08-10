@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Shield, Users, Search, Plus, Trash2, Crown, Building2, Store, CheckCircle, XCircle, ShieldCheck, UserCheck, UsersRound, FolderTree, ImageIcon, ShoppingBag, Settings, Star, Gavel, Upload, Eye, EyeOff, Copy, Megaphone, Play, TrendingUp, Users as UsersIcon, X, Loader2, Truck, Banknote, Ticket, MousePointerClick, Gift, FileSpreadsheet } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole, AppRole, TEAM_ROLES } from "@/hooks/useUserRole";
@@ -22,8 +23,11 @@ import AdminPaymentReviewTab from "@/components/admin/AdminPaymentReviewTab";
 import CouponManagerTab from "@/components/coupons/CouponManagerTab";
 import AdminAnalyticsTab from "@/components/admin/AdminAnalyticsTab";
 import AdminPageInteractionsTab from "@/components/admin/AdminPageInteractionsTab";
+import AdminMarketingApprovalsTab from "@/components/admin/AdminMarketingApprovalsTab";
+import TabManualModal, { TAB_MANUALS } from "@/components/admin/TabManuals";
 import { toast } from "sonner";
 import { convertToWebP, getFileExtension } from "@/lib/imageToWebp";
+import { BookOpen, PartyPopper } from "lucide-react";
 
 const roleBadge: Record<string, { label: string; color: string; icon: any }> = {
   admin: { label: "Admin", color: "bg-red-500/10 text-red-500 border-red-500/20", icon: Crown },
@@ -37,13 +41,16 @@ const roleBadge: Record<string, { label: string; color: string; icon: any }> = {
   marketing:  { label: "Marketing",  color: "bg-pink-500/10 text-pink-500 border-pink-500/20", icon: Megaphone },
 };
 
-type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos" | "encomendas" | "categorias" | "banners" | "definicoes" | "leiloes" | "publicidade" | "frete" | "frete_gratis" | "frete_empresas" | "fornecedores" | "importar_produtos" | "pagamentos" | "cupons" | "analytics" | "interacoes";
+type Tab = "utilizadores" | "cargos" | "vendedores" | "empresas" | "pedidos" | "encomendas" | "categorias" | "banners" | "definicoes" | "leiloes" | "publicidade" | "frete" | "frete_gratis" | "frete_empresas" | "fornecedores" | "importar_produtos" | "pagamentos" | "cupons" | "analytics" | "interacoes" | "aprovacoes";
 
 const AdminPanel = () => {
   const { user } = useAuth();
-  const { isAdmin, allowedAdminTabs, hasDualRole, loading: roleLoading } = useUserRole();
+  const { isAdmin, allowedAdminTabs, hasDualRole, roles, loading: roleLoading } = useUserRole();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>("utilizadores");
+  const [showManual, setShowManual] = useState(false);
+  const [staffConfirmed, setStaffConfirmed] = useState(false);
 
   // Quem não é admin nunca tem "utilizadores" (o valor por omissão) entre as
   // suas abas permitidas — assim que soubermos o cargo real, mandamo-lo
@@ -142,6 +149,7 @@ const AdminPanel = () => {
     { key: "cupons",       label: "Cupons",        icon: Ticket },
     { key: "pedidos",      label: "Candidaturas",  icon: UserCheck },
     { key: "leiloes",      label: "Leilões",       icon: Gavel },
+    { key: "aprovacoes",   label: "Aprovações",    icon: CheckCircle },
     { key: "definicoes",   label: "Definições",    icon: Settings },
   ];
 
@@ -156,10 +164,37 @@ const AdminPanel = () => {
   return (
     <div className="min-h-screen bg-background pb-14 md:pb-0">
       <div className="container mx-auto px-3 py-4 max-w-2xl">
-        <div className="flex items-center gap-2 mb-4">
-          <Shield className="w-6 h-6 text-primary" />
-          <h1 className="text-lg font-bold text-foreground">Administração</h1>
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <div className="flex items-center gap-2">
+            <Shield className="w-6 h-6 text-primary" />
+            <h1 className="text-lg font-bold text-foreground">
+              {isAdmin
+                ? "Administração"
+                : hasDualRole
+                ? "Painel da Equipa"
+                : `Painel de ${roleBadge[roles[0]]?.label || "Equipa"}`}
+            </h1>
+          </div>
+          {!isAdmin && TAB_MANUALS[tab] && (
+            <button
+              onClick={() => setShowManual(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-xs font-bold"
+            >
+              <BookOpen className="w-3.5 h-3.5" /> Manual
+            </button>
+          )}
         </div>
+
+        {!isAdmin && !hasDualRole && roles[0] && (
+          <div className="flex items-start gap-2 bg-primary/5 border border-primary/15 rounded-xl p-3 mb-3">
+            <PartyPopper className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-foreground">
+              <span className="font-black">Parabéns pela promoção a {roleBadge[roles[0]]?.label}!</span>{" "}
+              Este é o teu painel — as abas acima são as tuas. Sempre que tiveres dúvidas, toca em{" "}
+              <span className="font-bold">Manual</span> no topo de qualquer aba.
+            </p>
+          </div>
+        )}
 
         <div className="flex gap-1 mb-4 overflow-x-auto no-scrollbar">
           {tabs.map(t => (
@@ -187,6 +222,7 @@ const AdminPanel = () => {
         {tab === "banners"      && <AdminBannersTab />}
         {tab === "definicoes"   && <AdminSettingsTab />}
         {tab === "leiloes"      && <AdminLeiloesTab />}
+        {tab === "aprovacoes"   && isAdmin && <AdminMarketingApprovalsTab />}
         {tab === "frete"        && <AdminFreightTab />}
         {tab === "frete_gratis" && <AdminFreeShippingTab />}
         {tab === "frete_empresas" && <AdminFreightCompaniesTab />}
@@ -351,6 +387,21 @@ const AdminPanel = () => {
           </div>
         )}
       </div>
+
+      {showManual && <TabManualModal tabKey={tab} onClose={() => setShowManual(false)} />}
+
+      {/* Portão de password: quem tem um cargo de equipa (não-admin) tem de
+          confirmar a password antes de poder alterar fosse o que fosse no
+          painel — uma vez por sessão, não em cada clique. As alterações em
+          si ficam sempre registadas para o Admin confirmar depois (ver
+          marketing_change_log / aba "Aprovações"). */}
+      {!roleLoading && !isAdmin && roles.length > 0 && !staffConfirmed && (
+        <ConfirmPasswordModal
+          actionLabel={`entrar no teu painel de ${roleBadge[roles[0]]?.label || "equipa"} e poder fazer alterações`}
+          onConfirm={() => setStaffConfirmed(true)}
+          onClose={() => navigate("/")}
+        />
+      )}
     </div>
   );
 };
