@@ -178,7 +178,7 @@ const CompanyDashboard = () => {
       if (productIds.length === 0) return {};
       const { data, error } = await supabase
         .from("product_media")
-        .select("product_id, url, is_cover, sort_order")
+        .select("product_id, url, thumb_url, is_cover, sort_order")
         .in("product_id", productIds)
         .eq("type", "image")
         .order("is_cover", { ascending: false })
@@ -186,7 +186,7 @@ const CompanyDashboard = () => {
       if (error) throw error;
       const map: Record<string, string> = {};
       (data || []).forEach((m: any) => {
-        if (!map[m.product_id]) map[m.product_id] = m.url;
+        if (!map[m.product_id]) map[m.product_id] = m.thumb_url || m.url;
       });
       return map;
     },
@@ -225,6 +225,7 @@ const CompanyDashboard = () => {
         const mediaRows = media.map((m: any, i: number) => ({
           product_id: productId,
           url: m.url,
+          thumb_url: m.thumb_url || null,
           type: m.type,
           is_cover: m.is_cover,
           sort_order: i,
