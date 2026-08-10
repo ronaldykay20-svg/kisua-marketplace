@@ -607,7 +607,7 @@ const InfiniteProducts = () => {
         if (ids.length > 0) {
           const { data: media } = await supabase
             .from("product_media")
-            .select("product_id, url, is_cover")
+            .select("product_id, url, thumb_url, is_cover")
             .in("product_id", ids);
 
           const grouped: Record<string, any[]> = {};
@@ -618,7 +618,9 @@ const InfiniteProducts = () => {
 
           Object.keys(grouped).forEach((pid) => {
             const sorted = grouped[pid].sort((a, b) => (b.is_cover ? 1 : 0) - (a.is_cover ? 1 : 0));
-            imagesMap[pid] = sorted.slice(0, 4).map((m) => m.url);
+            // Usa a miniatura de 480px na grelha — a imagem de 1600px só é
+            // necessária na página de detalhe do produto, não aqui.
+            imagesMap[pid] = sorted.slice(0, 4).map((m) => m.thumb_url || m.url);
           });
         }
 
