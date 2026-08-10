@@ -19,6 +19,13 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+    <!-- Liga já ao Supabase (DNS + TLS) enquanto o JS ainda está a
+         carregar/analisar — poupa uma volta inteira de rede antes do
+         primeiro pedido de dados da home (banners, produtos, etc.).
+         Faz diferença real em redes móveis mais lentas. -->
+    <link rel="preconnect" href="https://fgceqxnbktfavhijpvdl.supabase.co" crossorigin />
+    <link rel="dns-prefetch" href="https://fgceqxnbktfavhijpvdl.supabase.co" />
     <title>Zangu - Compre e Venda em Angola</title>
     <meta name="description" content="O maior marketplace de Angola. Compre e venda veículos, imóveis, electrónicos e muito mais.">
     <meta name="author" content="Zangu" />
