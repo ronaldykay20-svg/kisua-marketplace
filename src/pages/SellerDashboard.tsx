@@ -71,10 +71,10 @@ const SellerDashboard = () => {
     queryFn: async () => {
       const productIds = products.map((p: any) => p.id);
       if (productIds.length === 0) return {};
-      const { data, error } = await supabase.from("product_media").select("product_id, url").in("product_id", productIds).eq("is_cover", true);
+      const { data, error } = await supabase.from("product_media").select("product_id, url, thumb_url").in("product_id", productIds).eq("is_cover", true);
       if (error) throw error;
       const map: Record<string, string> = {};
-      (data || []).forEach((m: any) => { map[m.product_id] = m.url; });
+      (data || []).forEach((m: any) => { map[m.product_id] = m.thumb_url || m.url; });
       return map;
     },
     enabled: products.length > 0,
@@ -101,7 +101,7 @@ const SellerDashboard = () => {
 
       if (media.length > 0 && productId) {
         const mediaRows = media.map((m: any, i: number) => ({
-          product_id: productId, url: m.url, type: m.type, is_cover: m.is_cover, sort_order: i,
+          product_id: productId, url: m.url, thumb_url: m.thumb_url || null, type: m.type, is_cover: m.is_cover, sort_order: i,
         }));
         const { data: insertedMedia, error } = await supabase.from("product_media").insert(mediaRows).select("id, type");
         if (error) throw error;
