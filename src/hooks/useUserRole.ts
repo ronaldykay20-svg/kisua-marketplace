@@ -51,7 +51,9 @@ export const useUserRole = () => {
     },
     enabled: !!user,
     staleTime: 0,
-    gcTime: 0,
+    gcTime: 5 * 60 * 1000, // 5 min — evita que a cache seja destruída num
+    // re-render momentâneo (ex: durante o signInWithPassword do
+    // ConfirmPasswordModal), o que mandava a pessoa de volta para "/".
   });
 
   const isStaff = roles.some((r) => r === "admin" || TEAM_ROLES.includes(r));
