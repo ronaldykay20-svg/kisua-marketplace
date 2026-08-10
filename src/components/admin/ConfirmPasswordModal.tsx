@@ -35,7 +35,6 @@ const ConfirmPasswordModal = ({ actionLabel, onConfirm, onClose }: Props) => {
         return;
       }
       onConfirm();
-      onClose();
       toast.success("Confirmado");
     } catch (e: any) {
       setError(e.message || "Não foi possível confirmar.");
