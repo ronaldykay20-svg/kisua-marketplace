@@ -8,7 +8,17 @@ interface HomeBannerSlotProps {
   device?: DeviceLayout;
   compact?: boolean;
   sidebar?: boolean;
+  /** Primeiro banner acima da dobra: carrega a imagem com prioridade máxima
+   *  (sem "loading=lazy", com fetchPriority="high") para acelerar o LCP —
+   *  é a primeira coisa que o utilizador vê, tem de aparecer já. */
+  priority?: boolean;
 }
+
+/** Skeleton do hero enquanto os banners ainda não chegaram da rede — evita
+ *  o "flash" de espaço em branco no topo da home. */
+const HeroSkeleton = ({ heightClass }: { heightClass: string }) => (
+  <div className={`w-full rounded-card overflow-hidden border border-border bg-muted animate-pulse ${heightClass}`} />
+);
 
 const positionClasses: Record<string, { wrapper: string; align: string; items: string }> = {
   "top-left":      { wrapper: "justify-start items-start", align: "text-left",   items: "items-start" },
@@ -211,8 +221,9 @@ const HomeBannerSlot = ({
   device = "mobile",
   compact = false,
   sidebar = false,
+  priority = false,
 }: HomeBannerSlotProps) => {
-  const { data: banners = [] } = useBanners(undefined, device);
+  const { data: banners = [], isLoading } = useBanners(undefined, device);
 
   const matchesDevice = (b: any) => {
     if (b.device === device) return true;
@@ -303,7 +314,19 @@ const HomeBannerSlot = ({
     );
   }
 
-  if (!banner) return null;
+  if (!banner) {
+    // Só reserva/anima skeleton para o slot prioritário (hero acima da
+    // dobra) enquanto a busca ainda está a decorrer — os restantes slots
+    // já são geridos pelo LazySection no Index.tsx.
+    if (priority && isLoading) {
+      return (
+        <section className={sectionCls}>
+          <HeroSkeleton heightClass={sidebar ? "min-h-[320px]" : compact ? "min-h-[140px] sm:min-h-[180px]" : "min-h-[200px] sm:min-h-[280px] md:min-h-[340px]"} />
+        </section>
+      );
+    }
+    return null;
+  }
 
   const image   = images[currentImage] || images[0];
   const href    = banner.cta_link || "#";
@@ -328,7 +351,14 @@ const HomeBannerSlot = ({
             onTouchStart={images.length > 1 ? handleSlideTouch : undefined}
           >
             <a href={href}>
-              <img src={image} alt="Banner" className="absolute inset-0 h-full w-full object-cover transition-opacity duration-500" />
+              <img
+                src={image}
+                alt="Banner"
+                className="absolute inset-0 h-full w-full object-cover transition-opacity duration-500"
+                loading={priority ? "eager" : "lazy"}
+                // @ts-expect-error — fetchPriority ainda não está nos types do React, mas é suportado pelos browsers
+                fetchpriority={priority ? "high" : undefined}
+              />
             </a>
             <BannerTextOverlay banner={banner} />
             {images.length > 1 && (
@@ -359,7 +389,14 @@ const HomeBannerSlot = ({
           <BannerTextBlock banner={banner} slot="before" />
           <a href={href} className="block">
             <div className={aspectCls}>
-              <img src={image} alt="Banner" className="h-full w-full object-cover transition-opacity duration-500" loading="lazy" />
+              <img
+                src={image}
+                alt="Banner"
+                className="h-full w-full object-cover transition-opacity duration-500"
+                loading={priority ? "eager" : "lazy"}
+                // @ts-expect-error — fetchPriority ainda não está nos types do React, mas é suportado pelos browsers
+                fetchpriority={priority ? "high" : undefined}
+              />
             </div>
           </a>
           <BannerTextOverlay banner={banner} />
