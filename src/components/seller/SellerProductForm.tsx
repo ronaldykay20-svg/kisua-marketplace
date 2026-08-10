@@ -486,7 +486,24 @@ const SellerProductForm = ({
         const { error } = await supabase.storage.from(STORAGE_BUCKETS.products).upload(path, uploadFile);
         if (error) throw error;
         const { data } = supabase.storage.from(STORAGE_BUCKETS.products).getPublicUrl(path);
-        setMedia(prev => [...prev, { url: data.publicUrl, type, is_cover: prev.length === 0, sort_order: prev.length }]);
+
+        // Miniatura à parte (480px) para as grelhas de produtos — antes, a
+        // grelha descarregava a MESMA imagem de 1600px usada na página de
+        // detalhe só para mostrar um quadrado pequeno no ecrã. Se a
+        // miniatura falhar ao enviar, seguimos sem ela (cai no fallback
+        // para a imagem grande, nunca bloqueia o upload principal).
+        let thumbUrl: string | null = null;
+        if (type === "image") {
+          const thumbFile = await convertToWebP(file, 0.75, 480);
+          const thumbExt = getFileExtension(thumbFile);
+          const thumbPath = `products/thumbs/${Date.now()}-${Math.random().toString(36).slice(2)}.${thumbExt}`;
+          const { error: thumbErr } = await supabase.storage.from(STORAGE_BUCKETS.products).upload(thumbPath, thumbFile);
+          if (!thumbErr) {
+            thumbUrl = supabase.storage.from(STORAGE_BUCKETS.products).getPublicUrl(thumbPath).data.publicUrl;
+          }
+        }
+
+        setMedia(prev => [...prev, { url: data.publicUrl, thumb_url: thumbUrl, type, is_cover: prev.length === 0, sort_order: prev.length }]);
       }
     } catch (err: any) {
       console.error("Upload error:", err.message);
