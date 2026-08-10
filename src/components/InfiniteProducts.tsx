@@ -418,7 +418,15 @@ const ProductCardBase = ({
   return (
     <div
       onClick={() => onClick(String(p.id))}
-      onPointerDown={() => setPressed(true)}
+      onPointerDown={() => {
+        setPressed(true);
+        // Pré-aquece o código da página de produto assim que o dedo/rato
+        // toca no card — antes mesmo do clique terminar. Quando a navegação
+        // acontece, o chunk já está (ou quase) pronto, então o spinner
+        // genérico de "a carregar página" praticamente desaparece e só
+        // resta o skeleton do próprio produto enquanto os dados chegam.
+        import("@/pages/ProductDetail.tsx");
+      }}
       onPointerUp={() => setPressed(false)}
       onPointerLeave={() => setPressed(false)}
       className="zg-card-enter w-full cursor-pointer select-none overflow-hidden"
