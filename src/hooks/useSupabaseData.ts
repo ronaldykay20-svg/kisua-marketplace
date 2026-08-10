@@ -76,6 +76,11 @@ export const useProducts = (options?: { featured?: boolean; freeShipping?: boole
   });
 
 // ── Product (detalhe) ──
+// FIX: antes fazia 2 pedidos SEQUENCIAIS (produto → depois fotos), e as fotos
+// nem sequer eram usadas pela página de detalhe (ela busca as suas próprias
+// fotos à parte, em "product_media_detail"). Isso duplicava a espera antes
+// do skeleton dar lugar ao conteúdo real, sem necessidade nenhuma. Agora é
+// só 1 pedido — praticamente metade do tempo até o produto aparecer.
 export const useProduct = (id: string) =>
   useQuery({
     queryKey: ["product", id],
@@ -91,20 +96,7 @@ export const useProduct = (id: string) =>
         .maybeSingle();
 
       if (error) throw error;
-      if (!data) return null;
-
-      const { data: mediaData } = await supabase
-        .from("product_media")
-        .select("url, is_cover, type, sort_order")
-        .eq("product_id", id)
-        .order("sort_order");
-
-      const cover =
-        (mediaData || []).find((m: any) => m.is_cover)?.url ||
-        (mediaData || [])[0]?.url ||
-        null;
-
-      return { ...data, cover_url: cover, _media: mediaData || [] };
+      return data;
     },
     enabled: !!id && id.length > 10,
     retry: 1,
