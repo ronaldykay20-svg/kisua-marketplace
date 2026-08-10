@@ -18,6 +18,8 @@ import { useProductViewers } from "@/hooks/useProductViewers";
 import { toast } from "sonner";
 import { trackViewedProduct } from "@/lib/recentBrowsing";
 import { useCategoryTracking } from "@/hooks/useCategoryTracking";
+import carrinhoBtnImg from "@/assets/product-buttons/carrinho-btn.webp";
+import comprarBtnImg from "@/assets/product-buttons/comprar-btn.webp";
 
 // ─── Kisua Design Tokens ─────────────────────────────────────────────────────
 // Identidade própria do Kisua: "Ink" (petróleo profundo, inspirado na baía de
@@ -175,6 +177,33 @@ const ProductDetailSkeleton = () => (
       </div>
     </div>
   </div>
+);
+
+// ─── Botões de acção "imagem" ────────────────────────────────────────────────
+// O Carrinho e o Comprar-agora são estáticos (o texto/ícone nunca muda) — por
+// isso usamos a própria imagem fornecida como o botão em si, em vez de a
+// recriar em CSS. Só o essencial continua "por trás" a funcionar: onClick,
+// disabled, e um véu com spinner por cima enquanto a acção está a decorrer
+// (já que a imagem não pode "girar" sozinha para mostrar carregamento).
+const ImageActionButton = ({
+  src, alt, onClick, disabled, pending, heightClass,
+}: {
+  src: string; alt: string; onClick: () => void;
+  disabled?: boolean; pending?: boolean; heightClass: string;
+}) => (
+  <button
+    onClick={onClick}
+    disabled={disabled}
+    aria-label={alt}
+    className={`relative flex-1 ${heightClass} disabled:opacity-60 active:scale-[0.97] transition-transform duration-150`}
+  >
+    <img src={src} alt={alt} className="w-full h-full object-contain select-none pointer-events-none" draggable={false} />
+    {pending && (
+      <span className="absolute inset-0 flex items-center justify-center rounded-xl bg-white/50">
+        <Loader2 className="w-5 h-5 animate-spin" style={{ color: N.brown }} />
+      </span>
+    )}
+  </button>
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -907,18 +936,18 @@ const ProductDetail = () => {
                   <button onClick={() => setQty(q => q + 1)} className="w-9 h-9 flex items-center justify-center text-gray-600 hover:bg-gray-50"><Plus className="w-4 h-4" /></button>
                 </div>
               </div>
-              {/* Botões */}
+              {/* Botões — imagem fornecida pelo Eliti, cliques e estado de carregamento continuam reais */}
               <div className="flex gap-3">
-                <button onClick={handleAddToCart} disabled={addToCart.isPending}
-                  className="flex-1 py-3 rounded-xl font-bold text-sm transition flex items-center justify-center gap-2 disabled:opacity-50 border-2 hover:bg-gray-50"
-                  style={{ borderColor: N.ink, color: N.ink, background: "#fff" }}>
-                  {addToCart.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />} Adicionar ao carrinho
-                </button>
-                <button onClick={handleBuyNow} disabled={buyingNow}
-                  className="flex-1 py-3 rounded-xl font-bold text-sm text-white transition flex items-center justify-center gap-2 disabled:opacity-50 hover:opacity-90"
-                  style={{ background: N.flame, boxShadow: "0 4px 14px rgba(232,83,31,0.35)" }}>
-                  {buyingNow && <Loader2 className="w-4 h-4 animate-spin" />} Comprar agora
-                </button>
+                <ImageActionButton
+                  src={carrinhoBtnImg} alt="Adicionar ao carrinho"
+                  onClick={handleAddToCart} disabled={addToCart.isPending} pending={addToCart.isPending}
+                  heightClass="h-12"
+                />
+                <ImageActionButton
+                  src={comprarBtnImg} alt="Comprar agora"
+                  onClick={handleBuyNow} disabled={buyingNow} pending={buyingNow}
+                  heightClass="h-12"
+                />
               </div>
             </div>
           </div>
@@ -1325,16 +1354,17 @@ const ProductDetail = () => {
         </div>
         <div className="flex gap-2 px-3 pt-1">
           {/* FIX 2: disabled INDEPENDENTE — carrinho e comprar agora não se bloqueiam mutuamente */}
-          <button onClick={handleAddToCart} disabled={addToCart.isPending}
-            className="flex-1 py-3 rounded-xl font-bold text-sm transition flex items-center justify-center gap-1.5 disabled:opacity-50 border-2"
-            style={{ borderColor: N.ink, color: N.ink, background: "#fff" }}>
-            {addToCart.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />} Carrinho
-          </button>
-          <button onClick={handleBuyNow} disabled={buyingNow}
-            className="flex-1 py-3 rounded-xl font-bold text-sm text-white transition flex items-center justify-center gap-1.5 disabled:opacity-50"
-            style={{ background: N.flame, boxShadow: "0 4px 14px rgba(232,83,31,0.35)" }}>
-            {buyingNow && <Loader2 className="w-4 h-4 animate-spin" />} Comprar agora
-          </button>
+          {/* Botões — imagem fornecida pelo Eliti, cliques e estado de carregamento continuam reais */}
+          <ImageActionButton
+            src={carrinhoBtnImg} alt="Carrinho"
+            onClick={handleAddToCart} disabled={addToCart.isPending} pending={addToCart.isPending}
+            heightClass="h-12"
+          />
+          <ImageActionButton
+            src={comprarBtnImg} alt="Comprar agora"
+            onClick={handleBuyNow} disabled={buyingNow} pending={buyingNow}
+            heightClass="h-12"
+          />
         </div>
       </div>
     </div>
