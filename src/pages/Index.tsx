@@ -83,8 +83,9 @@ const MobileLayout = () => {
     <>
       <FlashSaleBar />
       <LiveActivityTicker />
-      {/* Acima da dobra — carrega imediatamente */}
-      <HomeBannerSlot slot={1} device="mobile" />
+      {/* Acima da dobra — carrega imediatamente. O slot 1 é o hero: leva
+          prioridade máxima de rede (é o LCP da página). */}
+      <HomeBannerSlot slot={1} device="mobile" priority />
       <HomeBannerSlot slot={2} device="mobile" />
 
       {/*
@@ -192,8 +193,8 @@ const TabletLayout = () => {
     <div className="max-w-screen-lg mx-auto px-4">
       <FlashSaleBar />
       <LiveActivityTicker />
-      {/* Acima da dobra */}
-      <HomeBannerSlot slot={201} device="tablet" />
+      {/* Acima da dobra — o slot 201 é o hero, prioridade máxima (LCP) */}
+      <HomeBannerSlot slot={201} device="tablet" priority />
       <HomeBannerSlot slot={202} device="tablet" />
 
       {/* Abaixo da dobra — só reserva placeholder para slots com banner */}
@@ -295,8 +296,8 @@ const DesktopLayout = () => {
     <div className="max-w-screen-xl mx-auto px-6">
       <FlashSaleBar />
       <LiveActivityTicker />
-      {/* Acima da dobra */}
-      <HomeBannerSlot slot={301} device="desktop" />
+      {/* Acima da dobra — o slot 301 é o hero, prioridade máxima (LCP) */}
+      <HomeBannerSlot slot={301} device="desktop" priority />
 
       <div className="grid grid-cols-[1fr_300px] gap-5 mt-4">
         <div>
