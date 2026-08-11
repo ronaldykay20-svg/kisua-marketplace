@@ -930,12 +930,12 @@ const ProductDetail = () => {
         {/* ── ESPECIFICAÇÕES ── */}
         {specRows.length > 0 && (
           <div className="border-b px-3 md:px-6 py-4" style={{ background: N.paper, borderColor: "#EEE6D8" }}>
-            <p className="text-sm font-bold text-gray-900 mb-2">Especificações</p>
+            <p className="text-base font-bold text-gray-900 mb-2">Especificações</p>
             <div className="grid grid-cols-2 gap-0">
               {specRows.map((row, i) => (
-                <div key={row.label} className="py-2 px-2" style={{ background: i % 2 === 0 ? "#fafafa" : "#fff", borderBottom: "1px solid #f0f0f0" }}>
-                  <p className="text-[10px] text-gray-400 uppercase tracking-wide">{row.label}</p>
-                  <p className="text-xs font-semibold text-gray-900 mt-0.5">{row.value}</p>
+                <div key={row.label} className="py-2.5 px-2" style={{ background: i % 2 === 0 ? "#fafafa" : "#fff", borderBottom: "1px solid #f0f0f0" }}>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">{row.label}</p>
+                  <p className="text-sm font-semibold text-gray-900 mt-0.5">{row.value}</p>
                 </div>
               ))}
               {specRows.length % 2 !== 0 && (
@@ -947,29 +947,42 @@ const ProductDetail = () => {
 
         {/* ── SOBRE O PRODUTO ── */}
         <div className="bg-white border-b px-3 md:px-6 py-4" style={{ borderColor: "#F0EBDF" }}>
-          <p className="text-sm font-bold text-gray-900 mb-1.5">Sobre este produto</p>
-          <p className={`text-sm leading-relaxed text-gray-700 whitespace-pre-line ${!descExpanded ? "line-clamp-4" : ""}`}>
+          <p className="text-base font-bold text-gray-900 mb-1.5">Sobre este produto</p>
+          <p className={`text-base leading-relaxed text-gray-700 whitespace-pre-line ${!descExpanded ? "line-clamp-4" : ""}`}>
             {product.description || "Produto de alta qualidade disponível no ZANGU."}
           </p>
           {product.description && product.description.length > 200 && (
-            <button onClick={() => setDescExpanded(v => !v)} className="text-xs font-bold mt-1" style={{ color: N.accent }}>
+            <button onClick={() => setDescExpanded(v => !v)} className="text-sm font-bold mt-1" style={{ color: N.accent }}>
               {descExpanded ? "Ver menos ▲" : "Ver mais ▼"}
             </button>
           )}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-3">
             {[
               { Icon: CheckCircle2, text: "Produto original com garantia" },
-              { Icon: Truck, text: "Envio para todo o país" },
+              { Icon: Truck, text: "Envio para todo o país", to: "/entrega-frete" },
               { Icon: Lock, text: "Pagamento seguro" },
-              { Icon: Headset, text: "Suporte ao cliente 24/7" },
-              { Icon: RotateCcw, text: "Devolução grátis 3 dias" },
+              { Icon: Headset, text: "Suporte ao cliente 24/7", to: "/ajuda" },
+              { Icon: RotateCcw, text: "Devolução grátis 3 dias", to: "/devolucoes" },
               { Icon: Package, text: "Embalagem protegida" },
-            ].map((b, i) => (
-              <div key={i} className="flex items-start gap-1.5 p-2 rounded-lg" style={{ background: N.paper, border: "1px solid #EEE6D8" }}>
-                <b.Icon className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" style={{ color: N.ink }} />
-                <span className="text-[11px] text-gray-700 leading-tight">{b.text}</span>
-              </div>
-            ))}
+            ].map((b, i) => {
+              const Tag = b.to ? "button" : "div";
+              return (
+                <Tag
+                  key={i}
+                  {...(b.to ? { onClick: () => navigate(b.to) } : {})}
+                  className="flex items-start gap-1.5 p-2 rounded-lg text-left"
+                  style={{ background: N.paper, border: "1px solid #EEE6D8" }}
+                >
+                  <b.Icon className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: N.ink }} />
+                  <span
+                    className="text-xs leading-tight"
+                    style={b.to ? { color: N.accent, fontWeight: 700, textDecoration: "underline" } : { color: "#374151" }}
+                  >
+                    {b.text}
+                  </span>
+                </Tag>
+              );
+            })}
           </div>
         </div>
 
@@ -1007,18 +1020,23 @@ const ProductDetail = () => {
 
         {/* ── ENTREGA ── */}
         <div className="bg-white border-b px-3 md:px-6 py-4" style={{ borderColor: "#F0EBDF" }}>
-          <p className="text-sm font-bold text-gray-900 mb-2">Entrega e devoluções</p>
+          <p className="text-base font-bold text-gray-900 mb-2">Entrega e devoluções</p>
           <div className="grid grid-cols-3 gap-2">
             {[
-              { icon: <MapPin className="w-4 h-4 text-blue-500" />, bg: "#eff6ff", title: "Luanda, Angola", sub: "2–5 dias úteis" },
-              { icon: <Shield className="w-4 h-4 text-green-600" />, bg: "#f0fdf4", title: "Devolução grátis", sub: "Até 3 dias" },
-              { icon: <ShieldCheck className="w-4 h-4 text-purple-500" />, bg: "#faf5ff", title: "Pag. seguro", sub: "Encriptado" },
+              { icon: <MapPin className="w-4 h-4 text-blue-500" />, bg: "#eff6ff", title: "Luanda, Angola", sub: "2–5 dias úteis", to: "/entrega-frete" },
+              { icon: <Shield className="w-4 h-4 text-green-600" />, bg: "#f0fdf4", title: "Devolução grátis", sub: "Até 3 dias", to: "/devolucoes" },
+              { icon: <ShieldCheck className="w-4 h-4 text-purple-500" />, bg: "#faf5ff", title: "Pag. seguro", sub: "Encriptado", to: "/seguranca" },
             ].map((item, i) => (
-              <div key={i} className="flex flex-col items-center text-center p-2 rounded-lg" style={{ background: item.bg }}>
+              <button
+                key={i}
+                onClick={() => navigate(item.to)}
+                className="flex flex-col items-center text-center p-2 rounded-lg"
+                style={{ background: item.bg }}
+              >
                 {item.icon}
-                <p className="text-[10px] font-bold text-gray-800 mt-1 leading-tight">{item.title}</p>
-                <p className="text-[10px] text-gray-500 mt-0.5">{item.sub}</p>
-              </div>
+                <p className="text-xs font-bold text-gray-800 mt-1 leading-tight underline">{item.title}</p>
+                <p className="text-[11px] text-gray-500 mt-0.5">{item.sub}</p>
+              </button>
             ))}
           </div>
         </div>
