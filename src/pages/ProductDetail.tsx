@@ -985,7 +985,7 @@ const ProductDetail = () => {
 
         {/* ── FORMA DE PAGAMENTO ── */}
         <div className="bg-white border-b px-3 md:px-6 py-4" style={{ borderColor: "#F0EBDF" }}>
-          <p className="text-base font-bold text-gray-900 mb-2">Forma de pagamento</p>
+          <p className="text-base font-bold text-gray-900 mb-2 text-center">Forma de pagamento</p>
           <div className="grid grid-cols-3 gap-2">
             {[
               { img: payTelemovelImg, title: "Telemóvel", sub: "Pagamento com telemóvel" },
@@ -995,8 +995,7 @@ const ProductDetail = () => {
               <button
                 key={i}
                 type="button"
-                className="flex flex-col items-center text-center p-2 rounded-lg transition active:scale-[0.97] active:brightness-95"
-                style={{ background: N.paper, border: "1px solid #EEE6D8" }}
+                className="flex flex-col items-center text-center p-2 rounded-lg transition active:scale-[0.97] active:brightness-95 bg-white"
               >
                 <img src={item.img} alt={item.title} className="w-full h-auto object-contain rounded-md mb-1.5" draggable={false} />
                 <p className="text-xs font-bold text-gray-900 leading-tight underline underline-offset-2">{item.title}</p>
