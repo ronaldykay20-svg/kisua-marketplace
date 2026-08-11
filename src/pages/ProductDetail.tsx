@@ -24,6 +24,9 @@ import badgeEnvioImg from "@/assets/product-badges/envio.webp";
 import badgePagamentoImg from "@/assets/product-badges/pagamento.webp";
 import badgeSuporteImg from "@/assets/product-badges/suporte.webp";
 import badgeDevolucaoImg from "@/assets/product-badges/devolucao.webp";
+import payTelemovelImg from "@/assets/payment-methods/telemovel.webp";
+import payMulticaixaImg from "@/assets/payment-methods/multicaixa.webp";
+import payEntregaImg from "@/assets/payment-methods/entrega_pgto.webp";
 
 // ─── Kisua Design Tokens ─────────────────────────────────────────────────────
 // Identidade própria do Kisua: "Ink" (petróleo profundo, inspirado na baía de
@@ -980,24 +983,24 @@ const ProductDetail = () => {
           </div>
         </div>
 
-        {/* ── ENTREGA ── */}
+        {/* ── FORMA DE PAGAMENTO ── */}
         <div className="bg-white border-b px-3 md:px-6 py-4" style={{ borderColor: "#F0EBDF" }}>
-          <p className="text-base font-bold text-gray-900 mb-2">Entrega e devoluções</p>
+          <p className="text-base font-bold text-gray-900 mb-2">Forma de pagamento</p>
           <div className="grid grid-cols-3 gap-2">
             {[
-              { icon: <MapPin className="w-4 h-4 text-blue-500" />, bg: "#eff6ff", title: "Luanda, Angola", sub: "2–5 dias úteis", to: "/entrega-frete" },
-              { icon: <Shield className="w-4 h-4 text-green-600" />, bg: "#f0fdf4", title: "Devolução grátis", sub: "Até 3 dias", to: "/devolucoes" },
-              { icon: <ShieldCheck className="w-4 h-4 text-purple-500" />, bg: "#faf5ff", title: "Pag. seguro", sub: "Encriptado", to: "/seguranca" },
+              { img: payTelemovelImg, title: "Telemóvel", sub: "Pagamento com telemóvel" },
+              { img: payMulticaixaImg, title: "Multicaixa", sub: "Multicaixa Express" },
+              { img: payEntregaImg, title: "Na entrega", sub: "Pagamento no ato da entrega" },
             ].map((item, i) => (
               <button
                 key={i}
-                onClick={() => navigate(item.to)}
-                className="flex flex-col items-center text-center p-2 rounded-lg"
-                style={{ background: item.bg }}
+                type="button"
+                className="flex flex-col items-center text-center p-2 rounded-lg transition active:scale-[0.97] active:brightness-95"
+                style={{ background: N.paper, border: "1px solid #EEE6D8" }}
               >
-                {item.icon}
-                <p className="text-sm font-bold text-gray-800 mt-1 leading-tight underline">{item.title}</p>
-                <p className="text-xs text-gray-500 mt-0.5">{item.sub}</p>
+                <img src={item.img} alt={item.title} className="w-full h-auto object-contain rounded-md mb-1.5" draggable={false} />
+                <p className="text-xs font-bold text-gray-900 leading-tight underline underline-offset-2">{item.title}</p>
+                <p className="text-[10px] text-gray-500 mt-0.5 leading-tight">{item.sub}</p>
               </button>
             ))}
           </div>
