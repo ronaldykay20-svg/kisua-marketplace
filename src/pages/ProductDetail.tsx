@@ -747,23 +747,35 @@ const ProductDetail = () => {
           {/* COLUNA DIREITA (desktop) — info do produto; em mobile fica abaixo da imagem */}
           <div className={`px-3 pt-3 pb-2 md:px-0 md:pt-0 md:pb-0 ${sideBannerAd?.media_url ? "" : "border-b border-gray-100 md:border-none"}`}>
 
-            {/* Vendedor */}
+            {/* Loja — discreta, tipo link fino, tal como "Visit the Store" da Walmart.
+                A avaliação fica encostada à direita, na mesma linha. Nada de foto
+                grande nem nome a negrito aqui: o protagonismo é do produto. */}
             {publisher && !loadingPublisher && (
-              <button onClick={handlePublisherNavigate} className="flex items-center gap-2 mb-1.5 w-full text-left">
-                <AvatarWithFallback src={publisher.logo_url || publisher.avatar_url || null} name={publisher.name} isCompany={publisher.__type === "company"} />
-                <div className="text-left min-w-0 flex-1">
-                  <span className="text-sm font-bold truncate block" style={{ color: N.brown }}>{publisher.name}</span>
-                  {publisher.is_verified && <ShieldCheck className="w-3 h-3 text-blue-500 inline ml-1" />}
-                  {publisher.__type === "company" && <span className="ml-1 text-[11px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">Empresa</span>}
-                  {publisher?.province && <p className="text-[11px] text-gray-500 flex items-center gap-0.5"><MapPin className="w-2.5 h-2.5" />{String(publisher.province).replace(/0+$/, "").trim()}</p>}
-                </div>
-                <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+              <button onClick={handlePublisherNavigate} className="flex items-center justify-between gap-2 w-full text-left mb-1">
+                <span className="text-xs text-gray-500 underline underline-offset-2 truncate min-w-0" style={{ textDecorationColor: "#ccc" }}>
+                  Visite a loja {publisher.name}
+                  {publisher.is_verified && <ShieldCheck className="w-3 h-3 text-blue-500 inline ml-1 -mt-0.5" />}
+                </span>
+                {product.rating ? (
+                  <div className="flex-shrink-0 flex items-center gap-1">
+                    <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                    <span className="text-xs font-bold text-gray-700">{product.rating}</span>
+                    <span className="text-xs text-gray-400">({product.reviews?.toLocaleString()})</span>
+                  </div>
+                ) : null}
               </button>
             )}
 
-            {/* Preço — primeiro elemento a seguir ao vendedor, números grandes e
-                sufixo "Kz" reduzido, tal como o "$" pequeno + valor grande da Shein. */}
-            <div className="mt-1">
+            {/* Título — o elemento de maior destaque da ficha, a negrito, tal como
+                o nome do produto na referência do mercado. */}
+            <h1 className="text-[15px] md:text-lg font-bold leading-snug line-clamp-2 md:line-clamp-none" style={{ color: "#1A1A1A" }}>
+              {product.title}
+            </h1>
+            {!product.rating && <p className="text-xs text-gray-400 mt-0.5">Sem avaliações ainda</p>}
+
+            {/* Preço — logo a seguir ao título, números grandes e sufixo "Kz" reduzido,
+                tal como o "$" pequeno + valor grande da referência do mercado. */}
+            <div className="mt-2">
               {product.discount && <p className="text-[10px] font-bold uppercase text-red-600 mb-0.5">Oferta por tempo limitado</p>}
               <div className="flex items-baseline gap-2 flex-wrap">
                 <span className="text-3xl md:text-4xl font-black tracking-tight" style={{ color: N.flame, ...display }}>
@@ -777,23 +789,6 @@ const ProductDetail = () => {
                 <p className="text-xs font-bold text-green-700 flex items-center gap-1 mt-0.5"><Truck className="w-3.5 h-3.5" /> Frete grátis</p>
               )}
             </div>
-
-            {/* Título + avaliação — peso normal e cor quase-preta, como uma ficha de
-                produto de loja séria (não um cartaz). Avaliação encostada à direita,
-                na mesma linha, tal como nas fichas de produto de referência do mercado. */}
-            <div className="flex items-start justify-between gap-3 mt-2.5">
-              <h1 className="flex-1 text-[15px] md:text-base font-normal leading-snug line-clamp-2 md:line-clamp-none" style={{ color: "#1A1A1A" }}>
-                {product.title}
-              </h1>
-              {product.rating ? (
-                <div className="flex-shrink-0 flex items-center gap-1 pt-0.5">
-                  <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                  <span className="text-xs font-bold text-gray-700">{product.rating}</span>
-                  <span className="text-xs text-gray-400">({product.reviews?.toLocaleString()})</span>
-                </div>
-              ) : null}
-            </div>
-            {!product.rating && <p className="text-xs text-gray-400 mt-0.5">Sem avaliações ainda</p>}
             {product.rating && popularityBadge && (
               <span className="inline-flex mt-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold items-center gap-1" style={{ color: N.ink, background: N.inkLight }}>
                 <ShoppingCart className="w-3 h-3" /> {popularityBadge}
@@ -823,25 +818,6 @@ const ProductDetail = () => {
                   }
                 `}</style>
               </div>
-            )}
-
-            {/* Vendido por — linha compacta estilo Walmart, com dados reais de sellerFull/companyFull */}
-            {publisher && !loadingPublisher && (
-              <button onClick={handlePublisherNavigate} className="flex items-center gap-1.5 mt-2 text-sm flex-wrap">
-                <span className="text-gray-500 text-xs">Vendido por</span>
-                <span className="font-bold underline" style={{ color: N.brown }}>{publisher.name}</span>
-                {publisher.is_verified && (
-                  <span className="flex items-center gap-0.5 text-[11px] font-bold text-blue-600">
-                    <ShieldCheck className="w-3 h-3" /> Verificado
-                  </span>
-                )}
-                {publisher.rating ? (
-                  <span className="flex items-center gap-0.5 text-[11px] text-gray-500">
-                    <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" /> {Number(publisher.rating).toFixed(1)}
-                    {publisher.__type === "company" && publisher.total_reviews ? ` (${publisher.total_reviews})` : ""}
-                  </span>
-                ) : null}
-              </button>
             )}
 
             {/* FIX 3: banner lateral — só aparece em mobile (md:hidden) para não ficar gigante no desktop */}
