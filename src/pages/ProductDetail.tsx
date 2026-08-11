@@ -139,7 +139,7 @@ const AvatarWithFallback = ({ src, name, isCompany }: { src: string | null; name
 // um círculo a girar sozinho no meio do ecrã. Quando os dados chegam, o
 // conteúdo real substitui o skeleton peça a peça, sem salto brusco.
 const ProductDetailSkeleton = () => (
-  <div className="min-h-screen bg-white">
+  <div className="min-h-dvh bg-white">
     {/* Mini header — igual ao real, para não haver "salto" quando o
         conteúdo verdadeiro aparecer por cima */}
     <div className="sticky top-0 z-50 flex items-center gap-2 px-3 h-12 bg-white border-b border-gray-200">
@@ -761,7 +761,7 @@ const ProductDetail = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white animate-zg-fade-in">
+    <div className="min-h-dvh bg-white animate-zg-fade-in">
       {zoomOpen && <ZoomLightbox images={displayImages} index={selectedImage} onClose={() => setZoomOpen(false)} onChange={setSelectedImage} onShare={handleShare} />}
 
       {/* ── MINI HEADER ── */}
