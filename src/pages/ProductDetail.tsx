@@ -3,7 +3,7 @@ import {
   ArrowLeft, Heart, Share2, ShoppingCart, Star, Truck, Shield,
   MapPin, ChevronRight, Minus, Plus, ZoomIn, Store, MessageCircle,
   Send, Loader2, ShieldCheck, X, Building2, Check, Eye,
-  LayoutGrid, CheckCircle2, Lock, RotateCcw, Package, Flame, Headset,
+  LayoutGrid, Flame,
 } from "lucide-react";
 import { useState, useRef, useEffect, useCallback, type ReactNode } from "react";
 import { allProducts } from "@/data/products";
@@ -20,6 +20,12 @@ import { trackViewedProduct } from "@/lib/recentBrowsing";
 import { useCategoryTracking } from "@/hooks/useCategoryTracking";
 import comprarBtnImg from "@/assets/product-buttons/comprar-btn.webp";
 import carrinhoBtnImg from "@/assets/product-buttons/carrinho-btn.webp";
+import badgeGarantiaImg from "@/assets/product-badges/garantia.webp";
+import badgeEnvioImg from "@/assets/product-badges/envio.webp";
+import badgePagamentoImg from "@/assets/product-badges/pagamento.webp";
+import badgeSuporteImg from "@/assets/product-badges/suporte.webp";
+import badgeDevolucaoImg from "@/assets/product-badges/devolucao.webp";
+import badgeEmbalagemImg from "@/assets/product-badges/embalagem.webp";
 
 // ─── Kisua Design Tokens ─────────────────────────────────────────────────────
 // Identidade própria do Kisua: "Ink" (petróleo profundo, inspirado na baía de
@@ -952,31 +958,28 @@ const ProductDetail = () => {
 
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-3">
             {[
-              { Icon: CheckCircle2, text: "Produto original com garantia" },
-              { Icon: Truck, text: "Envio para todo o país", to: "/entrega-frete" },
-              { Icon: Lock, text: "Pagamento seguro" },
-              { Icon: Headset, text: "Suporte ao cliente 24/7", to: "/ajuda" },
-              { Icon: RotateCcw, text: "Devolução grátis 3 dias", to: "/devolucoes" },
-              { Icon: Package, text: "Embalagem protegida" },
-            ].map((b, i) => {
-              const Tag = b.to ? "button" : "div";
-              return (
-                <Tag
-                  key={i}
-                  {...(b.to ? { onClick: () => navigate(b.to) } : {})}
-                  className="flex items-start gap-1.5 p-2 rounded-lg text-left"
-                  style={{ background: N.paper, border: "1px solid #EEE6D8" }}
-                >
-                  <b.Icon className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: N.ink }} />
-                  <span
-                    className="text-xs leading-tight"
-                    style={b.to ? { color: N.accent, fontWeight: 700, textDecoration: "underline" } : { color: "#374151" }}
-                  >
-                    {b.text}
-                  </span>
-                </Tag>
-              );
-            })}
+              { img: badgeGarantiaImg, text: "Produto original com garantia", sub: "Qualidade que você confia", to: `/pesquisa?condition=new` },
+              { img: badgeEnvioImg, text: "Envio para todo o país", sub: "Entregamos onde você estiver", to: "/entrega-frete" },
+              { img: badgePagamentoImg, text: "Pagamento seguro", sub: "Dados sempre protegidos", to: "/formas-pagamento" },
+              { img: badgeSuporteImg, text: "Suporte ao cliente 24/7", sub: "Sempre disponíveis para ajudar", to: "/ajuda" },
+              { img: badgeDevolucaoImg, text: "Devolução grátis 3 dias", sub: "Mudou de ideia? Sem problema", to: "/devolucoes" },
+              { img: badgeEmbalagemImg, text: "Embalagem protegida", sub: "Bem embalado até você", to: "/entrega-frete" },
+            ].map((b, i) => (
+              <button
+                key={i}
+                onClick={() => navigate(b.to)}
+                className="flex flex-col items-center text-center p-3 rounded-xl transition hover:brightness-[0.98] active:scale-[0.98]"
+                style={{ background: N.paper, border: "1px solid #EEE6D8" }}
+              >
+                <img src={b.img} alt="" className="w-16 h-auto object-contain mb-1.5" draggable={false} />
+                <span className="text-xs font-bold leading-tight" style={{ color: N.ink900 }}>
+                  {b.text}
+                </span>
+                <span className="text-[10px] leading-tight mt-0.5 text-gray-500">
+                  {b.sub}
+                </span>
+              </button>
+            ))}
           </div>
         </div>
 
