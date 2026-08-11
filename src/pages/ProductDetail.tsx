@@ -256,8 +256,8 @@ const ProductDetail = () => {
   // Presença real: esta pessoa passa a contar como "a ver agora" enquanto
   // estiver nesta página (track: true). Nada de números inventados.
   const liveViewerCount = useProductViewers(isUuid ? id : null, { track: true, enabled: !!isUuid });
-  const { data: dbMedia = [] } = useQuery({ queryKey: ["product_media_detail", id], queryFn: async () => { const { data } = await supabase.from("product_media").select("*").eq("product_id", id!).order("sort_order"); return data || []; }, enabled: !!isUuid });
-  const { data: dbVariants = [] } = useQuery({ queryKey: ["product_variants", id], queryFn: async () => { const { data } = await supabase.from("product_variants").select("*").eq("product_id", id!).eq("is_active", true).order("sort_order"); return data || []; }, enabled: !!isUuid });
+  const { data: dbMedia = [], isLoading: loadingMedia } = useQuery({ queryKey: ["product_media_detail", id], queryFn: async () => { const { data } = await supabase.from("product_media").select("*").eq("product_id", id!).order("sort_order"); return data || []; }, enabled: !!isUuid });
+  const { data: dbVariants = [], isLoading: loadingVariants } = useQuery({ queryKey: ["product_variants", id], queryFn: async () => { const { data } = await supabase.from("product_variants").select("*").eq("product_id", id!).eq("is_active", true).order("sort_order"); return data || []; }, enabled: !!isUuid });
 
   // ── Anúncio banner para o espaço lateral ──────────────────────────────────
   const { data: sideBannerAd } = useQuery({
@@ -281,10 +281,22 @@ const ProductDetail = () => {
   const rawCompanyId = (dbProduct as any)?.company_id || null;
   const categoryId   = (dbProduct as any)?.category_id;
 
+  // FIX: "quem vende" já vem embutido na própria busca do produto (join
+  // sellers/companies) — não faz sentido esperar por MAIS uma viagem ao
+  // Supabase só para mostrar o mesmo nome/logo/selo que já temos em mãos.
+  // Usamos logo esses dados embutidos, e deixamos as buscas "_full" (que só
+  // trazem campos extra — avatar, banner, tipo — usados na página do
+  // vendedor) a completar em segundo plano, sem bloquear nada visível.
+  const embeddedSeller  = (dbProduct as any)?.sellers   ? { ...(dbProduct as any).sellers,   __type: "seller"  } : null;
+  const embeddedCompany = (dbProduct as any)?.companies ? { ...(dbProduct as any).companies, __type: "company" } : null;
+
   const { data: sellerFull,  isLoading: loadingSeller  } = useQuery({ queryKey: ["seller_full",  rawSellerId],  queryFn: async () => { const { data } = await supabase.from("sellers").select("id,name,logo_url,avatar_url,banner_url,is_verified,province,rating,total_sales,type,user_id").eq("id", rawSellerId!).maybeSingle(); return data ? { ...data, __type: "seller" } : null; }, enabled: !!rawSellerId });
   const { data: companyFull, isLoading: loadingCompany } = useQuery({ queryKey: ["company_full", rawCompanyId], queryFn: async () => { const { data } = await (supabase as any).from("companies").select("id,name,logo_url,banner_url,is_verified,province,rating,total_reviews,total_sales").eq("id", rawCompanyId!).maybeSingle(); return data ? { ...data, __type: "company" } : null; }, enabled: !!rawCompanyId });
-  const loadingPublisher = (!!rawSellerId && loadingSeller) || (!!rawCompanyId && loadingCompany);
-  const publisher: any = sellerFull || companyFull || null;
+  // Só "loadingPublisher" se não tivermos NEM o embutido NEM o completo —
+  // ou seja, na prática nunca mais fica à espera, porque o embutido chega
+  // ao mesmo tempo que o produto.
+  const publisher: any = sellerFull || companyFull || embeddedSeller || embeddedCompany || null;
+  const loadingPublisher = !publisher && ((!!rawSellerId && loadingSeller) || (!!rawCompanyId && loadingCompany));
 
   // ── Loja/empresa: seguir, contagens reais e outros produtos ──────────────
   // Mesmo padrão de VendedorPerfil.tsx/EmpresaPerfil.tsx, só que aqui o
@@ -597,7 +609,13 @@ const ProductDetail = () => {
 
   const handleZoom = () => { trackEvent(id!, "image_zoom", { image_index: selectedImage }); setZoomOpen(true); };
 
-  if (!dbProduct && isUuid && loadingProduct)
+  // FIX: espera pelo produto E fotos E variantes (as três correm em
+  // paralelo, então o tempo total é o da mais lenta, não a soma). Isto evita
+  // exatamente o que incomodava: título/preço a aparecer primeiro, depois
+  // as fotos, depois quem vende — tudo peça a peça. Agora só sai do
+  // skeleton quando há conteúdo suficiente para mostrar tudo de uma vez,
+  // como se nunca se tivesse saído da página anterior.
+  if (isUuid && (!dbProduct || loadingProduct || loadingMedia || loadingVariants))
     return <ProductDetailSkeleton />;
 
   const staticProduct = allProducts.find(p => p.id === Number(id));
