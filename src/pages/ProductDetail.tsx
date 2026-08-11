@@ -761,26 +761,49 @@ const ProductDetail = () => {
               </button>
             )}
 
-            <h1 className="text-lg md:text-xl font-bold leading-snug line-clamp-2 md:line-clamp-none" style={{ color: N.ink900, ...display }}>{product.title}</h1>
-
-            {/* Rating */}
-            {product.rating ? (
-              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                <div className="flex items-center gap-0.5">
-                  {Array.from({ length: 5 }).map((_, i) => <Star key={i} className={`w-3.5 h-3.5 ${i < Math.floor(product.rating!) ? "fill-amber-400 text-amber-400" : "text-gray-300"}`} />)}
-                </div>
-                <span className="text-xs font-bold" style={{ color: N.accent }}>{product.rating}</span>
-                <span className="text-xs text-gray-500">({product.reviews?.toLocaleString()})</span>
-                {popularityBadge && <span className="px-2 py-0.5 rounded-full text-[11px] font-bold flex items-center gap-1" style={{ color: N.ink, background: N.inkLight }}><ShoppingCart className="w-3 h-3" /> {popularityBadge}</span>}
+            {/* Preço — primeiro elemento a seguir ao vendedor, números grandes e
+                sufixo "Kz" reduzido, tal como o "$" pequeno + valor grande da Shein. */}
+            <div className="mt-1">
+              {product.discount && <p className="text-[10px] font-bold uppercase text-red-600 mb-0.5">Oferta por tempo limitado</p>}
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <span className="text-3xl md:text-4xl font-black tracking-tight" style={{ color: N.flame, ...display }}>
+                  {activePrice.replace(/\s*Kz$/, "")}
+                  <span className="text-base md:text-lg font-bold ml-1">Kz</span>
+                </span>
+                {product.discount && <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white" style={{ background: N.flame }}>{product.discount}</span>}
               </div>
-            ) : (
-              <p className="text-xs text-gray-400 mt-0.5">Sem avaliações ainda</p>
+              {product.oldPrice && <p className="text-sm line-through text-gray-400 mt-0.5">De: {product.oldPrice}</p>}
+              {product.freeShipping && (
+                <p className="text-xs font-bold text-green-700 flex items-center gap-1 mt-0.5"><Truck className="w-3.5 h-3.5" /> Frete grátis</p>
+              )}
+            </div>
+
+            {/* Título + avaliação — peso normal e cor quase-preta, como uma ficha de
+                produto de loja séria (não um cartaz). Avaliação encostada à direita,
+                na mesma linha, tal como nas fichas de produto de referência do mercado. */}
+            <div className="flex items-start justify-between gap-3 mt-2.5">
+              <h1 className="flex-1 text-[15px] md:text-base font-normal leading-snug line-clamp-2 md:line-clamp-none" style={{ color: "#1A1A1A" }}>
+                {product.title}
+              </h1>
+              {product.rating ? (
+                <div className="flex-shrink-0 flex items-center gap-1 pt-0.5">
+                  <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                  <span className="text-xs font-bold text-gray-700">{product.rating}</span>
+                  <span className="text-xs text-gray-400">({product.reviews?.toLocaleString()})</span>
+                </div>
+              ) : null}
+            </div>
+            {!product.rating && <p className="text-xs text-gray-400 mt-0.5">Sem avaliações ainda</p>}
+            {product.rating && popularityBadge && (
+              <span className="inline-flex mt-1.5 px-2 py-0.5 rounded-full text-[11px] font-bold items-center gap-1" style={{ color: N.ink, background: N.inkLight }}>
+                <ShoppingCart className="w-3 h-3" /> {popularityBadge}
+              </span>
             )}
 
             {/* Pessoas a ver agora — contagem real via presença, não inventada.
                 Só aparece quando há de facto mais alguém além do próprio visitante. */}
             {liveViewerCount > 1 && (
-              <div className="flex items-center gap-1 mt-1">
+              <div className="flex items-center gap-1 mt-1.5">
                 <span
                   className="rounded-full"
                   style={{
@@ -801,19 +824,6 @@ const ProductDetail = () => {
                 `}</style>
               </div>
             )}
-
-            {/* Preço */}
-            <div className="mt-2">
-              {product.discount && <p className="text-[10px] font-bold uppercase text-red-600">Oferta por tempo limitado</p>}
-              <div className="flex items-baseline gap-2 flex-wrap">
-                <span className="text-2xl md:text-3xl font-extrabold" style={{ color: N.flame, ...display }}>{activePrice}</span>
-                {product.discount && <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white" style={{ background: N.flame }}>{product.discount}</span>}
-              </div>
-              {product.oldPrice && <p className="text-sm line-through text-gray-400">De: {product.oldPrice}</p>}
-              {product.freeShipping && (
-                <p className="text-xs font-bold text-green-700 flex items-center gap-1 mt-0.5"><Truck className="w-3.5 h-3.5" /> Frete grátis</p>
-              )}
-            </div>
 
             {/* Vendido por — linha compacta estilo Walmart, com dados reais de sellerFull/companyFull */}
             {publisher && !loadingPublisher && (
