@@ -747,43 +747,49 @@ const ProductDetail = () => {
           {/* COLUNA DIREITA (desktop) — info do produto; em mobile fica abaixo da imagem */}
           <div className={`px-3 pt-3 pb-2 md:px-0 md:pt-0 md:pb-0 ${sideBannerAd?.media_url ? "" : "border-b border-gray-100 md:border-none"}`}>
 
-            {/* Loja — discreta, tipo link fino, tal como "Visit the Store" da Walmart.
-                A avaliação fica encostada à direita, na mesma linha. Nada de foto
-                grande nem nome a negrito aqui: o protagonismo é do produto. */}
-            {publisher && !loadingPublisher && (
-              <button onClick={handlePublisherNavigate} className="flex items-center justify-between gap-2 w-full text-left mb-1">
-                <span className="text-xs text-gray-500 underline underline-offset-2 truncate min-w-0" style={{ textDecorationColor: "#ccc" }}>
-                  Visite a loja {publisher.name}
-                  {publisher.is_verified && <ShieldCheck className="w-3 h-3 text-blue-500 inline ml-1 -mt-0.5" />}
-                </span>
+            {/* Cabeçalho em duas colunas: loja + nome do produto à esquerda;
+                avaliação e, por baixo dela na mesma coluna, o preço em grande, à direita. */}
+            <div className="flex items-start justify-between gap-3">
+              {/* Coluna esquerda — loja (link fino) + nome do produto (maior, mais destaque) */}
+              <div className="flex-1 min-w-0">
+                {publisher && !loadingPublisher && (
+                  <button onClick={handlePublisherNavigate} className="block text-left mb-1 max-w-full">
+                    <span className="text-xs text-gray-500 underline underline-offset-2 truncate block" style={{ textDecorationColor: "#ccc" }}>
+                      Visite a loja {publisher.name}
+                      {publisher.is_verified && <ShieldCheck className="w-3 h-3 text-blue-500 inline ml-1 -mt-0.5" />}
+                    </span>
+                  </button>
+                )}
+                <h1 className="text-2xl md:text-3xl font-black leading-snug" style={{ color: "#1A1A1A" }}>
+                  {product.title}
+                </h1>
+                {!product.rating && <p className="text-xs text-gray-400 mt-0.5">Sem avaliações ainda</p>}
+              </div>
+
+              {/* Coluna direita — avaliação em cima, preço grande por baixo, alinhados */}
+              <div className="flex-shrink-0 flex flex-col items-end text-right">
                 {product.rating ? (
-                  <div className="flex-shrink-0 flex items-center gap-1">
+                  <div className="flex items-center gap-1">
                     <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
                     <span className="text-xs font-bold text-gray-700">{product.rating}</span>
                     <span className="text-xs text-gray-400">({product.reviews?.toLocaleString()})</span>
                   </div>
                 ) : null}
-              </button>
-            )}
-
-            {/* Título — o elemento de maior destaque da ficha, a negrito, tal como
-                o nome do produto na referência do mercado. */}
-            <h1 className="text-[15px] md:text-lg font-bold leading-snug line-clamp-2 md:line-clamp-none" style={{ color: "#1A1A1A" }}>
-              {product.title}
-            </h1>
-            {!product.rating && <p className="text-xs text-gray-400 mt-0.5">Sem avaliações ainda</p>}
-
-            {/* Preço — logo a seguir ao título, números grandes e sufixo "Kz" reduzido,
-                tal como o "$" pequeno + valor grande da referência do mercado. */}
-            <div className="mt-2">
-              {product.discount && <p className="text-[10px] font-bold uppercase text-red-600 mb-0.5">Oferta por tempo limitado</p>}
-              <div className="flex items-baseline gap-2 flex-wrap">
-                <span className="text-3xl md:text-4xl font-black tracking-tight" style={{ color: N.flame, ...display }}>
+                <span className="text-2xl md:text-3xl font-black tracking-tight mt-1 whitespace-nowrap" style={{ color: N.flame, ...display }}>
                   {activePrice.replace(/\s*Kz$/, "")}
-                  <span className="text-base md:text-lg font-bold ml-1">Kz</span>
+                  <span className="text-sm md:text-base font-bold ml-1">Kz</span>
                 </span>
-                {product.discount && <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white" style={{ background: N.flame }}>{product.discount}</span>}
               </div>
+            </div>
+
+            {/* Extras de preço/oferta — largura total, por baixo do cabeçalho */}
+            <div className="mt-2">
+              {product.discount && (
+                <div className="flex items-center gap-2 mb-0.5">
+                  <p className="text-[10px] font-bold uppercase text-red-600">Oferta por tempo limitado</p>
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white" style={{ background: N.flame }}>{product.discount}</span>
+                </div>
+              )}
               {product.oldPrice && <p className="text-sm line-through text-gray-400 mt-0.5">De: {product.oldPrice}</p>}
               {product.freeShipping && (
                 <p className="text-xs font-bold text-green-700 flex items-center gap-1 mt-0.5"><Truck className="w-3.5 h-3.5" /> Frete grátis</p>
@@ -913,24 +919,6 @@ const ProductDetail = () => {
           </div>
         )}
 
-        {/* ── ESPECIFICAÇÕES ── */}
-        {specRows.length > 0 && (
-          <div className="border-b px-3 md:px-6 py-4" style={{ background: N.paper, borderColor: "#EEE6D8" }}>
-            <p className="text-base font-bold text-gray-900 mb-2">Especificações</p>
-            <div className="grid grid-cols-2 gap-0">
-              {specRows.map((row, i) => (
-                <div key={row.label} className="py-2.5 px-2" style={{ background: i % 2 === 0 ? "#fafafa" : "#fff", borderBottom: "1px solid #f0f0f0" }}>
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">{row.label}</p>
-                  <p className="text-sm font-semibold text-gray-900 mt-0.5">{row.value}</p>
-                </div>
-              ))}
-              {specRows.length % 2 !== 0 && (
-                <div className="py-2 px-2" style={{ background: "#fff", borderBottom: "1px solid #f0f0f0" }} />
-              )}
-            </div>
-          </div>
-        )}
-
         {/* ── SOBRE O PRODUTO ── */}
         <div className="bg-white border-b px-3 md:px-6 py-4" style={{ borderColor: "#F0EBDF" }}>
           <p className="text-base font-bold text-gray-900 mb-1.5">Sobre este produto</p>
@@ -942,6 +930,19 @@ const ProductDetail = () => {
               {descExpanded ? "Ver menos ▲" : "Ver mais ▼"}
             </button>
           )}
+
+          {/* Especificações — agora dentro de "Sobre este produto" */}
+          {specRows.length > 0 && (
+            <div className="mt-3 rounded-lg overflow-hidden border border-gray-100">
+              {specRows.map((row, i) => (
+                <div key={row.label} className="flex text-xs" style={{ background: i % 2 === 0 ? "#fafafa" : "#fff" }}>
+                  <span className="w-2/5 px-3 py-2 font-semibold text-gray-600 border-r border-gray-100">{row.label}</span>
+                  <span className="flex-1 px-3 py-2 text-gray-800">{row.value}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-3">
             {[
               { Icon: CheckCircle2, text: "Produto original com garantia" },
@@ -971,38 +972,6 @@ const ProductDetail = () => {
             })}
           </div>
         </div>
-
-        {/* ── ESPECIFICAÇÕES ── */}
-        {(() => {
-          const raw = dbProduct as any;
-          const specs: { label: string; value: string }[] = [
-            raw?.condition ? { label: "Condição", value: conditionLabels[raw.condition] || raw.condition } : null,
-            raw?.category ? { label: "Categoria", value: raw.category } : null,
-            raw?.weight_kg ? { label: "Peso", value: `${Number(raw.weight_kg).toLocaleString("pt-AO")} kg` } : null,
-            (raw?.length_cm && raw?.width_cm && raw?.height_cm)
-              ? { label: "Dimensões", value: `${raw.length_cm} × ${raw.width_cm} × ${raw.height_cm} cm` }
-              : null,
-            raw?.sku ? { label: "Referência (SKU)", value: raw.sku } : null,
-            typeof raw?.stock === "number" ? { label: "Stock disponível", value: `${raw.stock} unidades` } : null,
-            (raw?.city || raw?.province) ? { label: "Local de envio", value: [raw?.city, raw?.province].filter(Boolean).join(", ") } : null,
-            publisher?.name ? { label: "Vendedor", value: publisher.name } : null,
-          ].filter(Boolean) as { label: string; value: string }[];
-
-          if (specs.length === 0) return null;
-          return (
-            <div className="border-b px-3 md:px-6 py-4" style={{ background: N.paper, borderColor: "#EEE6D8" }}>
-              <p className="text-sm font-bold text-gray-900 mb-2">Especificações</p>
-              <div className="rounded-lg overflow-hidden border border-gray-100">
-                {specs.map((s, i) => (
-                  <div key={s.label} className="flex text-xs" style={{ background: i % 2 === 0 ? "#fafafa" : "#fff" }}>
-                    <span className="w-2/5 px-3 py-2 font-semibold text-gray-600 border-r border-gray-100">{s.label}</span>
-                    <span className="flex-1 px-3 py-2 text-gray-800">{s.value}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })()}
 
         {/* ── ENTREGA ── */}
         <div className="bg-white border-b px-3 md:px-6 py-4" style={{ borderColor: "#F0EBDF" }}>
