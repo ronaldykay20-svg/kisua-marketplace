@@ -89,6 +89,7 @@ const SearchResults = () => {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const query = searchParams.get("q") || "";
+  const conditionParam = searchParams.get("condition") || "";
   const modoImagem = searchParams.get("modo") === "imagem";
   // A foto viaja pelo `state` do router, nunca pela URL — uma foto de
   // telemóvel em base64 facilmente tem milhões de caracteres, muito além
@@ -168,11 +169,12 @@ const SearchResults = () => {
 
   // Pesquisa normal por texto
   const { data: dbProducts = [], isLoading: loadingProducts } = useQuery({
-    queryKey: ["search_products", effectiveQuery, sortBy, priceMin, priceMax, freeShipping],
+    queryKey: ["search_products", effectiveQuery, sortBy, priceMin, priceMax, freeShipping, conditionParam],
     enabled: !modoImagem,
     queryFn: async () => {
       let q = supabase.from("products").select("*").eq("is_active", true);
       if (effectiveQuery) q = q.or(`title.ilike.%${effectiveQuery}%,description.ilike.%${effectiveQuery}%`);
+      if (conditionParam) q = q.eq("condition", conditionParam);
       if (priceMin) q = q.gte("price", Number(priceMin));
       if (priceMax) q = q.lte("price", Number(priceMax));
       if (freeShipping === "Sim") q = q.eq("free_shipping", true);
