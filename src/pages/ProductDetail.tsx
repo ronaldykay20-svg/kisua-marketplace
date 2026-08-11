@@ -18,6 +18,8 @@ import { useProductViewers } from "@/hooks/useProductViewers";
 import { toast } from "sonner";
 import { trackViewedProduct } from "@/lib/recentBrowsing";
 import { useCategoryTracking } from "@/hooks/useCategoryTracking";
+import comprarBtnImg from "@/assets/product-buttons/comprar-btn.webp";
+import carrinhoBtnImg from "@/assets/product-buttons/carrinho-btn.webp";
 
 // ─── Kisua Design Tokens ─────────────────────────────────────────────────────
 // Identidade própria do Kisua: "Ink" (petróleo profundo, inspirado na baía de
@@ -860,14 +862,24 @@ const ProductDetail = () => {
               {/* Botões */}
               <div className="flex gap-3">
                 <button onClick={handleAddToCart} disabled={addToCart.isPending}
-                  className="flex-1 py-3 rounded-xl font-bold text-sm transition flex items-center justify-center gap-2 disabled:opacity-50 border-2 hover:bg-gray-50"
-                  style={{ borderColor: N.ink, color: N.ink, background: "#fff" }}>
-                  {addToCart.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />} Adicionar ao carrinho
+                  className="flex-1 relative disabled:opacity-60 transition hover:brightness-105 active:scale-[0.98]">
+                  <img src={carrinhoBtnImg} alt="Adicionar ao carrinho" draggable={false}
+                    className="w-full h-auto select-none pointer-events-none rounded-xl" />
+                  {addToCart.isPending && (
+                    <span className="absolute inset-0 flex items-center justify-center bg-white/70 rounded-xl">
+                      <Loader2 className="w-5 h-5 animate-spin" style={{ color: N.ink }} />
+                    </span>
+                  )}
                 </button>
                 <button onClick={handleBuyNow} disabled={buyingNow}
-                  className="flex-1 py-3 rounded-xl font-bold text-sm text-white transition flex items-center justify-center gap-2 disabled:opacity-50 hover:opacity-90"
-                  style={{ background: N.flame, boxShadow: "0 4px 14px rgba(232,83,31,0.35)" }}>
-                  {buyingNow && <Loader2 className="w-4 h-4 animate-spin" />} Comprar agora
+                  className="flex-1 relative disabled:opacity-60 transition hover:brightness-105 active:scale-[0.98]">
+                  <img src={comprarBtnImg} alt="Comprar agora" draggable={false}
+                    className="w-full h-auto select-none pointer-events-none rounded-xl" />
+                  {buyingNow && (
+                    <span className="absolute inset-0 flex items-center justify-center bg-black/25 rounded-xl">
+                      <Loader2 className="w-5 h-5 animate-spin text-white" />
+                    </span>
+                  )}
                 </button>
               </div>
             </div>
@@ -1276,14 +1288,24 @@ const ProductDetail = () => {
         <div className="flex gap-2 px-3 pt-1">
           {/* FIX 2: disabled INDEPENDENTE — carrinho e comprar agora não se bloqueiam mutuamente */}
           <button onClick={handleAddToCart} disabled={addToCart.isPending}
-            className="flex-1 py-3 rounded-xl font-bold text-sm transition flex items-center justify-center gap-1.5 disabled:opacity-50 border-2"
-            style={{ borderColor: N.ink, color: N.ink, background: "#fff" }}>
-            {addToCart.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />} Carrinho
+            className="flex-1 relative h-11 disabled:opacity-60 active:scale-[0.98] transition">
+            <img src={carrinhoBtnImg} alt="Adicionar ao carrinho" draggable={false}
+              className="w-full h-full object-contain select-none pointer-events-none rounded-xl" />
+            {addToCart.isPending && (
+              <span className="absolute inset-0 flex items-center justify-center bg-white/70 rounded-xl">
+                <Loader2 className="w-4 h-4 animate-spin" style={{ color: N.ink }} />
+              </span>
+            )}
           </button>
           <button onClick={handleBuyNow} disabled={buyingNow}
-            className="flex-1 py-3 rounded-xl font-bold text-sm text-white transition flex items-center justify-center gap-1.5 disabled:opacity-50"
-            style={{ background: N.flame, boxShadow: "0 4px 14px rgba(232,83,31,0.35)" }}>
-            {buyingNow && <Loader2 className="w-4 h-4 animate-spin" />} Comprar agora
+            className="flex-1 relative h-11 disabled:opacity-60 active:scale-[0.98] transition">
+            <img src={comprarBtnImg} alt="Comprar agora" draggable={false}
+              className="w-full h-full object-contain select-none pointer-events-none rounded-xl" />
+            {buyingNow && (
+              <span className="absolute inset-0 flex items-center justify-center bg-black/25 rounded-xl">
+                <Loader2 className="w-4 h-4 animate-spin text-white" />
+              </span>
+            )}
           </button>
         </div>
       </div>
