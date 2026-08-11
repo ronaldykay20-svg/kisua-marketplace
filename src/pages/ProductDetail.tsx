@@ -18,14 +18,6 @@ import { useProductViewers } from "@/hooks/useProductViewers";
 import { toast } from "sonner";
 import { trackViewedProduct } from "@/lib/recentBrowsing";
 import { useCategoryTracking } from "@/hooks/useCategoryTracking";
-// FIX DEFINITIVO: "?inline" força o Vite a converter estas duas imagens em
-// texto (base64) e colá-las dentro do próprio ficheiro JavaScript, em vez de
-// as deixar como ficheiros separados. Resultado: já não há SEGUNDO pedido de
-// rede nenhum para os botões — chegam literalmente dentro do código,
-// exactamente ao mesmo tempo que o resto da página, sem exceção nem
-// dependência de cache/CDN/preload.
-import carrinhoBtnImg from "@/assets/product-buttons/carrinho-btn.webp?inline";
-import comprarBtnImg from "@/assets/product-buttons/comprar-btn.webp?inline";
 
 // ─── Kisua Design Tokens ─────────────────────────────────────────────────────
 // Identidade própria do Kisua: "Ink" (petróleo profundo, inspirado na baía de
@@ -132,86 +124,6 @@ const AvatarWithFallback = ({ src, name, isCompany }: { src: string | null; name
   return <div className="w-9 h-9 rounded-full flex items-center justify-center bg-gray-100 border border-gray-200">{isCompany ? <Building2 className="w-4 h-4 text-gray-500" /> : <Store className="w-4 h-4 text-gray-500" />}</div>;
 };
 
-// ─── Skeleton da página de produto ──────────────────────────────────────────
-// Substitui o spinner genérico enquanto os dados chegam. Desenha já a forma
-// final da página (cabeçalho, imagem, título, preço, botões) com um pulso
-// suave — assim a pessoa vê logo "a silhueta" do que vai aparecer, em vez de
-// um círculo a girar sozinho no meio do ecrã. Quando os dados chegam, o
-// conteúdo real substitui o skeleton peça a peça, sem salto brusco.
-const ProductDetailSkeleton = () => (
-  <div className="min-h-dvh bg-white">
-    {/* Mini header — igual ao real, para não haver "salto" quando o
-        conteúdo verdadeiro aparecer por cima */}
-    <div className="sticky top-0 z-50 flex items-center gap-2 px-3 h-12 bg-white border-b border-gray-200">
-      <div className="w-9 h-9 rounded-full bg-gray-100 animate-pulse" />
-      <div className="h-3 w-24 rounded bg-gray-100 animate-pulse" />
-      <div className="flex items-center gap-1.5 ml-auto">
-        <div className="w-9 h-9 rounded-full bg-gray-100 animate-pulse" />
-        <div className="w-9 h-9 rounded-full bg-gray-100 animate-pulse" />
-        <div className="w-9 h-9 rounded-full bg-gray-100 animate-pulse" />
-      </div>
-    </div>
-
-    <div className="max-w-5xl mx-auto md:px-6 md:pt-4 md:grid md:grid-cols-2 md:gap-8">
-      {/* Imagem principal */}
-      <div className="w-full aspect-square md:rounded-xl bg-gray-100 animate-pulse" />
-
-      <div className="px-3 md:px-0 pt-3 md:pt-0 space-y-3">
-        {/* Título — duas linhas de tamanhos diferentes, como texto real */}
-        <div className="h-4 w-[85%] rounded bg-gray-100 animate-pulse" />
-        <div className="h-4 w-[55%] rounded bg-gray-100 animate-pulse" />
-        {/* Preço */}
-        <div className="h-7 w-32 rounded bg-gray-100 animate-pulse mt-2" />
-        {/* Selo de avaliação/vendas */}
-        <div className="h-3 w-40 rounded bg-gray-100 animate-pulse" />
-        {/* Pills de variantes */}
-        <div className="flex gap-2 pt-2">
-          <div className="w-14 h-14 rounded-lg bg-gray-100 animate-pulse" />
-          <div className="w-14 h-14 rounded-lg bg-gray-100 animate-pulse" />
-          <div className="w-14 h-14 rounded-lg bg-gray-100 animate-pulse" />
-        </div>
-        {/* Vendedor */}
-        <div className="flex items-center gap-2 pt-3">
-          <div className="w-9 h-9 rounded-full bg-gray-100 animate-pulse" />
-          <div className="h-3 w-28 rounded bg-gray-100 animate-pulse" />
-        </div>
-        {/* Botões de ação */}
-        <div className="flex gap-2 pt-4">
-          <div className="flex-1 h-11 rounded-full bg-gray-100 animate-pulse" />
-          <div className="flex-1 h-11 rounded-full bg-gray-100 animate-pulse" />
-        </div>
-      </div>
-    </div>
-  </div>
-);
-
-// ─── Botões de acção "imagem" ────────────────────────────────────────────────
-// O Carrinho e o Comprar-agora são estáticos (o texto/ícone nunca muda) — por
-// isso usamos a própria imagem fornecida como o botão em si, em vez de a
-// recriar em CSS. Só o essencial continua "por trás" a funcionar: onClick,
-// disabled, e um véu com spinner por cima enquanto a acção está a decorrer
-// (já que a imagem não pode "girar" sozinha para mostrar carregamento).
-const ImageActionButton = ({
-  src, alt, onClick, disabled, pending, heightClass,
-}: {
-  src: string; alt: string; onClick: () => void;
-  disabled?: boolean; pending?: boolean; heightClass: string;
-}) => (
-  <button
-    onClick={onClick}
-    disabled={disabled}
-    aria-label={alt}
-    className={`relative flex-1 ${heightClass} disabled:opacity-60 active:scale-[0.97] transition-transform duration-150`}
-  >
-    <img src={src} alt={alt} className="w-full h-full object-contain select-none pointer-events-none" draggable={false} />
-    {pending && (
-      <span className="absolute inset-0 flex items-center justify-center rounded-xl bg-white/50">
-        <Loader2 className="w-5 h-5 animate-spin" style={{ color: N.brown }} />
-      </span>
-    )}
-  </button>
-);
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -262,8 +174,11 @@ const ProductDetail = () => {
   // Presença real: esta pessoa passa a contar como "a ver agora" enquanto
   // estiver nesta página (track: true). Nada de números inventados.
   const liveViewerCount = useProductViewers(isUuid ? id : null, { track: true, enabled: !!isUuid });
-  const { data: dbMedia = [], isLoading: loadingMedia } = useQuery({ queryKey: ["product_media_detail", id], queryFn: async () => { const { data } = await supabase.from("product_media").select("*").eq("product_id", id!).order("sort_order"); return data || []; }, enabled: !!isUuid });
-  const { data: dbVariants = [], isLoading: loadingVariants } = useQuery({ queryKey: ["product_variants", id], queryFn: async () => { const { data } = await supabase.from("product_variants").select("*").eq("product_id", id!).eq("is_active", true).order("sort_order"); return data || []; }, enabled: !!isUuid });
+  // As fotos já vêm dentro de dbProduct._media (useProduct busca-as em
+  // paralelo com o produto) — antes havia aqui uma segunda busca completa
+  // às mesmas fotos, um pedido inteiro à base de dados desperdiçado.
+  const dbMedia = (dbProduct as any)?._media || [];
+  const { data: dbVariants = [] } = useQuery({ queryKey: ["product_variants", id], queryFn: async () => { const { data } = await supabase.from("product_variants").select("*").eq("product_id", id!).eq("is_active", true).order("sort_order"); return data || []; }, enabled: !!isUuid });
 
   // ── Anúncio banner para o espaço lateral ──────────────────────────────────
   const { data: sideBannerAd } = useQuery({
@@ -287,22 +202,10 @@ const ProductDetail = () => {
   const rawCompanyId = (dbProduct as any)?.company_id || null;
   const categoryId   = (dbProduct as any)?.category_id;
 
-  // FIX: "quem vende" já vem embutido na própria busca do produto (join
-  // sellers/companies) — não faz sentido esperar por MAIS uma viagem ao
-  // Supabase só para mostrar o mesmo nome/logo/selo que já temos em mãos.
-  // Usamos logo esses dados embutidos, e deixamos as buscas "_full" (que só
-  // trazem campos extra — avatar, banner, tipo — usados na página do
-  // vendedor) a completar em segundo plano, sem bloquear nada visível.
-  const embeddedSeller  = (dbProduct as any)?.sellers   ? { ...(dbProduct as any).sellers,   __type: "seller"  } : null;
-  const embeddedCompany = (dbProduct as any)?.companies ? { ...(dbProduct as any).companies, __type: "company" } : null;
-
   const { data: sellerFull,  isLoading: loadingSeller  } = useQuery({ queryKey: ["seller_full",  rawSellerId],  queryFn: async () => { const { data } = await supabase.from("sellers").select("id,name,logo_url,avatar_url,banner_url,is_verified,province,rating,total_sales,type,user_id").eq("id", rawSellerId!).maybeSingle(); return data ? { ...data, __type: "seller" } : null; }, enabled: !!rawSellerId });
   const { data: companyFull, isLoading: loadingCompany } = useQuery({ queryKey: ["company_full", rawCompanyId], queryFn: async () => { const { data } = await (supabase as any).from("companies").select("id,name,logo_url,banner_url,is_verified,province,rating,total_reviews,total_sales").eq("id", rawCompanyId!).maybeSingle(); return data ? { ...data, __type: "company" } : null; }, enabled: !!rawCompanyId });
-  // Só "loadingPublisher" se não tivermos NEM o embutido NEM o completo —
-  // ou seja, na prática nunca mais fica à espera, porque o embutido chega
-  // ao mesmo tempo que o produto.
-  const publisher: any = sellerFull || companyFull || embeddedSeller || embeddedCompany || null;
-  const loadingPublisher = !publisher && ((!!rawSellerId && loadingSeller) || (!!rawCompanyId && loadingCompany));
+  const loadingPublisher = (!!rawSellerId && loadingSeller) || (!!rawCompanyId && loadingCompany);
+  const publisher: any = sellerFull || companyFull || null;
 
   // ── Loja/empresa: seguir, contagens reais e outros produtos ──────────────
   // Mesmo padrão de VendedorPerfil.tsx/EmpresaPerfil.tsx, só que aqui o
@@ -615,14 +518,8 @@ const ProductDetail = () => {
 
   const handleZoom = () => { trackEvent(id!, "image_zoom", { image_index: selectedImage }); setZoomOpen(true); };
 
-  // FIX: espera pelo produto E fotos E variantes (as três correm em
-  // paralelo, então o tempo total é o da mais lenta, não a soma). Isto evita
-  // exatamente o que incomodava: título/preço a aparecer primeiro, depois
-  // as fotos, depois quem vende — tudo peça a peça. Agora só sai do
-  // skeleton quando há conteúdo suficiente para mostrar tudo de uma vez,
-  // como se nunca se tivesse saído da página anterior.
-  if (isUuid && (!dbProduct || loadingProduct || loadingMedia || loadingVariants))
-    return <ProductDetailSkeleton />;
+  if (!dbProduct && isUuid && loadingProduct)
+    return <div className="min-h-screen flex items-center justify-center bg-white"><Loader2 className="w-6 h-6 animate-spin" style={{ color: N.brown }} /></div>;
 
   const staticProduct = allProducts.find(p => p.id === Number(id));
   const productBase: any = dbProduct || staticProduct;
@@ -761,7 +658,7 @@ const ProductDetail = () => {
   };
 
   return (
-    <div className="min-h-dvh bg-white animate-zg-fade-in">
+    <div className="min-h-screen bg-white">
       {zoomOpen && <ZoomLightbox images={displayImages} index={selectedImage} onClose={() => setZoomOpen(false)} onChange={setSelectedImage} onShare={handleShare} />}
 
       {/* ── MINI HEADER ── */}
@@ -960,18 +857,18 @@ const ProductDetail = () => {
                   <button onClick={() => setQty(q => q + 1)} className="w-9 h-9 flex items-center justify-center text-gray-600 hover:bg-gray-50"><Plus className="w-4 h-4" /></button>
                 </div>
               </div>
-              {/* Botões — imagem fornecida pelo Eliti, cliques e estado de carregamento continuam reais */}
+              {/* Botões */}
               <div className="flex gap-3">
-                <ImageActionButton
-                  src={carrinhoBtnImg} alt="Adicionar ao carrinho"
-                  onClick={handleAddToCart} disabled={addToCart.isPending} pending={addToCart.isPending}
-                  heightClass="h-12"
-                />
-                <ImageActionButton
-                  src={comprarBtnImg} alt="Comprar agora"
-                  onClick={handleBuyNow} disabled={buyingNow} pending={buyingNow}
-                  heightClass="h-12"
-                />
+                <button onClick={handleAddToCart} disabled={addToCart.isPending}
+                  className="flex-1 py-3 rounded-xl font-bold text-sm transition flex items-center justify-center gap-2 disabled:opacity-50 border-2 hover:bg-gray-50"
+                  style={{ borderColor: N.ink, color: N.ink, background: "#fff" }}>
+                  {addToCart.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />} Adicionar ao carrinho
+                </button>
+                <button onClick={handleBuyNow} disabled={buyingNow}
+                  className="flex-1 py-3 rounded-xl font-bold text-sm text-white transition flex items-center justify-center gap-2 disabled:opacity-50 hover:opacity-90"
+                  style={{ background: N.flame, boxShadow: "0 4px 14px rgba(232,83,31,0.35)" }}>
+                  {buyingNow && <Loader2 className="w-4 h-4 animate-spin" />} Comprar agora
+                </button>
               </div>
             </div>
           </div>
@@ -1378,17 +1275,16 @@ const ProductDetail = () => {
         </div>
         <div className="flex gap-2 px-3 pt-1">
           {/* FIX 2: disabled INDEPENDENTE — carrinho e comprar agora não se bloqueiam mutuamente */}
-          {/* Botões — imagem fornecida pelo Eliti, cliques e estado de carregamento continuam reais */}
-          <ImageActionButton
-            src={carrinhoBtnImg} alt="Carrinho"
-            onClick={handleAddToCart} disabled={addToCart.isPending} pending={addToCart.isPending}
-            heightClass="h-12"
-          />
-          <ImageActionButton
-            src={comprarBtnImg} alt="Comprar agora"
-            onClick={handleBuyNow} disabled={buyingNow} pending={buyingNow}
-            heightClass="h-12"
-          />
+          <button onClick={handleAddToCart} disabled={addToCart.isPending}
+            className="flex-1 py-3 rounded-xl font-bold text-sm transition flex items-center justify-center gap-1.5 disabled:opacity-50 border-2"
+            style={{ borderColor: N.ink, color: N.ink, background: "#fff" }}>
+            {addToCart.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />} Carrinho
+          </button>
+          <button onClick={handleBuyNow} disabled={buyingNow}
+            className="flex-1 py-3 rounded-xl font-bold text-sm text-white transition flex items-center justify-center gap-1.5 disabled:opacity-50"
+            style={{ background: N.flame, boxShadow: "0 4px 14px rgba(232,83,31,0.35)" }}>
+            {buyingNow && <Loader2 className="w-4 h-4 animate-spin" />} Comprar agora
+          </button>
         </div>
       </div>
     </div>
