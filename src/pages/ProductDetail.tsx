@@ -853,10 +853,10 @@ const ProductDetail = () => {
               {/* Quantidade */}
               <div className="flex items-center gap-3 mb-4">
                 <span className="text-sm font-semibold text-gray-700">Quantidade:</span>
-                <div className="flex items-center rounded-lg overflow-hidden border border-gray-300">
-                  <button onClick={() => setQty(q => Math.max(1, q - 1))} className="w-9 h-9 flex items-center justify-center text-gray-600 hover:bg-gray-50"><Minus className="w-4 h-4" /></button>
-                  <span className="w-10 text-center text-sm font-bold text-gray-900">{qty}</span>
-                  <button onClick={() => setQty(q => q + 1)} className="w-9 h-9 flex items-center justify-center text-gray-600 hover:bg-gray-50"><Plus className="w-4 h-4" /></button>
+                <div className="flex items-stretch h-9 rounded-lg overflow-hidden border border-gray-300">
+                  <button onClick={() => setQty(q => Math.max(1, q - 1))} className="w-9 flex items-center justify-center text-gray-600 hover:bg-gray-50"><Minus className="w-4 h-4" /></button>
+                  <span className="w-10 flex items-center justify-center text-sm font-bold text-gray-900 leading-none">{qty}</span>
+                  <button onClick={() => setQty(q => q + 1)} className="w-9 flex items-center justify-center text-gray-600 hover:bg-gray-50"><Plus className="w-4 h-4" /></button>
                 </div>
               </div>
               {/* Botões */}
@@ -1277,13 +1277,13 @@ const ProductDetail = () => {
       {/* ── BARRA INFERIOR MOBILE (hidden no desktop) ── */}
       <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-white border-t border-gray-200"
         style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))", boxShadow: "0 -4px 16px rgba(0,0,0,0.06)" }}>
-        <div className="flex items-center gap-2 px-3 pt-2 pb-1">
-          <div className="flex items-center rounded-lg overflow-hidden border-2 flex-shrink-0" style={{ borderColor: "#E5E1D8" }}>
-            <button onClick={() => setQty(q => Math.max(1, q - 1))} className="w-8 h-8 flex items-center justify-center text-gray-600"><Minus className="w-4 h-4" /></button>
-            <span className="w-8 text-center text-sm font-bold text-gray-900">{qty}</span>
-            <button onClick={() => setQty(q => q + 1)} className="w-8 h-8 flex items-center justify-center text-gray-600"><Plus className="w-4 h-4" /></button>
+        <div className="flex items-center h-9 gap-2 px-3 pt-2 pb-1">
+          <div className="flex items-stretch h-8 rounded-lg overflow-hidden border-2 flex-shrink-0" style={{ borderColor: "#E5E1D8" }}>
+            <button onClick={() => setQty(q => Math.max(1, q - 1))} className="w-8 flex items-center justify-center text-gray-600"><Minus className="w-4 h-4" /></button>
+            <span className="w-8 flex items-center justify-center text-sm font-bold text-gray-900 leading-none">{qty}</span>
+            <button onClick={() => setQty(q => q + 1)} className="w-8 flex items-center justify-center text-gray-600"><Plus className="w-4 h-4" /></button>
           </div>
-          <span className="text-lg font-extrabold ml-auto" style={{ color: N.flame, ...display }}>{activePrice}</span>
+          <span className="flex items-center h-8 text-lg font-extrabold ml-auto leading-none" style={{ color: N.flame, ...display }}>{activePrice}</span>
         </div>
         <div className="flex gap-2 px-3 pt-1">
           {/* FIX 2: disabled INDEPENDENTE — carrinho e comprar agora não se bloqueiam mutuamente */}
