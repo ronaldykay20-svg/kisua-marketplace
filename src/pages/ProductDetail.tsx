@@ -752,16 +752,16 @@ const ProductDetail = () => {
               <button onClick={handlePublisherNavigate} className="flex items-center gap-2 mb-1.5 w-full text-left">
                 <AvatarWithFallback src={publisher.logo_url || publisher.avatar_url || null} name={publisher.name} isCompany={publisher.__type === "company"} />
                 <div className="text-left min-w-0 flex-1">
-                  <span className="text-xs font-bold truncate block" style={{ color: N.brown }}>{publisher.name}</span>
+                  <span className="text-sm font-bold truncate block" style={{ color: N.brown }}>{publisher.name}</span>
                   {publisher.is_verified && <ShieldCheck className="w-3 h-3 text-blue-500 inline ml-1" />}
-                  {publisher.__type === "company" && <span className="ml-1 text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">Empresa</span>}
-                  {publisher?.province && <p className="text-[10px] text-gray-500 flex items-center gap-0.5"><MapPin className="w-2.5 h-2.5" />{String(publisher.province).replace(/0+$/, "").trim()}</p>}
+                  {publisher.__type === "company" && <span className="ml-1 text-[11px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">Empresa</span>}
+                  {publisher?.province && <p className="text-[11px] text-gray-500 flex items-center gap-0.5"><MapPin className="w-2.5 h-2.5" />{String(publisher.province).replace(/0+$/, "").trim()}</p>}
                 </div>
                 <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
               </button>
             )}
 
-            <h1 className="text-base md:text-xl font-bold leading-snug line-clamp-2 md:line-clamp-none" style={{ color: N.ink900, ...display }}>{product.title}</h1>
+            <h1 className="text-lg md:text-xl font-bold leading-snug line-clamp-2 md:line-clamp-none" style={{ color: N.ink900, ...display }}>{product.title}</h1>
 
             {/* Rating */}
             {product.rating ? (
@@ -817,16 +817,16 @@ const ProductDetail = () => {
 
             {/* Vendido por — linha compacta estilo Walmart, com dados reais de sellerFull/companyFull */}
             {publisher && !loadingPublisher && (
-              <button onClick={handlePublisherNavigate} className="flex items-center gap-1.5 mt-2 text-xs flex-wrap">
-                <span className="text-gray-500">Vendido por</span>
+              <button onClick={handlePublisherNavigate} className="flex items-center gap-1.5 mt-2 text-sm flex-wrap">
+                <span className="text-gray-500 text-xs">Vendido por</span>
                 <span className="font-bold underline" style={{ color: N.brown }}>{publisher.name}</span>
                 {publisher.is_verified && (
-                  <span className="flex items-center gap-0.5 text-[10px] font-bold text-blue-600">
+                  <span className="flex items-center gap-0.5 text-[11px] font-bold text-blue-600">
                     <ShieldCheck className="w-3 h-3" /> Verificado
                   </span>
                 )}
                 {publisher.rating ? (
-                  <span className="flex items-center gap-0.5 text-[10px] text-gray-500">
+                  <span className="flex items-center gap-0.5 text-[11px] text-gray-500">
                     <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" /> {Number(publisher.rating).toFixed(1)}
                     {publisher.__type === "company" && publisher.total_reviews ? ` (${publisher.total_reviews})` : ""}
                   </span>
@@ -1034,8 +1034,8 @@ const ProductDetail = () => {
                 style={{ background: item.bg }}
               >
                 {item.icon}
-                <p className="text-xs font-bold text-gray-800 mt-1 leading-tight underline">{item.title}</p>
-                <p className="text-[11px] text-gray-500 mt-0.5">{item.sub}</p>
+                <p className="text-sm font-bold text-gray-800 mt-1 leading-tight underline">{item.title}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{item.sub}</p>
               </button>
             ))}
           </div>
@@ -1295,18 +1295,21 @@ const ProductDetail = () => {
       {/* ── BARRA INFERIOR MOBILE (hidden no desktop) ── */}
       <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-white border-t border-gray-200"
         style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))", boxShadow: "0 -4px 16px rgba(0,0,0,0.06)" }}>
-        <div className="flex items-center h-9 gap-2 px-3 pt-2 pb-1">
-          <div className="flex items-stretch h-8 rounded-lg overflow-hidden border-2 flex-shrink-0" style={{ borderColor: "#E5E1D8" }}>
-            <button onClick={() => setQty(q => Math.max(1, q - 1))} className="w-8 flex items-center justify-center text-gray-600"><Minus className="w-4 h-4" /></button>
-            <span className="w-8 flex items-center justify-center text-sm font-bold text-gray-900 leading-none">{qty}</span>
-            <button onClick={() => setQty(q => q + 1)} className="w-8 flex items-center justify-center text-gray-600"><Plus className="w-4 h-4" /></button>
+        {/* Grid de 2 colunas: coluna esquerda = quantidade/carrinho, coluna direita = preço/comprar.
+            Isto garante que o stepper fica sempre alinhado por cima do botão carrinho, e o preço
+            por cima do botão comprar — mesma largura de coluna nas duas linhas. */}
+        <div className="grid grid-cols-2 gap-2 px-3 pt-2 pb-1 items-center">
+          <div className="flex items-stretch h-8 rounded-lg overflow-hidden border-2 w-full" style={{ borderColor: "#E5E1D8" }}>
+            <button onClick={() => setQty(q => Math.max(1, q - 1))} className="flex-1 flex items-center justify-center text-gray-600"><Minus className="w-4 h-4" /></button>
+            <span className="flex-1 flex items-center justify-center text-sm font-bold text-gray-900 leading-none">{qty}</span>
+            <button onClick={() => setQty(q => q + 1)} className="flex-1 flex items-center justify-center text-gray-600"><Plus className="w-4 h-4" /></button>
           </div>
-          <span className="flex items-center h-8 text-lg font-extrabold ml-auto leading-none" style={{ color: N.flame, ...display }}>{activePrice}</span>
+          <span className="flex items-center justify-end h-8 text-lg font-extrabold leading-none text-right" style={{ color: N.flame, ...display }}>{activePrice}</span>
         </div>
-        <div className="flex gap-2 px-3 pt-1">
+        <div className="grid grid-cols-2 gap-2 px-3 pt-1">
           {/* FIX 2: disabled INDEPENDENTE — carrinho e comprar agora não se bloqueiam mutuamente */}
           <button onClick={handleAddToCart} disabled={addToCart.isPending}
-            className="flex-1 relative h-11 disabled:opacity-60 active:scale-[0.98] transition">
+            className="relative h-11 w-full disabled:opacity-60 active:scale-[0.98] transition">
             <img src={carrinhoBtnImg} alt="Adicionar ao carrinho" draggable={false}
               className="w-full h-full object-contain select-none pointer-events-none rounded-xl" />
             {addToCart.isPending && (
@@ -1316,7 +1319,7 @@ const ProductDetail = () => {
             )}
           </button>
           <button onClick={handleBuyNow} disabled={buyingNow}
-            className="flex-1 relative h-11 disabled:opacity-60 active:scale-[0.98] transition">
+            className="relative h-11 w-full disabled:opacity-60 active:scale-[0.98] transition">
             <img src={comprarBtnImg} alt="Comprar agora" draggable={false}
               className="w-full h-full object-contain select-none pointer-events-none rounded-xl" />
             {buyingNow && (
