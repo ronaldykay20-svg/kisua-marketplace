@@ -76,27 +76,41 @@ export const useProducts = (options?: { featured?: boolean; freeShipping?: boole
   });
 
 // ── Product (detalhe) ──
-// FIX: antes fazia 2 pedidos SEQUENCIAIS (produto → depois fotos), e as fotos
-// nem sequer eram usadas pela página de detalhe (ela busca as suas próprias
-// fotos à parte, em "product_media_detail"). Isso duplicava a espera antes
-// do skeleton dar lugar ao conteúdo real, sem necessidade nenhuma. Agora é
-// só 1 pedido — praticamente metade do tempo até o produto aparecer.
 export const useProduct = (id: string) =>
   useQuery({
     queryKey: ["product", id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("products")
-        .select(`
-          *,
-          sellers(id, name, slug, logo_url, rating, total_sales, is_verified, province),
-          companies(id, name, slug, logo_url, is_verified, province, rating, total_reviews, total_sales)
-        `)
-        .eq("id", id)
-        .maybeSingle();
+      // Antes: buscava o produto, esperava a resposta, só depois pedia as
+      // fotos — dois pedidos um atrás do outro. As fotos não dependem do
+      // resultado do produto (só do id, que já temos), por isso pedimos os
+      // dois ao mesmo tempo e poupamos uma volta inteira de rede.
+      const [{ data, error }, mediaRes] = await Promise.all([
+        supabase
+          .from("products")
+          .select(`
+            *,
+            sellers(id, name, slug, logo_url, rating, total_sales, is_verified, province),
+            companies(id, name, slug, logo_url, is_verified, province, rating, total_reviews, total_sales)
+          `)
+          .eq("id", id)
+          .maybeSingle(),
+        supabase
+          .from("product_media")
+          .select("url, thumb_url, is_cover, type, sort_order")
+          .eq("product_id", id)
+          .order("sort_order"),
+      ]);
 
       if (error) throw error;
-      return data;
+      if (!data) return null;
+
+      const mediaData = mediaRes.data;
+      const cover =
+        (mediaData || []).find((m: any) => m.is_cover)?.url ||
+        (mediaData || [])[0]?.url ||
+        null;
+
+      return { ...data, cover_url: cover, _media: mediaData || [] };
     },
     enabled: !!id && id.length > 10,
     retry: 1,
