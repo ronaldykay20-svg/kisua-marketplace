@@ -18,8 +18,14 @@ import { useProductViewers } from "@/hooks/useProductViewers";
 import { toast } from "sonner";
 import { trackViewedProduct } from "@/lib/recentBrowsing";
 import { useCategoryTracking } from "@/hooks/useCategoryTracking";
-import carrinhoBtnImg from "@/assets/product-buttons/carrinho-btn.webp";
-import comprarBtnImg from "@/assets/product-buttons/comprar-btn.webp";
+// FIX DEFINITIVO: "?inline" força o Vite a converter estas duas imagens em
+// texto (base64) e colá-las dentro do próprio ficheiro JavaScript, em vez de
+// as deixar como ficheiros separados. Resultado: já não há SEGUNDO pedido de
+// rede nenhum para os botões — chegam literalmente dentro do código,
+// exactamente ao mesmo tempo que o resto da página, sem exceção nem
+// dependência de cache/CDN/preload.
+import carrinhoBtnImg from "@/assets/product-buttons/carrinho-btn.webp?inline";
+import comprarBtnImg from "@/assets/product-buttons/comprar-btn.webp?inline";
 
 // ─── Kisua Design Tokens ─────────────────────────────────────────────────────
 // Identidade própria do Kisua: "Ink" (petróleo profundo, inspirado na baía de
