@@ -590,8 +590,8 @@ const ProductDetail = () => {
   const typeLabels: Record<string, string> = { color: "Cor", size: "Tamanho", material: "Material", style: "Estilo", weight: "Peso", capacity: "Capacidade", model: "Modelo", voltage: "Voltagem", pack: "Pacote", other: "Opção" };
   const dimensionsStr = (product.length_cm && product.width_cm && product.height_cm) ? `${product.length_cm} × ${product.width_cm} × ${product.height_cm} cm` : null;
 
-  const specRows: { label: string; value: string }[] = [
-    categoryName       ? { label: "Categoria",  value: categoryName }                                              : null,
+  const specRows: { label: string; value: string; onClick?: () => void }[] = [
+    categoryName       ? { label: "Categoria",  value: categoryName, onClick: () => navigate(`/categoria/${encodeURIComponent(categoryName)}`) } : null,
     product.condition  ? { label: "Condição",   value: conditionLabels[product.condition] || product.condition }  : null,
     product.sku        ? { label: "SKU",         value: product.sku }                                              : null,
     product.weight_kg  ? { label: "Peso",        value: `${product.weight_kg} kg` }                               : null,
@@ -600,9 +600,9 @@ const ProductDetail = () => {
     { label: "Devolução",  value: "Grátis até 3 dias" },
     { label: "Pagamento",  value: "Seguro e encriptado" },
     { label: "Entrega",    value: "2–5 dias úteis" },
-    publisher?.name    ? { label: "Vendedor",    value: publisher.name }                                           : null,
+    publisher?.name    ? { label: "Vendedor",    value: publisher.name, onClick: handlePublisherNavigate }         : null,
     publisher?.province? { label: "Localização", value: String(publisher.province).replace(/0+$/, "").trim() }    : null,
-  ].filter(Boolean) as { label: string; value: string }[];
+  ].filter(Boolean) as { label: string; value: string; onClick?: () => void }[];
 
   const relatedProducts = relatedDb.slice(0, 20);
   const popularityBadge = product.reviews && product.reviews > 200 ? `Em ${Math.floor(product.reviews / 5)}+ carrinhos` : null;
@@ -766,7 +766,7 @@ const ProductDetail = () => {
                 {!product.rating && <p className="text-xs text-gray-400 mt-0.5">Sem avaliações ainda</p>}
               </div>
 
-              {/* Coluna direita — avaliação em cima, preço grande por baixo, alinhados */}
+              {/* Coluna direita — avaliação em cima, preço grande por baixo, preço antigo logo abaixo dele */}
               <div className="flex-shrink-0 flex flex-col items-end text-right">
                 {product.rating ? (
                   <div className="flex items-center gap-1">
@@ -775,10 +775,11 @@ const ProductDetail = () => {
                     <span className="text-xs text-gray-400">({product.reviews?.toLocaleString()})</span>
                   </div>
                 ) : null}
-                <span className="text-2xl md:text-3xl font-black tracking-tight mt-1 whitespace-nowrap" style={{ color: N.flame, ...display }}>
+                <span className="text-3xl md:text-5xl font-black tracking-tight mt-1 whitespace-nowrap" style={{ color: N.flame, ...display }}>
                   {activePrice.replace(/\s*Kz$/, "")}
-                  <span className="text-sm md:text-base font-bold ml-1">Kz</span>
+                  <span className="text-base md:text-lg font-bold ml-1">Kz</span>
                 </span>
+                {product.oldPrice && <p className="text-sm line-through text-gray-400 mt-0.5">De: {product.oldPrice}</p>}
               </div>
             </div>
 
@@ -790,7 +791,6 @@ const ProductDetail = () => {
                   <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white" style={{ background: N.flame }}>{product.discount}</span>
                 </div>
               )}
-              {product.oldPrice && <p className="text-sm line-through text-gray-400 mt-0.5">De: {product.oldPrice}</p>}
               {product.freeShipping && (
                 <p className="text-xs font-bold text-green-700 flex items-center gap-1 mt-0.5"><Truck className="w-3.5 h-3.5" /> Frete grátis</p>
               )}
@@ -931,16 +931,23 @@ const ProductDetail = () => {
             </button>
           )}
 
-          {/* Especificações — agora dentro de "Sobre este produto" */}
+          {/* Especificações — em texto corrido, sem quadradinhos; itens clicáveis (Categoria, Vendedor) navegam para a página respetiva */}
           {specRows.length > 0 && (
-            <div className="mt-3 rounded-lg overflow-hidden border border-gray-100">
+            <p className="mt-3 text-sm leading-relaxed text-gray-700">
               {specRows.map((row, i) => (
-                <div key={row.label} className="flex text-xs" style={{ background: i % 2 === 0 ? "#fafafa" : "#fff" }}>
-                  <span className="w-2/5 px-3 py-2 font-semibold text-gray-600 border-r border-gray-100">{row.label}</span>
-                  <span className="flex-1 px-3 py-2 text-gray-800">{row.value}</span>
-                </div>
+                <span key={row.label}>
+                  <span className="text-gray-500">{row.label}: </span>
+                  {row.onClick ? (
+                    <button onClick={row.onClick} className="font-semibold underline underline-offset-2" style={{ color: N.accent }}>
+                      {row.value}
+                    </button>
+                  ) : (
+                    <span className="font-semibold text-gray-800">{row.value}</span>
+                  )}
+                  {i < specRows.length - 1 && <span className="text-gray-300 mx-1.5">·</span>}
+                </span>
               ))}
-            </div>
+            </p>
           )}
 
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-3">
