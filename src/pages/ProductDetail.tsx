@@ -20,12 +20,10 @@ import { trackViewedProduct } from "@/lib/recentBrowsing";
 import { useCategoryTracking } from "@/hooks/useCategoryTracking";
 import comprarBtnImg from "@/assets/product-buttons/comprar-btn.webp";
 import carrinhoBtnImg from "@/assets/product-buttons/carrinho-btn.webp";
-import badgeGarantiaImg from "@/assets/product-badges/garantia.webp";
 import badgeEnvioImg from "@/assets/product-badges/envio.webp";
 import badgePagamentoImg from "@/assets/product-badges/pagamento.webp";
 import badgeSuporteImg from "@/assets/product-badges/suporte.webp";
 import badgeDevolucaoImg from "@/assets/product-badges/devolucao.webp";
-import badgeEmbalagemImg from "@/assets/product-badges/embalagem.webp";
 
 // ─── Kisua Design Tokens ─────────────────────────────────────────────────────
 // Identidade própria do Kisua: "Ink" (petróleo profundo, inspirado na baía de
@@ -956,23 +954,22 @@ const ProductDetail = () => {
             </p>
           )}
 
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-3">
+          <div className="grid grid-cols-2 gap-2 mt-3">
             {[
-              { img: badgeGarantiaImg, text: "Produto original com garantia", sub: "Qualidade que você confia", to: `/pesquisa?condition=new` },
               { img: badgeEnvioImg, text: "Envio para todo o país", sub: "Entregamos onde você estiver", to: "/entrega-frete" },
               { img: badgePagamentoImg, text: "Pagamento seguro", sub: "Dados sempre protegidos", to: "/formas-pagamento" },
               { img: badgeSuporteImg, text: "Suporte ao cliente 24/7", sub: "Sempre disponíveis para ajudar", to: "/ajuda" },
               { img: badgeDevolucaoImg, text: "Devolução grátis 3 dias", sub: "Mudou de ideia? Sem problema", to: "/devolucoes" },
-              { img: badgeEmbalagemImg, text: "Embalagem protegida", sub: "Bem embalado até você", to: "/entrega-frete" },
             ].map((b, i) => (
               <button
                 key={i}
                 onClick={() => navigate(b.to)}
-                className="flex flex-col items-center text-center p-3 rounded-xl transition hover:brightness-[0.98] active:scale-[0.98]"
+                className="relative flex flex-col items-center text-center p-3 rounded-xl transition hover:brightness-[0.98] active:scale-[0.96] active:brightness-90"
                 style={{ background: N.paper, border: "1px solid #EEE6D8" }}
               >
+                <ChevronRight className="w-3.5 h-3.5 absolute top-2 right-2" style={{ color: N.accent }} />
                 <img src={b.img} alt="" className="w-16 h-auto object-contain mb-1.5" draggable={false} />
-                <span className="text-xs font-bold leading-tight" style={{ color: N.ink900 }}>
+                <span className="text-xs font-bold leading-tight underline underline-offset-2" style={{ color: N.accent }}>
                   {b.text}
                 </span>
                 <span className="text-[10px] leading-tight mt-0.5 text-gray-500">
