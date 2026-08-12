@@ -928,7 +928,7 @@ const ProductDetail = () => {
 
         {/* ── SOBRE O PRODUTO ── */}
         <div className="bg-white border-b px-3 md:px-6 py-4" style={{ borderColor: "#F0EBDF" }}>
-          <p className="text-base font-bold text-gray-900 mb-1.5">Sobre este produto</p>
+          <p className="text-base font-bold text-gray-900 mb-1.5 text-center">Sobre este produto</p>
           <p className={`text-base leading-relaxed text-gray-700 whitespace-pre-line ${!descExpanded ? "line-clamp-4" : ""}`}>
             {product.description || "Produto de alta qualidade disponível no ZANGU."}
           </p>
@@ -957,6 +957,7 @@ const ProductDetail = () => {
             </p>
           )}
 
+          <p className="text-base font-bold text-gray-900 mt-4 mb-1.5 text-center">Vantagens de comprar aqui</p>
           <div className="grid grid-cols-2 gap-2 mt-3">
             {[
               { img: badgeEnvioImg, text: "Envio para todo o país", sub: "Entregamos onde você estiver", to: "/entrega-frete" },
