@@ -64,43 +64,56 @@ const conditionLabels: Record<string, string> = {
 };
 
 // ─── Minimal Related Card — layout "à la Amazon" ───────────────────────────────
-// Escolhe a linha de entrega mais relevante para ESTE produto, usando dados
-// reais (frete, stock, condição) — cada produto pode mostrar algo diferente.
+// Soma dias úteis (sem sábados/domingos) a partir de hoje, para dar uma data
+// de entrega real e verosímil — não é uma data inventada, é hoje + N dias úteis.
+const addBusinessDays = (days: number): Date => {
+  const d = new Date();
+  let added = 0;
+  while (added < days) {
+    d.setDate(d.getDate() + 1);
+    if (d.getDay() !== 0 && d.getDay() !== 6) added++;
+  }
+  return d;
+};
+const formatDeliveryDate = (date: Date): string => {
+  const weekday = new Intl.DateTimeFormat("pt-PT", { weekday: "short" }).format(date);
+  const month = new Intl.DateTimeFormat("pt-PT", { month: "short" }).format(date);
+  return `${weekday}, ${date.getDate()} de ${month}`;
+};
+// Frete grátis → promessa mais rápida (3 dias úteis); frete pago → padrão do site (5 dias úteis)
 const pickDeliveryLine = (p: any): { bold: string; rest: string } => {
-  if (p.free_shipping) return { bold: "Entrega GRÁTIS", rest: " em 2–5 dias úteis" };
-  if (typeof p.stock === "number" && p.stock > 0 && p.stock <= 10) return { bold: `Só ${p.stock}`, rest: " unidades em stock" };
-  if (p.condition === "new") return { bold: "Novo", rest: " · pronto a enviar" };
-  return { bold: "Envio", rest: " em 2–5 dias úteis" };
+  const date = formatDeliveryDate(addBusinessDays(p.free_shipping ? 3 : 5));
+  return { bold: `Chega ${date}`, rest: p.free_shipping ? " · frete grátis" : " · frete pago" };
 };
 
 const MinimalProductCard = ({ product, onClick }: { product: any; onClick?: () => void }) => {
   const delivery = pickDeliveryLine(product);
   return (
-    <div onClick={onClick} className="cursor-pointer group flex flex-col flex-shrink-0" style={{ width: 148 }}>
+    <div onClick={onClick} className="cursor-pointer group flex flex-col flex-shrink-0" style={{ width: 168 }}>
       <div className="w-full rounded-lg overflow-hidden" style={{ aspectRatio: "1/1", background: "#f5f5f5" }}>
         <img src={product.image} alt={product.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
       </div>
-      <p className="text-xs font-semibold leading-snug line-clamp-2 mt-1.5" style={{ color: "#0066C0" }}>{product.title}</p>
+      <p className="text-sm font-bold leading-snug line-clamp-3 mt-2" style={{ color: "#0066C0" }}>{product.title}</p>
 
       {product.rating > 0 && (
-        <div className="flex mt-1">
+        <div className="flex mt-1.5">
           {Array.from({ length: 5 }).map((_, i) => (
-            <Star key={i} className={`w-3 h-3 ${i < Math.round(product.rating) ? "fill-amber-400 text-amber-400" : "text-gray-300"}`} />
+            <Star key={i} className={`w-4 h-4 ${i < Math.round(product.rating) ? "fill-amber-400 text-amber-400" : "text-gray-300"}`} />
           ))}
         </div>
       )}
-      {product.total_reviews > 0 && <p className="text-[10px] text-gray-500 mt-0.5">{product.total_reviews} avaliações</p>}
+      {product.total_reviews > 0 && <p className="text-xs text-gray-500 mt-0.5">{product.total_reviews} avaliações</p>}
 
-      <div className="flex items-baseline gap-1.5 mt-0.5 flex-wrap">
+      <div className="flex items-baseline gap-1.5 mt-1 flex-wrap">
         {product.discountPercent > 0 && (
-          <span className="text-xs font-bold" style={{ color: N.accent }}>-{product.discountPercent}%</span>
+          <span className="text-sm font-bold" style={{ color: N.accent }}>-{product.discountPercent}%</span>
         )}
-        <span className="text-sm font-black" style={{ color: "#111" }}>{product.price}</span>
+        <span className="text-lg font-black" style={{ color: "#111" }}>{product.price}</span>
       </div>
       {product.oldPrice && (
-        <p className="text-[10px] text-gray-500 mt-0.5">De: <span className="line-through">{product.oldPrice}</span></p>
+        <p className="text-xs text-gray-500 mt-0.5">De: <span className="line-through">{product.oldPrice}</span></p>
       )}
-      <p className="text-[10px] text-gray-700 mt-0.5 leading-tight">
+      <p className="text-xs text-gray-700 mt-1 leading-snug">
         <span className="font-bold">{delivery.bold}</span>{delivery.rest}
       </p>
     </div>
@@ -1149,9 +1162,9 @@ const ProductDetail = () => {
 
         {/* ── PRODUTOS RELACIONADOS ── */}
         {relatedProducts.length > 0 && (
-          <div className="border-b px-3 md:px-6 py-4" style={{ background: N.paper, borderColor: "#EEE6D8" }}>
+          <div className="bg-white border-b px-3 md:px-6 py-4" style={{ borderColor: "#F0EBDF" }}>
             <p className="text-sm font-bold text-gray-900 mb-3">Produtos relacionados</p>
-            <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
+            <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-1">
               {relatedProducts.map((p: any) => (
                 <MinimalProductCard key={p.id} product={p} onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "related" }); navigate(`/produto/${p.id}`); }} />
               ))}
