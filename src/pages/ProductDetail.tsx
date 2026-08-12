@@ -89,31 +89,44 @@ const pickDeliveryLine = (p: any): { bold: string; rest: string } => {
 const MinimalProductCard = ({ product, onClick }: { product: any; onClick?: () => void }) => {
   const delivery = pickDeliveryLine(product);
   return (
-    <div onClick={onClick} className="cursor-pointer group flex flex-col flex-shrink-0" style={{ width: 168 }}>
-      <div className="w-full rounded-lg overflow-hidden" style={{ aspectRatio: "1/1", background: "#f5f5f5" }}>
+    <div onClick={onClick} className="cursor-pointer group flex flex-col flex-shrink-0" style={{ width: 180 }}>
+      <div className="w-full rounded-xl overflow-hidden" style={{ aspectRatio: "1/1", background: "#f5f5f5" }}>
         <img src={product.image} alt={product.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
       </div>
-      <p className="text-sm font-bold leading-snug line-clamp-3 mt-2" style={{ color: "#0066C0" }}>{product.title}</p>
+      <p className="text-[15px] font-bold leading-snug line-clamp-3 mt-2 tracking-tight" style={{ color: "#0066C0" }}>{product.title}</p>
 
-      {product.rating > 0 && (
-        <div className="flex mt-1.5">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Star key={i} className={`w-4 h-4 ${i < Math.round(product.rating) ? "fill-amber-400 text-amber-400" : "text-gray-300"}`} />
-          ))}
+      {/* Estrelas — sempre visíveis; preenchidas conforme a avaliação real (0 = todas por preencher, honesto e nunca inventado) */}
+      <div className="flex items-center gap-1 mt-1.5">
+        <div className="flex gap-0.5">
+          {Array.from({ length: 5 }).map((_, i) => {
+            const filled = i < Math.round(product.rating || 0);
+            return (
+              <Star
+                key={i}
+                strokeWidth={1.5}
+                className={`w-[18px] h-[18px] ${filled ? "text-amber-400" : "text-gray-300"}`}
+                style={filled ? { fill: "#fbbf24" } : { fill: "#fff" }}
+              />
+            );
+          })}
         </div>
-      )}
-      {product.total_reviews > 0 && <p className="text-xs text-gray-500 mt-0.5">{product.total_reviews} avaliações</p>}
-
-      <div className="flex items-baseline gap-1.5 mt-1 flex-wrap">
-        {product.discountPercent > 0 && (
-          <span className="text-sm font-bold" style={{ color: N.accent }}>-{product.discountPercent}%</span>
+        {product.total_reviews > 0 ? (
+          <span className="text-xs font-medium text-gray-500">{product.total_reviews}</span>
+        ) : (
+          <span className="text-xs font-medium text-gray-400">Novo</span>
         )}
-        <span className="text-lg font-black" style={{ color: "#111" }}>{product.price}</span>
+      </div>
+
+      <div className="flex items-baseline gap-2 mt-1.5 flex-wrap">
+        {product.discountPercent > 0 && (
+          <span className="text-sm font-extrabold" style={{ color: N.accent }}>-{product.discountPercent}%</span>
+        )}
+        <span className="text-xl font-black tracking-tight" style={{ color: "#111" }}>{product.price}</span>
       </div>
       {product.oldPrice && (
         <p className="text-xs text-gray-500 mt-0.5">De: <span className="line-through">{product.oldPrice}</span></p>
       )}
-      <p className="text-xs text-gray-700 mt-1 leading-snug">
+      <p className="text-xs text-gray-700 mt-1.5 leading-snug">
         <span className="font-bold">{delivery.bold}</span>{delivery.rest}
       </p>
     </div>
@@ -1163,7 +1176,7 @@ const ProductDetail = () => {
         {/* ── PRODUTOS RELACIONADOS ── */}
         {relatedProducts.length > 0 && (
           <div className="bg-white border-b px-3 md:px-6 py-4" style={{ borderColor: "#F0EBDF" }}>
-            <p className="text-sm font-bold text-gray-900 mb-3">Produtos relacionados</p>
+            <p className="text-lg font-bold text-gray-900 mb-3">Produtos relacionados</p>
             <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-1">
               {relatedProducts.map((p: any) => (
                 <MinimalProductCard key={p.id} product={p} onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "related" }); navigate(`/produto/${p.id}`); }} />
