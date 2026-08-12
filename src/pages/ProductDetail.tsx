@@ -64,15 +64,45 @@ const conditionLabels: Record<string, string> = {
 };
 
 // ─── Minimal Related Card ──────────────────────────────────────────────────────
-const MinimalProductCard = ({ product, onClick }: { product: any; onClick?: () => void }) => (
-  <div onClick={onClick} className="cursor-pointer group flex flex-col flex-shrink-0" style={{ width: 140 }}>
-    <div className="w-full rounded-lg overflow-hidden" style={{ aspectRatio: "1/1", background: "#f5f5f5" }}>
-      <img src={product.image} alt={product.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+// Escolhe a linha de informação mais relevante para ESTE produto, usando dados
+// reais (stock, frete, condição) — não fica sempre presa a "Entrega grátis".
+const pickInfoLine = (p: any): string | null => {
+  if (typeof p.stock === "number" && p.stock > 0 && p.stock <= 10) return `Só ${p.stock} restantes`;
+  if (p.free_shipping) return "Entrega grátis";
+  if (p.condition === "new") return "Produto novo";
+  if (p.weight_kg) return "Envio em 2–5 dias úteis";
+  return null;
+};
+
+const MinimalProductCard = ({ product, onClick }: { product: any; onClick?: () => void }) => {
+  const infoLine = pickInfoLine(product);
+  return (
+    <div onClick={onClick} className="cursor-pointer group flex flex-col flex-shrink-0" style={{ width: 148 }}>
+      <div className="w-full rounded-lg overflow-hidden relative" style={{ aspectRatio: "1/1", background: "#f5f5f5" }}>
+        <img src={product.image} alt={product.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+        {product.discountPercent > 0 && (
+          <span className="absolute top-1.5 left-1.5 text-[10px] font-black text-white px-1.5 py-0.5 rounded-full" style={{ background: N.accent }}>-{product.discountPercent}%</span>
+        )}
+      </div>
+      <p className="text-xs font-semibold leading-snug line-clamp-2 mt-1.5" style={{ color: "#111" }}>{product.title}</p>
+      {product.rating > 0 && (
+        <div className="flex items-center gap-1 mt-0.5">
+          <div className="flex">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Star key={i} className={`w-2.5 h-2.5 ${i < Math.round(product.rating) ? "fill-amber-400 text-amber-400" : "text-gray-300"}`} />
+            ))}
+          </div>
+          {product.total_reviews > 0 && <span className="text-[10px] text-gray-400">{product.total_reviews}</span>}
+        </div>
+      )}
+      <div className="flex items-baseline gap-1 mt-0.5 flex-wrap">
+        <span className="text-xs font-black" style={{ color: N.accent }}>{product.price}</span>
+        {product.oldPrice && <span className="text-[10px] text-gray-400 line-through">{product.oldPrice}</span>}
+      </div>
+      {infoLine && <p className="text-[10px] text-gray-500 mt-0.5 leading-tight">{infoLine}</p>}
     </div>
-    <p className="text-xs font-semibold leading-snug line-clamp-2 mt-1" style={{ color: "#111" }}>{product.title}</p>
-    <p className="text-xs font-black mt-0.5" style={{ color: N.accent }}>{product.price}</p>
-  </div>
-);
+  );
+};
 
 // ─── Tracking ─────────────────────────────────────────────────────────────────
 const useProductTracking = () => {
@@ -431,6 +461,8 @@ const ProductDetail = () => {
         length_cm: p.length_cm || null, width_cm: p.width_cm || null, height_cm: p.height_cm || null,
         free_shipping: !!p.free_shipping, stock: typeof p.stock === "number" ? p.stock : null,
         total_reviews: p.total_reviews || 0,
+        oldPrice: p.old_price ? fmt(p.old_price) : null,
+        discountPercent: p.discount_percent || 0,
       }));
     },
     enabled: !!isUuid && !!dbProduct,
@@ -930,7 +962,7 @@ const ProductDetail = () => {
 
         {/* ── SOBRE O PRODUTO ── */}
         <div className="bg-white border-b px-3 md:px-6 py-4" style={{ borderColor: "#F0EBDF" }}>
-          <p className="text-base font-bold text-gray-900 mb-1.5 text-center">Sobre este produto</p>
+          <p className="text-lg font-bold text-gray-900 mb-1.5 text-center">Sobre este produto</p>
           <p className={`text-base leading-relaxed text-gray-700 whitespace-pre-line ${!descExpanded ? "line-clamp-4" : ""}`}>
             {product.description || "Produto de alta qualidade disponível no ZANGU."}
           </p>
@@ -959,7 +991,7 @@ const ProductDetail = () => {
             </p>
           )}
 
-          <p className="text-base font-bold text-gray-900 mt-4 mb-1.5 text-center">Vantagens de comprar aqui</p>
+          <p className="text-lg font-bold text-gray-900 mt-4 mb-1.5 text-center">Vantagens de comprar aqui</p>
           <div className="grid grid-cols-2 gap-2 mt-3">
             {[
               { img: badgeEnvioImg, text: "Envio para todo o país", sub: "Entregamos onde você estiver", to: "/entrega-frete" },
@@ -988,7 +1020,7 @@ const ProductDetail = () => {
 
         {/* ── FORMA DE PAGAMENTO ── */}
         <div className="bg-white border-b px-3 md:px-6 py-4" style={{ borderColor: "#F0EBDF" }}>
-          <p className="text-base font-bold text-gray-900 mb-2 text-center">Forma de pagamento</p>
+          <p className="text-lg font-bold text-gray-900 mb-2 text-center">Formas de pagamento</p>
           <div className="grid grid-cols-3 gap-2">
             {[
               { img: payTelemovelImg, title: "Telemóvel", sub: "Pagamento com telemóvel" },
@@ -1007,74 +1039,6 @@ const ProductDetail = () => {
             ))}
           </div>
         </div>
-
-        {/* ── LOJA / EMPRESA ── */}
-        {publisher && !loadingPublisher && (
-          <div className="bg-white border-b border-gray-100">
-            <div className="relative h-24 md:h-32 overflow-hidden" style={{ background: N.brownLight }}>
-              {publisher.banner_url && <img src={publisher.banner_url} alt="" className="w-full h-full object-cover" />}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/5 to-transparent" />
-            </div>
-            <div className="px-3 md:px-6 -mt-8 pb-3">
-              <div className="flex items-end gap-2.5">
-                <div className="w-16 h-16 rounded-2xl overflow-hidden border-4 border-white bg-white shadow-sm flex-shrink-0">
-                  <AvatarWithFallback src={publisher.logo_url || publisher.avatar_url || null} name={publisher.name} isCompany={publisher.__type === "company"} />
-                </div>
-                <button onClick={handlePublisherNavigate} className="flex-1 min-w-0 pb-0.5 text-left">
-                  <div className="flex items-center gap-1">
-                    <span className="text-sm font-bold truncate" style={{ color: N.brown }}>{publisher.name}</span>
-                    {publisher.is_verified && <ShieldCheck className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />}
-                    {publisher.__type === "company" && <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full flex-shrink-0">Empresa</span>}
-                  </div>
-                  {publisher?.province && <p className="text-[10px] text-gray-500 flex items-center gap-0.5"><MapPin className="w-2.5 h-2.5" />{String(publisher.province).replace(/0+$/, "").trim()}</p>}
-                </button>
-                <button
-                  onClick={() => togglePublisherFollow.mutate()}
-                  disabled={togglePublisherFollow.isPending}
-                  className="px-3 py-1.5 rounded-full text-[11px] font-bold flex items-center gap-1 flex-shrink-0 mb-0.5 disabled:opacity-60"
-                  style={isFollowingPublisher ? { background: "#f0f0f0", color: "#555" } : { background: N.brown, color: "#fff" }}
-                >
-                  {togglePublisherFollow.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : isFollowingPublisher ? <Check className="w-3 h-3" /> : null}
-                  {isFollowingPublisher ? "A seguir" : "Seguir"}
-                </button>
-              </div>
-
-              <div className="grid grid-cols-4 gap-1.5 mt-3">
-                <div className="text-center p-1.5 rounded-lg" style={{ background: "#fafafa" }}>
-                  <p className="text-xs font-black" style={{ color: N.brown }}>{publisherFollowersCount}</p>
-                  <p className="text-[10px] text-gray-500">Seguidores</p>
-                </div>
-                <div className="text-center p-1.5 rounded-lg" style={{ background: "#fafafa" }}>
-                  <p className="text-xs font-black" style={{ color: N.brown }}>{storeProductCount}</p>
-                  <p className="text-[10px] text-gray-500">Produtos</p>
-                </div>
-                <div className="text-center p-1.5 rounded-lg" style={{ background: "#fafafa" }}>
-                  <p className="text-xs font-black" style={{ color: N.brown }}>{publisher.rating ? Number(publisher.rating).toFixed(1) : "—"}</p>
-                  <p className="text-[10px] text-gray-500">Avaliação</p>
-                </div>
-                <div className="text-center p-1.5 rounded-lg" style={{ background: "#fafafa" }}>
-                  <p className="text-xs font-black" style={{ color: N.brown }}>{publisher.total_sales ?? 0}</p>
-                  <p className="text-[10px] text-gray-500">Vendas</p>
-                </div>
-              </div>
-
-              <button onClick={handlePublisherNavigate} className="w-full mt-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border" style={{ borderColor: N.brown, color: N.brown }}>
-                Ver loja completa <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-
-              {storeOtherProducts.length > 0 && (
-                <div className="mt-3">
-                  <p className="text-[11px] font-bold text-gray-700 mb-2">Mais desta loja</p>
-                  <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
-                    {storeOtherProducts.map((p: any) => (
-                      <MinimalProductCard key={p.id} product={p} onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "store_other" }); navigate(`/produto/${p.id}`); }} />
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* ── COMPRADOS JUNTOS COM FREQUÊNCIA ── */}
         {boughtTogether.length > 0 && (
