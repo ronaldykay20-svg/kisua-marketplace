@@ -770,10 +770,10 @@ const ProductDetail = () => {
                 <h1 className="text-2xl md:text-3xl font-black leading-snug" style={{ color: "#1A1A1A" }}>
                   {product.title}
                 </h1>
-                {!product.rating && <p className="text-xs text-gray-400 mt-0.5">Sem avaliações ainda</p>}
               </div>
 
-              {/* Coluna direita — avaliação em cima, preço grande por baixo, preço antigo logo abaixo dele */}
+              {/* Coluna direita — avaliação (ou "sem avaliações") em cima, alinhada com a linha da loja;
+                  preço grande logo abaixo, alinhado com a linha do título; preço antigo por baixo dele. */}
               <div className="flex-shrink-0 flex flex-col items-end text-right">
                 {product.rating ? (
                   <div className="flex items-center gap-1">
@@ -781,7 +781,9 @@ const ProductDetail = () => {
                     <span className="text-xs font-bold text-gray-700">{product.rating}</span>
                     <span className="text-xs text-gray-400">({product.reviews?.toLocaleString()})</span>
                   </div>
-                ) : null}
+                ) : (
+                  <span className="text-xs text-gray-400 whitespace-nowrap">Sem avaliações ainda</span>
+                )}
                 <span className="text-3xl md:text-5xl font-black tracking-tight mt-1 whitespace-nowrap" style={{ color: N.flame, ...display }}>
                   {activePrice.replace(/\s*Kz$/, "")}
                   <span className="text-base md:text-lg font-bold ml-1">Kz</span>
