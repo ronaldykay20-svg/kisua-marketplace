@@ -63,43 +63,46 @@ const conditionLabels: Record<string, string> = {
   used: "Usado", refurbished: "Recondicionado",
 };
 
-// ─── Minimal Related Card ──────────────────────────────────────────────────────
-// Escolhe a linha de informação mais relevante para ESTE produto, usando dados
-// reais (stock, frete, condição) — não fica sempre presa a "Entrega grátis".
-const pickInfoLine = (p: any): string | null => {
-  if (typeof p.stock === "number" && p.stock > 0 && p.stock <= 10) return `Só ${p.stock} restantes`;
-  if (p.free_shipping) return "Entrega grátis";
-  if (p.condition === "new") return "Produto novo";
-  if (p.weight_kg) return "Envio em 2–5 dias úteis";
-  return null;
+// ─── Minimal Related Card — layout "à la Amazon" ───────────────────────────────
+// Escolhe a linha de entrega mais relevante para ESTE produto, usando dados
+// reais (frete, stock, condição) — cada produto pode mostrar algo diferente.
+const pickDeliveryLine = (p: any): { bold: string; rest: string } => {
+  if (p.free_shipping) return { bold: "Entrega GRÁTIS", rest: " em 2–5 dias úteis" };
+  if (typeof p.stock === "number" && p.stock > 0 && p.stock <= 10) return { bold: `Só ${p.stock}`, rest: " unidades em stock" };
+  if (p.condition === "new") return { bold: "Novo", rest: " · pronto a enviar" };
+  return { bold: "Envio", rest: " em 2–5 dias úteis" };
 };
 
 const MinimalProductCard = ({ product, onClick }: { product: any; onClick?: () => void }) => {
-  const infoLine = pickInfoLine(product);
+  const delivery = pickDeliveryLine(product);
   return (
     <div onClick={onClick} className="cursor-pointer group flex flex-col flex-shrink-0" style={{ width: 148 }}>
-      <div className="w-full rounded-lg overflow-hidden relative" style={{ aspectRatio: "1/1", background: "#f5f5f5" }}>
+      <div className="w-full rounded-lg overflow-hidden" style={{ aspectRatio: "1/1", background: "#f5f5f5" }}>
         <img src={product.image} alt={product.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-        {product.discountPercent > 0 && (
-          <span className="absolute top-1.5 left-1.5 text-[10px] font-black text-white px-1.5 py-0.5 rounded-full" style={{ background: N.accent }}>-{product.discountPercent}%</span>
-        )}
       </div>
-      <p className="text-xs font-semibold leading-snug line-clamp-2 mt-1.5" style={{ color: "#111" }}>{product.title}</p>
+      <p className="text-xs font-semibold leading-snug line-clamp-2 mt-1.5" style={{ color: "#0066C0" }}>{product.title}</p>
+
       {product.rating > 0 && (
-        <div className="flex items-center gap-1 mt-0.5">
-          <div className="flex">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Star key={i} className={`w-2.5 h-2.5 ${i < Math.round(product.rating) ? "fill-amber-400 text-amber-400" : "text-gray-300"}`} />
-            ))}
-          </div>
-          {product.total_reviews > 0 && <span className="text-[10px] text-gray-400">{product.total_reviews}</span>}
+        <div className="flex mt-1">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Star key={i} className={`w-3 h-3 ${i < Math.round(product.rating) ? "fill-amber-400 text-amber-400" : "text-gray-300"}`} />
+          ))}
         </div>
       )}
-      <div className="flex items-baseline gap-1 mt-0.5 flex-wrap">
-        <span className="text-xs font-black" style={{ color: N.accent }}>{product.price}</span>
-        {product.oldPrice && <span className="text-[10px] text-gray-400 line-through">{product.oldPrice}</span>}
+      {product.total_reviews > 0 && <p className="text-[10px] text-gray-500 mt-0.5">{product.total_reviews} avaliações</p>}
+
+      <div className="flex items-baseline gap-1.5 mt-0.5 flex-wrap">
+        {product.discountPercent > 0 && (
+          <span className="text-xs font-bold" style={{ color: N.accent }}>-{product.discountPercent}%</span>
+        )}
+        <span className="text-sm font-black" style={{ color: "#111" }}>{product.price}</span>
       </div>
-      {infoLine && <p className="text-[10px] text-gray-500 mt-0.5 leading-tight">{infoLine}</p>}
+      {product.oldPrice && (
+        <p className="text-[10px] text-gray-500 mt-0.5">De: <span className="line-through">{product.oldPrice}</span></p>
+      )}
+      <p className="text-[10px] text-gray-700 mt-0.5 leading-tight">
+        <span className="font-bold">{delivery.bold}</span>{delivery.rest}
+      </p>
     </div>
   );
 };
