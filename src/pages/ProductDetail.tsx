@@ -3,7 +3,7 @@ import {
   ArrowLeft, Heart, Share2, ShoppingCart, Star, Truck, Shield,
   MapPin, ChevronRight, Minus, Plus, ZoomIn, Store, MessageCircle,
   Send, Loader2, ShieldCheck, X, Building2, Check, Eye,
-  LayoutGrid, Flame,
+  LayoutGrid, Flame, Tag, Ruler, Package, Crown, Weight,
 } from "lucide-react";
 import { useState, useRef, useEffect, useCallback, type ReactNode } from "react";
 import { allProducts } from "@/data/products";
@@ -21,8 +21,6 @@ import { useCategoryTracking } from "@/hooks/useCategoryTracking";
 import comprarBtnImg from "@/assets/product-buttons/comprar-btn.webp";
 import carrinhoBtnImg from "@/assets/product-buttons/carrinho-btn.webp";
 import navegarCategoriasBtnImg from "@/assets/product-buttons/navegar-categorias-btn.webp";
-import compareAtributosImg from "@/assets/product-buttons/compare-atributos.webp";
-import comparePairTemplateImg from "@/assets/product-buttons/compare-pair-template.webp";
 import badgeEnvioImg from "@/assets/product-badges/envio.webp";
 import badgePagamentoImg from "@/assets/product-badges/pagamento.webp";
 import badgeSuporteImg from "@/assets/product-badges/suporte.webp";
@@ -1230,14 +1228,13 @@ const ProductDetail = () => {
         <ProductReviewsSection productId={id || ""} product={product} dbReviews={dbReviews} userOrders={userOrders} pendingReceiptOrders={pendingReceiptOrders} trackEvent={trackEvent} />
 
         {/* ── COMPARAR COM PRODUTOS SEMELHANTES ── */}
-        {/* A imagem desenhada pelo Eliti faz parte do código como um asset (compare-atributos.webp
-            e compare-pair-template.webp, em src/assets/product-buttons/) — exatamente como o botão
-            de comprar/carrinho/navegar em categorias. NÃO é recriada em CSS: só entra a foto do
-            produto (em cima) e os dados reais do Supabase (preenchidos por cima das linhas em
-            branco já desenhadas na imagem). Só aparece quando há pelo menos 1 outro produto com a
-            MESMA categoria e MESMA subcategoria (category_id igual). Mostra os produtos 2 a 2 — em
-            ecrãs maiores cabem 2 pares (4 produtos) lado a lado; no telemóvel desliza para a
-            direita para ver o par seguinte. */}
+        {/* Componente 100% real (ícones + CSS), não uma imagem estática — assim o texto fica
+            sempre nítido em qualquer densidade de ecrã, as linhas alinham-se por construção
+            (mesma altura fixa nas duas colunas) e cresce sozinho para 3/4/5+ produtos sem
+            precisar de mais imagens. Só aparece quando há pelo menos 1 outro produto da MESMA
+            categoria e subcategoria. Cartões com largura fixa + scroll horizontal com snap:
+            no telemóvel cabem ~2 de cada vez (desliza para o lado para ver mais); em ecrãs
+            largos cabem 3–4 de uma vez, naturalmente, sem código extra. */}
         {sameCategoryProducts.length >= 1 && (() => {
           const raw = dbProduct as any;
           const dims = (l?: number | null, w?: number | null, h?: number | null) => (l && w && h) ? `${l}×${w}×${h} cm` : "—";
@@ -1251,7 +1248,7 @@ const ProductDetail = () => {
               shipping: product.freeShipping ? "Grátis" : "Pago",
               stock: typeof raw?.stock === "number" ? `${raw.stock} unid.` : "—",
             },
-            ...sameCategoryProducts.slice(0, 3).map((p: any) => ({
+            ...sameCategoryProducts.slice(0, 5).map((p: any) => ({
               id: p.id, isCurrent: false, image: p.image, title: p.title,
               price: p.price, rating: p.rating || null,
               condition: p.condition ? (conditionLabels[p.condition] || p.condition) : "—",
@@ -1261,88 +1258,88 @@ const ProductDetail = () => {
               stock: typeof p.stock === "number" ? `${p.stock} unid.` : "—",
             })),
           ];
-          // Agrupa 2 a 2 — cada grupo usa uma cópia do template (Produto 1 laranja / Produto 2 azul)
-          const pairs: (typeof compareCols)[] = [];
-          for (let i = 0; i < compareCols.length; i += 2) pairs.push(compareCols.slice(i, i + 2));
 
-          // Posições (%) das 7 linhas dentro de compare-pair-template.webp / compare-atributos.webp —
-          // medidas a pixel na imagem original, para os valores caírem exatamente em cima das linhas
-          // em branco já desenhadas.
-          const ROWS: { key: "price" | "rating" | "condition" | "weight" | "dimensions" | "shipping" | "stock"; top: number; h: number }[] = [
-            { key: "price",      top: 15.61, h: 15.32 },
-            { key: "rating",     top: 30.93, h: 11.70 },
-            { key: "condition",  top: 42.63, h: 11.42 },
-            { key: "weight",     top: 54.05, h: 11.27 },
-            { key: "dimensions", top: 65.32, h: 11.27 },
-            { key: "shipping",   top: 76.59, h: 11.13 },
-            { key: "stock",      top: 88.15, h: 11.13 },
-          ];
-          // Coluna esquerda (laranja / "Produto 1") e direita (azul / "Produto 2") dentro do template
-          const COLS_PCT = [{ left: 0.3, w: 48.9 }, { left: 50.3, w: 48.9 }];
+          const ROWS = [
+            { key: "price",      label: "Preço",      Icon: Tag,        iconBg: "#DCFCE7", iconColor: "#16A34A" },
+            { key: "rating",     label: "Avaliação",   Icon: Star,       iconBg: "#FEF3C7", iconColor: "#D97706" },
+            { key: "condition",  label: "Condição",    Icon: ShieldCheck,iconBg: "#EDE9FE", iconColor: "#7C3AED" },
+            { key: "weight",     label: "Peso",        Icon: Weight,     iconBg: "#DBEAFE", iconColor: "#2563EB" },
+            { key: "dimensions", label: "Dimensões",   Icon: Ruler,      iconBg: "#FCE7F3", iconColor: "#DB2777" },
+            { key: "shipping",   label: "Frete",       Icon: Truck,      iconBg: "#FFEDD5", iconColor: "#EA580C" },
+            { key: "stock",      label: "Stock",       Icon: Package,    iconBg: "#CCFBF1", iconColor: "#0D9488" },
+          ] as const;
           const cellValue = (c: typeof compareCols[number], key: typeof ROWS[number]["key"]) => {
-            if (key === "price") return <span className="font-black truncate" style={{ color: N.ink }}>{c.price}</span>;
-            if (key === "rating") return c.rating ? <span className="flex items-center gap-0.5 font-bold truncate" style={{ color: N.ink }}><Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400 flex-shrink-0" />{Number(c.rating).toFixed(1)}</span> : "—";
-            if (key === "condition") return <span className="truncate">{c.condition}</span>;
-            if (key === "weight") return <span className="truncate">{c.weight}</span>;
-            if (key === "dimensions") return <span className="truncate">{c.dimensions}</span>;
-            if (key === "shipping") return <span className="truncate">{c.shipping}</span>;
-            return <span className="truncate">{c.stock}</span>;
+            if (key === "price") return <span className="font-black text-[13px] truncate" style={{ color: N.ink }}>{c.price}</span>;
+            if (key === "rating") return c.rating ? <span className="flex items-center gap-1 font-bold text-xs truncate" style={{ color: N.ink }}><Star className="w-3 h-3 fill-amber-400 text-amber-400 flex-shrink-0" />{Number(c.rating).toFixed(1)}</span> : <span className="text-gray-300">—</span>;
+            const v = c[key as "condition" | "weight" | "dimensions" | "shipping" | "stock"];
+            return <span className={`text-xs truncate ${v === "—" ? "text-gray-300" : "text-gray-700 font-medium"}`}>{v}</span>;
           };
 
-          const HEIGHT_CLASS = "h-[178px] sm:h-[230px] md:h-[270px]";
-          const PHOTO_ROW_CLASS = "h-14 sm:h-16 md:h-20";
-          const TEXT_CLASS = "text-[8px] sm:text-[9.5px] md:text-[11px]";
+          const PALETTE = [
+            { from: "#FDBA74", to: "#EA580C" }, // laranja
+            { from: "#93C5FD", to: "#2563EB" }, // azul
+            { from: "#6EE7B7", to: "#059669" }, // verde
+            { from: "#C4B5FD", to: "#7C3AED" }, // roxo
+            { from: "#FDA4AF", to: "#E11D48" }, // rosa
+            { from: "#FDE047", to: "#CA8A04" }, // amarelo
+          ];
+          const HEADER_H = 150; // altura do cabeçalho colorido+foto+nome — igual nas duas colunas, por isso tudo alinha
+          const ROW_H    = 46;  // altura de cada linha de atributo — igual nas duas colunas
 
           return (
             <div className="bg-white border-b px-3 md:px-6 py-4" style={{ borderColor: "#F0EBDF" }}>
-              <p className="text-lg font-bold text-gray-900 mb-3 text-center">Comparar com produtos semelhantes</p>
-              <div className="overflow-x-auto snap-x snap-mandatory scrollbar-hide">
-                <div className="flex items-start gap-3 pb-1 w-max">
-                  {/* Coluna "Atributos" — fixa, nunca desliza, é a imagem inteira (já vem com ícones e rótulos) */}
-                  <div className="flex-shrink-0 sticky left-0 z-10 bg-white">
-                    <div className={PHOTO_ROW_CLASS} />
-                    <img src={compareAtributosImg} alt="Atributos" className={`${HEIGHT_CLASS} w-auto`} />
-                  </div>
+              <p className="text-lg font-bold text-gray-900 mb-4 text-center">Comparar com produtos semelhantes</p>
+              <div className="overflow-x-auto snap-x snap-proximity scrollbar-hide">
+                <div className="flex items-start gap-2.5 pb-2 w-max">
 
-                  {/* Pares de produtos — cada um é uma cópia do template com os dados reais por cima */}
-                  {pairs.map((pair, pIdx) => (
-                    <div key={pIdx} className="flex-shrink-0 snap-start">
-                      {/* Fotos dos produtos, alinhadas em cima, uma por coluna */}
-                      <div className={`flex ${PHOTO_ROW_CLASS} relative`}>
-                        {[0, 1].map(ci => {
-                          const c = pair[ci];
-                          if (!c) return null;
-                          return (
-                            <div key={ci} className="absolute bottom-1 flex justify-center" style={{ left: `${COLS_PCT[ci].left}%`, width: `${COLS_PCT[ci].w}%` }}>
-                              <img src={c.image} alt={c.title} className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full object-cover border-2 border-white shadow-md" />
-                            </div>
-                          );
-                        })}
-                      </div>
-                      {/* Template recortado da imagem original + dados reais por cima */}
-                      <div className="relative">
-                        <img src={comparePairTemplateImg} alt="Comparação de produtos" className={`${HEIGHT_CLASS} w-auto`} />
-                        {[0, 1].map(ci => {
-                          const c = pair[ci];
-                          if (!c) return null;
-                          return (
-                            <button
-                              key={ci}
-                              onClick={() => { if (!c.isCurrent) { trackEvent(id!, "card_tap", { tapped_product_id: c.id, section: "compare" }); navigate(`/produto/${c.id}`); } }}
-                              className="absolute top-0 h-full text-left"
-                              style={{ left: `${COLS_PCT[ci].left}%`, width: `${COLS_PCT[ci].w}%` }}
-                            >
-                              {ROWS.map(r => (
-                                <div key={r.key} className={`absolute flex items-center px-1.5 sm:px-2 ${TEXT_CLASS} text-gray-800`} style={{ top: `${r.top}%`, height: `${r.h}%`, left: 0, right: 0 }}>
-                                  {cellValue(c, r.key)}
-                                </div>
-                              ))}
-                            </button>
-                          );
-                        })}
+                  {/* Coluna "Atributos" — fixa à esquerda, ícones reais e nítidos (nunca uma foto pequena) */}
+                  <div className="flex-shrink-0 sticky left-0 z-10 bg-white" style={{ width: 114 }}>
+                    <div style={{ height: HEADER_H }} className="flex items-end pb-2.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-1 h-3.5 rounded-full flex-shrink-0" style={{ background: N.accent }} />
+                        <span className="text-[11px] font-black text-gray-900 uppercase tracking-wide">Atributos</span>
                       </div>
                     </div>
-                  ))}
+                    <div className="rounded-2xl border overflow-hidden" style={{ borderColor: "#EEE6D8" }}>
+                      {ROWS.map((r, ri) => (
+                        <div key={r.key} className="flex items-center gap-2 px-2.5" style={{ height: ROW_H, borderBottom: ri < ROWS.length - 1 ? "1px solid #F5F0E6" : "none", background: ri % 2 === 0 ? "#FBFAF7" : "#fff" }}>
+                          <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: r.iconBg }}>
+                            <r.Icon className="w-3.5 h-3.5" style={{ color: r.iconColor }} />
+                          </div>
+                          <span className="text-[10.5px] font-bold text-gray-600 leading-tight">{r.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Colunas de produtos — cabeçalho colorido com coroa + foto grande e nítida + nome, depois os valores */}
+                  {compareCols.map((c, i) => {
+                    const pal = PALETTE[i % PALETTE.length];
+                    return (
+                      <button
+                        key={c.id}
+                        onClick={() => { if (!c.isCurrent) { trackEvent(id!, "card_tap", { tapped_product_id: c.id, section: "compare" }); navigate(`/produto/${c.id}`); } }}
+                        className="flex-shrink-0 snap-start text-left rounded-2xl overflow-hidden border shadow-sm bg-white"
+                        style={{ width: 160, borderColor: "#EEE6D8" }}
+                      >
+                        <div className="flex flex-col items-center" style={{ height: HEADER_H, background: `linear-gradient(160deg, ${pal.from}, ${pal.to})` }}>
+                          <div className="w-full flex items-center gap-1 px-2.5 pt-2">
+                            <Crown className="w-3 h-3 text-white flex-shrink-0" />
+                            <span className="text-[10px] font-bold text-white/95 truncate">{c.isCurrent ? "Este produto" : `Opção ${i}`}</span>
+                          </div>
+                          <div className="w-[74px] h-[74px] rounded-xl overflow-hidden border-[3px] border-white shadow-md bg-white mt-2 flex-shrink-0">
+                            <img src={c.image} alt={c.title} className="w-full h-full object-cover" />
+                          </div>
+                          <p className="text-[11px] font-bold text-white text-center px-2 mt-1.5 line-clamp-1 leading-tight w-full">{c.title}</p>
+                        </div>
+                        {ROWS.map((r, ri) => (
+                          <div key={r.key} className="flex items-center justify-center px-2" style={{ height: ROW_H, borderBottom: ri < ROWS.length - 1 ? "1px solid #F5F0E6" : "none", background: ri % 2 === 0 ? "#FBFAF7" : "#fff" }}>
+                            {cellValue(c, r.key)}
+                          </div>
+                        ))}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
