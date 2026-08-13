@@ -1149,6 +1149,13 @@ const ProductDetail = () => {
             </p>
           )}
 
+          {/* Vendas reais deste produto — vem de products.sales_count, nunca uma estimativa */}
+          {(dbProduct as any)?.sales_count > 0 && (
+            <p className="mt-2 text-xs font-bold" style={{ color: N.palm }}>
+              ✓ Este produto já foi vendido {(dbProduct as any).sales_count}+ {(dbProduct as any).sales_count === 1 ? "vez" : "vezes"} no ZANGU
+            </p>
+          )}
+
           <p className="text-lg font-bold text-gray-900 mt-4 mb-1.5 text-center">Vantagens de comprar aqui</p>
           <div className="grid grid-cols-2 gap-2 mt-3">
             {[
@@ -1175,6 +1182,74 @@ const ProductDetail = () => {
             ))}
           </div>
         </div>
+
+        {/* ── SOBRE A LOJA — reaproveita dados que já eram pedidos à base de dados
+             (nome, avaliação, vendas, seguidores, outros produtos) mas nunca chegavam
+             a aparecer no ecrã; nada aqui é inventado. ── */}
+        {publisher && !loadingPublisher && (
+          <div className="bg-white border-b px-3 md:px-6 py-4" style={{ borderColor: "#F0EBDF" }}>
+            <p className="text-lg font-bold text-gray-900 mb-3 text-center">Sobre a loja</p>
+            <div className="flex items-start gap-3">
+              <button onClick={handlePublisherNavigate} className="flex-shrink-0">
+                <AvatarWithFallback src={publisher.logo_url || publisher.avatar_url || null} name={publisher.name} isCompany={publisher.__type === "company"} />
+              </button>
+              <div className="flex-1 min-w-0">
+                <button onClick={handlePublisherNavigate} className="block text-left max-w-full">
+                  <span className="text-sm font-bold text-gray-900 truncate inline-flex items-center gap-1">
+                    {publisher.name}
+                    {publisher.is_verified && <ShieldCheck className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />}
+                  </span>
+                </button>
+                <p className="text-xs leading-relaxed mt-1 text-gray-600">
+                  {[
+                    publisher.rating ? `${Number(publisher.rating).toFixed(1)} ★ de avaliação` : "Ainda sem avaliações",
+                    publisher.total_sales ? `${publisher.total_sales}+ vendas concluídas` : null,
+                    storeProductCount > 0 ? `${storeProductCount} produto${storeProductCount === 1 ? "" : "s"} à venda` : null,
+                    publisherFollowersCount > 0 ? `${publisherFollowersCount} seguidor${publisherFollowersCount === 1 ? "" : "es"}` : null,
+                  ].filter(Boolean).map((line, i, arr) => (
+                    <span key={i}>
+                      {line}
+                      {i < arr.length - 1 && <span className="text-gray-300 mx-1.5">·</span>}
+                    </span>
+                  ))}
+                </p>
+                {publisher.province && (
+                  <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                    <MapPin className="w-3 h-3 flex-shrink-0" /> {String(publisher.province).replace(/0+$/, "").trim()}
+                  </p>
+                )}
+              </div>
+              {user && publisher.id !== user.id && (
+                <button
+                  onClick={() => togglePublisherFollow.mutate()}
+                  disabled={togglePublisherFollow.isPending}
+                  className="flex-shrink-0 px-3 py-1.5 text-xs font-bold border transition disabled:opacity-60"
+                  style={isFollowingPublisher ? { background: N.inkLight, color: N.ink, borderColor: N.ink } : { background: N.ink, color: "#fff", borderColor: N.ink }}
+                >
+                  {togglePublisherFollow.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : (isFollowingPublisher ? "A seguir" : "Seguir")}
+                </button>
+              )}
+            </div>
+
+            {storeOtherProducts.length > 0 && (
+              <div className="flex gap-2.5 overflow-x-auto scrollbar-hide mt-3.5 pb-1">
+                {storeOtherProducts.slice(0, 10).map((p: any) => (
+                  <button
+                    key={p.id}
+                    onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "store" }); navigate(`/produto/${p.id}`); }}
+                    className="flex-shrink-0 text-left"
+                    style={{ width: 92 }}
+                  >
+                    <div className="w-full rounded-lg overflow-hidden" style={{ aspectRatio: "1/1", background: "#f5f5f5" }}>
+                      <img src={p.image} alt={p.title} className="w-full h-full object-cover" />
+                    </div>
+                    <p className="text-[11px] font-bold mt-1 truncate text-gray-900">{p.price}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── FORMA DE PAGAMENTO ── */}
         <div className="bg-white border-b px-3 md:px-6 py-4" style={{ borderColor: "#F0EBDF" }}>
@@ -1284,7 +1359,7 @@ const ProductDetail = () => {
             { from: "#FDE047", to: "#CA8A04" }, // amarelo
           ];
           const HEADER_H = 150; // altura do cabeçalho colorido+foto+nome — igual nas duas colunas, por isso tudo alinha
-          const ROW_H    = 46;  // altura de cada linha de atributo — igual nas duas colunas
+          const ROW_H    = 38;  // altura de cada linha de atributo — igual nas duas colunas (mais compacto)
 
           return (
             <div className="bg-white border-b px-3 md:px-6 py-4" style={{ borderColor: "#F0EBDF" }}>
@@ -1300,7 +1375,7 @@ const ProductDetail = () => {
                         <span className="text-[11px] font-black text-gray-900 uppercase tracking-wide">Atributos</span>
                       </div>
                     </div>
-                    <div className="rounded-2xl border overflow-hidden" style={{ borderColor: "#EEE6D8" }}>
+                    <div className="border overflow-hidden" style={{ borderColor: "#EEE6D8" }}>
                       {ROWS.map((r, ri) => (
                         <div key={r.key} className="flex items-center gap-2 px-2.5" style={{ height: ROW_H, borderBottom: ri < ROWS.length - 1 ? "1px solid #F5F0E6" : "none", background: ri % 2 === 0 ? "#FBFAF7" : "#fff" }}>
                           <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: r.iconBg }}>
@@ -1319,7 +1394,7 @@ const ProductDetail = () => {
                       <button
                         key={c.id}
                         onClick={() => { if (!c.isCurrent) { trackEvent(id!, "card_tap", { tapped_product_id: c.id, section: "compare" }); navigate(`/produto/${c.id}`); } }}
-                        className="flex-shrink-0 snap-start text-left rounded-2xl overflow-hidden border shadow-sm bg-white"
+                        className="flex-shrink-0 snap-start text-left overflow-hidden border shadow-sm bg-white"
                         style={{ width: 160, borderColor: "#EEE6D8" }}
                       >
                         <div className="flex flex-col" style={{ height: HEADER_H }}>
