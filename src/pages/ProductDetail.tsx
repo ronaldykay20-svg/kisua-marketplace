@@ -441,7 +441,39 @@ const ProductDetail = () => {
     },
     enabled: !!categoryId,
   });
-  const { data: userOrders = [] } = useQuery({ queryKey: ["user_purchased_orders_for_product", id, user?.id], queryFn: async () => { const { data } = await supabase.from("orders").select("id, status, order_items!inner(product_id)").eq("user_id", user!.id).eq("status", "delivered").eq("order_items.product_id", id!); return data || []; }, enabled: !!user && !!isUuid });
+  const { data: userOrders = [] } = useQuery({ queryKey: ["user_purchased_orders_for_product", id, user?.id], queryFn: async () => { const { data } = await supabase.from("orders").select("id, status, order_items!inner(product_id)").eq("user_id", user!.id).in("status", ["confirmed", "shipped", "delivered"]).eq("order_items.product_id", id!); return data || []; }, enabled: !!user && !!isUuid });
+
+  // Candidatos à tabela de comparação — têm de ser EXATAMENTE a mesma categoria e
+  // subcategoria do produto atual (category_id é a subcategoria/folha; ao bater certo,
+  // a categoria-mãe bate automaticamente). Query própria, sem os fallbacks relaxados de
+  // "related_products" (mesmo vendedor, título parecido, mais vendidos em geral) — aqui
+  // é tudo ou nada: mesma subcategoria, ponto final.
+  // NOTA: este hook TEM de ficar aqui, antes dos "early returns" mais abaixo — chamar hooks
+  // depois deles faz o número de hooks variar entre o render "a carregar" e o normal, e
+  // rebenta a página com "Algo correu mal".
+  const { data: sameCategoryProducts = [] } = useQuery({
+    queryKey: ["compare_same_category", id, categoryId],
+    queryFn: async () => {
+      const { data } = await supabase.from("products").select("*")
+        .eq("category_id", categoryId!).eq("is_active", true).neq("id", id!)
+        .order("sales_count", { ascending: false }).limit(4);
+      const list = data || [];
+      const ids = list.map((p: any) => p.id);
+      const cMap: Record<string, string> = {};
+      if (ids.length) {
+        const { data: m } = await supabase.from("product_media").select("product_id,url").in("product_id", ids).eq("is_cover", true);
+        (m || []).forEach((x: any) => { cMap[x.product_id] = x.url; });
+      }
+      return list.map((p: any) => ({
+        id: p.id, title: p.title, price: fmt(p.price), rating: p.rating || 0,
+        image: cMap[p.id] || p.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop",
+        condition: p.condition || null, weight_kg: p.weight_kg || null,
+        length_cm: p.length_cm || null, width_cm: p.width_cm || null, height_cm: p.height_cm || null,
+        free_shipping: !!p.free_shipping, stock: typeof p.stock === "number" ? p.stock : null,
+      }));
+    },
+    enabled: !!isUuid && !!categoryId,
+  });
   // Encomendas já confirmadas/enviadas pelo vendedor mas ainda não confirmadas como recebidas pelo comprador — mostram o botão "Já recebi"
   const { data: pendingReceiptOrders = [] } = useQuery({ queryKey: ["user_pending_receipt_orders_for_product", id, user?.id], queryFn: async () => { const { data } = await supabase.from("orders").select("id, status, order_items!inner(product_id)").eq("user_id", user!.id).in("status", ["confirmed", "shipped"]).eq("order_items.product_id", id!); return data || []; }, enabled: !!user && !!isUuid });
   const { data: dbReviews = [] } = useQuery({
@@ -771,30 +803,6 @@ const ProductDetail = () => {
   // a categoria-mãe bate automaticamente). Query própria, sem os fallbacks relaxados de
   // "related_products" (mesmo vendedor, título parecido, mais vendidos em geral) — aqui
   // é tudo ou nada: mesma subcategoria, ponto final.
-  const { data: sameCategoryProducts = [] } = useQuery({
-    queryKey: ["compare_same_category", id, categoryId],
-    queryFn: async () => {
-      const { data } = await supabase.from("products").select("*")
-        .eq("category_id", categoryId!).eq("is_active", true).neq("id", id!)
-        .order("sales_count", { ascending: false }).limit(4);
-      const list = data || [];
-      const ids = list.map((p: any) => p.id);
-      const cMap: Record<string, string> = {};
-      if (ids.length) {
-        const { data: m } = await supabase.from("product_media").select("product_id,url").in("product_id", ids).eq("is_cover", true);
-        (m || []).forEach((x: any) => { cMap[x.product_id] = x.url; });
-      }
-      return list.map((p: any) => ({
-        id: p.id, title: p.title, price: fmt(p.price), rating: p.rating || 0,
-        image: cMap[p.id] || p.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop",
-        condition: p.condition || null, weight_kg: p.weight_kg || null,
-        length_cm: p.length_cm || null, width_cm: p.width_cm || null, height_cm: p.height_cm || null,
-        free_shipping: !!p.free_shipping, stock: typeof p.stock === "number" ? p.stock : null,
-      }));
-    },
-    enabled: !!isUuid && !!categoryId,
-  });
-
   const relatedProducts = relatedDb.slice(0, 20);
   const popularityBadge = product.reviews && product.reviews > 200 ? `Em ${Math.floor(product.reviews / 5)}+ carrinhos` : null;
 
