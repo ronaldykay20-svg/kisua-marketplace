@@ -21,6 +21,7 @@ import { useCategoryTracking } from "@/hooks/useCategoryTracking";
 import comprarBtnImg from "@/assets/product-buttons/comprar-btn.webp";
 import carrinhoBtnImg from "@/assets/product-buttons/carrinho-btn.webp";
 import navegarCategoriasBtnImg from "@/assets/product-buttons/navegar-categorias-btn.webp";
+import verLojaBtnImg from "@/assets/product-buttons/ver-loja-btn.webp";
 import badgeEnvioImg from "@/assets/product-badges/envio.webp";
 import badgePagamentoImg from "@/assets/product-badges/pagamento.webp";
 import badgeSuporteImg from "@/assets/product-badges/suporte.webp";
@@ -94,7 +95,7 @@ const MinimalProductCard = ({ product, onClick }: { product: any; onClick?: () =
   const isHot = status?.toUpperCase() === "HOT";
   return (
     <div onClick={onClick} className="cursor-pointer group flex flex-col flex-shrink-0" style={{ width: 180 }}>
-      <div className="w-full rounded-xl overflow-hidden" style={{ aspectRatio: "1/1", background: "#f5f5f5" }}>
+      <div className="w-full rounded-[4px] overflow-hidden" style={{ aspectRatio: "1/1", background: "#f5f5f5" }}>
         <img src={product.image} alt={product.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
       </div>
       <p className="text-[15px] font-bold leading-snug line-clamp-3 mt-2 tracking-tight" style={{ color: "#0066C0" }}>{product.title}</p>
@@ -324,7 +325,7 @@ const ProductDetail = () => {
       const { data } = await supabase.from("products").select("*").eq(publisherField, publisher!.id).eq("is_active", true).neq("id", id!).order("sales_count", { ascending: false }).limit(12);
       const ids = (data || []).map((p: any) => p.id); const cMap: Record<string, string> = {};
       if (ids.length) { const { data: m } = await supabase.from("product_media").select("product_id,url").in("product_id", ids).eq("is_cover", true); (m || []).forEach((x: any) => { cMap[x.product_id] = x.url; }); }
-      return (data || []).map((p: any) => ({ id: p.id, title: p.title, price: fmt(p.price), image: cMap[p.id] || p.image_url || FALLBACK_IMG }));
+      return (data || []).map((p: any) => ({ id: p.id, title: p.title, price: fmt(p.price), image: cMap[p.id] || p.image_url || FALLBACK_IMG, description: p.description || "" }));
     },
     enabled: !!publisher?.id && !!isUuid,
   });
@@ -929,7 +930,7 @@ const ProductDetail = () => {
               onTouchStart={e => { touchStartX.current = e.touches[0].clientX; }}
               onTouchEnd={e => { if (touchStartX.current === null) return; const diff = touchStartX.current - e.changedTouches[0].clientX; if (Math.abs(diff) > 40) setSelectedImage(i => diff > 0 ? Math.min(i + 1, displayImages.length - 1) : Math.max(i - 1, 0)); touchStartX.current = null; }}>
               {/* Mobile: full width; Desktop: rounded + max height controlled by grid */}
-              <div className="w-full md:rounded-2xl md:overflow-hidden" style={{ aspectRatio: "1/1" }}>
+              <div className="w-full md:rounded-[4px] md:overflow-hidden" style={{ aspectRatio: "1/1" }}>
                 {displayImages[selectedImage]?.type === "video"
                   ? <video src={displayImages[selectedImage].url} controls className="w-full h-full object-contain" />
                   : <img src={displayImages[selectedImage]?.url} alt={product.title} className="w-full h-full object-contain" />}
@@ -945,7 +946,7 @@ const ProductDetail = () => {
             {displayImages.length > 1 && (
               <div className="flex gap-2 px-3 md:px-0 py-2 overflow-x-auto scrollbar-hide bg-white border-b border-gray-100 md:border-none">
                 {displayImages.map((img, i) => (
-                  <button key={i} onClick={() => setSelectedImage(i)} className="flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden border-2 transition-all"
+                  <button key={i} onClick={() => setSelectedImage(i)} className="flex-shrink-0 w-14 h-14 rounded-[4px] overflow-hidden border-2 transition-all"
                     style={{ borderColor: i === selectedImage ? N.brown : "#ddd", opacity: i === selectedImage ? 1 : 0.6 }}>
                     {img.type === "video" ? <video src={img.url} className="w-full h-full object-cover" /> : <img src={img.url} alt="" className="w-full h-full object-cover" />}
                   </button>
@@ -1232,7 +1233,7 @@ const ProductDetail = () => {
                 publisher.rating ? `Avaliação de ${Number(publisher.rating).toFixed(1)} ★` : "Ainda sem avaliações",
                 publisher.total_sales ? `${publisher.total_sales}+ vendas concluídas` : null,
                 storeProductCount > 0 ? `${storeProductCount} produto${storeProductCount === 1 ? "" : "s"} à venda no momento` : null,
-                publisherFollowersCount > 0 ? `${publisherFollowersCount} seguidor${publisherFollowersCount === 1 ? "" : "es"} no Kisua` : null,
+                publisherFollowersCount > 0 ? `${publisherFollowersCount} seguidor${publisherFollowersCount === 1 ? "" : "es"} no ZANGU` : null,
               ].filter(Boolean).map((line, i, arr) => (
                 <span key={i}>
                   <span className="font-semibold text-gray-900">{line}</span>
@@ -1261,7 +1262,7 @@ const ProductDetail = () => {
                 onClick={() => togglePublisherFollow.mutate()}
                 disabled={togglePublisherFollow.isPending}
                 className="w-full mt-3 py-2.5 text-sm font-bold border transition disabled:opacity-60 flex items-center justify-center gap-2"
-                style={isFollowingPublisher ? { background: N.inkLight, color: N.ink, borderColor: N.ink } : { background: N.ink, color: "#fff", borderColor: N.ink }}
+                style={isFollowingPublisher ? { background: "rgba(0,102,192,0.08)", color: "#0066C0", borderColor: "#0066C0" } : { background: "#0066C0", color: "#fff", borderColor: "#0066C0" }}
               >
                 {togglePublisherFollow.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 {isFollowingPublisher ? "A seguir esta loja" : `Seguir ${publisher.name}`}
@@ -1271,19 +1272,41 @@ const ProductDetail = () => {
             {storeOtherProducts.length > 0 && (
               <div className="mt-4">
                 <p className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">Mais produtos desta loja</p>
-                <div className="flex gap-2.5 overflow-x-auto scrollbar-hide pb-1">
+                <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
                   {storeOtherProducts.slice(0, 10).map((p: any) => (
-                    <button
-                      key={p.id}
-                      onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "store" }); navigate(`/produto/${p.id}`); }}
-                      className="flex-shrink-0 text-left"
-                      style={{ width: 92 }}
-                    >
-                      <div className="w-full rounded-lg overflow-hidden" style={{ aspectRatio: "1/1", background: "#f5f5f5" }}>
-                        <img src={p.image} alt={p.title} className="w-full h-full object-cover" />
+                    <div key={p.id} className="flex-shrink-0 flex flex-col" style={{ width: 216 }}>
+                      <div className="relative w-full rounded-[4px] overflow-hidden" style={{ aspectRatio: "1/1", background: "#f5f5f5" }}>
+                        <button
+                          onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "store" }); navigate(`/produto/${p.id}`); }}
+                          className="block w-full h-full"
+                        >
+                          <img src={p.image} alt={p.title} className="w-full h-full object-cover" />
+                        </button>
+                        {/* Botão adicionar — mesmo padrão usado em "Produtos em promoção" */}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); addToCart.mutate({ productId: p.id, quantity: 1 }); }}
+                          className="absolute bottom-1.5 right-1.5 w-7 h-7 rounded-full bg-white shadow flex items-center justify-center"
+                        >
+                          <ShoppingCart className="w-3.5 h-3.5" style={{ color: N.brown }} />
+                        </button>
                       </div>
-                      <p className="text-[11px] font-bold mt-1 truncate text-gray-900">{p.price}</p>
-                    </button>
+
+                      {/* Preço maior + descrição real do produto (não só o preço) */}
+                      <button
+                        onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "store" }); navigate(`/produto/${p.id}`); }}
+                        className="text-left mt-2"
+                      >
+                        <p className="text-lg font-black tracking-tight" style={{ color: N.flame }}>{p.price}</p>
+                        <p className="text-xs leading-snug text-gray-600 line-clamp-5 mt-1 whitespace-pre-line">
+                          {p.description || p.title}
+                        </p>
+                      </button>
+
+                      {/* Botão "Ver loja" — vai para a página desta loja/vendedor/afiliado */}
+                      <button onClick={handlePublisherNavigate} className="mt-2">
+                        <img src={verLojaBtnImg} alt="Ver loja" draggable={false} className="w-full h-auto select-none pointer-events-none rounded-[4px]" />
+                      </button>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -1320,7 +1343,7 @@ const ProductDetail = () => {
             <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
               {boughtTogether.map((p: any) => (
                 <div key={p.id} className="flex flex-col flex-shrink-0" style={{ width: 118 }}>
-                  <div onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "bought_together" }); navigate(`/produto/${p.id}`); }} className="relative w-full rounded-lg overflow-hidden cursor-pointer" style={{ aspectRatio: "1/1", background: "#f5f5f5" }}>
+                  <div onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "bought_together" }); navigate(`/produto/${p.id}`); }} className="relative w-full rounded-[4px] overflow-hidden cursor-pointer" style={{ aspectRatio: "1/1", background: "#f5f5f5" }}>
                     <img src={p.image} alt={p.title} className="w-full h-full object-cover" />
                     <button
                       onClick={(e) => { e.stopPropagation(); addToCart.mutate({ productId: p.id, quantity: 1 }); }}
@@ -1417,7 +1440,7 @@ const ProductDetail = () => {
                         <span className="text-[11px] font-black text-gray-900 uppercase tracking-wide">Atributos</span>
                       </div>
                     </div>
-                    <div className="rounded-[3px] border overflow-hidden" style={{ borderColor: "#EEE6D8" }}>
+                    <div className="rounded-[4px] border overflow-hidden" style={{ borderColor: "#EEE6D8" }}>
                       {ROWS.map((r, ri) => (
                         <div key={r.key} className="flex items-center gap-2 px-2.5" style={{ height: ROW_H, borderBottom: ri < ROWS.length - 1 ? "1px solid #F5F0E6" : "none", background: ri % 2 === 0 ? "#FBFAF7" : "#fff" }}>
                           <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: r.iconBg }}>
@@ -1436,7 +1459,7 @@ const ProductDetail = () => {
                       <button
                         key={c.id}
                         onClick={() => { if (!c.isCurrent) { trackEvent(id!, "card_tap", { tapped_product_id: c.id, section: "compare" }); navigate(`/produto/${c.id}`); } }}
-                        className="flex-shrink-0 snap-start text-left rounded-[3px] overflow-hidden border shadow-sm bg-white"
+                        className="flex-shrink-0 snap-start text-left rounded-[4px] overflow-hidden border shadow-sm bg-white"
                         style={{ width: 160, borderColor: "#EEE6D8" }}
                       >
                         <div className="flex flex-col" style={{ height: HEADER_H }}>
@@ -1521,7 +1544,7 @@ const ProductDetail = () => {
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
               {activePromotions.slice(0, 8).map((p: any) => (
-                <div key={p.id} className="rounded-xl overflow-hidden border border-gray-100">
+                <div key={p.id} className="rounded-[4px] overflow-hidden border border-gray-100">
                   <div onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "promotions" }); navigate(`/produto/${p.id}`); }} className="relative w-full cursor-pointer" style={{ aspectRatio: "1/1", background: "#f5f5f5" }}>
                     <img src={p.image} alt={p.title} className="w-full h-full object-cover" />
                     {p.discountPercent > 0 && (
