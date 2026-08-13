@@ -21,6 +21,8 @@ import { useCategoryTracking } from "@/hooks/useCategoryTracking";
 import comprarBtnImg from "@/assets/product-buttons/comprar-btn.webp";
 import carrinhoBtnImg from "@/assets/product-buttons/carrinho-btn.webp";
 import navegarCategoriasBtnImg from "@/assets/product-buttons/navegar-categorias-btn.webp";
+import compareAtributosImg from "@/assets/product-buttons/compare-atributos.webp";
+import comparePairTemplateImg from "@/assets/product-buttons/compare-pair-template.webp";
 import badgeEnvioImg from "@/assets/product-badges/envio.webp";
 import badgePagamentoImg from "@/assets/product-badges/pagamento.webp";
 import badgeSuporteImg from "@/assets/product-badges/suporte.webp";
@@ -427,7 +429,7 @@ const ProductDetail = () => {
   // Resolve a "família" de categorias: se o produto está numa subcategoria (ex: Roupa > Vestidos),
   // a família inclui o pai (Roupa) e todas as subcategorias irmãs (Vestidos, Calças, Camisas...).
   // Sem isto, produtos em subcategorias diferentes da mesma família nunca se "encontram".
-  const { data: familyCategoryIds = [] } = useQuery({
+  const { data: familyCategoryIds = [], isLoading: familyCategoryIdsLoading } = useQuery({
     queryKey: ["category_family", categoryId],
     queryFn: async () => {
       const { data: cat } = await supabase.from("categories").select("id, parent_id").eq("id", categoryId!).maybeSingle();
@@ -525,11 +527,13 @@ const ProductDetail = () => {
   const [moreProductsPage, setMoreProductsPage] = useState(0);
   const [moreProductsLoading, setMoreProductsLoading] = useState(false);
   const [moreProductsDone, setMoreProductsDone] = useState(false);
+  const [moreProductsError, setMoreProductsError] = useState(false);
   const moreSentinelRef = useRef<HTMLDivElement>(null);
 
   const loadMoreProducts = useCallback(async () => {
     if (moreProductsLoading || moreProductsDone || !isUuid) return;
     setMoreProductsLoading(true);
+    setMoreProductsError(false);
     try {
       const seenIds = [id!, ...relatedDb.map((p: any) => p.id), ...moreProducts.map((p: any) => p.id)];
       let q = supabase.from("products").select("*").eq("is_active", true)
@@ -560,7 +564,9 @@ const ProductDetail = () => {
       if (!data || data.length < MORE_PAGE_SIZE) setMoreProductsDone(true);
     } catch (e: any) {
       console.error("[mais_produtos]", e?.message || e);
-      setMoreProductsDone(true); // evita martelar a BD em loop se algo falhar
+      // Erro passageiro (rede, etc.) — NÃO marca como concluído, para não
+      // ficar preso a "sem produtos" para sempre. Mostra opção de tentar de novo.
+      setMoreProductsError(true);
     } finally {
       setMoreProductsLoading(false);
     }
@@ -568,14 +574,18 @@ const ProductDetail = () => {
   }, [moreProductsLoading, moreProductsDone, isUuid, id, moreProductsPage, familyCategoryIds.join(",")]);
 
   const moreProductsStartedRef = useRef(false);
-  // Carrega a primeira página assim que o produto estiver pronto (só uma vez)
+  // Carrega a primeira página assim que o produto E a família de categorias estiverem prontos
+  // (só uma vez). Esperar pela família evita a corrida em que, ao voltar para uma página de
+  // produto já visitada (dbProduct vem logo da cache), a 1ª chamada dispara antes de
+  // familyCategoryIds estar pronta e a lista fica vazia.
   useEffect(() => {
-    if (isUuid && dbProduct && !moreProductsStartedRef.current) {
+    const familyReady = !categoryId || !familyCategoryIdsLoading;
+    if (isUuid && dbProduct && familyReady && !moreProductsStartedRef.current) {
       moreProductsStartedRef.current = true;
       loadMoreProducts();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isUuid, dbProduct]);
+  }, [isUuid, dbProduct, categoryId, familyCategoryIdsLoading]);
 
   // Infinite scroll: assim que a sentinela entra na vista, pede a página seguinte
   useEffect(() => {
@@ -755,6 +765,35 @@ const ProductDetail = () => {
     publisher?.name    ? { label: "Vendedor",    value: publisher.name, onClick: handlePublisherNavigate }         : null,
     publisher?.province? { label: "Localização", value: String(publisher.province).replace(/0+$/, "").trim() }    : null,
   ].filter(Boolean) as { label: string; value: string; onClick?: () => void }[];
+
+  // Candidatos à tabela de comparação — têm de ser EXATAMENTE a mesma categoria e
+  // subcategoria do produto atual (category_id é a subcategoria/folha; ao bater certo,
+  // a categoria-mãe bate automaticamente). Query própria, sem os fallbacks relaxados de
+  // "related_products" (mesmo vendedor, título parecido, mais vendidos em geral) — aqui
+  // é tudo ou nada: mesma subcategoria, ponto final.
+  const { data: sameCategoryProducts = [] } = useQuery({
+    queryKey: ["compare_same_category", id, categoryId],
+    queryFn: async () => {
+      const { data } = await supabase.from("products").select("*")
+        .eq("category_id", categoryId!).eq("is_active", true).neq("id", id!)
+        .order("sales_count", { ascending: false }).limit(4);
+      const list = data || [];
+      const ids = list.map((p: any) => p.id);
+      const cMap: Record<string, string> = {};
+      if (ids.length) {
+        const { data: m } = await supabase.from("product_media").select("product_id,url").in("product_id", ids).eq("is_cover", true);
+        (m || []).forEach((x: any) => { cMap[x.product_id] = x.url; });
+      }
+      return list.map((p: any) => ({
+        id: p.id, title: p.title, price: fmt(p.price), rating: p.rating || 0,
+        image: cMap[p.id] || p.image_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop",
+        condition: p.condition || null, weight_kg: p.weight_kg || null,
+        length_cm: p.length_cm || null, width_cm: p.width_cm || null, height_cm: p.height_cm || null,
+        free_shipping: !!p.free_shipping, stock: typeof p.stock === "number" ? p.stock : null,
+      }));
+    },
+    enabled: !!isUuid && !!categoryId,
+  });
 
   const relatedProducts = relatedDb.slice(0, 20);
   const popularityBadge = product.reviews && product.reviews > 200 ? `Em ${Math.floor(product.reviews / 5)}+ carrinhos` : null;
@@ -1183,11 +1222,15 @@ const ProductDetail = () => {
         <ProductReviewsSection productId={id || ""} product={product} dbReviews={dbReviews} userOrders={userOrders} pendingReceiptOrders={pendingReceiptOrders} trackEvent={trackEvent} />
 
         {/* ── COMPARAR COM PRODUTOS SEMELHANTES ── */}
-        {/* Tabela real de especificações lado a lado — não só foto+preço.
-            Coluna de rótulos fixa (sticky) à esquerda, como no walmart.com,
-            e cada coluna de produto mostra os MESMOS atributos reais da BD
-            (peso, dimensões, condição, frete, stock), não texto inventado. */}
-        {relatedProducts.length >= 2 && (() => {
+        {/* A imagem desenhada pelo Eliti faz parte do código como um asset (compare-atributos.webp
+            e compare-pair-template.webp, em src/assets/product-buttons/) — exatamente como o botão
+            de comprar/carrinho/navegar em categorias. NÃO é recriada em CSS: só entra a foto do
+            produto (em cima) e os dados reais do Supabase (preenchidos por cima das linhas em
+            branco já desenhadas na imagem). Só aparece quando há pelo menos 1 outro produto com a
+            MESMA categoria e MESMA subcategoria (category_id igual). Mostra os produtos 2 a 2 — em
+            ecrãs maiores cabem 2 pares (4 produtos) lado a lado; no telemóvel desliza para a
+            direita para ver o par seguinte. */}
+        {sameCategoryProducts.length >= 1 && (() => {
           const raw = dbProduct as any;
           const dims = (l?: number | null, w?: number | null, h?: number | null) => (l && w && h) ? `${l}×${w}×${h} cm` : "—";
           const compareCols = [
@@ -1200,7 +1243,7 @@ const ProductDetail = () => {
               shipping: product.freeShipping ? "Grátis" : "Pago",
               stock: typeof raw?.stock === "number" ? `${raw.stock} unid.` : "—",
             },
-            ...relatedProducts.slice(0, 4).map((p: any) => ({
+            ...sameCategoryProducts.slice(0, 3).map((p: any) => ({
               id: p.id, isCurrent: false, image: p.image, title: p.title,
               price: p.price, rating: p.rating || null,
               condition: p.condition ? (conditionLabels[p.condition] || p.condition) : "—",
@@ -1210,45 +1253,86 @@ const ProductDetail = () => {
               stock: typeof p.stock === "number" ? `${p.stock} unid.` : "—",
             })),
           ];
-          const rows: { label: string; render: (c: typeof compareCols[number]) => ReactNode }[] = [
-            { label: "Preço", render: c => <span className="font-black" style={{ color: c.isCurrent ? N.flame : N.ink, ...display }}>{c.price}</span> },
-            { label: "Avaliação", render: c => c.rating ? <span className="flex items-center gap-0.5"><Star className="w-3 h-3 fill-amber-400 text-amber-400" />{Number(c.rating).toFixed(1)}</span> : "—" },
-            { label: "Condição", render: c => c.condition },
-            { label: "Peso", render: c => c.weight },
-            { label: "Dimensões", render: c => c.dimensions },
-            { label: "Frete", render: c => c.shipping },
-            { label: "Stock", render: c => c.stock },
+          // Agrupa 2 a 2 — cada grupo usa uma cópia do template (Produto 1 laranja / Produto 2 azul)
+          const pairs: (typeof compareCols)[] = [];
+          for (let i = 0; i < compareCols.length; i += 2) pairs.push(compareCols.slice(i, i + 2));
+
+          // Posições (%) das 7 linhas dentro de compare-pair-template.webp / compare-atributos.webp —
+          // medidas a pixel na imagem original, para os valores caírem exatamente em cima das linhas
+          // em branco já desenhadas.
+          const ROWS: { key: "price" | "rating" | "condition" | "weight" | "dimensions" | "shipping" | "stock"; top: number; h: number }[] = [
+            { key: "price",      top: 15.61, h: 15.32 },
+            { key: "rating",     top: 30.93, h: 11.70 },
+            { key: "condition",  top: 42.63, h: 11.42 },
+            { key: "weight",     top: 54.05, h: 11.27 },
+            { key: "dimensions", top: 65.32, h: 11.27 },
+            { key: "shipping",   top: 76.59, h: 11.13 },
+            { key: "stock",      top: 88.15, h: 11.13 },
           ];
+          // Coluna esquerda (laranja / "Produto 1") e direita (azul / "Produto 2") dentro do template
+          const COLS_PCT = [{ left: 0.3, w: 48.9 }, { left: 50.3, w: 48.9 }];
+          const cellValue = (c: typeof compareCols[number], key: typeof ROWS[number]["key"]) => {
+            if (key === "price") return <span className="font-black truncate" style={{ color: N.ink }}>{c.price}</span>;
+            if (key === "rating") return c.rating ? <span className="flex items-center gap-0.5 font-bold truncate" style={{ color: N.ink }}><Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400 flex-shrink-0" />{Number(c.rating).toFixed(1)}</span> : "—";
+            if (key === "condition") return <span className="truncate">{c.condition}</span>;
+            if (key === "weight") return <span className="truncate">{c.weight}</span>;
+            if (key === "dimensions") return <span className="truncate">{c.dimensions}</span>;
+            if (key === "shipping") return <span className="truncate">{c.shipping}</span>;
+            return <span className="truncate">{c.stock}</span>;
+          };
+
+          const HEIGHT_CLASS = "h-[178px] sm:h-[230px] md:h-[270px]";
+          const PHOTO_ROW_CLASS = "h-14 sm:h-16 md:h-20";
+          const TEXT_CLASS = "text-[8px] sm:text-[9.5px] md:text-[11px]";
+
           return (
             <div className="bg-white border-b px-3 md:px-6 py-4" style={{ borderColor: "#F0EBDF" }}>
               <p className="text-lg font-bold text-gray-900 mb-3 text-center">Comparar com produtos semelhantes</p>
-              <div className="overflow-x-auto scrollbar-hide border rounded-lg" style={{ borderColor: "#EEE" }}>
-                <div className="flex min-w-max">
-                  {/* Coluna de rótulos — fixa à esquerda */}
-                  <div className="flex-shrink-0 sticky left-0 z-10 bg-white border-r" style={{ width: 92, borderColor: "#EEE" }}>
-                    <div className="h-[168px] border-b flex items-end p-2" style={{ borderColor: "#EEE" }}>
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Produto</span>
-                    </div>
-                    {rows.map(r => (
-                      <div key={r.label} className="px-2 py-2.5 text-[11px] font-bold text-gray-500 border-b" style={{ borderColor: "#F3F3F3" }}>{r.label}</div>
-                    ))}
+              <div className="overflow-x-auto snap-x snap-mandatory scrollbar-hide">
+                <div className="flex items-start gap-3 pb-1 w-max">
+                  {/* Coluna "Atributos" — fixa, nunca desliza, é a imagem inteira (já vem com ícones e rótulos) */}
+                  <div className="flex-shrink-0 sticky left-0 z-10 bg-white">
+                    <div className={PHOTO_ROW_CLASS} />
+                    <img src={compareAtributosImg} alt="Atributos" className={`${HEIGHT_CLASS} w-auto`} />
                   </div>
-                  {/* Colunas de produtos */}
-                  {compareCols.map(c => (
-                    <div key={c.id} className="w-32 flex-shrink-0 border-r last:border-r-0" style={{ borderColor: "#EEE" }}>
-                      <button
-                        onClick={() => { if (!c.isCurrent) { trackEvent(id!, "card_tap", { tapped_product_id: c.id, section: "compare" }); navigate(`/produto/${c.id}`); } }}
-                        className="w-full h-[168px] p-2 border-b text-left flex flex-col"
-                        style={{ borderColor: "#EEE", background: c.isCurrent ? N.inkLight : "#fff" }}>
-                        <p className="text-[10px] font-bold text-center mb-1" style={{ color: c.isCurrent ? N.ink : "transparent" }}>{c.isCurrent ? "A ver este" : "\u00A0"}</p>
-                        <div className="w-full rounded-md overflow-hidden mb-1 flex-shrink-0" style={{ aspectRatio: "1/1", background: "#f5f5f5" }}>
-                          <img src={c.image} alt={c.title} className="w-full h-full object-cover" />
-                        </div>
-                        <p className="text-[10px] font-semibold leading-snug line-clamp-2 text-gray-900">{c.title}</p>
-                      </button>
-                      {rows.map(r => (
-                        <div key={r.label} className="px-2 py-2.5 text-[11px] text-gray-700 border-b truncate" style={{ borderColor: "#F3F3F3" }}>{r.render(c)}</div>
-                      ))}
+
+                  {/* Pares de produtos — cada um é uma cópia do template com os dados reais por cima */}
+                  {pairs.map((pair, pIdx) => (
+                    <div key={pIdx} className="flex-shrink-0 snap-start">
+                      {/* Fotos dos produtos, alinhadas em cima, uma por coluna */}
+                      <div className={`flex ${PHOTO_ROW_CLASS} relative`}>
+                        {[0, 1].map(ci => {
+                          const c = pair[ci];
+                          if (!c) return null;
+                          return (
+                            <div key={ci} className="absolute bottom-1 flex justify-center" style={{ left: `${COLS_PCT[ci].left}%`, width: `${COLS_PCT[ci].w}%` }}>
+                              <img src={c.image} alt={c.title} className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full object-cover border-2 border-white shadow-md" />
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {/* Template recortado da imagem original + dados reais por cima */}
+                      <div className="relative">
+                        <img src={comparePairTemplateImg} alt="Comparação de produtos" className={`${HEIGHT_CLASS} w-auto`} />
+                        {[0, 1].map(ci => {
+                          const c = pair[ci];
+                          if (!c) return null;
+                          return (
+                            <button
+                              key={ci}
+                              onClick={() => { if (!c.isCurrent) { trackEvent(id!, "card_tap", { tapped_product_id: c.id, section: "compare" }); navigate(`/produto/${c.id}`); } }}
+                              className="absolute top-0 h-full text-left"
+                              style={{ left: `${COLS_PCT[ci].left}%`, width: `${COLS_PCT[ci].w}%` }}
+                            >
+                              {ROWS.map(r => (
+                                <div key={r.key} className={`absolute flex items-center px-1.5 sm:px-2 ${TEXT_CLASS} text-gray-800`} style={{ top: `${r.top}%`, height: `${r.h}%`, left: 0, right: 0 }}>
+                                  {cellValue(c, r.key)}
+                                </div>
+                              ))}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1281,8 +1365,16 @@ const ProductDetail = () => {
           )}
 
           {!moreProductsDone && (
-            <div ref={moreSentinelRef} className="flex justify-center py-4">
+            <div ref={moreSentinelRef} className="flex flex-col items-center gap-2 py-4">
               {moreProductsLoading && <Loader2 className="w-5 h-5 animate-spin text-gray-400" />}
+              {!moreProductsLoading && moreProductsError && (
+                <>
+                  <p className="text-xs text-gray-400">Não foi possível carregar mais produtos.</p>
+                  <button onClick={() => loadMoreProducts()} className="text-xs font-bold px-3 py-1.5 rounded-lg text-white" style={{ background: N.brown }}>
+                    Tentar novamente
+                  </button>
+                </>
+              )}
             </div>
           )}
 
