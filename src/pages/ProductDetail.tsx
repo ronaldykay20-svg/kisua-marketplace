@@ -1322,15 +1322,17 @@ const ProductDetail = () => {
                         className="flex-shrink-0 snap-start text-left rounded-2xl overflow-hidden border shadow-sm bg-white"
                         style={{ width: 160, borderColor: "#EEE6D8" }}
                       >
-                        <div className="flex flex-col items-center" style={{ height: HEADER_H, background: `linear-gradient(160deg, ${pal.from}, ${pal.to})` }}>
-                          <div className="w-full flex items-center gap-1 px-2.5 pt-2">
-                            <Crown className="w-3 h-3 text-white flex-shrink-0" />
-                            <span className="text-[10px] font-bold text-white/95 truncate">{c.isCurrent ? "Este produto" : `Opção ${i}`}</span>
-                          </div>
-                          <div className="w-[74px] h-[74px] rounded-xl overflow-hidden border-[3px] border-white shadow-md bg-white mt-2 flex-shrink-0">
+                        <div className="flex flex-col" style={{ height: HEADER_H }}>
+                          <div className="relative flex-shrink-0 bg-gray-50" style={{ height: 106 }}>
                             <img src={c.image} alt={c.title} className="w-full h-full object-cover" />
+                            <div className="absolute top-1.5 left-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded-full shadow-sm" style={{ background: `linear-gradient(135deg, ${pal.from}, ${pal.to})` }}>
+                              <Crown className="w-2.5 h-2.5 text-white flex-shrink-0" />
+                              <span className="text-[9px] font-bold text-white truncate max-w-[76px]">{c.isCurrent ? "Este produto" : `Opção ${i}`}</span>
+                            </div>
                           </div>
-                          <p className="text-[11px] font-bold text-white text-center px-2 mt-1.5 line-clamp-1 leading-tight w-full">{c.title}</p>
+                          <div className="flex-1 flex items-center px-2.5" style={{ background: "#FAFAF7", borderBottom: "1px solid #F0EBDF" }}>
+                            <p className="text-[11px] font-bold text-gray-900 line-clamp-1 leading-tight w-full">{c.title}</p>
+                          </div>
                         </div>
                         {ROWS.map((r, ri) => (
                           <div key={r.key} className="flex items-center justify-center px-2" style={{ height: ROW_H, borderBottom: ri < ROWS.length - 1 ? "1px solid #F5F0E6" : "none", background: ri % 2 === 0 ? "#FBFAF7" : "#fff" }}>
