@@ -291,10 +291,15 @@ const ProductDetail = () => {
   const rawCompanyId = (dbProduct as any)?.company_id || null;
   const categoryId   = (dbProduct as any)?.category_id;
 
-  const { data: sellerFull,  isLoading: loadingSeller  } = useQuery({ queryKey: ["seller_full",  rawSellerId],  queryFn: async () => { const { data } = await supabase.from("sellers").select("id,name,logo_url,avatar_url,banner_url,is_verified,province,rating,total_sales,type,user_id").eq("id", rawSellerId!).maybeSingle(); return data ? { ...data, __type: "seller" } : null; }, enabled: !!rawSellerId });
-  const { data: companyFull, isLoading: loadingCompany } = useQuery({ queryKey: ["company_full", rawCompanyId], queryFn: async () => { const { data } = await (supabase as any).from("companies").select("id,name,logo_url,banner_url,is_verified,province,rating,total_reviews,total_sales").eq("id", rawCompanyId!).maybeSingle(); return data ? { ...data, __type: "company" } : null; }, enabled: !!rawCompanyId });
+  const { data: sellerFull,  isLoading: loadingSeller  } = useQuery({ queryKey: ["seller_full",  rawSellerId],  queryFn: async () => { const { data } = await supabase.from("sellers").select("id,name,logo_url,avatar_url,banner_url,is_verified,province,rating,total_sales,type,user_id,description,bio").eq("id", rawSellerId!).maybeSingle(); return data ? { ...data, __type: "seller" } : null; }, enabled: !!rawSellerId });
+  const { data: companyFull, isLoading: loadingCompany } = useQuery({ queryKey: ["company_full", rawCompanyId], queryFn: async () => { const { data } = await (supabase as any).from("companies").select("id,name,logo_url,banner_url,is_verified,province,rating,total_reviews,total_sales,description").eq("id", rawCompanyId!).maybeSingle(); return data ? { ...data, __type: "company" } : null; }, enabled: !!rawCompanyId });
   const loadingPublisher = (!!rawSellerId && loadingSeller) || (!!rawCompanyId && loadingCompany);
   const publisher: any = sellerFull || companyFull || null;
+  // Rótulo do tipo de dono do produto — vem de dados reais (companies são sempre "Empresa";
+  // sellers.type distingue vendedor individual de afiliado/dropshipper)
+  const publisherKindLabel = publisher?.__type === "company"
+    ? "Empresa"
+    : publisher?.type === "dropship" ? "Vendedor afiliado" : "Vendedor";
 
   // ── Loja/empresa: seguir, contagens reais e outros produtos ──────────────
   // Mesmo padrão de VendedorPerfil.tsx/EmpresaPerfil.tsx, só que aqui o
@@ -1194,69 +1199,93 @@ const ProductDetail = () => {
           </div>
         </div>
 
-        {/* ── SOBRE A LOJA — reaproveita dados que já eram pedidos à base de dados
-             (nome, avaliação, vendas, seguidores, outros produtos) mas nunca chegavam
-             a aparecer no ecrã; nada aqui é inventado. ── */}
+        {/* ── SOBRE A LOJA / DONO DO PRODUTO — reaproveita dados que já eram pedidos
+             à base de dados (nome, tipo, avaliação, vendas, seguidores, descrição
+             própria da loja, outros produtos) mas nunca chegavam a aparecer no ecrã.
+             NUNCA mostra contacto direto (email, telefone, morada, site) — só o que
+             a loja escreveu sobre si própria e números reais de reputação. ── */}
         {publisher && !loadingPublisher && (
-          <div className="bg-white border-b px-3 md:px-6 py-4" style={{ borderColor: "#F0EBDF" }}>
-            <p className="text-lg font-bold text-gray-900 mb-3 text-center">Sobre a loja</p>
-            <div className="flex items-start gap-3">
-              <button onClick={handlePublisherNavigate} className="flex-shrink-0">
-                <AvatarWithFallback src={publisher.logo_url || publisher.avatar_url || null} name={publisher.name} isCompany={publisher.__type === "company"} />
-              </button>
-              <div className="flex-1 min-w-0">
-                <button onClick={handlePublisherNavigate} className="block text-left max-w-full">
-                  <span className="text-sm font-bold text-gray-900 truncate inline-flex items-center gap-1">
-                    {publisher.name}
-                    {publisher.is_verified && <ShieldCheck className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />}
-                  </span>
-                </button>
-                <p className="text-xs leading-relaxed mt-1 text-gray-600">
-                  {[
-                    publisher.rating ? `${Number(publisher.rating).toFixed(1)} ★ de avaliação` : "Ainda sem avaliações",
-                    publisher.total_sales ? `${publisher.total_sales}+ vendas concluídas` : null,
-                    storeProductCount > 0 ? `${storeProductCount} produto${storeProductCount === 1 ? "" : "s"} à venda` : null,
-                    publisherFollowersCount > 0 ? `${publisherFollowersCount} seguidor${publisherFollowersCount === 1 ? "" : "es"}` : null,
-                  ].filter(Boolean).map((line, i, arr) => (
-                    <span key={i}>
-                      {line}
-                      {i < arr.length - 1 && <span className="text-gray-300 mx-1.5">·</span>}
-                    </span>
-                  ))}
-                </p>
-                {publisher.province && (
-                  <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                    <MapPin className="w-3 h-3 flex-shrink-0" /> {String(publisher.province).replace(/0+$/, "").trim()}
-                  </p>
-                )}
-              </div>
-              {user && publisher.id !== user.id && (
-                <button
-                  onClick={() => togglePublisherFollow.mutate()}
-                  disabled={togglePublisherFollow.isPending}
-                  className="flex-shrink-0 px-3 py-1.5 text-xs font-bold border transition disabled:opacity-60"
-                  style={isFollowingPublisher ? { background: N.inkLight, color: N.ink, borderColor: N.ink } : { background: N.ink, color: "#fff", borderColor: N.ink }}
-                >
-                  {togglePublisherFollow.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : (isFollowingPublisher ? "A seguir" : "Seguir")}
-                </button>
-              )}
+          <div className="bg-white border-b px-3 md:px-6 py-5" style={{ borderColor: "#F0EBDF" }}>
+            <div className="flex items-center gap-1.5 mb-3 justify-center">
+              <span className="w-1 h-3.5 rounded-full flex-shrink-0" style={{ background: N.accent }} />
+              <p className="text-lg font-bold text-gray-900" style={display}>Saiba mais sobre o dono do produto</p>
             </div>
 
+            {/* Cabeçalho: avatar, nome + selo, tipo de conta — layout em coluna única, mais legível que espremido ao lado do botão */}
+            <button onClick={handlePublisherNavigate} className="flex items-center gap-3 w-full text-left">
+              <AvatarWithFallback src={publisher.logo_url || publisher.avatar_url || null} name={publisher.name} isCompany={publisher.__type === "company"} />
+              <div className="flex-1 min-w-0">
+                <span className="text-base font-bold text-gray-900 truncate flex items-center gap-1.5" style={display}>
+                  {publisher.name}
+                  {publisher.is_verified && <ShieldCheck className="w-4 h-4 text-blue-500 flex-shrink-0" />}
+                </span>
+                <span className="inline-block text-[10.5px] font-bold uppercase tracking-wide mt-1 px-2 py-0.5 rounded-full" style={{ background: N.inkLight, color: N.ink }}>
+                  {publisherKindLabel}
+                </span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
+            </button>
+
+            {/* Reputação — em frase corrida, não em caixas; dados 100% reais já pedidos à BD */}
+            <p className="text-sm leading-relaxed mt-3 text-gray-700">
+              {[
+                publisher.rating ? `Avaliação de ${Number(publisher.rating).toFixed(1)} ★` : "Ainda sem avaliações",
+                publisher.total_sales ? `${publisher.total_sales}+ vendas concluídas` : null,
+                storeProductCount > 0 ? `${storeProductCount} produto${storeProductCount === 1 ? "" : "s"} à venda no momento` : null,
+                publisherFollowersCount > 0 ? `${publisherFollowersCount} seguidor${publisherFollowersCount === 1 ? "" : "es"} no Kisua` : null,
+              ].filter(Boolean).map((line, i, arr) => (
+                <span key={i}>
+                  <span className="font-semibold text-gray-900">{line}</span>
+                  {i < arr.length - 1 && <span className="text-gray-300 mx-1.5">·</span>}
+                </span>
+              ))}
+              {publisher.province && (
+                <>
+                  <span className="text-gray-300 mx-1.5">·</span>
+                  <span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3 flex-shrink-0" />{String(publisher.province).replace(/0+$/, "").trim()}</span>
+                </>
+              )}
+            </p>
+
+            {/* Descrição escrita pela própria loja — texto real da BD, sem inventar nada;
+                se a loja ainda não escreveu nada, dizemos isso mesmo em vez de inventar. */}
+            <div className="mt-3 p-3 rounded-lg" style={{ background: N.paper, border: "1px solid #EEE6D8" }}>
+              <p className="text-[13px] leading-relaxed text-gray-700 whitespace-pre-line">
+                {publisher.description || publisher.bio || `${publisher.name} ainda não escreveu uma apresentação nesta loja.`}
+              </p>
+            </div>
+
+            {/* Ação de seguir — linha própria, largura total, mais fácil de tocar no telemóvel */}
+            {user && publisher.id !== user.id && (
+              <button
+                onClick={() => togglePublisherFollow.mutate()}
+                disabled={togglePublisherFollow.isPending}
+                className="w-full mt-3 py-2.5 text-sm font-bold border transition disabled:opacity-60 flex items-center justify-center gap-2"
+                style={isFollowingPublisher ? { background: N.inkLight, color: N.ink, borderColor: N.ink } : { background: N.ink, color: "#fff", borderColor: N.ink }}
+              >
+                {togglePublisherFollow.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                {isFollowingPublisher ? "A seguir esta loja" : `Seguir ${publisher.name}`}
+              </button>
+            )}
+
             {storeOtherProducts.length > 0 && (
-              <div className="flex gap-2.5 overflow-x-auto scrollbar-hide mt-3.5 pb-1">
-                {storeOtherProducts.slice(0, 10).map((p: any) => (
-                  <button
-                    key={p.id}
-                    onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "store" }); navigate(`/produto/${p.id}`); }}
-                    className="flex-shrink-0 text-left"
-                    style={{ width: 92 }}
-                  >
-                    <div className="w-full rounded-lg overflow-hidden" style={{ aspectRatio: "1/1", background: "#f5f5f5" }}>
-                      <img src={p.image} alt={p.title} className="w-full h-full object-cover" />
-                    </div>
-                    <p className="text-[11px] font-bold mt-1 truncate text-gray-900">{p.price}</p>
-                  </button>
-                ))}
+              <div className="mt-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">Mais produtos desta loja</p>
+                <div className="flex gap-2.5 overflow-x-auto scrollbar-hide pb-1">
+                  {storeOtherProducts.slice(0, 10).map((p: any) => (
+                    <button
+                      key={p.id}
+                      onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "store" }); navigate(`/produto/${p.id}`); }}
+                      className="flex-shrink-0 text-left"
+                      style={{ width: 92 }}
+                    >
+                      <div className="w-full rounded-lg overflow-hidden" style={{ aspectRatio: "1/1", background: "#f5f5f5" }}>
+                        <img src={p.image} alt={p.title} className="w-full h-full object-cover" />
+                      </div>
+                      <p className="text-[11px] font-bold mt-1 truncate text-gray-900">{p.price}</p>
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </div>
