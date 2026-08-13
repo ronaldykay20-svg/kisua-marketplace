@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Package, Clock, CheckCircle, Truck, MapPin, CreditCard, MessageSquare } from "lucide-react";
+import { ArrowLeft, Package, Clock, CheckCircle, Truck, MapPin, CreditCard, MessageSquare, Loader2, PartyPopper } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 
 
@@ -26,6 +27,7 @@ const PedidoDetalhe = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   const { data: order, isLoading } = useQuery({
     queryKey: ["order_detail", id],
@@ -81,6 +83,20 @@ const PedidoDetalhe = () => {
     enabled: !!id,
   });
 
+  const confirmReceipt = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.rpc("confirm_order_received", { p_order_id: id! });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Receção confirmada! Já pode avaliar o(s) produto(s).");
+      queryClient.invalidateQueries({ queryKey: ["order_detail", id] });
+      queryClient.invalidateQueries({ queryKey: ["order_tracking", id] });
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+    },
+    onError: (e: any) => toast.error(e.message || "Não foi possível confirmar a receção."),
+  });
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background pb-14 md:pb-0">
@@ -107,6 +123,7 @@ const PedidoDetalhe = () => {
 
   const currentStepIdx = statusSteps.findIndex(s => s.key === order.status);
   const isCancelled = order.status === "cancelled";
+  const canConfirmReceipt = user?.id === order.user_id && (order.status === "confirmed" || order.status === "shipped");
 
   return (
     <div className="min-h-screen bg-background pb-14 md:pb-0">
@@ -146,6 +163,22 @@ const PedidoDetalhe = () => {
                 );
               })}
             </div>
+
+            {canConfirmReceipt && (
+              <button
+                onClick={() => confirmReceipt.mutate()}
+                disabled={confirmReceipt.isPending}
+                className="w-full mt-4 py-2.5 rounded-lg text-xs font-bold text-primary-foreground bg-primary disabled:opacity-50 flex items-center justify-center gap-1.5"
+              >
+                {confirmReceipt.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                Já recebi o meu pedido
+              </button>
+            )}
+            {order.status === "delivered" && (
+              <div className="mt-4 flex items-center justify-center gap-1.5 text-xs font-semibold text-walmart-green">
+                <PartyPopper className="w-3.5 h-3.5" /> Receção confirmada — já pode avaliar o(s) produto(s)
+              </div>
+            )}
           </div>
         ) : (
           <div className="bg-destructive/10 rounded-xl border border-destructive/30 p-4 mb-4 text-center">
