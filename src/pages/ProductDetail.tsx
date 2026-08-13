@@ -139,6 +139,17 @@ const MinimalProductCard = ({ product, onClick }: { product: any; onClick?: () =
       <p className="text-xs text-gray-700 mt-0.5 leading-snug">
         <span className="font-bold">{delivery.bold}</span>{delivery.rest}
       </p>
+      {/* Mais linhas de informação real (condição, frete, stock) — só aparecem quando o dado existe */}
+      {(product.condition || product.free_shipping || typeof product.stock === "number") && (
+        <p className="text-[11px] text-gray-500 mt-1 leading-snug">
+          {[
+            product.condition ? (conditionLabels[product.condition] || product.condition) : null,
+            product.free_shipping ? "Frete grátis" : null,
+            typeof product.stock === "number" && product.stock > 0 ? `${product.stock} em stock` : null,
+            typeof product.stock === "number" && product.stock === 0 ? "Esgotado" : null,
+          ].filter(Boolean).join(" · ")}
+        </p>
+      )}
     </div>
   );
 };
@@ -1121,10 +1132,10 @@ const ProductDetail = () => {
         {/* ── SOBRE O PRODUTO ── */}
         <div className="bg-white border-b px-3 md:px-6 py-4" style={{ borderColor: "#F0EBDF" }}>
           <p className="text-lg font-bold text-gray-900 mb-1.5 text-center">Sobre este produto</p>
-          <p className={`text-base leading-relaxed text-gray-700 whitespace-pre-line ${!descExpanded ? "line-clamp-4" : ""}`}>
+          <p className={`text-base leading-snug text-gray-700 whitespace-pre-line ${!descExpanded ? "line-clamp-6" : ""}`}>
             {product.description || "Produto de alta qualidade disponível no ZANGU."}
           </p>
-          {product.description && product.description.length > 200 && (
+          {product.description && product.description.length > 260 && (
             <button onClick={() => setDescExpanded(v => !v)} className="text-sm font-bold mt-1" style={{ color: N.accent }}>
               {descExpanded ? "Ver menos ▲" : "Ver mais ▼"}
             </button>
@@ -1367,15 +1378,17 @@ const ProductDetail = () => {
               <div className="overflow-x-auto snap-x snap-proximity scrollbar-hide">
                 <div className="flex items-start gap-2.5 pb-2 w-max">
 
-                  {/* Coluna "Atributos" — fixa à esquerda, ícones reais e nítidos (nunca uma foto pequena) */}
-                  <div className="flex-shrink-0 sticky left-0 z-10 bg-white" style={{ width: 114 }}>
+                  {/* Coluna "Atributos" — à esquerda, ícones reais e nítidos (nunca uma foto pequena).
+                      NOTA: já não é "sticky" — ficar fixa durante o scroll horizontal estava a
+                      tapar o início do cartão do "Este produto" (o "P" e o "d" desapareciam). */}
+                  <div className="flex-shrink-0 bg-white" style={{ width: 114 }}>
                     <div style={{ height: HEADER_H }} className="flex items-end pb-2.5">
                       <div className="flex items-center gap-1.5">
                         <span className="w-1 h-3.5 rounded-full flex-shrink-0" style={{ background: N.accent }} />
                         <span className="text-[11px] font-black text-gray-900 uppercase tracking-wide">Atributos</span>
                       </div>
                     </div>
-                    <div className="border overflow-hidden" style={{ borderColor: "#EEE6D8" }}>
+                    <div className="rounded-[3px] border overflow-hidden" style={{ borderColor: "#EEE6D8" }}>
                       {ROWS.map((r, ri) => (
                         <div key={r.key} className="flex items-center gap-2 px-2.5" style={{ height: ROW_H, borderBottom: ri < ROWS.length - 1 ? "1px solid #F5F0E6" : "none", background: ri % 2 === 0 ? "#FBFAF7" : "#fff" }}>
                           <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: r.iconBg }}>
@@ -1394,7 +1407,7 @@ const ProductDetail = () => {
                       <button
                         key={c.id}
                         onClick={() => { if (!c.isCurrent) { trackEvent(id!, "card_tap", { tapped_product_id: c.id, section: "compare" }); navigate(`/produto/${c.id}`); } }}
-                        className="flex-shrink-0 snap-start text-left overflow-hidden border shadow-sm bg-white"
+                        className="flex-shrink-0 snap-start text-left rounded-[3px] overflow-hidden border shadow-sm bg-white"
                         style={{ width: 160, borderColor: "#EEE6D8" }}
                       >
                         <div className="flex flex-col" style={{ height: HEADER_H }}>
