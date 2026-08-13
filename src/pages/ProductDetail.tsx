@@ -438,7 +438,9 @@ const ProductDetail = () => {
     },
     enabled: !!categoryId,
   });
-  const { data: userOrders = [] } = useQuery({ queryKey: ["user_purchased_orders_for_product", id, user?.id], queryFn: async () => { const { data } = await supabase.from("orders").select("id, order_items!inner(product_id)").eq("user_id", user!.id).in("status", ["confirmed", "shipped", "delivered"]).eq("order_items.product_id", id!); return data || []; }, enabled: !!user && !!isUuid });
+  const { data: userOrders = [] } = useQuery({ queryKey: ["user_purchased_orders_for_product", id, user?.id], queryFn: async () => { const { data } = await supabase.from("orders").select("id, status, order_items!inner(product_id)").eq("user_id", user!.id).eq("status", "delivered").eq("order_items.product_id", id!); return data || []; }, enabled: !!user && !!isUuid });
+  // Encomendas já confirmadas/enviadas pelo vendedor mas ainda não confirmadas como recebidas pelo comprador — mostram o botão "Já recebi"
+  const { data: pendingReceiptOrders = [] } = useQuery({ queryKey: ["user_pending_receipt_orders_for_product", id, user?.id], queryFn: async () => { const { data } = await supabase.from("orders").select("id, status, order_items!inner(product_id)").eq("user_id", user!.id).in("status", ["confirmed", "shipped"]).eq("order_items.product_id", id!); return data || []; }, enabled: !!user && !!isUuid });
   const { data: dbReviews = [] } = useQuery({
     queryKey: ["product_reviews_detail", id],
     queryFn: async () => {
@@ -1177,7 +1179,7 @@ const ProductDetail = () => {
         )}
 
         {/* ── AVALIAÇÕES ── */}
-        <ProductReviewsSection productId={id || ""} product={product} dbReviews={dbReviews} userOrders={userOrders} trackEvent={trackEvent} />
+        <ProductReviewsSection productId={id || ""} product={product} dbReviews={dbReviews} userOrders={userOrders} pendingReceiptOrders={pendingReceiptOrders} trackEvent={trackEvent} />
 
         {/* ── COMPARAR COM PRODUTOS SEMELHANTES ── */}
         {/* Tabela real de especificações lado a lado — não só foto+preço.
@@ -1418,7 +1420,7 @@ const SideBannerContent = ({ ad }: { ad: any }) => (
 );
 
 // ─── Reviews Section ───────────────────────────────────────────────────────────
-const ProductReviewsSection = ({ productId, product, dbReviews, userOrders, trackEvent }: { productId: string; product: any; dbReviews: any[]; userOrders: any[]; trackEvent: (productId: string, event: any, meta?: any) => Promise<void> }) => {
+const ProductReviewsSection = ({ productId, product, dbReviews, userOrders, pendingReceiptOrders, trackEvent }: { productId: string; product: any; dbReviews: any[]; userOrders: any[]; pendingReceiptOrders: any[]; trackEvent: (productId: string, event: any, meta?: any) => Promise<void> }) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [replyingTo, setReplyingTo]     = useState<string | null>(null);
@@ -1431,9 +1433,10 @@ const ProductReviewsSection = ({ productId, product, dbReviews, userOrders, trac
   const MAX_REVIEW_PHOTOS = 6;
   const MIN_REVIEW_PHOTOS_SUGGESTED = 4;
 
-  const reviews         = dbReviews.length > 0 ? dbReviews : null;
-  const alreadyReviewed = reviews?.some((r: any) => r.user_id === user?.id);
-  const canReview       = user && userOrders.length > 0 && !alreadyReviewed;
+  const reviews            = dbReviews.length > 0 ? dbReviews : null;
+  const alreadyReviewed    = reviews?.some((r: any) => r.user_id === user?.id);
+  const canReview          = user && userOrders.length > 0 && !alreadyReviewed;
+  const canConfirmReceipt  = user && pendingReceiptOrders.length > 0;
   const totalReviews    = dbReviews.length;
   const ratingCounts    = [5, 4, 3, 2, 1].map(star => ({ star, count: (dbReviews || []).filter((r: any) => r.rating === star).length }));
 
@@ -1474,6 +1477,19 @@ const ProductReviewsSection = ({ productId, product, dbReviews, userOrders, trac
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["product_reviews_detail", productId] }); queryClient.invalidateQueries({ queryKey: ["product", productId] }); setReviewComment(""); setReviewRating(5); setReviewImages([]); setShowForm(false); },
   });
 
+  const confirmReceipt = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.rpc("confirm_order_received", { p_order_id: pendingReceiptOrders[0].id });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Receção confirmada! Já pode avaliar este produto.");
+      queryClient.invalidateQueries({ queryKey: ["user_purchased_orders_for_product", productId] });
+      queryClient.invalidateQueries({ queryKey: ["user_pending_receipt_orders_for_product", productId] });
+    },
+    onError: (e: any) => toast.error(e.message || "Não foi possível confirmar a receção."),
+  });
+
   const submitReply = useMutation({
     mutationFn: async (reviewId: string) => {
       const { error } = await supabase.from("review_replies").insert({ review_id: reviewId, review_type: "product", user_id: user!.id, content: replyText });
@@ -1491,7 +1507,15 @@ const ProductReviewsSection = ({ productId, product, dbReviews, userOrders, trac
             Avaliar
           </button>
         )}
+        {!canReview && canConfirmReceipt && (
+          <button onClick={() => confirmReceipt.mutate()} disabled={confirmReceipt.isPending} className="text-xs font-bold px-3 py-1.5 rounded-lg text-white disabled:opacity-50 flex items-center gap-1" style={{ background: N.brown }}>
+            {confirmReceipt.isPending && <Loader2 className="w-3 h-3 animate-spin" />} Já recebi o pedido
+          </button>
+        )}
       </div>
+      {!canReview && canConfirmReceipt && (
+        <p className="text-xs mb-2 text-gray-400">Confirme que recebeu o produto para poder avaliá-lo.</p>
+      )}
 
       <div className="grid grid-cols-2 gap-3 mb-3">
         <div className="flex flex-col items-center justify-center p-3 rounded-xl bg-gray-50">
