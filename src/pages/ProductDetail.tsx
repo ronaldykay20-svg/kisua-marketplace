@@ -325,7 +325,7 @@ const ProductDetail = () => {
       const { data } = await supabase.from("products").select("*").eq(publisherField, publisher!.id).eq("is_active", true).neq("id", id!).order("sales_count", { ascending: false }).limit(12);
       const ids = (data || []).map((p: any) => p.id); const cMap: Record<string, string> = {};
       if (ids.length) { const { data: m } = await supabase.from("product_media").select("product_id,url").in("product_id", ids).eq("is_cover", true); (m || []).forEach((x: any) => { cMap[x.product_id] = x.url; }); }
-      return (data || []).map((p: any) => ({ id: p.id, title: p.title, price: fmt(p.price), image: cMap[p.id] || p.image_url || FALLBACK_IMG, description: p.description || "", badge: p.badge || null, freeShipping: !!p.free_shipping }));
+      return (data || []).map((p: any) => ({ id: p.id, title: p.title, price: fmt(p.price), image: cMap[p.id] || p.image_url || FALLBACK_IMG, description: p.description || "", badge: p.badge || null, freeShipping: !!p.free_shipping, condition: p.condition || null, salesCount: p.sales_count || 0 }));
     },
     enabled: !!publisher?.id && !!isUuid,
   });
@@ -1274,11 +1274,11 @@ const ProductDetail = () => {
                 <p className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">Mais produtos desta loja</p>
                 {/* Scroll horizontal com snap — mesmo padrão usado em "Comprados juntos com
                     frequência" e nas outras carruagens de produtos da página (arrasta para o
-                    lado para ver mais). Cartão sem caixa/borda à volta, para não destoar do
-                    resto do design: só imagem + preço + descrição + botão, como no resto do site. */}
+                    lado para ver mais). Parte de baixo mais extensa: preço, estado, nº de vendas,
+                    frete e descrição — e o botão "Ver loja" bem maior e visível. */}
                 <div className="flex gap-3 overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-1" style={{ WebkitOverflowScrolling: "touch" }}>
                   {storeOtherProducts.slice(0, 12).map((p: any) => (
-                    <div key={p.id} className="flex flex-col flex-shrink-0 snap-start" style={{ width: 152 }}>
+                    <div key={p.id} className="flex flex-col flex-shrink-0 snap-start" style={{ width: 168 }}>
                       <div className="relative w-full rounded-[4px] overflow-hidden" style={{ aspectRatio: "1/1", background: "#f5f5f5" }}>
                         <button
                           onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "store" }); navigate(`/produto/${p.id}`); }}
@@ -1306,23 +1306,33 @@ const ProductDetail = () => {
                         </button>
                       </div>
 
-                      {/* Preço + descrição real do produto */}
+                      {/* Preço, estado, vezes vendido, frete e descrição — tudo o que a BD já tem */}
                       <button
                         onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "store" }); navigate(`/produto/${p.id}`); }}
                         className="text-left mt-1.5"
                       >
-                        <p className="text-sm font-black tracking-tight" style={{ color: N.flame }}>{p.price}</p>
-                        <p className="text-[11px] leading-snug text-gray-600 line-clamp-2 mt-0.5">
+                        <p className="text-base font-black tracking-tight" style={{ color: N.flame }}>{p.price}</p>
+
+                        {(p.condition || p.salesCount > 0) && (
+                          <p className="text-[11px] text-gray-600 mt-0.5 flex flex-wrap items-center gap-x-1">
+                            {p.condition && <span className="font-semibold text-gray-800">{conditionLabels[p.condition] || p.condition}</span>}
+                            {p.condition && p.salesCount > 0 && <span className="text-gray-300">·</span>}
+                            {p.salesCount > 0 && <span>{p.salesCount}+ vendido{p.salesCount === 1 ? "" : "s"}</span>}
+                          </p>
+                        )}
+
+                        <p className="text-[11px] font-bold mt-0.5" style={{ color: p.freeShipping ? N.palm : "#9CA3AF" }}>
+                          {p.freeShipping ? "Frete grátis" : "Frete pago"}
+                        </p>
+
+                        <p className="text-[11px] leading-snug text-gray-600 line-clamp-3 mt-1">
                           {p.description || p.title}
                         </p>
-                        {p.freeShipping && (
-                          <span className="inline-block mt-0.5 text-[9px] font-bold" style={{ color: N.palm }}>FRETE GRÁTIS</span>
-                        )}
                       </button>
 
-                      {/* Botão "Ver loja" — altura fixa pequena e alinhado à esquerda, nunca esticado à largura do card */}
-                      <button onClick={handlePublisherNavigate} className="mt-1.5 self-start">
-                        <img src={verLojaBtnImg} alt="Ver loja" draggable={false} className="h-6 w-auto object-contain select-none pointer-events-none" />
+                      {/* Botão "Ver loja" — grande e bem visível, à largura do card */}
+                      <button onClick={handlePublisherNavigate} className="mt-2">
+                        <img src={verLojaBtnImg} alt="Ver loja" draggable={false} className="w-full h-auto select-none pointer-events-none rounded-[3px]" />
                       </button>
                     </div>
                   ))}
