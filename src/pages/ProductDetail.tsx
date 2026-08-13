@@ -325,7 +325,7 @@ const ProductDetail = () => {
       const { data } = await supabase.from("products").select("*").eq(publisherField, publisher!.id).eq("is_active", true).neq("id", id!).order("sales_count", { ascending: false }).limit(12);
       const ids = (data || []).map((p: any) => p.id); const cMap: Record<string, string> = {};
       if (ids.length) { const { data: m } = await supabase.from("product_media").select("product_id,url").in("product_id", ids).eq("is_cover", true); (m || []).forEach((x: any) => { cMap[x.product_id] = x.url; }); }
-      return (data || []).map((p: any) => ({ id: p.id, title: p.title, price: fmt(p.price), image: cMap[p.id] || p.image_url || FALLBACK_IMG, description: p.description || "" }));
+      return (data || []).map((p: any) => ({ id: p.id, title: p.title, price: fmt(p.price), image: cMap[p.id] || p.image_url || FALLBACK_IMG, description: p.description || "", badge: p.badge || null, freeShipping: !!p.free_shipping }));
     },
     enabled: !!publisher?.id && !!isUuid,
   });
@@ -1272,40 +1272,58 @@ const ProductDetail = () => {
             {storeOtherProducts.length > 0 && (
               <div className="mt-4">
                 <p className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">Mais produtos desta loja</p>
-                <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
-                  {storeOtherProducts.slice(0, 10).map((p: any) => (
-                    <div key={p.id} className="flex-shrink-0 flex flex-col" style={{ width: 216 }}>
-                      <div className="relative w-full rounded-[4px] overflow-hidden" style={{ aspectRatio: "1/1", background: "#f5f5f5" }}>
+                {/* Grelha fixa (não scroll horizontal) — 3 colunas no telemóvel, 4 em ecrãs maiores.
+                    Todos os cards com a mesma altura (grid stretch + flex-col + mt-auto no botão),
+                    por isso ficam sempre alinhados na mesma linha, nunca um mais alto que o outro. */}
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                  {storeOtherProducts.slice(0, 12).map((p: any) => (
+                    <div key={p.id} className="flex flex-col h-full rounded-[6px] overflow-hidden border" style={{ borderColor: "#F0EBDF" }}>
+                      <div className="relative w-full" style={{ aspectRatio: "1/1", background: "#f5f5f5" }}>
                         <button
                           onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "store" }); navigate(`/produto/${p.id}`); }}
                           className="block w-full h-full"
                         >
                           <img src={p.image} alt={p.title} className="w-full h-full object-cover" />
                         </button>
-                        {/* Botão adicionar — mesmo padrão usado em "Produtos em promoção" */}
+
+                        {/* Badge (HOT/NOVO/PROMO/LIMITADO) — vem da BD, mesmo padrão usado no resto do site */}
+                        {p.badge && (
+                          <span
+                            className="absolute top-1 left-1 px-1 py-0.5 rounded-sm text-[8px] font-bold text-white leading-none"
+                            style={{ background: p.badge === "HOT" ? N.flame : N.palm }}
+                          >
+                            {p.badge}
+                          </span>
+                        )}
+
+                        {/* Botão adicionar — mesmo padrão usado em "Produtos em promoção", só que reduzido para caber num card mais pequeno */}
                         <button
                           onClick={(e) => { e.stopPropagation(); addToCart.mutate({ productId: p.id, quantity: 1 }); }}
-                          className="absolute bottom-1.5 right-1.5 w-7 h-7 rounded-full bg-white shadow flex items-center justify-center"
+                          className="absolute bottom-1 right-1 w-5 h-5 rounded-full bg-white shadow flex items-center justify-center"
                         >
-                          <ShoppingCart className="w-3.5 h-3.5" style={{ color: N.brown }} />
+                          <ShoppingCart className="w-2.5 h-2.5" style={{ color: N.brown }} />
                         </button>
                       </div>
 
-                      {/* Preço maior + descrição real do produto (não só o preço) */}
-                      <button
-                        onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "store" }); navigate(`/produto/${p.id}`); }}
-                        className="text-left mt-2"
-                      >
-                        <p className="text-lg font-black tracking-tight" style={{ color: N.flame }}>{p.price}</p>
-                        <p className="text-xs leading-snug text-gray-600 line-clamp-5 mt-1 whitespace-pre-line">
-                          {p.description || p.title}
-                        </p>
-                      </button>
+                      <div className="p-1.5 flex flex-col flex-1">
+                        <button
+                          onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "store" }); navigate(`/produto/${p.id}`); }}
+                          className="text-left"
+                        >
+                          <p className="text-[12px] font-black tracking-tight leading-tight" style={{ color: N.flame }}>{p.price}</p>
+                          <p className="text-[10px] leading-snug text-gray-600 line-clamp-2 mt-0.5">
+                            {p.description || p.title}
+                          </p>
+                          {p.freeShipping && (
+                            <span className="inline-block mt-0.5 text-[8px] font-bold" style={{ color: N.palm }}>FRETE GRÁTIS</span>
+                          )}
+                        </button>
 
-                      {/* Botão "Ver loja" — vai para a página desta loja/vendedor/afiliado */}
-                      <button onClick={handlePublisherNavigate} className="mt-2">
-                        <img src={verLojaBtnImg} alt="Ver loja" draggable={false} className="w-full h-auto select-none pointer-events-none rounded-[4px]" />
-                      </button>
+                        {/* Botão "Ver loja" — imagem contida numa altura fixa pequena, nunca esticada à largura do card */}
+                        <button onClick={handlePublisherNavigate} className="mt-auto pt-1.5">
+                          <img src={verLojaBtnImg} alt="Ver loja" draggable={false} className="w-full h-5 object-contain select-none pointer-events-none" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
