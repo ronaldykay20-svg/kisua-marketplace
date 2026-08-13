@@ -514,6 +514,77 @@ const ProductDetail = () => {
     trackEvent(id!, "view", { title: p.title, price: p.price, category_id: p.category_id });
   }, [dbProduct, id, isUuid, trackEvent]);
 
+  // ── MAIS PRODUTOS — grelha 2 colunas, carrega mais ao aproximar do fim, até acabarem os produtos ──
+  // (Hooks têm de ficar ANTES dos "early returns" mais abaixo — chamar hooks depois deles
+  // faz o número de hooks variar entre o render "a carregar" e o render normal, e rebenta a página.)
+  const MORE_PAGE_SIZE = 8;
+  const [moreProducts, setMoreProducts] = useState<any[]>([]);
+  const [moreProductsPage, setMoreProductsPage] = useState(0);
+  const [moreProductsLoading, setMoreProductsLoading] = useState(false);
+  const [moreProductsDone, setMoreProductsDone] = useState(false);
+  const moreSentinelRef = useRef<HTMLDivElement>(null);
+
+  const loadMoreProducts = useCallback(async () => {
+    if (moreProductsLoading || moreProductsDone || !isUuid) return;
+    setMoreProductsLoading(true);
+    try {
+      const seenIds = [id!, ...relatedDb.map((p: any) => p.id), ...moreProducts.map((p: any) => p.id)];
+      let q = supabase.from("products").select("*").eq("is_active", true)
+        .order("created_at", { ascending: false })
+        .range(moreProductsPage * MORE_PAGE_SIZE, moreProductsPage * MORE_PAGE_SIZE + MORE_PAGE_SIZE - 1);
+      if (familyCategoryIds.length) q = q.in("category_id", familyCategoryIds);
+      const { data, error } = await q;
+      if (error) throw error;
+      const fresh = (data || []).filter((p: any) => !seenIds.includes(p.id));
+      const ids = fresh.map((p: any) => p.id);
+      const cMap: Record<string, string> = {};
+      if (ids.length) {
+        const { data: m } = await supabase.from("product_media").select("product_id,url").in("product_id", ids).eq("is_cover", true);
+        (m || []).forEach((x: any) => { cMap[x.product_id] = x.url; });
+      }
+      const mapped = fresh.map((p: any) => ({
+        id: p.id, title: p.title, price: fmt(p.price), rating: p.rating || 0,
+        image: cMap[p.id] || p.image_url || FALLBACK_IMG,
+        condition: p.condition || null, free_shipping: !!p.free_shipping,
+        stock: typeof p.stock === "number" ? p.stock : null,
+        total_reviews: p.total_reviews || 0,
+        oldPrice: p.old_price ? fmt(p.old_price) : null,
+        discountPercent: p.discount_percent || 0,
+        badge: p.badge || null,
+      }));
+      setMoreProducts(prev => [...prev, ...mapped]);
+      setMoreProductsPage(prev => prev + 1);
+      if (!data || data.length < MORE_PAGE_SIZE) setMoreProductsDone(true);
+    } catch (e: any) {
+      console.error("[mais_produtos]", e?.message || e);
+      setMoreProductsDone(true); // evita martelar a BD em loop se algo falhar
+    } finally {
+      setMoreProductsLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [moreProductsLoading, moreProductsDone, isUuid, id, moreProductsPage, familyCategoryIds.join(",")]);
+
+  const moreProductsStartedRef = useRef(false);
+  // Carrega a primeira página assim que o produto estiver pronto (só uma vez)
+  useEffect(() => {
+    if (isUuid && dbProduct && !moreProductsStartedRef.current) {
+      moreProductsStartedRef.current = true;
+      loadMoreProducts();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isUuid, dbProduct]);
+
+  // Infinite scroll: assim que a sentinela entra na vista, pede a página seguinte
+  useEffect(() => {
+    const el = moreSentinelRef.current;
+    if (!el || moreProductsDone) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && !moreProductsLoading) loadMoreProducts();
+    }, { rootMargin: "300px" });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [loadMoreProducts, moreProductsDone, moreProductsLoading]);
+
   const handlePublisherNavigate = () => {
     if (!publisher) return;
     trackEvent(id!, "seller_view", { seller_id: publisher.id });
@@ -684,64 +755,6 @@ const ProductDetail = () => {
 
   const relatedProducts = relatedDb.slice(0, 20);
   const popularityBadge = product.reviews && product.reviews > 200 ? `Em ${Math.floor(product.reviews / 5)}+ carrinhos` : null;
-
-  // ── MAIS PRODUTOS — grelha 2 colunas, carrega mais ao aproximar do fim, até acabarem os produtos ──
-  const MORE_PAGE_SIZE = 8;
-  const [moreProducts, setMoreProducts] = useState<any[]>([]);
-  const [moreProductsPage, setMoreProductsPage] = useState(0);
-  const [moreProductsLoading, setMoreProductsLoading] = useState(false);
-  const [moreProductsDone, setMoreProductsDone] = useState(false);
-  const moreSentinelRef = useRef<HTMLDivElement>(null);
-
-  const loadMoreProducts = useCallback(async () => {
-    if (moreProductsLoading || moreProductsDone || !isUuid) return;
-    setMoreProductsLoading(true);
-    const seenIds = [id!, ...relatedProducts.map((p: any) => p.id), ...moreProducts.map((p: any) => p.id)];
-    let q = supabase.from("products").select("*").eq("is_active", true)
-      .order("created_at", { ascending: false })
-      .range(moreProductsPage * MORE_PAGE_SIZE, moreProductsPage * MORE_PAGE_SIZE + MORE_PAGE_SIZE - 1);
-    if (familyCategoryIds.length) q = q.in("category_id", familyCategoryIds);
-    const { data } = await q;
-    const fresh = (data || []).filter((p: any) => !seenIds.includes(p.id));
-    const ids = fresh.map((p: any) => p.id);
-    const cMap: Record<string, string> = {};
-    if (ids.length) {
-      const { data: m } = await supabase.from("product_media").select("product_id,url").in("product_id", ids).eq("is_cover", true);
-      (m || []).forEach((x: any) => { cMap[x.product_id] = x.url; });
-    }
-    const mapped = fresh.map((p: any) => ({
-      id: p.id, title: p.title, price: fmt(p.price), rating: p.rating || 0,
-      image: cMap[p.id] || p.image_url || FALLBACK_IMG,
-      condition: p.condition || null, free_shipping: !!p.free_shipping,
-      stock: typeof p.stock === "number" ? p.stock : null,
-      total_reviews: p.total_reviews || 0,
-      oldPrice: p.old_price ? fmt(p.old_price) : null,
-      discountPercent: p.discount_percent || 0,
-      badge: p.badge || null,
-    }));
-    setMoreProducts(prev => [...prev, ...mapped]);
-    setMoreProductsPage(prev => prev + 1);
-    if (!data || data.length < MORE_PAGE_SIZE) setMoreProductsDone(true);
-    setMoreProductsLoading(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [moreProductsLoading, moreProductsDone, isUuid, id, moreProductsPage, familyCategoryIds.join(",")]);
-
-  // Carrega a primeira página assim que os relacionados estiverem prontos
-  useEffect(() => {
-    if (isUuid && dbProduct && moreProducts.length === 0 && moreProductsPage === 0 && !moreProductsDone) loadMoreProducts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isUuid, dbProduct]);
-
-  // Infinite scroll: assim que a sentinela entra na vista, pede a página seguinte
-  useEffect(() => {
-    const el = moreSentinelRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting) loadMoreProducts();
-    }, { rootMargin: "400px" });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [loadMoreProducts]);
 
   const VariantPill = ({ v, selected, onSelect, type }: { v: any; selected: boolean; onSelect: () => void; type: string }) => {
     if (type === "color" && v.value?.startsWith("#")) {
