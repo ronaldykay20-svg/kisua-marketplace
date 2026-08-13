@@ -20,6 +20,7 @@ import { trackViewedProduct } from "@/lib/recentBrowsing";
 import { useCategoryTracking } from "@/hooks/useCategoryTracking";
 import comprarBtnImg from "@/assets/product-buttons/comprar-btn.webp";
 import carrinhoBtnImg from "@/assets/product-buttons/carrinho-btn.webp";
+import navegarCategoriasBtnImg from "@/assets/product-buttons/navegar-categorias-btn.webp";
 import badgeEnvioImg from "@/assets/product-badges/envio.webp";
 import badgePagamentoImg from "@/assets/product-badges/pagamento.webp";
 import badgeSuporteImg from "@/assets/product-badges/suporte.webp";
@@ -1286,12 +1287,13 @@ const ProductDetail = () => {
           )}
 
           {moreProductsDone && (
-            <div className="flex flex-col items-center gap-2 mt-4 pt-4 border-t" style={{ borderColor: "#F0EBDF" }}>
-              <p className="text-sm text-gray-500 text-center">Não há mais produtos para mostrar por aqui.</p>
-              <button onClick={() => navigate("/categorias")} className="px-5 py-2.5 rounded-xl text-sm font-bold text-white flex items-center gap-1.5" style={{ background: N.brown }}>
-                <LayoutGrid className="w-4 h-4" /> Navegar por categorias
-              </button>
-            </div>
+            <button
+              onClick={() => navigate("/categorias")}
+              className="w-full mt-4 pt-4 relative transition hover:brightness-105 active:scale-[0.98]"
+            >
+              <img src={navegarCategoriasBtnImg} alt="Navegar em categorias" draggable={false}
+                className="w-full h-auto select-none pointer-events-none rounded-2xl" />
+            </button>
           )}
         </div>
 
