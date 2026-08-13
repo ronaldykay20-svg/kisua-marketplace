@@ -64,30 +64,33 @@ const conditionLabels: Record<string, string> = {
 };
 
 // ─── Minimal Related Card — layout "à la Amazon" ───────────────────────────────
-// Soma dias úteis (sem sábados/domingos) a partir de hoje, para dar uma data
-// de entrega real e verosímil — não é uma data inventada, é hoje + N dias úteis.
-const addBusinessDays = (days: number): Date => {
-  const d = new Date();
-  let added = 0;
-  while (added < days) {
-    d.setDate(d.getDate() + 1);
-    if (d.getDay() !== 0 && d.getDay() !== 6) added++;
-  }
-  return d;
+// Intervalo de entrega real: hoje até daqui a 3 dias (datas de calendário, não inventadas).
+const formatDeliveryRange = (): string => {
+  const start = new Date();
+  const end = new Date();
+  end.setDate(end.getDate() + 3);
+  const startMonth = new Intl.DateTimeFormat("pt-PT", { month: "long" }).format(start);
+  const endMonth = new Intl.DateTimeFormat("pt-PT", { month: "long" }).format(end);
+  return startMonth === endMonth
+    ? `de ${start.getDate()} a ${end.getDate()} de ${startMonth}`
+    : `de ${start.getDate()} de ${startMonth} a ${end.getDate()} de ${endMonth}`;
 };
-const formatDeliveryDate = (date: Date): string => {
-  const weekday = new Intl.DateTimeFormat("pt-PT", { weekday: "short" }).format(date);
-  const month = new Intl.DateTimeFormat("pt-PT", { month: "short" }).format(date);
-  return `${weekday}, ${date.getDate()} de ${month}`;
-};
-// Frete grátis → promessa mais rápida (3 dias úteis); frete pago → padrão do site (5 dias úteis)
-const pickDeliveryLine = (p: any): { bold: string; rest: string } => {
-  const date = formatDeliveryDate(addBusinessDays(p.free_shipping ? 3 : 5));
-  return { bold: `Chega ${date}`, rest: p.free_shipping ? " · frete grátis" : " · frete pago" };
+const pickDeliveryLine = (p: any): { bold: string; rest: string } => ({
+  bold: formatDeliveryRange(),
+  rest: p.free_shipping ? " · frete grátis" : " · frete pago",
+});
+// Estado do produto — usa exatamente o que o vendedor escreveu (badge livre, ex.: "HOT", "Promo")
+// e só recorre à condição (Novo, Usado, ...) quando não há badge definido.
+const pickStatusLabel = (p: any): string | null => {
+  if (p.badge && String(p.badge).trim()) return String(p.badge).trim();
+  if (p.condition) return conditionLabels[p.condition] || p.condition;
+  return null;
 };
 
 const MinimalProductCard = ({ product, onClick }: { product: any; onClick?: () => void }) => {
   const delivery = pickDeliveryLine(product);
+  const status = pickStatusLabel(product);
+  const isHot = status?.toUpperCase() === "HOT";
   return (
     <div onClick={onClick} className="cursor-pointer group flex flex-col flex-shrink-0" style={{ width: 180 }}>
       <div className="w-full rounded-xl overflow-hidden" style={{ aspectRatio: "1/1", background: "#f5f5f5" }}>
@@ -126,7 +129,13 @@ const MinimalProductCard = ({ product, onClick }: { product: any; onClick?: () =
       {product.oldPrice && (
         <p className="text-xs text-gray-500 mt-0.5">De: <span className="line-through">{product.oldPrice}</span></p>
       )}
-      <p className="text-xs text-gray-700 mt-1.5 leading-snug">
+      {status && (
+        <p className="text-xs font-bold mt-1.5 flex items-center gap-1" style={{ color: isHot ? N.flame : "#0E4F4F" }}>
+          {isHot && <Flame className="w-3 h-3" />}
+          {status}
+        </p>
+      )}
+      <p className="text-xs text-gray-700 mt-0.5 leading-snug">
         <span className="font-bold">{delivery.bold}</span>{delivery.rest}
       </p>
     </div>
@@ -429,7 +438,7 @@ const ProductDetail = () => {
     },
     enabled: !!categoryId,
   });
-  const { data: userOrders = [] } = useQuery({ queryKey: ["user_delivered_orders_for_product", id, user?.id], queryFn: async () => { const { data } = await supabase.from("orders").select("id, order_items!inner(product_id)").eq("user_id", user!.id).eq("status", "delivered").eq("order_items.product_id", id!); return data || []; }, enabled: !!user && !!isUuid });
+  const { data: userOrders = [] } = useQuery({ queryKey: ["user_purchased_orders_for_product", id, user?.id], queryFn: async () => { const { data } = await supabase.from("orders").select("id, order_items!inner(product_id)").eq("user_id", user!.id).in("status", ["confirmed", "shipped", "delivered"]).eq("order_items.product_id", id!); return data || []; }, enabled: !!user && !!isUuid });
   const { data: dbReviews = [] } = useQuery({
     queryKey: ["product_reviews_detail", id],
     queryFn: async () => {
@@ -492,6 +501,7 @@ const ProductDetail = () => {
         total_reviews: p.total_reviews || 0,
         oldPrice: p.old_price ? fmt(p.old_price) : null,
         discountPercent: p.discount_percent || 0,
+        badge: p.badge || null,
       }));
     },
     enabled: !!isUuid && !!dbProduct,
@@ -674,6 +684,64 @@ const ProductDetail = () => {
 
   const relatedProducts = relatedDb.slice(0, 20);
   const popularityBadge = product.reviews && product.reviews > 200 ? `Em ${Math.floor(product.reviews / 5)}+ carrinhos` : null;
+
+  // ── MAIS PRODUTOS — grelha 2 colunas, carrega mais ao aproximar do fim, até acabarem os produtos ──
+  const MORE_PAGE_SIZE = 8;
+  const [moreProducts, setMoreProducts] = useState<any[]>([]);
+  const [moreProductsPage, setMoreProductsPage] = useState(0);
+  const [moreProductsLoading, setMoreProductsLoading] = useState(false);
+  const [moreProductsDone, setMoreProductsDone] = useState(false);
+  const moreSentinelRef = useRef<HTMLDivElement>(null);
+
+  const loadMoreProducts = useCallback(async () => {
+    if (moreProductsLoading || moreProductsDone || !isUuid) return;
+    setMoreProductsLoading(true);
+    const seenIds = [id!, ...relatedProducts.map((p: any) => p.id), ...moreProducts.map((p: any) => p.id)];
+    let q = supabase.from("products").select("*").eq("is_active", true)
+      .order("created_at", { ascending: false })
+      .range(moreProductsPage * MORE_PAGE_SIZE, moreProductsPage * MORE_PAGE_SIZE + MORE_PAGE_SIZE - 1);
+    if (familyCategoryIds.length) q = q.in("category_id", familyCategoryIds);
+    const { data } = await q;
+    const fresh = (data || []).filter((p: any) => !seenIds.includes(p.id));
+    const ids = fresh.map((p: any) => p.id);
+    const cMap: Record<string, string> = {};
+    if (ids.length) {
+      const { data: m } = await supabase.from("product_media").select("product_id,url").in("product_id", ids).eq("is_cover", true);
+      (m || []).forEach((x: any) => { cMap[x.product_id] = x.url; });
+    }
+    const mapped = fresh.map((p: any) => ({
+      id: p.id, title: p.title, price: fmt(p.price), rating: p.rating || 0,
+      image: cMap[p.id] || p.image_url || FALLBACK_IMG,
+      condition: p.condition || null, free_shipping: !!p.free_shipping,
+      stock: typeof p.stock === "number" ? p.stock : null,
+      total_reviews: p.total_reviews || 0,
+      oldPrice: p.old_price ? fmt(p.old_price) : null,
+      discountPercent: p.discount_percent || 0,
+      badge: p.badge || null,
+    }));
+    setMoreProducts(prev => [...prev, ...mapped]);
+    setMoreProductsPage(prev => prev + 1);
+    if (!data || data.length < MORE_PAGE_SIZE) setMoreProductsDone(true);
+    setMoreProductsLoading(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [moreProductsLoading, moreProductsDone, isUuid, id, moreProductsPage, familyCategoryIds.join(",")]);
+
+  // Carrega a primeira página assim que os relacionados estiverem prontos
+  useEffect(() => {
+    if (isUuid && dbProduct && moreProducts.length === 0 && moreProductsPage === 0 && !moreProductsDone) loadMoreProducts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isUuid, dbProduct]);
+
+  // Infinite scroll: assim que a sentinela entra na vista, pede a página seguinte
+  useEffect(() => {
+    const el = moreSentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) loadMoreProducts();
+    }, { rootMargin: "400px" });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [loadMoreProducts]);
 
   const VariantPill = ({ v, selected, onSelect, type }: { v: any; selected: boolean; onSelect: () => void; type: string }) => {
     if (type === "color" && v.value?.startsWith("#")) {
@@ -1072,7 +1140,7 @@ const ProductDetail = () => {
         {/* ── COMPRADOS JUNTOS COM FREQUÊNCIA ── */}
         {boughtTogether.length > 0 && (
           <div className="border-b px-3 md:px-6 py-4" style={{ background: N.paper, borderColor: "#EEE6D8" }}>
-            <p className="text-sm font-bold text-gray-900 mb-3">Comprados juntos com frequência</p>
+            <p className="text-lg font-bold text-gray-900 mb-3 text-center">Comprados juntos com frequência</p>
             <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
               {boughtTogether.map((p: any) => (
                 <div key={p.id} className="flex flex-col flex-shrink-0" style={{ width: 118 }}>
@@ -1137,7 +1205,7 @@ const ProductDetail = () => {
           ];
           return (
             <div className="bg-white border-b px-3 md:px-6 py-4" style={{ borderColor: "#F0EBDF" }}>
-              <p className="text-sm font-bold text-gray-900 mb-3">Comparar com produtos semelhantes</p>
+              <p className="text-lg font-bold text-gray-900 mb-3 text-center">Comparar com produtos semelhantes</p>
               <div className="overflow-x-auto scrollbar-hide border rounded-lg" style={{ borderColor: "#EEE" }}>
                 <div className="flex min-w-max">
                   {/* Coluna de rótulos — fixa à esquerda */}
@@ -1176,7 +1244,7 @@ const ProductDetail = () => {
         {/* ── PRODUTOS RELACIONADOS ── */}
         {relatedProducts.length > 0 && (
           <div className="bg-white border-b px-3 md:px-6 py-4" style={{ borderColor: "#F0EBDF" }}>
-            <p className="text-lg font-bold text-gray-900 mb-3">Produtos relacionados</p>
+            <p className="text-lg font-bold text-gray-900 mb-3 text-center">Produtos relacionados</p>
             <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-1">
               {relatedProducts.map((p: any) => (
                 <MinimalProductCard key={p.id} product={p} onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "related" }); navigate(`/produto/${p.id}`); }} />
@@ -1185,11 +1253,38 @@ const ProductDetail = () => {
           </div>
         )}
 
+        {/* ── MAIS PRODUTOS — grelha 2 colunas, vai carregando ao descer, termina com "Navegar por categorias" ── */}
+        <div className="bg-white border-b px-3 md:px-6 py-4" style={{ borderColor: "#F0EBDF" }}>
+          <p className="text-lg font-bold text-gray-900 mb-3 text-center">Mais produtos</p>
+          {moreProducts.length > 0 && (
+            <div className="grid grid-cols-2 gap-x-3 gap-y-5">
+              {moreProducts.map((p: any) => (
+                <MinimalProductCard key={p.id} product={p} onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "more_products" }); navigate(`/produto/${p.id}`); }} />
+              ))}
+            </div>
+          )}
+
+          {!moreProductsDone && (
+            <div ref={moreSentinelRef} className="flex justify-center py-4">
+              {moreProductsLoading && <Loader2 className="w-5 h-5 animate-spin text-gray-400" />}
+            </div>
+          )}
+
+          {moreProductsDone && (
+            <div className="flex flex-col items-center gap-2 mt-4 pt-4 border-t" style={{ borderColor: "#F0EBDF" }}>
+              <p className="text-sm text-gray-500 text-center">Não há mais produtos para mostrar por aqui.</p>
+              <button onClick={() => navigate("/categorias")} className="px-5 py-2.5 rounded-xl text-sm font-bold text-white flex items-center gap-1.5" style={{ background: N.brown }}>
+                <LayoutGrid className="w-4 h-4" /> Navegar por categorias
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* ── PRODUTOS EM PROMOÇÃO ── */}
         {activePromotions.length > 0 && (
           <div className="bg-white border-b px-3 md:px-6 py-4" style={{ borderColor: "#F0EBDF" }}>
             <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-bold text-gray-900 flex items-center gap-1.5"><Flame className="w-4 h-4" style={{ color: N.flame }} /> Produtos em promoção</p>
+              <p className="text-lg font-bold text-gray-900 flex items-center justify-center gap-1.5"><Flame className="w-4 h-4" style={{ color: N.flame }} /> Produtos em promoção</p>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
               {activePromotions.slice(0, 8).map((p: any) => (
@@ -1317,9 +1412,11 @@ const ProductReviewsSection = ({ productId, product, dbReviews, userOrders, trac
   const [replyText, setReplyText]       = useState("");
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState("");
-  const [reviewImage, setReviewImage]   = useState("");
+  const [reviewImages, setReviewImages] = useState<string[]>([]);
   const [uploadingImg, setUploadingImg] = useState(false);
   const [showForm, setShowForm]         = useState(false);
+  const MAX_REVIEW_PHOTOS = 6;
+  const MIN_REVIEW_PHOTOS_SUGGESTED = 4;
 
   const reviews         = dbReviews.length > 0 ? dbReviews : null;
   const alreadyReviewed = reviews?.some((r: any) => r.user_id === user?.id);
@@ -1332,25 +1429,36 @@ const ProductReviewsSection = ({ productId, product, dbReviews, userOrders, trac
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reviews?.length, productId]);
 
-  const uploadImg = async (file: File) => {
+  const uploadImgs = async (files: FileList) => {
     setUploadingImg(true);
     try {
-      const ext = file.name.split(".").pop();
-      const path = `reviews/${user!.id}/${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from("products").upload(path, file);
-      if (error) throw error;
-      const { data } = supabase.storage.from("products").getPublicUrl(path);
-      setReviewImage(data.publicUrl);
+      const room = MAX_REVIEW_PHOTOS - reviewImages.length;
+      const toUpload = Array.from(files).slice(0, Math.max(0, room));
+      const uploaded: string[] = [];
+      for (const file of toUpload) {
+        const ext = file.name.split(".").pop();
+        const path = `reviews/${user!.id}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+        const { error } = await supabase.storage.from("products").upload(path, file);
+        if (error) throw error;
+        const { data } = supabase.storage.from("products").getPublicUrl(path);
+        uploaded.push(data.publicUrl);
+      }
+      setReviewImages(prev => [...prev, ...uploaded]);
     } catch (e: any) { console.error(e.message); }
     setUploadingImg(false);
   };
 
   const submitReview = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("product_reviews").insert({ product_id: productId, user_id: user!.id, order_id: userOrders[0]?.id, rating: reviewRating, comment: reviewComment || null, image_url: reviewImage || null });
+      const { error } = await supabase.from("product_reviews").insert({
+        product_id: productId, user_id: user!.id, order_id: userOrders[0]?.id, rating: reviewRating,
+        comment: reviewComment || null,
+        image_url: reviewImages[0] || null,
+        image_urls: reviewImages,
+      });
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["product_reviews_detail", productId] }); queryClient.invalidateQueries({ queryKey: ["product", productId] }); setReviewComment(""); setReviewRating(5); setReviewImage(""); setShowForm(false); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["product_reviews_detail", productId] }); queryClient.invalidateQueries({ queryKey: ["product", productId] }); setReviewComment(""); setReviewRating(5); setReviewImages([]); setShowForm(false); },
   });
 
   const submitReply = useMutation({
@@ -1364,7 +1472,7 @@ const ProductReviewsSection = ({ productId, product, dbReviews, userOrders, trac
   return (
     <div className="border-b px-3 md:px-6 py-4" style={{ background: N.paper, borderColor: "#EEE6D8" }}>
       <div className="flex items-center justify-between mb-3">
-        <p className="text-sm font-bold text-gray-900">Avaliações dos clientes</p>
+        <p className="text-lg font-bold text-gray-900">Avaliações dos clientes</p>
         {canReview && (
           <button onClick={() => setShowForm(!showForm)} className="text-xs font-bold px-3 py-1.5 rounded-lg text-white" style={{ background: N.brown }}>
             Avaliar
@@ -1401,20 +1509,27 @@ const ProductReviewsSection = ({ productId, product, dbReviews, userOrders, trac
             {Array.from({ length: 5 }).map((_, i) => <button key={i} onClick={() => setReviewRating(i + 1)}><Star className={`w-7 h-7 transition ${i < reviewRating ? "fill-amber-400 text-amber-400" : "text-gray-300"}`} /></button>)}
             <span className="text-sm ml-2 text-gray-500">{reviewRating}/5</span>
           </div>
-          <textarea value={reviewComment} onChange={e => setReviewComment(e.target.value)} placeholder="Escreva a sua opinião..." rows={3}
-            className="w-full px-3 py-2 rounded-lg text-sm resize-none focus:outline-none border border-gray-200 bg-white text-gray-900" />
-          <div className="mt-2">
-            {reviewImage ? (
-              <div className="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-200">
-                <img src={reviewImage} alt="Anexo" className="w-full h-full object-cover" />
-                <button onClick={() => setReviewImage("")} className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">×</button>
-              </div>
-            ) : (
-              <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer border border-gray-200 bg-white text-gray-700">
-                {uploadingImg ? "A enviar..." : "📷 Adicionar foto"}
-                <input type="file" accept="image/*" disabled={uploadingImg} className="hidden" onChange={e => e.target.files?.[0] && uploadImg(e.target.files[0])} />
-              </label>
-            )}
+          <textarea value={reviewComment} onChange={e => setReviewComment(e.target.value)} placeholder="Escreva a sua opinião..." rows={2}
+            className="w-full px-3 py-2.5 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 border-2 bg-white text-gray-900 shadow-sm"
+            style={{ borderColor: "#DDD5C7" }} />
+          <div className="mt-2.5">
+            <p className="text-xs font-bold text-gray-700 mb-1.5">
+              Fotos do produto <span className="font-normal text-gray-400">(recomendado pelo menos {MIN_REVIEW_PHOTOS_SUGGESTED})</span>
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {reviewImages.map((url, i) => (
+                <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-200 flex-shrink-0">
+                  <img src={url} alt={`Foto ${i + 1}`} className="w-full h-full object-cover" />
+                  <button onClick={() => setReviewImages(prev => prev.filter((_, j) => j !== i))} className="absolute top-0.5 right-0.5 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] leading-none">×</button>
+                </div>
+              ))}
+              {reviewImages.length < MAX_REVIEW_PHOTOS && (
+                <label className="w-16 h-16 rounded-lg border-2 border-dashed flex-shrink-0 flex flex-col items-center justify-center cursor-pointer text-gray-400" style={{ borderColor: "#DDD5C7" }}>
+                  {uploadingImg ? <Loader2 className="w-4 h-4 animate-spin" /> : <><span className="text-lg leading-none">＋</span><span className="text-[9px] font-bold mt-0.5">foto</span></>}
+                  <input type="file" accept="image/*" multiple disabled={uploadingImg} className="hidden" onChange={e => e.target.files && e.target.files.length > 0 && uploadImgs(e.target.files)} />
+                </label>
+              )}
+            </div>
           </div>
           <div className="flex justify-end gap-2 mt-2">
             <button onClick={() => setShowForm(false)} className="px-3 py-1.5 rounded-lg text-xs font-bold text-gray-500">Cancelar</button>
@@ -1445,7 +1560,18 @@ const ProductReviewsSection = ({ productId, product, dbReviews, userOrders, trac
                 </div>
               </div>
               {review.comment && <p className="text-sm leading-relaxed text-gray-700">{review.comment}</p>}
-              {review.image_url && <a href={review.image_url} target="_blank" rel="noopener noreferrer" className="block mt-2"><img src={review.image_url} alt="Foto" className="max-h-36 rounded-lg object-cover border border-gray-200" /></a>}
+              {(() => {
+                const photos: string[] = review.image_urls?.length ? review.image_urls : (review.image_url ? [review.image_url] : []);
+                return photos.length > 0 ? (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {photos.map((url: string, i: number) => (
+                      <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                        <img src={url} alt={`Foto ${i + 1}`} className="w-20 h-20 rounded-lg object-cover border border-gray-200" />
+                      </a>
+                    ))}
+                  </div>
+                ) : null;
+              })()}
               {review.replies?.length > 0 && (
                 <div className="ml-7 mt-2 space-y-1.5">
                   {review.replies.map((reply: any) => (
