@@ -21,7 +21,6 @@ import { useCategoryTracking } from "@/hooks/useCategoryTracking";
 import comprarBtnImg from "@/assets/product-buttons/comprar-btn.webp";
 import carrinhoBtnImg from "@/assets/product-buttons/carrinho-btn.webp";
 import navegarCategoriasBtnImg from "@/assets/product-buttons/navegar-categorias-btn.webp";
-import verLojaBtnImg from "@/assets/product-buttons/ver-loja-btn.webp";
 import badgeEnvioImg from "@/assets/product-badges/envio.webp";
 import badgePagamentoImg from "@/assets/product-badges/pagamento.webp";
 import badgeSuporteImg from "@/assets/product-badges/suporte.webp";
@@ -325,7 +324,7 @@ const ProductDetail = () => {
       const { data } = await supabase.from("products").select("*").eq(publisherField, publisher!.id).eq("is_active", true).neq("id", id!).order("sales_count", { ascending: false }).limit(12);
       const ids = (data || []).map((p: any) => p.id); const cMap: Record<string, string> = {};
       if (ids.length) { const { data: m } = await supabase.from("product_media").select("product_id,url").in("product_id", ids).eq("is_cover", true); (m || []).forEach((x: any) => { cMap[x.product_id] = x.url; }); }
-      return (data || []).map((p: any) => ({ id: p.id, title: p.title, price: fmt(p.price), image: cMap[p.id] || p.image_url || FALLBACK_IMG, description: p.description || "", badge: p.badge || null, freeShipping: !!p.free_shipping, condition: p.condition || null, salesCount: p.sales_count || 0 }));
+      return (data || []).map((p: any) => ({ id: p.id, title: p.title, price: fmt(p.price), image: cMap[p.id] || p.image_url || FALLBACK_IMG, description: p.description || "", badge: p.badge || null, freeShipping: !!p.free_shipping, condition: p.condition || null, salesCount: p.sales_count || 0, weightKg: p.weight_kg || null }));
     },
     enabled: !!publisher?.id && !!isUuid,
   });
@@ -1272,70 +1271,109 @@ const ProductDetail = () => {
             {storeOtherProducts.length > 0 && (
               <div className="mt-4">
                 <p className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">Mais produtos desta loja</p>
-                {/* Scroll horizontal com snap — mesmo padrão usado em "Comprados juntos com
-                    frequência" e nas outras carruagens de produtos da página (arrasta para o
-                    lado para ver mais). Parte de baixo mais extensa: preço, estado, nº de vendas,
-                    frete e descrição — e o botão "Ver loja" bem maior e visível. */}
-                <div className="flex gap-3 overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-1" style={{ WebkitOverflowScrolling: "touch" }}>
-                  {storeOtherProducts.slice(0, 12).map((p: any) => (
-                    <div key={p.id} className="flex flex-col flex-shrink-0 snap-start" style={{ width: 168 }}>
-                      <div className="relative w-full rounded-[4px] overflow-hidden" style={{ aspectRatio: "1/1", background: "#f5f5f5" }}>
-                        <button
-                          onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "store" }); navigate(`/produto/${p.id}`); }}
-                          className="block w-full h-full"
-                        >
-                          <img src={p.image} alt={p.title} className="w-full h-full object-cover" />
-                        </button>
-
-                        {/* Badge (HOT/NOVO/PROMO/LIMITADO) — vem da BD, mesmo padrão usado no resto do site */}
-                        {p.badge && (
-                          <span
-                            className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-sm text-[9px] font-bold text-white leading-none"
-                            style={{ background: p.badge === "HOT" ? N.flame : N.palm }}
+                {/* Scroll horizontal (arrasta para o lado para ver mais). Cada cartão ocupa
+                    ~31% da largura do ecrã (não um valor fixo em píxeis) — por isso cabem
+                    sempre pelo menos 3 completos, seja o telemóvel qual for, com um pedacinho
+                    do 4º a espreitar como convite para arrastar. Todos na mesma proporção:
+                    a coluna de texto é "flex-1" e o botão fica sempre colado ao fundo
+                    (mt-auto), por isso o "Ver loja" alinha na mesma linha em todos os
+                    cartões, mesmo quando um produto tem mais ou menos texto que o outro. */}
+                <div className="flex gap-2 overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-1 items-stretch" style={{ WebkitOverflowScrolling: "touch" }}>
+                  {storeOtherProducts.slice(0, 12).map((p: any) => {
+                    const meta = [
+                      p.condition ? (conditionLabels[p.condition] || p.condition) : null,
+                      p.salesCount > 0 ? `${p.salesCount}+ vendido${p.salesCount === 1 ? "" : "s"}` : null,
+                    ].filter(Boolean).join(" · ");
+                    // Quando a descrição é curta/inexistente, preenchemos com dados reais da
+                    // BD (peso e disponibilidade de entrega interprovincial) em vez de deixar
+                    // o cartão vazio e desalinhado — o mesmo critério usado no formulário de
+                    // criar produto ("sem peso definido, entrega interprovincial indisponível").
+                    const hasDescription = !!p.description && p.description.trim().length >= 24;
+                    return (
+                      <div key={p.id} className="group flex flex-col flex-shrink-0 snap-start" style={{ flex: "0 0 31%", maxWidth: 148 }}>
+                        <div className="relative w-full rounded-lg overflow-hidden" style={{ aspectRatio: "1/1", background: "#F5F3EE" }}>
+                          <button
+                            onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "store" }); navigate(`/produto/${p.id}`); }}
+                            className="block w-full h-full"
                           >
-                            {p.badge}
-                          </span>
-                        )}
+                            <img src={p.image} alt={p.title} loading="lazy" className="w-full h-full object-cover transition-transform duration-300 group-active:scale-95" />
+                          </button>
 
-                        {/* Botão adicionar — mesmo padrão usado em "Produtos em promoção" */}
-                        <button
-                          onClick={(e) => { e.stopPropagation(); addToCart.mutate({ productId: p.id, quantity: 1 }); }}
-                          className="absolute bottom-1.5 right-1.5 w-7 h-7 rounded-full bg-white shadow flex items-center justify-center"
-                        >
-                          <ShoppingCart className="w-3.5 h-3.5" style={{ color: N.brown }} />
-                        </button>
+                          {/* Badge (HOT/NOVO/PROMO/LIMITADO) — vem da BD */}
+                          {p.badge && (
+                            <span
+                              className="absolute top-1.5 left-1.5 inline-flex items-center gap-0.5 px-1.5 py-[3px] rounded-full text-[8px] font-extrabold uppercase tracking-wide text-white shadow-sm"
+                              style={{ background: p.badge === "HOT" ? N.flame : N.palm }}
+                            >
+                              {p.badge === "HOT" && <Flame className="w-2 h-2 fill-current" />}
+                              {p.badge}
+                            </span>
+                          )}
+
+                          {/* Botão adicionar — mesmo padrão do resto da página */}
+                          <button
+                            onClick={(e) => { e.stopPropagation(); addToCart.mutate({ productId: p.id, quantity: 1 }); }}
+                            className="absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full bg-white/95 shadow flex items-center justify-center active:scale-90 transition"
+                          >
+                            <ShoppingCart className="w-3 h-3" style={{ color: N.ink }} />
+                          </button>
+                        </div>
+
+                        {/* Coluna de texto — cresce (flex-1) para empurrar o botão para o
+                            fundo, mantendo todos os cartões da linha alinhados. */}
+                        <div className="flex flex-col flex-1 mt-2">
+                          <button
+                            onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "store" }); navigate(`/produto/${p.id}`); }}
+                            className="text-left flex-1"
+                          >
+                            <p className="text-[14px] font-black tracking-tight leading-none" style={{ color: N.flame }}>{p.price}</p>
+
+                            {meta && (
+                              <p className="text-[9px] font-semibold text-gray-500 mt-1.5 leading-tight line-clamp-1">{meta}</p>
+                            )}
+
+                            {p.freeShipping && (
+                              <span
+                                className="inline-flex items-center gap-0.5 mt-1 px-1.5 py-0.5 rounded text-[8.5px] font-bold"
+                                style={{ color: N.palm, background: "rgba(31,138,92,0.1)" }}
+                              >
+                                <Truck className="w-2 h-2" /> Frete grátis
+                              </span>
+                            )}
+
+                            {hasDescription ? (
+                              // Texto justificado — preenche a linha toda de lado a lado,
+                              // como o alinhamento "Justificar" do Word
+                              <p className="text-[10px] leading-snug text-gray-500 line-clamp-2 mt-1.5 text-justify">
+                                {p.description}
+                              </p>
+                            ) : (
+                              <div className="mt-1.5 space-y-0.5">
+                                <p className="text-[9px] leading-tight text-gray-500">
+                                  {p.weightKg ? `Peso: ${p.weightKg} kg` : "Peso não indicado"}
+                                </p>
+                                <p className="text-[9px] leading-tight text-gray-500">
+                                  {p.weightKg ? "Entrega interprovincial disponível" : "Só entrega local (sem interprovincial)"}
+                                </p>
+                              </div>
+                            )}
+                          </button>
+
+                          {/* Botão "Ver loja" — mais fino (menos altura), gradiente subtil na
+                              cor da marca, sem imagem e sem margem/moldura clara à volta;
+                              mt-auto mantém-no sempre colado ao fundo do cartão. */}
+                          <button
+                            onClick={handlePublisherNavigate}
+                            className="mt-auto pt-2 w-full flex items-center justify-center gap-1 py-1 rounded-full text-white text-[9.5px] font-bold uppercase tracking-wide shadow-sm active:scale-[0.96] transition"
+                            style={{ background: `linear-gradient(135deg, ${N.ink}, ${N.inkDark})` }}
+                          >
+                            <Store className="w-2.5 h-2.5" strokeWidth={2.5} />
+                            Ver loja
+                          </button>
+                        </div>
                       </div>
-
-                      {/* Preço, estado, vezes vendido, frete e descrição — tudo o que a BD já tem */}
-                      <button
-                        onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "store" }); navigate(`/produto/${p.id}`); }}
-                        className="text-left mt-1.5"
-                      >
-                        <p className="text-base font-black tracking-tight" style={{ color: N.flame }}>{p.price}</p>
-
-                        {(p.condition || p.salesCount > 0) && (
-                          <p className="text-[11px] text-gray-600 mt-0.5 flex flex-wrap items-center gap-x-1">
-                            {p.condition && <span className="font-semibold text-gray-800">{conditionLabels[p.condition] || p.condition}</span>}
-                            {p.condition && p.salesCount > 0 && <span className="text-gray-300">·</span>}
-                            {p.salesCount > 0 && <span>{p.salesCount}+ vendido{p.salesCount === 1 ? "" : "s"}</span>}
-                          </p>
-                        )}
-
-                        <p className="text-[11px] font-bold mt-0.5" style={{ color: p.freeShipping ? N.palm : "#9CA3AF" }}>
-                          {p.freeShipping ? "Frete grátis" : "Frete pago"}
-                        </p>
-
-                        <p className="text-[11px] leading-snug text-gray-600 line-clamp-3 mt-1">
-                          {p.description || p.title}
-                        </p>
-                      </button>
-
-                      {/* Botão "Ver loja" — grande e bem visível, à largura do card */}
-                      <button onClick={handlePublisherNavigate} className="mt-2">
-                        <img src={verLojaBtnImg} alt="Ver loja" draggable={false} className="w-full h-auto select-none pointer-events-none rounded-[3px]" />
-                      </button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
