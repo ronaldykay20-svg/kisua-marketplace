@@ -917,7 +917,7 @@ const ProductDetail = () => {
         - O banner lateral só aparece em mobile (abaixo do título) para não ficar gigante.
         - Usamos max-w-5xl mx-auto para centrar o conteúdo em ecrãs largos.
       */}
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-6xl mx-auto">
 
         {/* ── LAYOUT DESKTOP: grid de 2 colunas ── */}
         <div className="md:grid md:grid-cols-2 md:gap-8 md:px-6 md:pt-6 md:pb-4">
@@ -1134,6 +1134,16 @@ const ProductDetail = () => {
           </div>
         )}
 
+        {/* ── ZONA DE CONTEÚDO + BARRA LATERAL (desktop/tablet) ──
+             No telemóvel isto empilha na ordem normal (flex-col por defeito).
+             A partir de md, vira duas colunas reais: conteúdo principal à
+             esquerda (mais largo) e uma barra lateral fixa (sticky) à direita
+             com a loja e as formas de pagamento — para aproveitar o espaço
+             extra do ecrã em vez de esticar tudo à largura toda. ── */}
+        <div className="md:flex md:gap-6 md:items-start">
+
+          {/* ── COLUNA PRINCIPAL ── */}
+          <div className="md:flex-1 md:min-w-0">
         {/* ── SOBRE O PRODUTO ── */}
         <div className="bg-white border-b px-3 md:px-6 py-4" style={{ borderColor: "#F0EBDF" }}>
           <p className="text-lg font-bold text-gray-900 mb-1.5 text-center">Sobre este produto</p>
@@ -1199,209 +1209,6 @@ const ProductDetail = () => {
           </div>
         </div>
 
-        {/* ── SOBRE A LOJA / DONO DO PRODUTO — reaproveita dados que já eram pedidos
-             à base de dados (nome, tipo, avaliação, vendas, seguidores, descrição
-             própria da loja, outros produtos) mas nunca chegavam a aparecer no ecrã.
-             NUNCA mostra contacto direto (email, telefone, morada, site) — só o que
-             a loja escreveu sobre si própria e números reais de reputação. ── */}
-        {publisher && !loadingPublisher && (
-          <div className="bg-white border-b px-3 md:px-6 py-5" style={{ borderColor: "#F0EBDF" }}>
-            <div className="flex items-center gap-1.5 mb-3 justify-center">
-              <span className="w-1 h-3.5 rounded-full flex-shrink-0" style={{ background: N.accent }} />
-              <p className="text-lg font-bold text-gray-900" style={display}>Saiba mais sobre o dono do produto</p>
-            </div>
-
-            {/* Cabeçalho: avatar, nome + selo, tipo de conta — layout em coluna única, mais legível que espremido ao lado do botão */}
-            <button onClick={handlePublisherNavigate} className="flex items-center gap-3 w-full text-left md:max-w-2xl">
-              <AvatarWithFallback src={publisher.logo_url || publisher.avatar_url || null} name={publisher.name} isCompany={publisher.__type === "company"} />
-              <div className="flex-1 min-w-0">
-                <span className="text-base font-bold text-gray-900 truncate flex items-center gap-1.5" style={display}>
-                  {publisher.name}
-                  {publisher.is_verified && <ShieldCheck className="w-4 h-4 text-blue-500 flex-shrink-0" />}
-                </span>
-                <span className="inline-block text-[10.5px] font-bold uppercase tracking-wide mt-1 px-2 py-0.5 rounded-full" style={{ background: N.inkLight, color: N.ink }}>
-                  {publisherKindLabel}
-                </span>
-              </div>
-              <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
-            </button>
-
-            {/* Reputação — em frase corrida, não em caixas; dados 100% reais já pedidos à BD */}
-            <p className="text-sm leading-relaxed mt-3 text-gray-700 md:max-w-2xl">
-              {[
-                publisher.rating ? `Avaliação de ${Number(publisher.rating).toFixed(1)} ★` : "Ainda sem avaliações",
-                publisher.total_sales ? `${publisher.total_sales}+ vendas concluídas` : null,
-                storeProductCount > 0 ? `${storeProductCount} produto${storeProductCount === 1 ? "" : "s"} à venda no momento` : null,
-                publisherFollowersCount > 0 ? `${publisherFollowersCount} seguidor${publisherFollowersCount === 1 ? "" : "es"} no ZANGU` : null,
-              ].filter(Boolean).map((line, i, arr) => (
-                <span key={i}>
-                  <span className="font-semibold text-gray-900">{line}</span>
-                  {i < arr.length - 1 && <span className="text-gray-300 mx-1.5">·</span>}
-                </span>
-              ))}
-              {publisher.province && (
-                <>
-                  <span className="text-gray-300 mx-1.5">·</span>
-                  <span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3 flex-shrink-0" />{String(publisher.province).replace(/0+$/, "").trim()}</span>
-                </>
-              )}
-            </p>
-
-            {/* Descrição escrita pela própria loja — texto real da BD, sem inventar nada;
-                se a loja ainda não escreveu nada, dizemos isso mesmo em vez de inventar. */}
-            <div className="mt-3 p-3 rounded-lg md:max-w-2xl" style={{ background: N.paper, border: "1px solid #EEE6D8" }}>
-              <p className="text-[13px] leading-relaxed text-gray-700 whitespace-pre-line">
-                {publisher.description || publisher.bio || `${publisher.name} ainda não escreveu uma apresentação nesta loja.`}
-              </p>
-            </div>
-
-            {/* Ação de seguir — linha própria, largura total, mais fácil de tocar no telemóvel */}
-            {user && publisher.id !== user.id && (
-              <button
-                onClick={() => togglePublisherFollow.mutate()}
-                disabled={togglePublisherFollow.isPending}
-                className="w-full md:w-auto md:px-10 mt-3 py-2.5 text-sm font-bold border transition disabled:opacity-60 flex items-center justify-center gap-2"
-                style={isFollowingPublisher ? { background: "rgba(0,102,192,0.08)", color: "#0066C0", borderColor: "#0066C0" } : { background: "#0066C0", color: "#fff", borderColor: "#0066C0" }}
-              >
-                {togglePublisherFollow.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                {isFollowingPublisher ? "A seguir esta loja" : `Seguir ${publisher.name}`}
-              </button>
-            )}
-
-            {storeOtherProducts.length > 0 && (
-              <div className="mt-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">Mais produtos desta loja</p>
-                {/* Scroll horizontal (arrasta para o lado para ver mais). Cada cartão ocupa
-                    ~31% da largura do ecrã (não um valor fixo em píxeis) — por isso cabem
-                    sempre pelo menos 3 completos, seja o telemóvel qual for, com um pedacinho
-                    do 4º a espreitar como convite para arrastar. Todos na mesma proporção:
-                    a coluna de texto é "flex-1" e o botão fica sempre colado ao fundo
-                    (mt-auto), por isso o "Ver loja" alinha na mesma linha em todos os
-                    cartões, mesmo quando um produto tem mais ou menos texto que o outro. */}
-                <div className="flex gap-2 overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-1 items-stretch" style={{ WebkitOverflowScrolling: "touch" }}>
-                  {storeOtherProducts.slice(0, 12).map((p: any) => {
-                    const meta = [
-                      p.condition ? (conditionLabels[p.condition] || p.condition) : null,
-                      p.salesCount > 0 ? `${p.salesCount}+ vendido${p.salesCount === 1 ? "" : "s"}` : null,
-                    ].filter(Boolean).join(" · ");
-                    // Quando a descrição é curta/inexistente, preenchemos com dados reais da
-                    // BD (peso e disponibilidade de entrega interprovincial) em vez de deixar
-                    // o cartão vazio e desalinhado — o mesmo critério usado no formulário de
-                    // criar produto ("sem peso definido, entrega interprovincial indisponível").
-                    const hasDescription = !!p.description && p.description.trim().length >= 24;
-                    return (
-                      <div key={p.id} className="group flex flex-col flex-shrink-0 snap-start" style={{ flex: "0 0 31%", maxWidth: 148 }}>
-                        <div className="relative w-full rounded-lg overflow-hidden" style={{ aspectRatio: "1/1", background: "#F5F3EE" }}>
-                          <button
-                            onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "store" }); navigate(`/produto/${p.id}`); }}
-                            className="block w-full h-full"
-                          >
-                            <img src={p.image} alt={p.title} loading="lazy" className="w-full h-full object-cover transition-transform duration-300 group-active:scale-95" />
-                          </button>
-
-                          {/* Badge (HOT/NOVO/PROMO/LIMITADO) — vem da BD */}
-                          {p.badge && (
-                            <span
-                              className="absolute top-1.5 left-1.5 inline-flex items-center gap-0.5 px-1.5 py-[3px] rounded-full text-[8px] font-extrabold uppercase tracking-wide text-white shadow-sm"
-                              style={{ background: p.badge === "HOT" ? N.flame : N.palm }}
-                            >
-                              {p.badge === "HOT" && <Flame className="w-2 h-2 fill-current" />}
-                              {p.badge}
-                            </span>
-                          )}
-
-                          {/* Botão adicionar — mesmo padrão do resto da página */}
-                          <button
-                            onClick={(e) => { e.stopPropagation(); addToCart.mutate({ productId: p.id, quantity: 1 }); }}
-                            className="absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full bg-white/95 shadow flex items-center justify-center active:scale-90 transition"
-                          >
-                            <ShoppingCart className="w-3 h-3" style={{ color: N.ink }} />
-                          </button>
-                        </div>
-
-                        {/* Coluna de texto — cresce (flex-1) para empurrar o botão para o
-                            fundo, mantendo todos os cartões da linha alinhados. */}
-                        <div className="flex flex-col flex-1 mt-2">
-                          <button
-                            onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "store" }); navigate(`/produto/${p.id}`); }}
-                            className="text-left flex-1"
-                          >
-                            <p className="text-[14px] font-black tracking-tight leading-none" style={{ color: N.flame }}>{p.price}</p>
-
-                            {meta && (
-                              <p className="text-[9px] font-semibold text-gray-500 mt-1.5 leading-tight line-clamp-1">{meta}</p>
-                            )}
-
-                            {p.freeShipping && (
-                              <span
-                                className="inline-flex items-center gap-0.5 mt-1 px-1.5 py-0.5 rounded text-[8.5px] font-bold"
-                                style={{ color: N.palm, background: "rgba(31,138,92,0.1)" }}
-                              >
-                                <Truck className="w-2 h-2" /> Frete grátis
-                              </span>
-                            )}
-
-                            {hasDescription ? (
-                              // Texto justificado — preenche a linha toda de lado a lado,
-                              // como o alinhamento "Justificar" do Word
-                              <p className="text-[10px] leading-snug text-gray-500 line-clamp-2 mt-1.5 text-justify">
-                                {p.description}
-                              </p>
-                            ) : (
-                              <div className="mt-1.5 space-y-0.5">
-                                <p className="text-[9px] leading-tight text-gray-500">
-                                  {p.weightKg ? `Peso: ${p.weightKg} kg` : "Peso não indicado"}
-                                </p>
-                                <p className="text-[9px] leading-tight text-gray-500">
-                                  {p.weightKg ? "Entrega interprovincial disponível" : "Só entrega local (sem interprovincial)"}
-                                </p>
-                              </div>
-                            )}
-                          </button>
-
-                          {/* Botão "Ver loja" — mais fino (menos altura), gradiente subtil na
-                              cor da marca, sem imagem e sem margem/moldura clara à volta;
-                              mt-auto mantém-no sempre colado ao fundo do cartão. */}
-                          <button
-                            onClick={handlePublisherNavigate}
-                            className="mt-auto pt-2 w-full flex items-center justify-center gap-1 py-1 rounded-full text-white text-[9.5px] font-bold uppercase tracking-wide shadow-sm active:scale-[0.96] transition"
-                            style={{ background: `linear-gradient(135deg, ${N.ink}, ${N.inkDark})` }}
-                          >
-                            <Store className="w-2.5 h-2.5" strokeWidth={2.5} />
-                            Ver loja
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── FORMA DE PAGAMENTO ── */}
-        <div className="bg-white border-b px-3 md:px-6 py-4" style={{ borderColor: "#F0EBDF" }}>
-          <p className="text-lg font-bold text-gray-900 mb-2 text-center">Formas de pagamento</p>
-          <div className="grid grid-cols-3 gap-2 md:max-w-md md:mx-auto">
-            {[
-              { img: payTelemovelImg, title: "Telemóvel", sub: "Pagamento com telemóvel" },
-              { img: payMulticaixaImg, title: "Multicaixa", sub: "Multicaixa Express" },
-              { img: payEntregaImg, title: "Na entrega", sub: "Pagamento no ato da entrega" },
-            ].map((item, i) => (
-              <button
-                key={i}
-                type="button"
-                className="flex flex-col items-center text-center p-2 rounded-lg transition active:scale-[0.97] active:brightness-95 bg-white"
-              >
-                <img src={item.img} alt={item.title} className="w-full h-auto object-contain rounded-md mb-1.5" draggable={false} />
-                <p className="text-xs font-bold text-gray-900 leading-tight underline underline-offset-2">{item.title}</p>
-                <p className="text-[10px] text-gray-500 mt-0.5 leading-tight">{item.sub}</p>
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* ── COMPRADOS JUNTOS COM FREQUÊNCIA ── */}
         {boughtTogether.length > 0 && (
           <div className="border-b px-3 md:px-6 py-4" style={{ background: N.paper, borderColor: "#EEE6D8" }}>
@@ -1427,9 +1234,6 @@ const ProductDetail = () => {
             </div>
           </div>
         )}
-
-        {/* ── AVALIAÇÕES ── */}
-        <ProductReviewsSection productId={id || ""} product={product} dbReviews={dbReviews} userOrders={userOrders} pendingReceiptOrders={pendingReceiptOrders} trackEvent={trackEvent} />
 
         {/* ── COMPARAR COM PRODUTOS SEMELHANTES ── */}
         {/* Componente 100% real (ícones + CSS), não uma imagem estática — assim o texto fica
@@ -1639,6 +1443,226 @@ const ProductDetail = () => {
           </div>
         )}
 
+          </div>
+          {/* /COLUNA PRINCIPAL */}
+
+          {/* ── BARRA LATERAL (desktop/tablet) — loja e pagamento ficam
+                 visíveis ao lado enquanto se percorre o resto da página
+                 (sticky só a partir de md; no telemóvel é uma secção normal). ── */}
+          <div className="md:w-80 md:flex-shrink-0 md:sticky md:top-4 md:space-y-4">
+        {/* ── SOBRE A LOJA / DONO DO PRODUTO — reaproveita dados que já eram pedidos
+             à base de dados (nome, tipo, avaliação, vendas, seguidores, descrição
+             própria da loja, outros produtos) mas nunca chegavam a aparecer no ecrã.
+             NUNCA mostra contacto direto (email, telefone, morada, site) — só o que
+             a loja escreveu sobre si própria e números reais de reputação. ── */}
+        {publisher && !loadingPublisher && (
+          <div className="bg-white border-b px-3 md:px-6 py-5" style={{ borderColor: "#F0EBDF" }}>
+            <div className="flex items-center gap-1.5 mb-3 justify-center">
+              <span className="w-1 h-3.5 rounded-full flex-shrink-0" style={{ background: N.accent }} />
+              <p className="text-lg font-bold text-gray-900" style={display}>Saiba mais sobre o dono do produto</p>
+            </div>
+
+            {/* Cabeçalho: avatar, nome + selo, tipo de conta — layout em coluna única, mais legível que espremido ao lado do botão */}
+            <button onClick={handlePublisherNavigate} className="flex items-center gap-3 w-full text-left md:max-w-2xl">
+              <AvatarWithFallback src={publisher.logo_url || publisher.avatar_url || null} name={publisher.name} isCompany={publisher.__type === "company"} />
+              <div className="flex-1 min-w-0">
+                <span className="text-base font-bold text-gray-900 truncate flex items-center gap-1.5" style={display}>
+                  {publisher.name}
+                  {publisher.is_verified && <ShieldCheck className="w-4 h-4 text-blue-500 flex-shrink-0" />}
+                </span>
+                <span className="inline-block text-[10.5px] font-bold uppercase tracking-wide mt-1 px-2 py-0.5 rounded-full" style={{ background: N.inkLight, color: N.ink }}>
+                  {publisherKindLabel}
+                </span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
+            </button>
+
+            {/* Reputação — em frase corrida, não em caixas; dados 100% reais já pedidos à BD */}
+            <p className="text-sm leading-relaxed mt-3 text-gray-700 md:max-w-2xl">
+              {[
+                publisher.rating ? `Avaliação de ${Number(publisher.rating).toFixed(1)} ★` : "Ainda sem avaliações",
+                publisher.total_sales ? `${publisher.total_sales}+ vendas concluídas` : null,
+                storeProductCount > 0 ? `${storeProductCount} produto${storeProductCount === 1 ? "" : "s"} à venda no momento` : null,
+                publisherFollowersCount > 0 ? `${publisherFollowersCount} seguidor${publisherFollowersCount === 1 ? "" : "es"} no ZANGU` : null,
+              ].filter(Boolean).map((line, i, arr) => (
+                <span key={i}>
+                  <span className="font-semibold text-gray-900">{line}</span>
+                  {i < arr.length - 1 && <span className="text-gray-300 mx-1.5">·</span>}
+                </span>
+              ))}
+              {publisher.province && (
+                <>
+                  <span className="text-gray-300 mx-1.5">·</span>
+                  <span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3 flex-shrink-0" />{String(publisher.province).replace(/0+$/, "").trim()}</span>
+                </>
+              )}
+            </p>
+
+            {/* Descrição escrita pela própria loja — texto real da BD, sem inventar nada;
+                se a loja ainda não escreveu nada, dizemos isso mesmo em vez de inventar. */}
+            <div className="mt-3 p-3 rounded-lg md:max-w-2xl" style={{ background: N.paper, border: "1px solid #EEE6D8" }}>
+              <p className="text-[13px] leading-relaxed text-gray-700 whitespace-pre-line">
+                {publisher.description || publisher.bio || `${publisher.name} ainda não escreveu uma apresentação nesta loja.`}
+              </p>
+            </div>
+
+            {/* Ação de seguir — linha própria, largura total, mais fácil de tocar no telemóvel */}
+            {user && publisher.id !== user.id && (
+              <button
+                onClick={() => togglePublisherFollow.mutate()}
+                disabled={togglePublisherFollow.isPending}
+                className="w-full md:w-auto md:px-10 mt-3 py-2.5 text-sm font-bold border transition disabled:opacity-60 flex items-center justify-center gap-2"
+                style={isFollowingPublisher ? { background: "rgba(0,102,192,0.08)", color: "#0066C0", borderColor: "#0066C0" } : { background: "#0066C0", color: "#fff", borderColor: "#0066C0" }}
+              >
+                {togglePublisherFollow.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                {isFollowingPublisher ? "A seguir esta loja" : `Seguir ${publisher.name}`}
+              </button>
+            )}
+
+            {storeOtherProducts.length > 0 && (
+              <div className="mt-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">Mais produtos desta loja</p>
+                {/* Scroll horizontal (arrasta para o lado para ver mais). Cada cartão ocupa
+                    ~31% da largura do ecrã (não um valor fixo em píxeis) — por isso cabem
+                    sempre pelo menos 3 completos, seja o telemóvel qual for, com um pedacinho
+                    do 4º a espreitar como convite para arrastar. Todos na mesma proporção:
+                    a coluna de texto é "flex-1" e o botão fica sempre colado ao fundo
+                    (mt-auto), por isso o "Ver loja" alinha na mesma linha em todos os
+                    cartões, mesmo quando um produto tem mais ou menos texto que o outro. */}
+                <div className="flex gap-2 overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-1 items-stretch" style={{ WebkitOverflowScrolling: "touch" }}>
+                  {storeOtherProducts.slice(0, 12).map((p: any) => {
+                    const meta = [
+                      p.condition ? (conditionLabels[p.condition] || p.condition) : null,
+                      p.salesCount > 0 ? `${p.salesCount}+ vendido${p.salesCount === 1 ? "" : "s"}` : null,
+                    ].filter(Boolean).join(" · ");
+                    // Quando a descrição é curta/inexistente, preenchemos com dados reais da
+                    // BD (peso e disponibilidade de entrega interprovincial) em vez de deixar
+                    // o cartão vazio e desalinhado — o mesmo critério usado no formulário de
+                    // criar produto ("sem peso definido, entrega interprovincial indisponível").
+                    const hasDescription = !!p.description && p.description.trim().length >= 24;
+                    return (
+                      <div key={p.id} className="group flex flex-col flex-shrink-0 snap-start" style={{ flex: "0 0 31%", maxWidth: 148 }}>
+                        <div className="relative w-full rounded-lg overflow-hidden" style={{ aspectRatio: "1/1", background: "#F5F3EE" }}>
+                          <button
+                            onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "store" }); navigate(`/produto/${p.id}`); }}
+                            className="block w-full h-full"
+                          >
+                            <img src={p.image} alt={p.title} loading="lazy" className="w-full h-full object-cover transition-transform duration-300 group-active:scale-95" />
+                          </button>
+
+                          {/* Badge (HOT/NOVO/PROMO/LIMITADO) — vem da BD */}
+                          {p.badge && (
+                            <span
+                              className="absolute top-1.5 left-1.5 inline-flex items-center gap-0.5 px-1.5 py-[3px] rounded-full text-[8px] font-extrabold uppercase tracking-wide text-white shadow-sm"
+                              style={{ background: p.badge === "HOT" ? N.flame : N.palm }}
+                            >
+                              {p.badge === "HOT" && <Flame className="w-2 h-2 fill-current" />}
+                              {p.badge}
+                            </span>
+                          )}
+
+                          {/* Botão adicionar — mesmo padrão do resto da página */}
+                          <button
+                            onClick={(e) => { e.stopPropagation(); addToCart.mutate({ productId: p.id, quantity: 1 }); }}
+                            className="absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full bg-white/95 shadow flex items-center justify-center active:scale-90 transition"
+                          >
+                            <ShoppingCart className="w-3 h-3" style={{ color: N.ink }} />
+                          </button>
+                        </div>
+
+                        {/* Coluna de texto — cresce (flex-1) para empurrar o botão para o
+                            fundo, mantendo todos os cartões da linha alinhados. */}
+                        <div className="flex flex-col flex-1 mt-2">
+                          <button
+                            onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "store" }); navigate(`/produto/${p.id}`); }}
+                            className="text-left flex-1"
+                          >
+                            <p className="text-[14px] font-black tracking-tight leading-none" style={{ color: N.flame }}>{p.price}</p>
+
+                            {meta && (
+                              <p className="text-[9px] font-semibold text-gray-500 mt-1.5 leading-tight line-clamp-1">{meta}</p>
+                            )}
+
+                            {p.freeShipping && (
+                              <span
+                                className="inline-flex items-center gap-0.5 mt-1 px-1.5 py-0.5 rounded text-[8.5px] font-bold"
+                                style={{ color: N.palm, background: "rgba(31,138,92,0.1)" }}
+                              >
+                                <Truck className="w-2 h-2" /> Frete grátis
+                              </span>
+                            )}
+
+                            {hasDescription ? (
+                              // Texto justificado — preenche a linha toda de lado a lado,
+                              // como o alinhamento "Justificar" do Word
+                              <p className="text-[10px] leading-snug text-gray-500 line-clamp-2 mt-1.5 text-justify">
+                                {p.description}
+                              </p>
+                            ) : (
+                              <div className="mt-1.5 space-y-0.5">
+                                <p className="text-[9px] leading-tight text-gray-500">
+                                  {p.weightKg ? `Peso: ${p.weightKg} kg` : "Peso não indicado"}
+                                </p>
+                                <p className="text-[9px] leading-tight text-gray-500">
+                                  {p.weightKg ? "Entrega interprovincial disponível" : "Só entrega local (sem interprovincial)"}
+                                </p>
+                              </div>
+                            )}
+                          </button>
+
+                          {/* Botão "Ver loja" — mais fino (menos altura), gradiente subtil na
+                              cor da marca, sem imagem e sem margem/moldura clara à volta;
+                              mt-auto mantém-no sempre colado ao fundo do cartão. */}
+                          <button
+                            onClick={handlePublisherNavigate}
+                            className="mt-auto pt-2 w-full flex items-center justify-center gap-1 py-1 rounded-full text-white text-[9.5px] font-bold uppercase tracking-wide shadow-sm active:scale-[0.96] transition"
+                            style={{ background: `linear-gradient(135deg, ${N.ink}, ${N.inkDark})` }}
+                          >
+                            <Store className="w-2.5 h-2.5" strokeWidth={2.5} />
+                            Ver loja
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── FORMA DE PAGAMENTO ── */}
+        <div className="bg-white border-b px-3 md:px-6 py-4" style={{ borderColor: "#F0EBDF" }}>
+          <p className="text-lg font-bold text-gray-900 mb-2 text-center">Formas de pagamento</p>
+          <div className="grid grid-cols-3 gap-2 md:max-w-md md:mx-auto">
+            {[
+              { img: payTelemovelImg, title: "Telemóvel", sub: "Pagamento com telemóvel" },
+              { img: payMulticaixaImg, title: "Multicaixa", sub: "Multicaixa Express" },
+              { img: payEntregaImg, title: "Na entrega", sub: "Pagamento no ato da entrega" },
+            ].map((item, i) => (
+              <button
+                key={i}
+                type="button"
+                className="flex flex-col items-center text-center p-2 rounded-lg transition active:scale-[0.97] active:brightness-95 bg-white"
+              >
+                <img src={item.img} alt={item.title} className="w-full h-auto object-contain rounded-md mb-1.5" draggable={false} />
+                <p className="text-xs font-bold text-gray-900 leading-tight underline underline-offset-2">{item.title}</p>
+                <p className="text-[10px] text-gray-500 mt-0.5 leading-tight">{item.sub}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+
+          </div>
+          {/* /BARRA LATERAL */}
+
+        </div>
+        {/* /ZONA DE CONTEÚDO + BARRA LATERAL */}
+
+        {/* ── AVALIAÇÕES ── */}
+        <ProductReviewsSection productId={id || ""} product={product} dbReviews={dbReviews} userOrders={userOrders} pendingReceiptOrders={pendingReceiptOrders} trackEvent={trackEvent} />
+
+
         {/* ── ADS (fundo de página) ── */}
         {productAds.length > 0 && (
           <div className="bg-white px-3 md:px-6 py-3 space-y-3">
@@ -1665,7 +1689,7 @@ const ProductDetail = () => {
           </div>
         )}
 
-      </div>{/* /max-w-5xl */}
+      </div>{/* /max-w-6xl */}
 
       <div className="h-28 md:hidden" aria-hidden />
 
