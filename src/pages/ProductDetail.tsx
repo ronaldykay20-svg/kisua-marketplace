@@ -1137,7 +1137,7 @@ const ProductDetail = () => {
         {/* ── SOBRE O PRODUTO ── */}
         <div className="bg-white border-b px-3 md:px-6 py-4" style={{ borderColor: "#F0EBDF" }}>
           <p className="text-lg font-bold text-gray-900 mb-1.5 text-center">Sobre este produto</p>
-          <p className={`text-base leading-snug text-gray-700 whitespace-pre-line ${!descExpanded ? "line-clamp-6" : ""}`}>
+          <p className={`text-base leading-snug text-gray-700 whitespace-pre-line md:max-w-2xl ${!descExpanded ? "line-clamp-6" : ""}`}>
             {product.description || "Produto de alta qualidade disponível no ZANGU."}
           </p>
           {product.description && product.description.length > 260 && (
@@ -1148,7 +1148,7 @@ const ProductDetail = () => {
 
           {/* Especificações — em texto corrido, sem quadradinhos; itens clicáveis (Categoria, Vendedor) navegam para a página respetiva */}
           {specRows.length > 0 && (
-            <p className="mt-3 text-sm leading-relaxed text-gray-700">
+            <p className="mt-3 text-sm leading-relaxed text-gray-700 md:max-w-2xl">
               {specRows.map((row, i) => (
                 <span key={row.label}>
                   <span className="text-gray-500">{row.label}: </span>
@@ -1173,7 +1173,7 @@ const ProductDetail = () => {
           )}
 
           <p className="text-lg font-bold text-gray-900 mt-4 mb-1.5 text-center">Vantagens de comprar aqui</p>
-          <div className="grid grid-cols-2 gap-2 mt-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3">
             {[
               { img: badgeEnvioImg, text: "Envio para todo o país", sub: "Entregamos onde você estiver", to: "/entrega-frete" },
               { img: badgePagamentoImg, text: "Pagamento seguro", sub: "Dados sempre protegidos", to: "/formas-pagamento" },
@@ -1212,7 +1212,7 @@ const ProductDetail = () => {
             </div>
 
             {/* Cabeçalho: avatar, nome + selo, tipo de conta — layout em coluna única, mais legível que espremido ao lado do botão */}
-            <button onClick={handlePublisherNavigate} className="flex items-center gap-3 w-full text-left">
+            <button onClick={handlePublisherNavigate} className="flex items-center gap-3 w-full text-left md:max-w-2xl">
               <AvatarWithFallback src={publisher.logo_url || publisher.avatar_url || null} name={publisher.name} isCompany={publisher.__type === "company"} />
               <div className="flex-1 min-w-0">
                 <span className="text-base font-bold text-gray-900 truncate flex items-center gap-1.5" style={display}>
@@ -1227,7 +1227,7 @@ const ProductDetail = () => {
             </button>
 
             {/* Reputação — em frase corrida, não em caixas; dados 100% reais já pedidos à BD */}
-            <p className="text-sm leading-relaxed mt-3 text-gray-700">
+            <p className="text-sm leading-relaxed mt-3 text-gray-700 md:max-w-2xl">
               {[
                 publisher.rating ? `Avaliação de ${Number(publisher.rating).toFixed(1)} ★` : "Ainda sem avaliações",
                 publisher.total_sales ? `${publisher.total_sales}+ vendas concluídas` : null,
@@ -1249,7 +1249,7 @@ const ProductDetail = () => {
 
             {/* Descrição escrita pela própria loja — texto real da BD, sem inventar nada;
                 se a loja ainda não escreveu nada, dizemos isso mesmo em vez de inventar. */}
-            <div className="mt-3 p-3 rounded-lg" style={{ background: N.paper, border: "1px solid #EEE6D8" }}>
+            <div className="mt-3 p-3 rounded-lg md:max-w-2xl" style={{ background: N.paper, border: "1px solid #EEE6D8" }}>
               <p className="text-[13px] leading-relaxed text-gray-700 whitespace-pre-line">
                 {publisher.description || publisher.bio || `${publisher.name} ainda não escreveu uma apresentação nesta loja.`}
               </p>
@@ -1260,7 +1260,7 @@ const ProductDetail = () => {
               <button
                 onClick={() => togglePublisherFollow.mutate()}
                 disabled={togglePublisherFollow.isPending}
-                className="w-full mt-3 py-2.5 text-sm font-bold border transition disabled:opacity-60 flex items-center justify-center gap-2"
+                className="w-full md:w-auto md:px-10 mt-3 py-2.5 text-sm font-bold border transition disabled:opacity-60 flex items-center justify-center gap-2"
                 style={isFollowingPublisher ? { background: "rgba(0,102,192,0.08)", color: "#0066C0", borderColor: "#0066C0" } : { background: "#0066C0", color: "#fff", borderColor: "#0066C0" }}
               >
                 {togglePublisherFollow.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
@@ -1383,7 +1383,7 @@ const ProductDetail = () => {
         {/* ── FORMA DE PAGAMENTO ── */}
         <div className="bg-white border-b px-3 md:px-6 py-4" style={{ borderColor: "#F0EBDF" }}>
           <p className="text-lg font-bold text-gray-900 mb-2 text-center">Formas de pagamento</p>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-3 gap-2 md:max-w-md md:mx-auto">
             {[
               { img: payTelemovelImg, title: "Telemóvel", sub: "Pagamento com telemóvel" },
               { img: payMulticaixaImg, title: "Multicaixa", sub: "Multicaixa Express" },
@@ -1494,7 +1494,7 @@ const ProductDetail = () => {
             <div className="bg-white border-b px-3 md:px-6 py-4" style={{ borderColor: "#F0EBDF" }}>
               <p className="text-lg font-bold text-gray-900 mb-4 text-center">Comparar com produtos semelhantes</p>
               <div className="overflow-x-auto snap-x snap-proximity scrollbar-hide">
-                <div className="flex items-start gap-2.5 pb-2 w-max">
+                <div className="flex items-start gap-2.5 pb-2 w-max md:mx-auto">
 
                   {/* Coluna "Atributos" — à esquerda, ícones reais e nítidos (nunca uma foto pequena).
                       NOTA: já não é "sticky" — ficar fixa durante o scroll horizontal estava a
@@ -1570,7 +1570,7 @@ const ProductDetail = () => {
         <div className="bg-white border-b px-3 md:px-6 py-4" style={{ borderColor: "#F0EBDF" }}>
           <p className="text-lg font-bold text-gray-900 mb-3 text-center">Mais produtos</p>
           {moreProducts.length > 0 && (
-            <div className="grid grid-cols-2 gap-x-3 gap-y-5">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-x-3 gap-y-5">
               {moreProducts.map((p: any) => (
                 <MinimalProductCard key={p.id} product={p} onClick={() => { trackEvent(id!, "card_tap", { tapped_product_id: p.id, section: "more_products" }); navigate(`/produto/${p.id}`); }} />
               ))}
@@ -1594,7 +1594,7 @@ const ProductDetail = () => {
           {moreProductsDone && (
             <button
               onClick={() => navigate("/categorias")}
-              className="w-full mt-4 pt-4 relative transition hover:brightness-105 active:scale-[0.98]"
+              className="w-full md:max-w-sm md:mx-auto mt-4 pt-4 relative transition hover:brightness-105 active:scale-[0.98] block"
             >
               <img src={navegarCategoriasBtnImg} alt="Navegar em categorias" draggable={false}
                 className="w-full h-auto select-none pointer-events-none rounded-2xl" />
