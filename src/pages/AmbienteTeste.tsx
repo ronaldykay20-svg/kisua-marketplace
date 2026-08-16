@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
-import { Search, Loader2, FlaskConical, Truck } from "lucide-react";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { FlaskConical } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { getRatingImage } from "@/lib/ratingImage";
+import { getRatingImage, freteGratisImg } from "@/lib/ratingImage";
 
 interface TestProduct {
   id: string;
@@ -20,177 +20,144 @@ const fmt = (n: number) =>
   new Intl.NumberFormat("pt-AO", { style: "currency", currency: "AOA", maximumFractionDigits: 0 }).format(n);
 
 const FALLBACK_IMG = "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop";
+const PAGE_SIZE = 12;
 
 const AmbienteTeste = () => {
-  const [term, setTerm] = useState("");
-  const [results, setResults] = useState<TestProduct[]>([]);
+  const [products, setProducts] = useState<TestProduct[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selected, setSelected] = useState<TestProduct | null>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const pageRef = useRef(0);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (term.trim().length < 2) {
-      setResults([]);
-      return;
-    }
+  const loadNextPage = useCallback(async () => {
     setLoading(true);
-    const timeout = setTimeout(async () => {
-      const { data, error } = await supabase
-        .from("products")
-        .select("id, title, description, price, old_price, image_url, rating, total_reviews, free_shipping")
-        .ilike("title", `%${term.trim()}%`)
-        .eq("is_active", true)
-        .limit(10);
+    const from = pageRef.current * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
 
-      const list = (data as TestProduct[]) || [];
+    const { data, error } = await supabase
+      .from("products")
+      .select("id, title, description, price, old_price, image_url, rating, total_reviews, free_shipping")
+      .eq("is_active", true)
+      .order("created_at", { ascending: false })
+      .range(from, to);
 
-      // A imagem real do produto fica na tabela product_media (capa),
-      // não na coluna products.image_url — por isso vamos buscá-la à parte.
-      const ids = list.map((p) => p.id);
-      const coverMap: Record<string, string> = {};
-      if (ids.length) {
-        const { data: media } = await supabase
-          .from("product_media")
-          .select("product_id, url")
-          .in("product_id", ids)
-          .eq("is_cover", true);
-        (media || []).forEach((m: any) => { coverMap[m.product_id] = m.url; });
-      }
+    const list = (data as TestProduct[]) || [];
 
-      if (!error) {
-        setResults(list.map((p) => ({ ...p, coverImage: coverMap[p.id] || p.image_url || null })));
-      }
-      setLoading(false);
-    }, 350);
-    return () => clearTimeout(timeout);
-  }, [term]);
+    // A imagem real do produto fica na tabela product_media (capa),
+    // não na coluna products.image_url — por isso vamos buscá-la à parte.
+    const ids = list.map((p) => p.id);
+    const coverMap: Record<string, string> = {};
+    if (ids.length) {
+      const { data: media } = await supabase
+        .from("product_media")
+        .select("product_id, url")
+        .in("product_id", ids)
+        .eq("is_cover", true);
+      (media || []).forEach((m: any) => { coverMap[m.product_id] = m.url; });
+    }
+
+    if (!error) {
+      setProducts((prev) => [...prev, ...list.map((p) => ({ ...p, coverImage: coverMap[p.id] || p.image_url || null }))]);
+      if (list.length < PAGE_SIZE) setHasMore(false);
+      pageRef.current += 1;
+    }
+    setLoading(false);
+  }, []);
+
+  // Primeira leva de produtos, automática — sem precisar de pesquisar nada
+  useEffect(() => { loadNextPage(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  // Sentinela — busca a página seguinte assim que se aproxima do fim da lista
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loading) loadNextPage();
+      },
+      { rootMargin: "400px" }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [hasMore, loading, loadNextPage]);
 
   return (
     <div className="min-h-screen bg-background px-4 py-8">
+      <style>{`
+        @keyframes at-fadeInUp {
+          from { opacity: 0; transform: translateY(10px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .at-card-enter {
+          animation: at-fadeInUp 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+      `}</style>
       <div className="max-w-3xl mx-auto">
         <div className="flex items-center gap-2 mb-1">
           <FlaskConical className="w-5 h-5 text-primary" />
           <h1 className="text-xl font-bold text-foreground">Ambiente de teste</h1>
         </div>
         <p className="text-sm text-muted-foreground mb-6">
-          Pesquisa um produto para veres como o card fica com as novas imagens de estrelas
-          e o selo de frete grátis. Só visível a partir deste link — não está em nenhum menu.
+          Pré-visualização automática do novo estilo de card — os produtos carregam sozinhos
+          e mais aparecem ao rolar a página. Só visível a partir deste link — não está em nenhum menu.
         </p>
 
-        <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input
-            value={term}
-            onChange={(e) => setTerm(e.target.value)}
-            placeholder="Pesquisar produto pelo nome..."
-            className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-border bg-card text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-          {loading && (
-            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground animate-spin" />
-          )}
-        </div>
-
-        {results.length > 0 && !selected && (
-          <div className="border border-border rounded-lg overflow-hidden divide-y divide-border mb-8">
-            {results.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => setSelected(p)}
-                className="w-full flex items-center gap-3 p-3 text-left hover:bg-muted transition-colors"
-              >
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {products.map((p, i) => (
+            <div
+              key={p.id}
+              className="at-card-enter bg-card rounded-card border border-transparent overflow-hidden"
+              style={{ animationDelay: `${(i % 12) * 35}ms` }}
+            >
+              <div className="relative aspect-square bg-muted">
                 <img
                   src={p.coverImage || FALLBACK_IMG}
                   alt={p.title}
-                  className="w-10 h-10 rounded-md object-cover bg-muted flex-shrink-0"
-                />
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">{p.title}</p>
-                  <p className="text-xs text-muted-foreground">{fmt(p.price)}</p>
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {term.trim().length >= 2 && !loading && results.length === 0 && !selected && (
-          <p className="text-sm text-muted-foreground mb-8">Nenhum produto encontrado.</p>
-        )}
-
-        {selected && (
-          <div>
-            <button
-              onClick={() => setSelected(null)}
-              className="text-sm text-primary mb-4 hover:underline"
-            >
-              ← Nova pesquisa
-            </button>
-
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-              Pré-visualização do card
-            </p>
-
-            {/* Card de produto — mesma estrutura do ProductCard, mas com as imagens novas.
-                Sem borda visível, para pré-visualizar como fica no site real. */}
-            <div className="w-36 bg-card rounded-card border border-transparent overflow-hidden">
-              <style>{`
-                @keyframes at-truckLoop {
-                  0%   { transform: translateX(0); }
-                  50%  { transform: translateX(4px); }
-                  100% { transform: translateX(0); }
-                }
-                .at-truck-loop { animation: at-truckLoop 1s ease-in-out infinite; }
-              `}</style>
-              <div className="relative aspect-square bg-muted">
-                <img
-                  src={selected.coverImage || FALLBACK_IMG}
-                  alt={selected.title}
+                  loading="lazy"
                   className="w-full h-full object-cover"
                 />
               </div>
               <div className="p-2">
-                <h3 className="text-[11.5px] font-bold text-primary line-clamp-2 leading-snug mb-1 text-center">
-                  {selected.title}
+                <h3 className="text-[12px] font-bold text-primary line-clamp-2 leading-snug mb-1 text-center">
+                  {p.title}
                 </h3>
-                {selected.description && (
-                  <p className="text-[10px] font-normal text-muted-foreground line-clamp-2 leading-snug mb-1 text-center">
-                    {selected.description}
+                {p.description && (
+                  <p className="text-[10.5px] font-normal text-muted-foreground line-clamp-2 leading-snug mb-1 text-center">
+                    {p.description}
                   </p>
                 )}
                 <div className="flex items-baseline justify-center gap-1">
-                  <span className="text-[13px] font-black text-primary">{fmt(selected.price)}</span>
-                  {selected.old_price && (
-                    <span className="text-[9px] text-muted-foreground line-through">
-                      {fmt(selected.old_price)}
+                  <span className="text-sm font-black text-primary">{fmt(p.price)}</span>
+                  {p.old_price && (
+                    <span className="text-[9.5px] text-muted-foreground line-through">
+                      {fmt(p.old_price)}
                     </span>
                   )}
                 </div>
                 <div className="flex items-center justify-center gap-1 mt-0.5">
-                  <img src={getRatingImage(selected.rating)} alt={`${selected.rating ?? 0} estrelas`} className="h-2.5" />
-                  {!!selected.total_reviews && (
-                    <span className="text-[8px] text-muted-foreground">({selected.total_reviews})</span>
+                  <img src={getRatingImage(p.rating)} alt={`${p.rating ?? 0} estrelas`} className="h-3" />
+                  {!!p.total_reviews && (
+                    <span className="text-[8.5px] text-muted-foreground">({p.total_reviews})</span>
                   )}
                 </div>
               </div>
-              {selected.free_shipping && (
-                <div className="flex items-stretch w-full overflow-hidden">
-                  <div className="flex items-center justify-center px-2 py-1" style={{ background: "#1a0f07" }}>
-                    <Truck className="at-truck-loop w-3.5 h-3.5" style={{ color: "#ffffff" }} />
-                  </div>
-                  <div className="flex-1 flex items-center justify-center py-1" style={{ background: "#f5a623" }}>
-                    <span className="text-[10px] font-black tracking-wide" style={{ color: "#1a0f07" }}>
-                      FRETE GRÁTIS
-                    </span>
-                  </div>
-                </div>
+              {p.free_shipping && (
+                <img src={freteGratisImg} alt="Frete grátis" className="w-full h-auto block" />
               )}
             </div>
+          ))}
+        </div>
 
-            <div className="mt-6 text-xs text-muted-foreground space-y-1">
-              <p><span className="font-medium text-foreground">rating na BD:</span> {selected.rating ?? "—"}</p>
-              <p><span className="font-medium text-foreground">imagem usada:</span> rating-{Math.round(Math.max(0, Math.min(5, selected.rating || 0)) * 2) / 2}.webp</p>
-              <p><span className="font-medium text-foreground">free_shipping na BD:</span> {String(!!selected.free_shipping)}</p>
-            </div>
-          </div>
+        {products.length === 0 && !loading && (
+          <p className="text-sm text-muted-foreground mt-8 text-center">Nenhum produto encontrado.</p>
         )}
+
+        {loading && (
+          <p className="text-center text-xs text-muted-foreground mt-4">A carregar mais produtos…</p>
+        )}
+
+        {/* Sentinela invisível — dispara a próxima página ao chegar perto do fim */}
+        <div ref={sentinelRef} className="h-2" />
       </div>
     </div>
   );
