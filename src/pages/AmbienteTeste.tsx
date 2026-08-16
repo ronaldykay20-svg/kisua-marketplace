@@ -130,7 +130,7 @@ const AmbienteTeste = () => {
 
             {/* Card de produto — mesma estrutura do ProductCard, mas com as imagens novas.
                 Sem borda visível, para pré-visualizar como fica no site real. */}
-            <div className="w-48 bg-card rounded-card border border-transparent overflow-hidden">
+            <div className="w-36 bg-card rounded-card border border-transparent overflow-hidden">
               <div className="relative aspect-square bg-muted">
                 <img
                   src={selected.coverImage || FALLBACK_IMG}
@@ -138,31 +138,31 @@ const AmbienteTeste = () => {
                   className="w-full h-full object-cover"
                 />
               </div>
-              <div className="p-2.5">
-                <h3 className="text-[13px] font-semibold text-foreground line-clamp-2 leading-tight mb-1.5">
+              <div className="p-2">
+                <h3 className="text-[11.5px] font-bold text-primary line-clamp-2 leading-snug mb-1">
                   {selected.title}
                 </h3>
                 {selected.description && (
-                  <p className="text-[11px] text-muted-foreground line-clamp-3 mb-1.5">
+                  <p className="text-[10px] font-normal text-muted-foreground line-clamp-2 leading-snug mb-1">
                     {selected.description}
                   </p>
                 )}
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-sm font-black text-foreground">{fmt(selected.price)}</span>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-[13px] font-black text-foreground">{fmt(selected.price)}</span>
                   {selected.old_price && (
-                    <span className="text-[10.5px] text-muted-foreground line-through">
+                    <span className="text-[9px] text-muted-foreground line-through">
                       {fmt(selected.old_price)}
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-1 mt-1">
-                  <img src={getRatingImage(selected.rating)} alt={`${selected.rating ?? 0} estrelas`} className="h-3" />
+                <div className="flex items-center gap-1 mt-0.5">
+                  <img src={getRatingImage(selected.rating)} alt={`${selected.rating ?? 0} estrelas`} className="h-2.5" />
                   {!!selected.total_reviews && (
-                    <span className="text-[9px] text-muted-foreground">({selected.total_reviews})</span>
+                    <span className="text-[8px] text-muted-foreground">({selected.total_reviews})</span>
                   )}
                 </div>
                 {selected.free_shipping && (
-                  <img src={freteGratisImg} alt="Frete grátis" className="h-4 mt-1" />
+                  <img src={freteGratisImg} alt="Frete grátis" className="h-3.5 mt-1" />
                 )}
               </div>
             </div>
