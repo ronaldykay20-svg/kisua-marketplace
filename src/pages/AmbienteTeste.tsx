@@ -22,10 +22,54 @@ const fmt = (n: number) =>
 const FALLBACK_IMG = "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop";
 const PAGE_SIZE = 12;
 
+const ProductCard = ({ p, index }: { p: TestProduct; index: number }) => (
+  <div
+    className="at-card-enter bg-card border-0 overflow-hidden"
+    style={{ animationDelay: `${(index % 12) * 35}ms` }}
+  >
+    <div className="relative aspect-square bg-muted">
+      <img
+        src={p.coverImage || FALLBACK_IMG}
+        alt={p.title}
+        loading="lazy"
+        className="w-full h-full object-cover"
+      />
+    </div>
+    <div className="p-2">
+      <h3 className="text-[14px] font-bold text-primary line-clamp-2 leading-snug mb-1 text-center">
+        {p.title}
+      </h3>
+      {p.description && (
+        <p className="text-[12px] font-normal text-muted-foreground line-clamp-2 leading-snug mb-1 text-center">
+          {p.description}
+        </p>
+      )}
+      <div className="flex items-baseline justify-center gap-1">
+        <span className="text-base font-black text-primary">{fmt(p.price)}</span>
+        {p.old_price && (
+          <span className="text-[11px] text-muted-foreground line-through">
+            {fmt(p.old_price)}
+          </span>
+        )}
+      </div>
+      <div className="flex items-center justify-center gap-1 mt-0.5">
+        <img src={getRatingImage(p.rating)} alt={`${p.rating ?? 0} estrelas`} className="h-4" />
+        {!!p.total_reviews && (
+          <span className="text-[10px] text-muted-foreground">({p.total_reviews})</span>
+        )}
+      </div>
+    </div>
+    {p.free_shipping && (
+      <img src={freteGratisImg} alt="Frete grátis" className="w-full h-auto block" />
+    )}
+  </div>
+);
+
 const AmbienteTeste = () => {
   const [products, setProducts] = useState<TestProduct[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
+  const [numCols, setNumCols] = useState(2);
   const pageRef = useRef(0);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -81,6 +125,21 @@ const AmbienteTeste = () => {
     return () => obs.disconnect();
   }, [hasMore, loading, loadNextPage]);
 
+  // Número de colunas conforme a largura do ecrã — 2 no telemóvel, 3 a partir de sm
+  useEffect(() => {
+    const update = () => setNumCols(window.innerWidth >= 640 ? 3 : 2);
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  // Masonry real feito em JS: cada produto vai directo para a coluna seguinte,
+  // em rotação — ao contrário do CSS `columns-*`, isto nunca deixa espaço em
+  // branco por baixo de um card mais curto, porque não há "equilíbrio" de
+  // altura a calcular: o card de baixo começa mesmo onde o de cima acabou.
+  const columns: { p: TestProduct; index: number }[][] = Array.from({ length: numCols }, () => []);
+  products.forEach((p, i) => columns[i % numCols].push({ p, index: i }));
+
   return (
     <div className="min-h-screen bg-background px-4 py-8">
       <style>{`
@@ -102,48 +161,12 @@ const AmbienteTeste = () => {
           e mais aparecem ao rolar a página. Só visível a partir deste link — não está em nenhum menu.
         </p>
 
-        <div className="columns-2 sm:columns-3">
-          {products.map((p, i) => (
-            <div
-              key={p.id}
-              className="at-card-enter bg-card border-0 overflow-hidden break-inside-avoid"
-              style={{ animationDelay: `${(i % 12) * 35}ms` }}
-            >
-              <div className="relative aspect-square bg-muted">
-                <img
-                  src={p.coverImage || FALLBACK_IMG}
-                  alt={p.title}
-                  loading="lazy"
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <div className="p-2">
-                <h3 className="text-[14px] font-bold text-primary line-clamp-2 leading-snug mb-1 text-center">
-                  {p.title}
-                </h3>
-                {p.description && (
-                  <p className="text-[12px] font-normal text-muted-foreground line-clamp-2 leading-snug mb-1 text-center">
-                    {p.description}
-                  </p>
-                )}
-                <div className="flex items-baseline justify-center gap-1">
-                  <span className="text-base font-black text-primary">{fmt(p.price)}</span>
-                  {p.old_price && (
-                    <span className="text-[11px] text-muted-foreground line-through">
-                      {fmt(p.old_price)}
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center justify-center gap-1 mt-0.5">
-                  <img src={getRatingImage(p.rating)} alt={`${p.rating ?? 0} estrelas`} className="h-4" />
-                  {!!p.total_reviews && (
-                    <span className="text-[10px] text-muted-foreground">({p.total_reviews})</span>
-                  )}
-                </div>
-              </div>
-              {p.free_shipping && (
-                <img src={freteGratisImg} alt="Frete grátis" className="w-full h-auto block" />
-              )}
+        <div className="flex items-start">
+          {columns.map((col, ci) => (
+            <div key={ci} className="flex-1 flex flex-col">
+              {col.map(({ p, index }) => (
+                <ProductCard key={p.id} p={p} index={index} />
+              ))}
             </div>
           ))}
         </div>
