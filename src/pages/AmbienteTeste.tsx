@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { Search, Loader2, FlaskConical } from "lucide-react";
+import { Search, Loader2, FlaskConical, Truck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { getRatingImage, freteGratisImg } from "@/lib/ratingImage";
+import { getRatingImage } from "@/lib/ratingImage";
 
 interface TestProduct {
   id: string;
@@ -131,6 +131,14 @@ const AmbienteTeste = () => {
             {/* Card de produto — mesma estrutura do ProductCard, mas com as imagens novas.
                 Sem borda visível, para pré-visualizar como fica no site real. */}
             <div className="w-36 bg-card rounded-card border border-transparent overflow-hidden">
+              <style>{`
+                @keyframes at-truckLoop {
+                  0%   { transform: translateX(0); }
+                  50%  { transform: translateX(4px); }
+                  100% { transform: translateX(0); }
+                }
+                .at-truck-loop { animation: at-truckLoop 1s ease-in-out infinite; }
+              `}</style>
               <div className="relative aspect-square bg-muted">
                 <img
                   src={selected.coverImage || FALLBACK_IMG}
@@ -139,32 +147,41 @@ const AmbienteTeste = () => {
                 />
               </div>
               <div className="p-2">
-                <h3 className="text-[11.5px] font-bold text-primary line-clamp-2 leading-snug mb-1">
+                <h3 className="text-[11.5px] font-bold text-primary line-clamp-2 leading-snug mb-1 text-center">
                   {selected.title}
                 </h3>
                 {selected.description && (
-                  <p className="text-[10px] font-normal text-muted-foreground line-clamp-2 leading-snug mb-1">
+                  <p className="text-[10px] font-normal text-muted-foreground line-clamp-2 leading-snug mb-1 text-center">
                     {selected.description}
                   </p>
                 )}
-                <div className="flex items-baseline gap-1">
-                  <span className="text-[13px] font-black text-foreground">{fmt(selected.price)}</span>
+                <div className="flex items-baseline justify-center gap-1">
+                  <span className="text-[13px] font-black text-primary">{fmt(selected.price)}</span>
                   {selected.old_price && (
                     <span className="text-[9px] text-muted-foreground line-through">
                       {fmt(selected.old_price)}
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-1 mt-0.5">
+                <div className="flex items-center justify-center gap-1 mt-0.5">
                   <img src={getRatingImage(selected.rating)} alt={`${selected.rating ?? 0} estrelas`} className="h-2.5" />
                   {!!selected.total_reviews && (
                     <span className="text-[8px] text-muted-foreground">({selected.total_reviews})</span>
                   )}
                 </div>
-                {selected.free_shipping && (
-                  <img src={freteGratisImg} alt="Frete grátis" className="h-3.5 mt-1" />
-                )}
               </div>
+              {selected.free_shipping && (
+                <div className="flex items-stretch w-full overflow-hidden">
+                  <div className="flex items-center justify-center px-2 py-1" style={{ background: "#1a0f07" }}>
+                    <Truck className="at-truck-loop w-3.5 h-3.5" style={{ color: "#ffffff" }} />
+                  </div>
+                  <div className="flex-1 flex items-center justify-center py-1" style={{ background: "#f5a623" }}>
+                    <span className="text-[10px] font-black tracking-wide" style={{ color: "#1a0f07" }}>
+                      FRETE GRÁTIS
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="mt-6 text-xs text-muted-foreground space-y-1">
