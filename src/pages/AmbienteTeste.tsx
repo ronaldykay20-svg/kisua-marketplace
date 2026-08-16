@@ -118,26 +118,26 @@ const AmbienteTeste = () => {
                 />
               </div>
               <div className="p-2">
-                <h3 className="text-[12px] font-bold text-primary line-clamp-2 leading-snug mb-1 text-center">
+                <h3 className="text-[14px] font-bold text-primary line-clamp-2 leading-snug mb-1 text-center">
                   {p.title}
                 </h3>
                 {p.description && (
-                  <p className="text-[10.5px] font-normal text-muted-foreground line-clamp-2 leading-snug mb-1 text-center">
+                  <p className="text-[12px] font-normal text-muted-foreground line-clamp-2 leading-snug mb-1 text-center">
                     {p.description}
                   </p>
                 )}
                 <div className="flex items-baseline justify-center gap-1">
-                  <span className="text-sm font-black text-primary">{fmt(p.price)}</span>
+                  <span className="text-base font-black text-primary">{fmt(p.price)}</span>
                   {p.old_price && (
-                    <span className="text-[9.5px] text-muted-foreground line-through">
+                    <span className="text-[11px] text-muted-foreground line-through">
                       {fmt(p.old_price)}
                     </span>
                   )}
                 </div>
                 <div className="flex items-center justify-center gap-1 mt-0.5">
-                  <img src={getRatingImage(p.rating)} alt={`${p.rating ?? 0} estrelas`} className="h-3" />
+                  <img src={getRatingImage(p.rating)} alt={`${p.rating ?? 0} estrelas`} className="h-4" />
                   {!!p.total_reviews && (
-                    <span className="text-[8.5px] text-muted-foreground">({p.total_reviews})</span>
+                    <span className="text-[10px] text-muted-foreground">({p.total_reviews})</span>
                   )}
                 </div>
               </div>
