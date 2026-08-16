@@ -67,6 +67,13 @@ const ProductCard = ({ p, index }: { p: TestProduct; index: number }) => (
           <span className="text-[10px] text-muted-foreground">({p.total_reviews})</span>
         )}
       </div>
+      {p.badge === "NOVO" && (
+        <img
+          src={novoBadgeWebp}
+          alt="Novo"
+          className="w-full h-auto mt-1.5"
+        />
+      )}
     </div>
     {p.free_shipping && (
       <img src={freteGratisImg} alt="Frete grátis" className="w-full h-auto block" />
