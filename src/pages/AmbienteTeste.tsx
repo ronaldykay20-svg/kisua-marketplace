@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { FlaskConical } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getRatingImage, freteGratisImg } from "@/lib/ratingImage";
+import novoBadgeWebp from "@/assets/product-badges/novo.webp";
+import novoBadgeJpg from "@/assets/product-badges/novo.jpg";
 
 interface TestProduct {
   id: string;
@@ -13,6 +15,7 @@ interface TestProduct {
   rating: number | null;
   total_reviews: number | null;
   free_shipping: boolean | null;
+  badge: string | null;
   coverImage?: string | null;
 }
 
@@ -34,6 +37,16 @@ const ProductCard = ({ p, index }: { p: TestProduct; index: number }) => (
         loading="lazy"
         className="w-full h-full object-cover"
       />
+      {p.badge === "NOVO" && (
+        <picture>
+          <source srcSet={novoBadgeWebp} type="image/webp" />
+          <img
+            src={novoBadgeJpg}
+            alt="Novo"
+            className="absolute top-1.5 left-1.5 h-5 w-auto z-10"
+          />
+        </picture>
+      )}
     </div>
     <div className="p-2">
       <h3 className="text-[14px] font-bold text-primary line-clamp-2 leading-snug mb-1 text-center">
@@ -80,7 +93,7 @@ const AmbienteTeste = () => {
 
     const { data, error } = await supabase
       .from("products")
-      .select("id, title, description, price, old_price, image_url, rating, total_reviews, free_shipping")
+      .select("id, title, description, price, old_price, image_url, rating, total_reviews, free_shipping, badge")
       .eq("is_active", true)
       .order("created_at", { ascending: false })
       .range(from, to);
