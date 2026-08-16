@@ -3,7 +3,6 @@ import { FlaskConical } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getRatingImage, freteGratisImg } from "@/lib/ratingImage";
 import novoBadgeWebp from "@/assets/product-badges/novo.webp";
-import novoBadgeJpg from "@/assets/product-badges/novo.jpg";
 
 interface TestProduct {
   id: string;
@@ -38,14 +37,11 @@ const ProductCard = ({ p, index }: { p: TestProduct; index: number }) => (
         className="w-full h-full object-cover"
       />
       {p.badge === "NOVO" && (
-        <picture>
-          <source srcSet={novoBadgeWebp} type="image/webp" />
-          <img
-            src={novoBadgeJpg}
-            alt="Novo"
-            className="absolute top-1.5 left-1.5 h-5 w-auto z-10"
-          />
-        </picture>
+        <img
+          src={novoBadgeWebp}
+          alt="Novo"
+          className="absolute top-1.5 left-1.5 h-5 w-auto z-10"
+        />
       )}
     </div>
     <div className="p-2">
