@@ -6,12 +6,14 @@ import { getRatingImage, freteGratisImg } from "@/lib/ratingImage";
 interface TestProduct {
   id: string;
   title: string;
+  description: string | null;
   price: number;
   old_price: number | null;
   image_url: string | null;
   rating: number | null;
   total_reviews: number | null;
   free_shipping: boolean | null;
+  coverImage?: string | null;
 }
 
 const fmt = (n: number) =>
@@ -34,11 +36,29 @@ const AmbienteTeste = () => {
     const timeout = setTimeout(async () => {
       const { data, error } = await supabase
         .from("products")
-        .select("id, title, price, old_price, image_url, rating, total_reviews, free_shipping")
+        .select("id, title, description, price, old_price, image_url, rating, total_reviews, free_shipping")
         .ilike("title", `%${term.trim()}%`)
         .eq("is_active", true)
         .limit(10);
-      if (!error) setResults((data as TestProduct[]) || []);
+
+      const list = (data as TestProduct[]) || [];
+
+      // A imagem real do produto fica na tabela product_media (capa),
+      // não na coluna products.image_url — por isso vamos buscá-la à parte.
+      const ids = list.map((p) => p.id);
+      const coverMap: Record<string, string> = {};
+      if (ids.length) {
+        const { data: media } = await supabase
+          .from("product_media")
+          .select("product_id, url")
+          .in("product_id", ids)
+          .eq("is_cover", true);
+        (media || []).forEach((m: any) => { coverMap[m.product_id] = m.url; });
+      }
+
+      if (!error) {
+        setResults(list.map((p) => ({ ...p, coverImage: coverMap[p.id] || p.image_url || null })));
+      }
       setLoading(false);
     }, 350);
     return () => clearTimeout(timeout);
@@ -78,7 +98,7 @@ const AmbienteTeste = () => {
                 className="w-full flex items-center gap-3 p-3 text-left hover:bg-muted transition-colors"
               >
                 <img
-                  src={p.image_url || FALLBACK_IMG}
+                  src={p.coverImage || FALLBACK_IMG}
                   alt={p.title}
                   className="w-10 h-10 rounded-md object-cover bg-muted flex-shrink-0"
                 />
@@ -108,11 +128,12 @@ const AmbienteTeste = () => {
               Pré-visualização do card
             </p>
 
-            {/* Card de produto — mesma estrutura do ProductCard, mas com as imagens novas */}
-            <div className="w-48 bg-card rounded-card border border-border overflow-hidden">
+            {/* Card de produto — mesma estrutura do ProductCard, mas com as imagens novas.
+                Sem borda visível, para pré-visualizar como fica no site real. */}
+            <div className="w-48 bg-card rounded-card border border-transparent overflow-hidden">
               <div className="relative aspect-square bg-muted">
                 <img
-                  src={selected.image_url || FALLBACK_IMG}
+                  src={selected.coverImage || FALLBACK_IMG}
                   alt={selected.title}
                   className="w-full h-full object-cover"
                 />
@@ -121,6 +142,11 @@ const AmbienteTeste = () => {
                 <h3 className="text-[13px] font-semibold text-foreground line-clamp-2 leading-tight mb-1.5">
                   {selected.title}
                 </h3>
+                {selected.description && (
+                  <p className="text-[11px] text-muted-foreground line-clamp-3 mb-1.5">
+                    {selected.description}
+                  </p>
+                )}
                 <div className="flex items-baseline gap-1.5">
                   <span className="text-sm font-black text-foreground">{fmt(selected.price)}</span>
                   {selected.old_price && (
