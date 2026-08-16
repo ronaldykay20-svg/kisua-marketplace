@@ -102,11 +102,11 @@ const AmbienteTeste = () => {
           e mais aparecem ao rolar a página. Só visível a partir deste link — não está em nenhum menu.
         </p>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-0">
+        <div className="columns-2 sm:columns-3">
           {products.map((p, i) => (
             <div
               key={p.id}
-              className="at-card-enter bg-card border-0 overflow-hidden"
+              className="at-card-enter bg-card border-0 overflow-hidden break-inside-avoid"
               style={{ animationDelay: `${(i % 12) * 35}ms` }}
             >
               <div className="relative aspect-square bg-muted">
