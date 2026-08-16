@@ -56,6 +56,7 @@ const LojasVerificadas = lazy(() => import("./pages/LojasVerificadas.tsx"));
 const VenderKwanza = lazy(() => import("./pages/VenderKwanza.tsx"));
 const Auth = lazy(() => import("./pages/Auth.tsx"));
 const AdminPanel = lazy(() => import("./pages/AdminPanel.tsx"));
+const AmbienteTeste = lazy(() => import("./pages/AmbienteTeste.tsx"));
 const OperacoesDashboard = lazy(() => import("./pages/team/OperacoesDashboard.tsx"));
 const FinanceiroDashboard = lazy(() => import("./pages/team/FinanceiroDashboard.tsx"));
 const LogisticaDashboard = lazy(() => import("./pages/team/LogisticaDashboard.tsx"));
@@ -208,6 +209,7 @@ const App = () => (
               <Route path="/seguranca" element={<ProtectedRoute><Seguranca /></ProtectedRoute>} />
               <Route path="/definicoes" element={<ProtectedRoute><Definicoes /></ProtectedRoute>} />
               <Route path="/admin" element={<ProtectedRoute requiredRole={["admin", ...TEAM_ROLES]}><AdminPanel /></ProtectedRoute>} />
+              <Route path="/admin/ambiente-teste" element={<ProtectedRoute requiredRole="admin"><AmbienteTeste /></ProtectedRoute>} />
               <Route path="/equipa/operacoes" element={<ProtectedRoute requiredRole={["admin", "operacoes"]}><OperacoesDashboard /></ProtectedRoute>} />
               <Route path="/equipa/financeiro" element={<ProtectedRoute requiredRole={["admin", "financeiro"]}><FinanceiroDashboard /></ProtectedRoute>} />
               <Route path="/equipa/logistica" element={<ProtectedRoute requiredRole={["admin", "logistica"]}><LogisticaDashboard /></ProtectedRoute>} />
