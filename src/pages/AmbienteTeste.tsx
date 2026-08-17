@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { FlaskConical } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getRatingImage, freteGratisImg } from "@/lib/ratingImage";
-import priceOvalSm from "@/assets/price-badges/price-oval-sm.webp";
 
 interface TestProduct {
   id: string;
@@ -19,28 +18,6 @@ interface TestProduct {
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("pt-AO", { style: "currency", currency: "AOA", maximumFractionDigits: 0 }).format(n);
-
-// A letra do preço é dimensionada em unidades de container query (cqw), não em px fixo.
-// Isto é essencial: a moldura oval tem largura fluida (% do card, que varia consoante
-// o grid tem 2 ou 3 colunas, ou o tamanho do ecrã) — um valor em px fixo que "cabia bem"
-// num card grande podia perfeitamente raspar a borda no mesmo preço num card mais estreito.
-// Em cqw, a letra escala sempre em proporção à largura REAL da própria moldura, seja
-// qual for o grid ou o dispositivo — corrige a causa, não o sintoma.
-//
-// Esta moldura (672×245) é mais achatada que a anterior (550×280) — por isso a altura
-// disponível para o texto é a restrição mais apertada, não a largura. Os valores abaixo
-// já contam com essa proporção: mesmo o preço mais curto fica a uma altura que não
-// toca o topo/fundo do anel.
-//
-// O valor-base (cqw por caractere) ainda varia com o comprimento do texto, porque a
-// moldura tem largura fixa mas o texto não — um preço com mais dígitos precisa de uma
-// letra proporcionalmente menor para caber no mesmo espaço.
-const priceFontCqw = (charLen: number) => {
-  if (charLen <= 7) return 15; // ex.: "12 000 Kz"
-  if (charLen <= 9) return 13; // ex.: "120 000 Kz"
-  if (charLen <= 11) return 11; // ex.: "1 200 000 Kz"
-  return 9;
-};
 
 const FALLBACK_IMG = "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop";
 const PAGE_SIZE = 12;
@@ -78,29 +55,21 @@ const ProductCard = ({ p, index }: { p: TestProduct; index: number }) => {
         )}
 
         <div className="flex justify-center mb-1">
-          <div
-            className="flex items-center justify-center flex-shrink-0 box-border"
+          <span
+            className="inline-flex items-center justify-center whitespace-nowrap"
             style={{
-              backgroundImage: `url(${priceOvalSm})`,
-              backgroundSize: "100% 100%",
-              backgroundRepeat: "no-repeat",
-              width: "42%",
-              aspectRatio: "672 / 245",
-              paddingInline: "13%",
-              containerType: "inline-size",
+              padding: "3px 14px",
+              borderRadius: "999px",
+              background: "linear-gradient(180deg, #6b3510 0%, #3d1c08 55%, #2a1305 100%)",
+              boxShadow: "0 0 0 2.5px #d98f2e, inset 0 1px 1px rgba(255,255,255,0.25), inset 0 -1px 2px rgba(0,0,0,0.4)",
+              color: "#f6c667",
+              fontWeight: 900,
+              fontSize: "13px",
             }}
           >
-            <span
-              className="block w-full overflow-hidden text-ellipsis whitespace-nowrap text-center"
-              style={{
-                color: "#4a2410",
-                fontWeight: 900,
-                fontSize: `clamp(7px, ${priceFontCqw(priceLabel.length)}cqw, 12px)`,
-              }}
-            >
-              {priceLabel}
-            </span>
-          </div>
+            {priceLabel}
+          </span>
+        </div>
         </div>
         {p.old_price && (
           <p className="text-[11px] text-muted-foreground line-through text-center mb-1">
