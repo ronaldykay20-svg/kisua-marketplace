@@ -71,7 +71,7 @@ const ProductCard = ({ p, index }: { p: TestProduct; index: number }) => (
         <img
           src={novoBadgeWebp}
           alt="Novo"
-          className="w-full h-auto mt-1.5"
+          className="h-6 w-auto mx-auto block mt-1.5"
         />
       )}
     </div>
@@ -85,7 +85,6 @@ const AmbienteTeste = () => {
   const [products, setProducts] = useState<TestProduct[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
-  const [numCols, setNumCols] = useState(2);
   const pageRef = useRef(0);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -141,21 +140,6 @@ const AmbienteTeste = () => {
     return () => obs.disconnect();
   }, [hasMore, loading, loadNextPage]);
 
-  // Número de colunas conforme a largura do ecrã — 2 no telemóvel, 3 a partir de sm
-  useEffect(() => {
-    const update = () => setNumCols(window.innerWidth >= 640 ? 3 : 2);
-    update();
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
-  }, []);
-
-  // Masonry real feito em JS: cada produto vai directo para a coluna seguinte,
-  // em rotação — ao contrário do CSS `columns-*`, isto nunca deixa espaço em
-  // branco por baixo de um card mais curto, porque não há "equilíbrio" de
-  // altura a calcular: o card de baixo começa mesmo onde o de cima acabou.
-  const columns: { p: TestProduct; index: number }[][] = Array.from({ length: numCols }, () => []);
-  products.forEach((p, i) => columns[i % numCols].push({ p, index: i }));
-
   return (
     <div className="min-h-screen bg-background px-4 py-8">
       <style>{`
@@ -177,13 +161,9 @@ const AmbienteTeste = () => {
           e mais aparecem ao rolar a página. Só visível a partir deste link — não está em nenhum menu.
         </p>
 
-        <div className="flex items-start">
-          {columns.map((col, ci) => (
-            <div key={ci} className="flex-1 flex flex-col">
-              {col.map(({ p, index }) => (
-                <ProductCard key={p.id} p={p} index={index} />
-              ))}
-            </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-0">
+          {products.map((p, i) => (
+            <ProductCard key={p.id} p={p} index={i} />
           ))}
         </div>
 
