@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { FlaskConical } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getRatingImage, freteGratisImg } from "@/lib/ratingImage";
-import novoBadgeWebp from "@/assets/product-badges/novo.webp";
+import priceOvalSm from "@/assets/price-badges/price-oval-sm.webp";
 
 interface TestProduct {
   id: string;
@@ -36,44 +36,51 @@ const ProductCard = ({ p, index }: { p: TestProduct; index: number }) => (
         loading="lazy"
         className="w-full h-full object-cover"
       />
-      {p.badge === "NOVO" && (
-        <img
-          src={novoBadgeWebp}
-          alt="Novo"
-          className="absolute top-1.5 left-1.5 h-5 w-auto z-10"
-        />
-      )}
     </div>
-    <div className="p-2">
-      <h3 className="text-[14px] font-bold text-primary line-clamp-2 leading-snug mb-1 text-center">
+    <div className="px-2 pt-2 pb-1">
+      <h3
+        className="text-[14px] font-bold line-clamp-2 leading-snug mb-1 text-center"
+        style={{ color: "#5a2f16" }}
+      >
         {p.title}
       </h3>
       {p.description && (
-        <p className="text-[12px] font-normal text-muted-foreground line-clamp-2 leading-snug mb-1 text-center">
+        <p
+          className="font-normal text-muted-foreground line-clamp-3 text-center"
+          style={{ fontSize: "13px", lineHeight: "1.25", letterSpacing: "-0.1px", marginBottom: "6px" }}
+        >
           {p.description}
         </p>
       )}
-      <div className="flex items-baseline justify-center gap-1">
-        <span className="text-base font-black text-primary">{fmt(p.price)}</span>
-        {p.old_price && (
-          <span className="text-[11px] text-muted-foreground line-through">
-            {fmt(p.old_price)}
+
+      <div className="flex justify-center my-1">
+        <div
+          className="relative flex items-center justify-center flex-shrink-0"
+          style={{
+            backgroundImage: `url(${priceOvalSm})`,
+            backgroundSize: "100% 100%",
+            backgroundRepeat: "no-repeat",
+            width: "78%",
+            aspectRatio: "550 / 280",
+          }}
+        >
+          <span className="font-black leading-none whitespace-nowrap" style={{ color: "#4a2410", fontSize: "12px" }}>
+            {fmt(p.price)}
           </span>
-        )}
+        </div>
       </div>
-      <div className="flex items-center justify-center gap-1 mt-0.5">
+      {p.old_price && (
+        <p className="text-[11px] text-muted-foreground line-through text-center -mt-0.5 mb-1">
+          {fmt(p.old_price)}
+        </p>
+      )}
+
+      <div className="flex items-center justify-center gap-1 mt-1">
         <img src={getRatingImage(p.rating)} alt={`${p.rating ?? 0} estrelas`} className="h-4" />
         {!!p.total_reviews && (
           <span className="text-[10px] text-muted-foreground">({p.total_reviews})</span>
         )}
       </div>
-      {p.badge === "NOVO" && (
-        <img
-          src={novoBadgeWebp}
-          alt="Novo"
-          className="h-6 w-auto mx-auto block mt-1.5"
-        />
-      )}
     </div>
     {p.free_shipping && (
       <img src={freteGratisImg} alt="Frete grátis" className="w-full h-auto block" />
@@ -151,7 +158,7 @@ const AmbienteTeste = () => {
           animation: at-fadeInUp 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
         }
       `}</style>
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-md sm:max-w-xl mx-auto">
         <div className="flex items-center gap-2 mb-1">
           <FlaskConical className="w-5 h-5 text-primary" />
           <h1 className="text-xl font-bold text-foreground">Ambiente de teste</h1>
