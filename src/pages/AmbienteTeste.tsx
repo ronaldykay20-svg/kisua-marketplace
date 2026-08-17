@@ -60,29 +60,6 @@ const ProductCard = ({ p, index }: { p: TestProduct; index: number }) => {
           loading="lazy"
           className="w-full h-full object-cover"
         />
-        <div
-          className="absolute bottom-1.5 right-1.5 flex items-center justify-center flex-shrink-0 box-border"
-          style={{
-            backgroundImage: `url(${priceOvalSm})`,
-            backgroundSize: "100% 100%",
-            backgroundRepeat: "no-repeat",
-            width: "62%",
-            aspectRatio: "672 / 245",
-            paddingInline: "13%",
-            containerType: "inline-size",
-          }}
-        >
-          <span
-            className="block w-full overflow-hidden text-ellipsis whitespace-nowrap text-center"
-            style={{
-              color: "#4a2410",
-              fontWeight: 900,
-              fontSize: `clamp(8px, ${priceFontCqw(priceLabel.length)}cqw, 14px)`,
-            }}
-          >
-            {priceLabel}
-          </span>
-        </div>
       </div>
       <div className="px-2 pt-2 pb-1">
         <h3
@@ -99,6 +76,32 @@ const ProductCard = ({ p, index }: { p: TestProduct; index: number }) => {
             {p.description}
           </p>
         )}
+
+        <div className="flex justify-center mb-1">
+          <div
+            className="flex items-center justify-center flex-shrink-0 box-border"
+            style={{
+              backgroundImage: `url(${priceOvalSm})`,
+              backgroundSize: "100% 100%",
+              backgroundRepeat: "no-repeat",
+              width: "42%",
+              aspectRatio: "672 / 245",
+              paddingInline: "13%",
+              containerType: "inline-size",
+            }}
+          >
+            <span
+              className="block w-full overflow-hidden text-ellipsis whitespace-nowrap text-center"
+              style={{
+                color: "#4a2410",
+                fontWeight: 900,
+                fontSize: `clamp(7px, ${priceFontCqw(priceLabel.length)}cqw, 12px)`,
+              }}
+            >
+              {priceLabel}
+            </span>
+          </div>
+        </div>
         {p.old_price && (
           <p className="text-[11px] text-muted-foreground line-through text-center mb-1">
             {fmt(p.old_price)}
