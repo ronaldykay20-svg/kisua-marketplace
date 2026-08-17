@@ -53,24 +53,24 @@ const ProductCard = ({ p, index }: { p: TestProduct; index: number }) => (
         </p>
       )}
 
-      <div className="flex justify-center my-1">
+      <div className="flex justify-center">
         <div
           className="relative flex items-center justify-center flex-shrink-0"
           style={{
             backgroundImage: `url(${priceOvalSm})`,
             backgroundSize: "100% 100%",
             backgroundRepeat: "no-repeat",
-            width: "78%",
+            width: "56%",
             aspectRatio: "550 / 280",
           }}
         >
-          <span className="font-black leading-none whitespace-nowrap" style={{ color: "#4a2410", fontSize: "12px" }}>
+          <span className="font-black leading-none whitespace-nowrap" style={{ color: "#4a2410", fontSize: "15px" }}>
             {fmt(p.price)}
           </span>
         </div>
       </div>
       {p.old_price && (
-        <p className="text-[11px] text-muted-foreground line-through text-center -mt-0.5 mb-1">
+        <p className="text-[11px] text-muted-foreground line-through text-center mt-0.5">
           {fmt(p.old_price)}
         </p>
       )}
