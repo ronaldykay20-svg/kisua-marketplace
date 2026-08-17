@@ -14,87 +14,105 @@ interface TestProduct {
   rating: number | null;
   total_reviews: number | null;
   free_shipping: boolean | null;
-  badge: string | null;
   coverImage?: string | null;
 }
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("pt-AO", { style: "currency", currency: "AOA", maximumFractionDigits: 0 }).format(n);
 
-// Quanto mais comprido o número, menor a letra — para nunca tocar a moldura da oval.
-const priceFontSize = (text: string) => {
-  if (text.length <= 7) return 15;
-  if (text.length <= 9) return 13;
-  if (text.length <= 11) return 11.5;
-  return 10;
+// A letra do preço é dimensionada em unidades de container query (cqw), não em px fixo.
+// Isto é essencial: a moldura oval tem largura fluida (% do card, que varia consoante
+// o grid tem 2 ou 3 colunas, ou o tamanho do ecrã) — um valor em px fixo que "cabia bem"
+// num card grande podia perfeitamente raspar a borda no mesmo preço num card mais estreito.
+// Em cqw, a letra escala sempre em proporção à largura REAL da própria moldura, seja
+// qual for o grid ou o dispositivo — corrige a causa, não o sintoma.
+//
+// O valor-base (cqw por caractere) ainda varia com o comprimento do texto, porque a
+// moldura tem largura fixa mas o texto não — um preço com mais dígitos precisa de uma
+// letra proporcionalmente menor para caber no mesmo espaço.
+const priceFontCqw = (charLen: number) => {
+  if (charLen <= 7) return 19; // ex.: "12 000 Kz"
+  if (charLen <= 9) return 16; // ex.: "120 000 Kz"
+  if (charLen <= 11) return 13.5; // ex.: "1 200 000 Kz"
+  return 11;
 };
 
 const FALLBACK_IMG = "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop";
 const PAGE_SIZE = 12;
 
-const ProductCard = ({ p, index }: { p: TestProduct; index: number }) => (
-  <div
-    className="at-card-enter bg-card border-0 overflow-hidden"
-    style={{ animationDelay: `${(index % 12) * 35}ms` }}
-  >
-    <div className="relative aspect-square bg-muted">
-      <img
-        src={p.coverImage || FALLBACK_IMG}
-        alt={p.title}
-        loading="lazy"
-        className="w-full h-full object-cover"
-      />
-      <div
-        className="absolute bottom-1.5 right-1.5 flex items-center justify-center flex-shrink-0"
-        style={{
-          backgroundImage: `url(${priceOvalSm})`,
-          backgroundSize: "100% 100%",
-          backgroundRepeat: "no-repeat",
-          width: "62%",
-          aspectRatio: "550 / 280",
-        }}
-      >
-        <span
-          className="whitespace-nowrap"
-          style={{ color: "#4a2410", fontSize: priceFontSize(fmt(p.price)), fontWeight: 900 }}
-        >
-          {fmt(p.price)}
-        </span>
-      </div>
-    </div>
-    <div className="px-2 pt-2 pb-1">
-      <h3
-        className="text-[14px] font-bold line-clamp-2 leading-snug mb-1 text-center"
-        style={{ color: "#5a2f16" }}
-      >
-        {p.title}
-      </h3>
-      {p.description && (
-        <p
-          className="font-normal text-muted-foreground line-clamp-3 text-center"
-          style={{ fontSize: "13px", lineHeight: "1.25", letterSpacing: "-0.1px", marginBottom: "6px" }}
-        >
-          {p.description}
-        </p>
-      )}
-      {p.old_price && (
-        <p className="text-[11px] text-muted-foreground line-through text-center mb-1">
-          {fmt(p.old_price)}
-        </p>
-      )}
+const ProductCard = ({ p, index }: { p: TestProduct; index: number }) => {
+  const priceLabel = fmt(p.price);
 
-      <div className="flex items-center justify-center gap-1 mt-1">
-        <img src={getRatingImage(p.rating)} alt={`${p.rating ?? 0} estrelas`} className="h-4" />
-        {!!p.total_reviews && (
-          <span className="text-[10px] text-muted-foreground">({p.total_reviews})</span>
-        )}
+  return (
+    <div
+      className="at-card-enter bg-card border-0 overflow-hidden"
+      style={{ animationDelay: `${(index % 12) * 35}ms` }}
+    >
+      <div className="relative aspect-square bg-muted">
+        <img
+          src={p.coverImage || FALLBACK_IMG}
+          alt={p.title}
+          loading="lazy"
+          className="w-full h-full object-cover"
+        />
+        <div
+          className="absolute bottom-1.5 right-1.5 flex items-center justify-center flex-shrink-0 box-border"
+          style={{
+            backgroundImage: `url(${priceOvalSm})`,
+            backgroundSize: "100% 100%",
+            backgroundRepeat: "no-repeat",
+            width: "62%",
+            aspectRatio: "550 / 280",
+            paddingInline: "16%",
+            containerType: "inline-size",
+          }}
+        >
+          <span
+            className="block w-full overflow-hidden text-ellipsis whitespace-nowrap text-center"
+            style={{
+              color: "#4a2410",
+              fontWeight: 900,
+              fontSize: `clamp(8px, ${priceFontCqw(priceLabel.length)}cqw, 16px)`,
+            }}
+          >
+            {priceLabel}
+          </span>
+        </div>
       </div>
+      <div className="px-2 pt-2 pb-1">
+        <h3
+          className="text-[14px] font-bold line-clamp-2 leading-snug mb-1 text-center"
+          style={{ color: "#5a2f16" }}
+        >
+          {p.title}
+        </h3>
+        {p.description && (
+          <p
+            className="font-normal text-muted-foreground line-clamp-3 text-center"
+            style={{ fontSize: "13px", lineHeight: "1.25", letterSpacing: "-0.1px", marginBottom: "6px" }}
+          >
+            {p.description}
+          </p>
+        )}
+        {p.old_price && (
+          <p className="text-[11px] text-muted-foreground line-through text-center mb-1">
+            {fmt(p.old_price)}
+          </p>
+        )}
+
+        <div className="flex items-center justify-center gap-1 mt-1">
+          <img src={getRatingImage(p.rating)} alt={`${p.rating ?? 0} estrelas`} className="h-4" />
+          {!!p.total_reviews && (
+            <span className="text-[10px] text-muted-foreground">({p.total_reviews})</span>
+          )}
+        </div>
+      </div>
+      {p.free_shipping && (
+        <img src={freteGratisImg} alt="Frete grátis" className="w-full h-auto block" />
+      )}
     </div>
-    {p.free_shipping && (
-      <img src={freteGratisImg} alt="Frete grátis" className="w-full h-auto block" />
-    )}
-  </div>
-);
+  );
+};
 
 const AmbienteTeste = () => {
   const [products, setProducts] = useState<TestProduct[]>([]);
@@ -110,7 +128,7 @@ const AmbienteTeste = () => {
 
     const { data, error } = await supabase
       .from("products")
-      .select("id, title, description, price, old_price, image_url, rating, total_reviews, free_shipping, badge")
+      .select("id, title, description, price, old_price, image_url, rating, total_reviews, free_shipping")
       .eq("is_active", true)
       .order("created_at", { ascending: false })
       .range(from, to);
