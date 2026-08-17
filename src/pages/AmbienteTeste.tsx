@@ -54,23 +54,9 @@ const ProductCard = ({ p, index }: { p: TestProduct; index: number }) => {
           </p>
         )}
 
-        <div className="flex justify-center mb-1">
-          <span
-            className="inline-flex items-center justify-center whitespace-nowrap"
-            style={{
-              padding: "3px 14px",
-              borderRadius: "999px",
-              background: "linear-gradient(180deg, #6b3510 0%, #3d1c08 55%, #2a1305 100%)",
-              boxShadow: "0 0 0 2.5px #d98f2e, inset 0 1px 1px rgba(255,255,255,0.25), inset 0 -1px 2px rgba(0,0,0,0.4)",
-              color: "#f6c667",
-              fontWeight: 900,
-              fontSize: "13px",
-            }}
-          >
-            {priceLabel}
-          </span>
-        </div>
-        </div>
+        <p className="font-black text-center mb-1" style={{ color: "#3d1c08", fontSize: "17px" }}>
+          {priceLabel}
+        </p>
         {p.old_price && (
           <p className="text-[11px] text-muted-foreground line-through text-center mb-1">
             {fmt(p.old_price)}
