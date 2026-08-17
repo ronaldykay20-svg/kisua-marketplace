@@ -27,14 +27,19 @@ const fmt = (n: number) =>
 // Em cqw, a letra escala sempre em proporção à largura REAL da própria moldura, seja
 // qual for o grid ou o dispositivo — corrige a causa, não o sintoma.
 //
+// Esta moldura (672×245) é mais achatada que a anterior (550×280) — por isso a altura
+// disponível para o texto é a restrição mais apertada, não a largura. Os valores abaixo
+// já contam com essa proporção: mesmo o preço mais curto fica a uma altura que não
+// toca o topo/fundo do anel.
+//
 // O valor-base (cqw por caractere) ainda varia com o comprimento do texto, porque a
 // moldura tem largura fixa mas o texto não — um preço com mais dígitos precisa de uma
 // letra proporcionalmente menor para caber no mesmo espaço.
 const priceFontCqw = (charLen: number) => {
-  if (charLen <= 7) return 19; // ex.: "12 000 Kz"
-  if (charLen <= 9) return 16; // ex.: "120 000 Kz"
-  if (charLen <= 11) return 13.5; // ex.: "1 200 000 Kz"
-  return 11;
+  if (charLen <= 7) return 15; // ex.: "12 000 Kz"
+  if (charLen <= 9) return 13; // ex.: "120 000 Kz"
+  if (charLen <= 11) return 11; // ex.: "1 200 000 Kz"
+  return 9;
 };
 
 const FALLBACK_IMG = "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop";
@@ -62,8 +67,8 @@ const ProductCard = ({ p, index }: { p: TestProduct; index: number }) => {
             backgroundSize: "100% 100%",
             backgroundRepeat: "no-repeat",
             width: "62%",
-            aspectRatio: "550 / 280",
-            paddingInline: "16%",
+            aspectRatio: "672 / 245",
+            paddingInline: "13%",
             containerType: "inline-size",
           }}
         >
@@ -72,7 +77,7 @@ const ProductCard = ({ p, index }: { p: TestProduct; index: number }) => {
             style={{
               color: "#4a2410",
               fontWeight: 900,
-              fontSize: `clamp(8px, ${priceFontCqw(priceLabel.length)}cqw, 16px)`,
+              fontSize: `clamp(8px, ${priceFontCqw(priceLabel.length)}cqw, 14px)`,
             }}
           >
             {priceLabel}
