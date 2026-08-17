@@ -21,6 +21,14 @@ interface TestProduct {
 const fmt = (n: number) =>
   new Intl.NumberFormat("pt-AO", { style: "currency", currency: "AOA", maximumFractionDigits: 0 }).format(n);
 
+// Quanto mais comprido o número, menor a letra — para nunca tocar a moldura da oval.
+const priceFontSize = (text: string) => {
+  if (text.length <= 7) return 15;
+  if (text.length <= 9) return 13;
+  if (text.length <= 11) return 11.5;
+  return 10;
+};
+
 const FALLBACK_IMG = "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop";
 const PAGE_SIZE = 12;
 
@@ -36,6 +44,23 @@ const ProductCard = ({ p, index }: { p: TestProduct; index: number }) => (
         loading="lazy"
         className="w-full h-full object-cover"
       />
+      <div
+        className="absolute bottom-1.5 right-1.5 flex items-center justify-center flex-shrink-0"
+        style={{
+          backgroundImage: `url(${priceOvalSm})`,
+          backgroundSize: "100% 100%",
+          backgroundRepeat: "no-repeat",
+          width: "62%",
+          aspectRatio: "550 / 280",
+        }}
+      >
+        <span
+          className="whitespace-nowrap"
+          style={{ color: "#4a2410", fontSize: priceFontSize(fmt(p.price)), fontWeight: 900 }}
+        >
+          {fmt(p.price)}
+        </span>
+      </div>
     </div>
     <div className="px-2 pt-2 pb-1">
       <h3
@@ -52,25 +77,8 @@ const ProductCard = ({ p, index }: { p: TestProduct; index: number }) => (
           {p.description}
         </p>
       )}
-
-      <div className="flex justify-center">
-        <div
-          className="relative flex items-center justify-center flex-shrink-0"
-          style={{
-            backgroundImage: `url(${priceOvalSm})`,
-            backgroundSize: "100% 100%",
-            backgroundRepeat: "no-repeat",
-            width: "56%",
-            aspectRatio: "550 / 280",
-          }}
-        >
-          <span className="font-black leading-none whitespace-nowrap" style={{ color: "#4a2410", fontSize: "15px" }}>
-            {fmt(p.price)}
-          </span>
-        </div>
-      </div>
       {p.old_price && (
-        <p className="text-[11px] text-muted-foreground line-through text-center mt-0.5">
+        <p className="text-[11px] text-muted-foreground line-through text-center mb-1">
           {fmt(p.old_price)}
         </p>
       )}
