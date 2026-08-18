@@ -114,7 +114,7 @@ const ProductCard = ({ p, index }: { p: TestProduct; index: number }) => {
               borderRadius: "999px",
               background: `linear-gradient(180deg, #6b3510 0%, ${BROWN_DARK} 55%, #2a1305 100%)`,
               boxShadow: "0 0 0 2.5px #d98f2e, inset 0 1px 1px rgba(255,255,255,0.25), inset 0 -1px 2px rgba(0,0,0,0.4)",
-              color: "#f6c667",
+              color: "#ffffff",
               fontWeight: 900,
               fontSize: "13.5px",
             }}
