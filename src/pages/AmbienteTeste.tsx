@@ -152,7 +152,7 @@ const ProductCard = ({ p, index }: { p: TestProduct; index: number }) => {
 // Recuada das bordas (não é full-bleed) e sem legenda de texto — só o ícone,
 // mas mantém o mesmo espaço em branco à volta para não colar aos cards vizinhos.
 const FreightBanner = () => (
-  <div className="col-span-full flex items-center justify-center py-3 px-6">
+  <div className="col-span-full flex items-center justify-center py-3 px-6 bg-card">
     <img src={freteGratisImg} alt="Frete grátis" className="h-6 w-auto" />
   </div>
 );
