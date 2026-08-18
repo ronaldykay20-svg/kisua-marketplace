@@ -6,7 +6,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { toast } from "sonner";
-import leilaoHero from "@/assets/leilao/leilao-hero.webp";
 
 const useCountdown = (endDate: string | null) => {
   const [t, setT] = useState(0);
@@ -26,15 +25,15 @@ const useCountdown = (endDate: string | null) => {
   return { h, m, s, total: t };
 };
 
-const TimerBox = ({ value, label }: { value: string; label: string }) => (
+const TimerBox = ({ value, label, compact }: { value: string; label: string; compact?: boolean }) => (
   <div className="flex flex-col items-center">
     <span
-      className="text-2xl md:text-4xl font-black tabular-nums px-3 py-2 rounded-xl"
+      className={compact ? "text-sm font-black tabular-nums px-2 py-1 rounded-lg" : "text-2xl md:text-4xl font-black tabular-nums px-3 py-2 rounded-xl"}
       style={{ background: "#1a1a1a", color: "#f5c842" }}
     >
       {value}
     </span>
-    <span className="text-[9px] text-gray-500 mt-1 uppercase tracking-widest">{label}</span>
+    {!compact && <span className="text-[9px] text-gray-500 mt-1 uppercase tracking-widest">{label}</span>}
   </div>
 );
 
@@ -45,18 +44,155 @@ const categories = [
   { icon: Watch, label: "Luxo & Relógios" },
 ];
 
-// Imagem hero — sequência fixa de 10 cenas do leilão, pré-processada em
-// webp animado (src/assets/leilao/leilao-hero.webp). O browser trata o
-// loop nativamente; não há queries nem setInterval no React.
-const HeroSection = () => (
-  <div className="w-full overflow-hidden" style={{ maxHeight: 320 }}>
-    <img
-      src={leilaoHero}
-      alt="Leilão Online"
-      className="w-full object-cover"
-      style={{ maxHeight: 320, display: "block" }}
-    />
-  </div>
+// Imagem hero — mostra o próprio leilão em destaque (foto real do lote,
+// lance atual e contagem decrescente sobrepostos), não uma animação
+// decorativa desligada dos dados. Sem leilão em destaque, cai num painel
+// de marca simples em vez de conteúdo genérico.
+const HeroSection = ({
+  auction,
+  countdown,
+  bidsCount,
+}: {
+  auction: any;
+  countdown: { h: string; m: string; s: string };
+  bidsCount: number;
+}) => {
+  if (!auction) {
+    return (
+      <div
+        className="w-full flex flex-col items-center justify-center text-center px-4 py-14"
+        style={{ background: "linear-gradient(135deg,#1a0a00 0%,#3d1f00 50%,#1a0a00 100%)" }}
+      >
+        <div
+          className="w-16 h-16 rounded-full flex items-center justify-center mb-4"
+          style={{ background: "rgba(245,200,66,0.15)" }}
+        >
+          <Gavel className="w-9 h-9" style={{ color: "#f5c842" }} />
+        </div>
+        <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight">
+          LEILÃO ONLINE
+        </h1>
+        <p className="text-base font-semibold mt-2" style={{ color: "#f5c842" }}>
+          Dê o seu lance e leve o melhor lote!
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative w-full overflow-hidden" style={{ minHeight: 260, maxHeight: 340 }}>
+      {auction.image_url ? (
+        <img
+          src={auction.image_url}
+          alt={auction.title}
+          className="w-full h-full object-cover"
+          style={{ minHeight: 260, maxHeight: 340 }}
+        />
+      ) : (
+        <div
+          className="w-full flex items-center justify-center"
+          style={{ minHeight: 260, background: "linear-gradient(135deg,#1a0a00,#3d1f00)" }}
+        >
+          <Gavel className="w-16 h-16" style={{ color: "#f5c842" }} />
+        </div>
+      )}
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            "linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.15) 45%, rgba(0,0,0,0.3) 100%)",
+        }}
+      />
+
+      {/* AO VIVO + nº de lances — prova social verdadeira, não encenada */}
+      <div
+        className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full"
+        style={{ background: "rgba(0,0,0,0.55)" }}
+      >
+        <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+        <span className="text-[10px] font-black text-white tracking-wide">AO VIVO</span>
+      </div>
+      <div
+        className="absolute top-3 right-3 flex items-center gap-1 px-2.5 py-1 rounded-full"
+        style={{ background: "rgba(0,0,0,0.55)" }}
+      >
+        <Users className="w-3 h-3 text-white" />
+        <span className="text-[10px] font-bold text-white">{bidsCount} lances</span>
+      </div>
+
+      <div className="absolute bottom-0 left-0 right-0 p-4">
+        <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: "#f5c842" }}>
+          Lote em destaque
+        </p>
+        <h1 className="text-lg md:text-2xl font-black text-white leading-snug line-clamp-2 mb-2">
+          {auction.title}
+        </h1>
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <p className="text-[10px] text-white/70 font-semibold">Lance actual</p>
+            <p className="text-xl md:text-2xl font-black" style={{ color: "#f5c842" }}>
+              {Number(auction.current_bid).toLocaleString("pt-AO")} Kz
+            </p>
+          </div>
+          <div className="flex gap-1.5">
+            <TimerBox value={countdown.h} label="H" compact />
+            <TimerBox value={countdown.m} label="M" compact />
+            <TimerBox value={countdown.s} label="S" compact />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Explicador em 3 passos — Angola ainda não tem muita cultura de leilão
+// online, por isso ajuda a dar confiança a quem nunca usou isto.
+const HOW_IT_WORKS = [
+  { icon: Gavel, title: "Dê o seu lance", text: "Escolha um lote e ofereça acima do lance mínimo." },
+  { icon: Clock, title: "Acompanhe ao vivo", text: "Recebe aviso se alguém superar a sua oferta." },
+  { icon: Trophy, title: "Ganhe e pague", text: "Se vencer, confirma o pagamento e o lote é seu." },
+];
+
+const HowItWorks = () => (
+  <section className="container mx-auto px-3 mt-5">
+    <div className="grid grid-cols-3 gap-2">
+      {HOW_IT_WORKS.map((step, i) => (
+        <div key={step.title} className="rounded-2xl p-3 text-center bg-card border border-border">
+          <div
+            className="w-9 h-9 rounded-full flex items-center justify-center mx-auto mb-2"
+            style={{ background: "rgba(200,169,126,0.15)" }}
+          >
+            <step.icon className="w-4 h-4" style={{ color: "#a07a4a" }} />
+          </div>
+          <p className="text-[11px] font-black text-foreground leading-tight mb-1">
+            {i + 1}. {step.title}
+          </p>
+          <p className="text-[10px] text-muted-foreground leading-snug">{step.text}</p>
+        </div>
+      ))}
+    </div>
+  </section>
+);
+
+// Faixa de confiança — três selos discretos em vez de uma imagem de
+// atores a aplaudir.
+const TRUST_BADGES = [
+  { icon: Sparkles, label: "Peças únicas" },
+  { icon: Shield, label: "Transparência" },
+  { icon: Users, label: "Experiência exclusiva" },
+];
+
+const TrustBadges = () => (
+  <section className="container mx-auto px-3 mt-4">
+    <div className="flex items-center justify-between gap-2 rounded-2xl px-3 py-3 bg-card border border-border">
+      {TRUST_BADGES.map(b => (
+        <div key={b.label} className="flex flex-col items-center flex-1 text-center gap-1">
+          <b.icon className="w-4 h-4" style={{ color: "#a07a4a" }} />
+          <span className="text-[9px] font-bold text-muted-foreground leading-tight">{b.label}</span>
+        </div>
+      ))}
+    </div>
+  </section>
 );
 
 const BidModal = ({
@@ -485,8 +621,11 @@ const Leilao = () => {
         />
       )}
 
-      {/* ── HERO IMAGE + SLIDES SECUNDÁRIOS ── */}
-      <HeroSection />
+      {/* ── HERO — leilão em destaque real, não uma animação decorativa ── */}
+      <HeroSection auction={featured} countdown={countdown} bidsCount={bids.length} />
+
+      <HowItWorks />
+      <TrustBadges />
 
       {/* ── COUNTDOWN — fundo claro, separado da hero image ── */}
       {displayed && (
