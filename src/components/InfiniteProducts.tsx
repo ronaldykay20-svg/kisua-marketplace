@@ -72,6 +72,14 @@ const AnimationStyles = () => (
       -ms-overflow-style: none;
     }
     .zg-no-scrollbar::-webkit-scrollbar { display: none; }
+    @keyframes zg-truckLoop {
+      0%   { transform: translateX(0); }
+      50%  { transform: translateX(4px); }
+      100% { transform: translateX(0); }
+    }
+    .zg-truck-loop {
+      animation: zg-truckLoop 1s ease-in-out infinite;
+    }
   `}</style>
 );
 
@@ -470,13 +478,6 @@ const ProductCardBase = ({
           </span>
         )}
 
-        {p.free_shipping && (
-          <span className="absolute bottom-2 left-2 flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-bold text-white z-10"
-            style={{ background: "rgba(26,92,58,0.88)", borderRadius: "4px" }}>
-            <Truck className="w-2.5 h-2.5" /> Grátis
-          </span>
-        )}
-
         <div className="absolute bottom-2 right-2 flex flex-col items-center gap-1.5 z-10">
           <button
             onClick={handleFav}
@@ -499,30 +500,46 @@ const ProductCardBase = ({
       </div>
 
       <div className="px-2 pt-1.5 pb-2">
-        <p className="font-bold line-clamp-2 leading-tight" style={{ color: "#6b3a1f", margin: 0, fontSize: "13px" }}>
+        {/* Estrelas / info rotativa à esquerda, preço num círculo à direita —
+            mesmo layout fechado no Ambiente de Teste. */}
+        <div className="flex items-center justify-between gap-1.5 mb-1.5">
+          <div
+            className="min-w-0 flex-1"
+            style={{
+              opacity: isSpotlight ? (infoFade ? 1 : 0) : 1,
+              transition: "opacity 0.25s ease",
+            }}
+          >
+            {infoCandidates.length > 0 && infoCandidates[infoIndex % infoCandidates.length].node}
+          </div>
+
+          <span
+            className="inline-flex items-center justify-center whitespace-nowrap flex-shrink-0"
+            style={{
+              padding: "5px 15px",
+              borderRadius: "999px",
+              background: "linear-gradient(180deg, #6b3510 0%, #3d1c08 55%, #2a1305 100%)",
+              boxShadow: "0 0 0 2.5px #d98f2e, inset 0 1px 1px rgba(255,255,255,0.25), inset 0 -1px 2px rgba(0,0,0,0.4)",
+              color: "#f6c667",
+              fontWeight: 900,
+              fontSize: "13.5px",
+            }}
+          >
+            {Number(p.price).toLocaleString("pt-AO")} Kz
+          </span>
+        </div>
+
+        <p className="font-bold line-clamp-2 leading-tight text-center" style={{ color: "#6b3a1f", margin: 0, fontSize: "13px" }}>
           {p.title}
         </p>
 
         {p.description && (
           <p
-            className="font-medium leading-snug line-clamp-3"
+            className="font-medium leading-snug line-clamp-3 text-center"
             style={{ color: "#000000", margin: "3px 0 6px 0", fontSize: "13.5px", letterSpacing: "0.4px" }}
           >
             {p.description}
           </p>
-        )}
-
-        {infoCandidates.length > 0 && (
-          <div
-            className="mb-1"
-            style={{
-              minHeight: "14px",
-              opacity: isSpotlight ? (infoFade ? 1 : 0) : 1,
-              transition: "opacity 0.25s ease",
-            }}
-          >
-            {infoCandidates[infoIndex % infoCandidates.length].node}
-          </div>
         )}
 
         {coupon && (
@@ -547,17 +564,25 @@ const ProductCardBase = ({
           </div>
         )}
 
-        <div className="flex items-baseline gap-1.5 flex-wrap">
-          <span className="font-black leading-none" style={{ fontSize: "14px", color: "#1a0f07" }}>
-            {Number(p.price).toLocaleString("pt-AO")} Kz
-          </span>
-          {p.old_price && (
-            <span className="text-[10.5px] line-through" style={{ color: "#b09080" }}>
-              {Number(p.old_price).toLocaleString("pt-AO")} Kz
-            </span>
-          )}
-        </div>
+        {p.old_price && (
+          <p className="text-[11px] text-center" style={{ color: "#b09080", textDecoration: "line-through" }}>
+            {Number(p.old_price).toLocaleString("pt-AO")} Kz
+          </p>
+        )}
       </div>
+
+      {p.free_shipping && (
+        <div className="flex items-stretch w-full overflow-hidden">
+          <div className="flex items-center justify-center px-2 py-1" style={{ background: "#1a0f07" }}>
+            <Truck className="zg-truck-loop w-3.5 h-3.5" style={{ color: "#ffffff" }} />
+          </div>
+          <div className="flex-1 flex items-center justify-center py-1" style={{ background: "#f5a623" }}>
+            <span className="text-[10px] font-black tracking-wide" style={{ color: "#1a0f07" }}>
+              FRETE GRÁTIS
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
