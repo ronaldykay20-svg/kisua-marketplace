@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { FlaskConical } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getRatingImage, freteGratisImg } from "@/lib/ratingImage";
@@ -18,12 +19,6 @@ interface TestProduct {
   rating: number | null;
   total_reviews: number | null;
   free_shipping: boolean | null;
-  // Ainda não existe uma coluna de "província" na tabela products — por isso
-  // este campo fica sempre undefined por agora, e o texto cai no valor por
-  // omissão ("Para todo o país"). Assim que a coluna existir, basta pedi-la
-  // no select() abaixo (ex.: "free_shipping_region") que este texto passa a
-  // mostrar a província automaticamente, sem mexer em mais nada.
-  free_shipping_region?: string | null;
   images: string[];
 }
 
@@ -34,9 +29,6 @@ const FALLBACK_IMG = "https://images.unsplash.com/photo-1505740420928-5e560c06d3
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("pt-AO", { style: "currency", currency: "AOA", maximumFractionDigits: 0 }).format(n);
-
-const freightLabel = (p: TestProduct) =>
-  p.free_shipping_region ? `Para a província de ${p.free_shipping_region}` : "Para todo o país";
 
 // Baralha uma cópia do array (Fisher-Yates) — usado para que a ordem das
 // fotos de cada produto não seja sempre a mesma.
@@ -55,6 +47,7 @@ const shuffle = <T,>(arr: T[]): T[] => {
 // ─────────────────────────────────────────────────────────────────────────
 const ProductCard = ({ p, index }: { p: TestProduct; index: number }) => {
   const [imgIndex, setImgIndex] = useState(0);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (p.images.length <= 1) return;
@@ -72,9 +65,24 @@ const ProductCard = ({ p, index }: { p: TestProduct; index: number }) => {
     return () => clearTimeout(timer);
   }, [p.images.length]);
 
+  const openProduct = () => {
+    const url = `/produto/${p.id}`;
+    // Crossfade nativo do browser entre páginas — leve, sem biblioteca extra.
+    // Em browsers sem suporte (ex.: Firefox), cai para navegação normal.
+    if ((document as any).startViewTransition) {
+      (document as any).startViewTransition(() => navigate(url));
+    } else {
+      navigate(url);
+    }
+  };
+
   return (
     <div
-      className="at-card-enter bg-card overflow-hidden"
+      role="button"
+      tabIndex={0}
+      onClick={openProduct}
+      onKeyDown={(e) => { if (e.key === "Enter") openProduct(); }}
+      className="at-card-enter bg-card overflow-hidden cursor-pointer transition-transform duration-150 ease-out active:scale-[0.97]"
       style={{ animationDelay: `${(index % PAGE_SIZE) * 35}ms` }}
     >
       <div className="relative aspect-square bg-muted overflow-hidden">
@@ -141,11 +149,11 @@ const ProductCard = ({ p, index }: { p: TestProduct; index: number }) => {
 
 // Faixa partilhada de frete grátis — ocupa a linha toda da grelha (col-span-full),
 // aparece uma vez a cada 2 produtos em vez de repetir em cada card individual.
-const FreightBanner = ({ label }: { label: string }) => (
-  <div className="col-span-full flex items-center justify-center gap-3 py-3">
-    <img src={freteGratisImg} alt="Frete grátis" className="h-6 w-auto flex-shrink-0" />
-    <span className="w-px h-4 bg-border" />
-    <span className="text-sm text-muted-foreground">{label}</span>
+// Recuada das bordas (não é full-bleed) e sem legenda de texto — só o ícone,
+// mas mantém o mesmo espaço em branco à volta para não colar aos cards vizinhos.
+const FreightBanner = () => (
+  <div className="col-span-full flex items-center justify-center py-3 px-6">
+    <img src={freteGratisImg} alt="Frete grátis" className="h-6 w-auto" />
   </div>
 );
 
@@ -249,9 +257,7 @@ const AmbienteTeste = () => {
             return (
               <Fragment key={p.id}>
                 <ProductCard p={p} index={i} />
-                {rowJustClosed && pairHasFreeShipping && (
-                  <FreightBanner label={freightLabel(p)} />
-                )}
+                {rowJustClosed && pairHasFreeShipping && <FreightBanner />}
               </Fragment>
             );
           })}
