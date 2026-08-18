@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from "react";
-import { Gavel, Monitor, Home, Car, Watch, Clock, Trophy, CheckCircle2, Users, Shield, Loader2, X, Upload, Copy, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
+import { Gavel, Monitor, Home, Car, Watch, Clock, Trophy, CheckCircle2, Users, Shield, Loader2, X, Upload, Copy, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { toast } from "sonner";
+import leilaoHero from "@/assets/leilao/leilao-hero.webp";
 
 const useCountdown = (endDate: string | null) => {
   const [t, setT] = useState(0);
@@ -44,167 +45,19 @@ const categories = [
   { icon: Watch, label: "Luxo & Relógios" },
 ];
 
-const HeroSection = () => {
-  const [current, setCurrent] = useState(0);
-  const timerRef = useRef<any>(null);
-
-  // Imagem hero configurada pelo admin
-  const { data: heroImage } = useQuery({
-    queryKey: ["auction_hero_image"],
-    queryFn: async () => {
-      const { data } = await (supabase as any)
-        .from("auction_hero_image")
-        .select("image_url")
-        .limit(1)
-        .maybeSingle();
-      return data;
-    },
-  });
-
-  // Slides secundários (carrossel existente)
-  const { data: slides = [] } = useQuery({
-    queryKey: ["auction_hero_slides"],
-    queryFn: async () => {
-      const { data } = await (supabase as any)
-        .from("auction_hero_slides")
-        .select("*")
-        .eq("is_active", true)
-        .order("sort_order");
-      return data || [];
-    },
-  });
-
-  useEffect(() => {
-    if (slides.length <= 1) return;
-    timerRef.current = setInterval(() => {
-      setCurrent(c => (c + 1) % slides.length);
-    }, 4000);
-    return () => clearInterval(timerRef.current);
-  }, [slides.length]);
-
-  const prev = () => {
-    clearInterval(timerRef.current);
-    setCurrent(c => (c - 1 + slides.length) % slides.length);
-  };
-  const next = () => {
-    clearInterval(timerRef.current);
-    setCurrent(c => (c + 1) % slides.length);
-  };
-
-  return (
-    <>
-      {/* ── IMAGEM HERO (configurada pelo admin) ── */}
-      <div className="w-full overflow-hidden" style={{ maxHeight: 320 }}>
-        {heroImage?.image_url ? (
-          <img
-            src={heroImage.image_url}
-            alt="Leilão Online"
-            className="w-full object-cover"
-            style={{ maxHeight: 320, display: "block" }}
-          />
-        ) : (
-          <div
-            className="flex flex-col items-center justify-center py-12 text-center px-4"
-            style={{
-              minHeight: 220,
-              background: "linear-gradient(135deg,#1a0a00 0%,#3d1f00 50%,#1a0a00 100%)",
-            }}
-          >
-            <div
-              className="w-16 h-16 rounded-full flex items-center justify-center mb-4"
-              style={{ background: "rgba(245,200,66,0.15)" }}
-            >
-              <Gavel className="w-9 h-9" style={{ color: "#f5c842" }} />
-            </div>
-            <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight">
-              LEILÃO ONLINE
-            </h1>
-            <p className="text-base font-semibold mt-2" style={{ color: "#f5c842" }}>
-              Dê o seu lance e leve o melhor lote!
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* ── SLIDES SECUNDÁRIOS (carrossel existente, só aparece se houver slides) ── */}
-      {slides.length > 0 && (
-        <div className="relative w-full overflow-hidden" style={{ minHeight: 180 }}>
-          {slides[current]?.type === "video" ? (
-            <video
-              key={slides[current].id}
-              src={slides[current].url}
-              autoPlay
-              muted
-              loop
-              playsInline
-              className="w-full object-cover"
-              style={{ minHeight: 180, maxHeight: 260 }}
-            />
-          ) : (
-            <img
-              key={slides[current].id}
-              src={slides[current].url}
-              alt={slides[current].title || "Leilão"}
-              className="w-full object-cover transition-opacity duration-500"
-              style={{ minHeight: 180, maxHeight: 260 }}
-            />
-          )}
-          <div
-            className="absolute inset-0"
-            style={{
-              background: "linear-gradient(to bottom,rgba(0,0,0,0.2) 0%,rgba(0,0,0,0.5) 100%)",
-            }}
-          />
-          {(slides[current]?.title || slides[current]?.subtitle) && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
-              {slides[current]?.title && (
-                <h2 className="text-xl md:text-3xl font-black text-white drop-shadow-lg">
-                  {slides[current].title}
-                </h2>
-              )}
-              {slides[current]?.subtitle && (
-                <p
-                  className="text-sm font-semibold mt-1 drop-shadow"
-                  style={{ color: "#f5c842" }}
-                >
-                  {slides[current].subtitle}
-                </p>
-              )}
-            </div>
-          )}
-          {slides.length > 1 && (
-            <>
-              <button
-                onClick={prev}
-                className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-              <button
-                onClick={next}
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
-              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
-                {slides.map((_: any, i: number) => (
-                  <button
-                    key={i}
-                    onClick={() => setCurrent(i)}
-                    className="w-2 h-2 rounded-full transition-all"
-                    style={{
-                      background: i === current ? "#f5c842" : "rgba(255,255,255,0.5)",
-                    }}
-                  />
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      )}
-    </>
-  );
-};
+// Imagem hero — sequência fixa de 10 cenas do leilão, pré-processada em
+// webp animado (src/assets/leilao/leilao-hero.webp). O browser trata o
+// loop nativamente; não há queries nem setInterval no React.
+const HeroSection = () => (
+  <div className="w-full overflow-hidden" style={{ maxHeight: 320 }}>
+    <img
+      src={leilaoHero}
+      alt="Leilão Online"
+      className="w-full object-cover"
+      style={{ maxHeight: 320, display: "block" }}
+    />
+  </div>
+);
 
 const BidModal = ({
   auction,
