@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { FlaskConical } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getRatingImage, freteGratisImg } from "@/lib/ratingImage";
@@ -18,7 +18,13 @@ interface TestProduct {
   rating: number | null;
   total_reviews: number | null;
   free_shipping: boolean | null;
-  coverImage?: string | null;
+  // Ainda não existe uma coluna de "província" na tabela products — por isso
+  // este campo fica sempre undefined por agora, e o texto cai no valor por
+  // omissão ("Para todo o país"). Assim que a coluna existir, basta pedi-la
+  // no select() abaixo (ex.: "free_shipping_region") que este texto passa a
+  // mostrar a província automaticamente, sem mexer em mais nada.
+  free_shipping_region?: string | null;
+  images: string[];
 }
 
 const PAGE_SIZE = 12;
@@ -29,72 +35,117 @@ const FALLBACK_IMG = "https://images.unsplash.com/photo-1505740420928-5e560c06d3
 const fmt = (n: number) =>
   new Intl.NumberFormat("pt-AO", { style: "currency", currency: "AOA", maximumFractionDigits: 0 }).format(n);
 
-// ─────────────────────────────────────────────────────────────────────────
-// Card — imagem, depois [estrelas | preço em círculo], depois título/descrição.
-// ─────────────────────────────────────────────────────────────────────────
-const ProductCard = ({ p, index }: { p: TestProduct; index: number }) => (
-  <div
-    className="at-card-enter bg-card overflow-hidden"
-    style={{ animationDelay: `${(index % PAGE_SIZE) * 35}ms` }}
-  >
-    <div className="aspect-square bg-muted">
-      <img
-        src={p.coverImage || FALLBACK_IMG}
-        alt={p.title}
-        loading="lazy"
-        className="w-full h-full object-cover"
-      />
-    </div>
+const freightLabel = (p: TestProduct) =>
+  p.free_shipping_region ? `Para a província de ${p.free_shipping_region}` : "Para todo o país";
 
-    <div className="px-2 pt-2 pb-1">
-      {/* Estrelas à esquerda, preço num círculo à direita */}
-      <div className="flex items-center justify-between gap-1.5 mb-1.5">
-        <div className="flex items-center gap-1 min-w-0">
-          <img src={getRatingImage(p.rating)} alt={`${p.rating ?? 0} estrelas`} className="h-4 flex-shrink-0" />
-          {!!p.total_reviews && (
-            <span className="text-[10px] text-muted-foreground truncate">({p.total_reviews})</span>
-          )}
-        </div>
+// Baralha uma cópia do array (Fisher-Yates) — usado para que a ordem das
+// fotos de cada produto não seja sempre a mesma.
+const shuffle = <T,>(arr: T[]): T[] => {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+};
 
-        <span
-          className="inline-flex items-center justify-center whitespace-nowrap flex-shrink-0"
-          style={{
-            padding: "5px 15px",
-            borderRadius: "999px",
-            background: `linear-gradient(180deg, #6b3510 0%, ${BROWN_DARK} 55%, #2a1305 100%)`,
-            boxShadow: "0 0 0 2.5px #d98f2e, inset 0 1px 1px rgba(255,255,255,0.25), inset 0 -1px 2px rgba(0,0,0,0.4)",
-            color: "#f6c667",
-            fontWeight: 900,
-            fontSize: "13.5px",
-          }}
-        >
-          {fmt(p.price)}
-        </span>
+// ─────────────────────────────────────────────────────────────────────────
+// Card — imagem (com crossfade lento e aleatório se houver mais do que uma
+// foto), depois [estrelas | preço em círculo], depois título/descrição.
+// ─────────────────────────────────────────────────────────────────────────
+const ProductCard = ({ p, index }: { p: TestProduct; index: number }) => {
+  const [imgIndex, setImgIndex] = useState(0);
+
+  useEffect(() => {
+    if (p.images.length <= 1) return;
+    let timer: ReturnType<typeof setTimeout>;
+    // Atraso inicial aleatório + intervalo lento (5–9s) — garante que os
+    // cards nunca trocam de foto todos ao mesmo tempo (fica leve e discreto,
+    // só 1 ou 2 cards a mudar de cada vez, nunca a grelha toda a piscar).
+    const schedule = (delay: number) => {
+      timer = setTimeout(() => {
+        setImgIndex((i) => (i + 1) % p.images.length);
+        schedule(5000 + Math.random() * 4000);
+      }, delay);
+    };
+    schedule(1500 + Math.random() * 4000);
+    return () => clearTimeout(timer);
+  }, [p.images.length]);
+
+  return (
+    <div
+      className="at-card-enter bg-card overflow-hidden"
+      style={{ animationDelay: `${(index % PAGE_SIZE) * 35}ms` }}
+    >
+      <div className="relative aspect-square bg-muted overflow-hidden">
+        {p.images.map((src, i) => (
+          <img
+            key={src}
+            src={src}
+            alt={p.title}
+            loading="lazy"
+            className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ease-in-out"
+            style={{ opacity: i === imgIndex ? 1 : 0 }}
+          />
+        ))}
       </div>
 
-      <h3 className="text-[14px] font-bold line-clamp-2 leading-snug mb-1 text-center" style={{ color: BROWN }}>
-        {p.title}
-      </h3>
+      <div className="px-2 pt-2 pb-1">
+        {/* Estrelas à esquerda, preço num círculo à direita */}
+        <div className="flex items-center justify-between gap-1.5 mb-1.5">
+          <div className="flex items-center gap-1 min-w-0">
+            <img src={getRatingImage(p.rating)} alt={`${p.rating ?? 0} estrelas`} className="h-4 flex-shrink-0" />
+            {!!p.total_reviews && (
+              <span className="text-[10px] text-muted-foreground truncate">({p.total_reviews})</span>
+            )}
+          </div>
 
-      {p.description && (
-        <p
-          className="font-normal text-muted-foreground line-clamp-3 text-center"
-          style={{ fontSize: "13px", lineHeight: 1.25, letterSpacing: "-0.1px", marginBottom: "4px" }}
-        >
-          {p.description}
-        </p>
-      )}
+          <span
+            className="inline-flex items-center justify-center whitespace-nowrap flex-shrink-0"
+            style={{
+              padding: "5px 15px",
+              borderRadius: "999px",
+              background: `linear-gradient(180deg, #6b3510 0%, ${BROWN_DARK} 55%, #2a1305 100%)`,
+              boxShadow: "0 0 0 2.5px #d98f2e, inset 0 1px 1px rgba(255,255,255,0.25), inset 0 -1px 2px rgba(0,0,0,0.4)",
+              color: "#f6c667",
+              fontWeight: 900,
+              fontSize: "13.5px",
+            }}
+          >
+            {fmt(p.price)}
+          </span>
+        </div>
 
-      {p.old_price && (
-        <p className="text-[11px] text-muted-foreground line-through text-center mb-1">
-          {fmt(p.old_price)}
-        </p>
-      )}
+        <h3 className="text-[14px] font-bold line-clamp-2 leading-snug mb-1 text-center" style={{ color: BROWN }}>
+          {p.title}
+        </h3>
+
+        {p.description && (
+          <p
+            className="font-normal text-muted-foreground line-clamp-3 text-center"
+            style={{ fontSize: "13px", lineHeight: 1.25, letterSpacing: "-0.1px", marginBottom: "4px" }}
+          >
+            {p.description}
+          </p>
+        )}
+
+        {p.old_price && (
+          <p className="text-[11px] text-muted-foreground line-through text-center mb-1">
+            {fmt(p.old_price)}
+          </p>
+        )}
+      </div>
     </div>
+  );
+};
 
-    {p.free_shipping && (
-      <img src={freteGratisImg} alt="Frete grátis" className="w-full h-auto block" />
-    )}
+// Faixa partilhada de frete grátis — ocupa a linha toda da grelha (col-span-full),
+// aparece uma vez a cada 2 produtos em vez de repetir em cada card individual.
+const FreightBanner = ({ label }: { label: string }) => (
+  <div className="col-span-full flex items-center justify-center gap-3 py-3">
+    <img src={freteGratisImg} alt="Frete grátis" className="h-6 w-auto flex-shrink-0" />
+    <span className="w-px h-4 bg-border" />
+    <span className="text-sm text-muted-foreground">{label}</span>
   </div>
 );
 
@@ -121,24 +172,29 @@ const AmbienteTeste = () => {
       .order("created_at", { ascending: false })
       .range(from, to);
 
-    const list = (data as TestProduct[]) || [];
+    const list = (data as Omit<TestProduct, "images">[]) || [];
 
-    // A imagem real do produto vive em product_media (capa), não em products.image_url.
+    // Todas as fotos do produto (não só a capa) vivem em product_media.
     const ids = list.map((p) => p.id);
-    const coverMap: Record<string, string> = {};
+    const imagesByProduct: Record<string, string[]> = {};
     if (ids.length) {
       const { data: media } = await supabase
         .from("product_media")
-        .select("product_id, url")
-        .in("product_id", ids)
-        .eq("is_cover", true);
-      (media || []).forEach((m: any) => { coverMap[m.product_id] = m.url; });
+        .select("product_id, url, is_cover")
+        .in("product_id", ids);
+      (media || []).forEach((m: any) => {
+        (imagesByProduct[m.product_id] ??= []).push(m.url);
+      });
     }
 
     if (!error) {
       setProducts((prev) => [
         ...prev,
-        ...list.map((p) => ({ ...p, coverImage: coverMap[p.id] || p.image_url || null })),
+        ...list.map((p) => {
+          const gallery = imagesByProduct[p.id] || [];
+          const images = gallery.length ? shuffle(gallery) : [p.image_url || FALLBACK_IMG];
+          return { ...p, images };
+        }),
       ]);
       if (list.length < PAGE_SIZE) setHasMore(false);
       pageRef.current += 1;
@@ -185,9 +241,20 @@ const AmbienteTeste = () => {
         </p>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-0">
-          {products.map((p, i) => (
-            <ProductCard key={p.id} p={p} index={i} />
-          ))}
+          {products.map((p, i) => {
+            // A faixa aparece a cada 2 produtos (fim de cada linha no telemóvel),
+            // só se pelo menos um dos dois tiver frete grátis.
+            const rowJustClosed = i % 2 === 1;
+            const pairHasFreeShipping = p.free_shipping || products[i - 1]?.free_shipping;
+            return (
+              <Fragment key={p.id}>
+                <ProductCard p={p} index={i} />
+                {rowJustClosed && pairHasFreeShipping && (
+                  <FreightBanner label={freightLabel(p)} />
+                )}
+              </Fragment>
+            );
+          })}
         </div>
 
         {products.length === 0 && !loading && (
