@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FlaskConical } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getRatingImage, freteGratisImg } from "@/lib/ratingImage";
 
@@ -115,7 +114,7 @@ const ProductCard = ({ p, index }: { p: TestProduct; index: number }) => {
               borderRadius: "999px",
               background: `linear-gradient(180deg, #6b3510 0%, ${BROWN_DARK} 55%, #2a1305 100%)`,
               boxShadow: "0 0 0 2.5px #d98f2e, inset 0 1px 1px rgba(255,255,255,0.25), inset 0 -1px 2px rgba(0,0,0,0.4)",
-              color: "#f6c667",
+              color: "#ffffff",
               fontWeight: 900,
               fontSize: "13.5px",
             }}
@@ -235,15 +234,6 @@ const AmbienteTeste = () => {
       `}</style>
 
       <div className="max-w-md sm:max-w-xl mx-auto">
-        <div className="flex items-center gap-2 mb-1">
-          <FlaskConical className="w-5 h-5 text-primary" />
-          <h1 className="text-xl font-bold text-foreground">Ambiente de teste</h1>
-        </div>
-        <p className="text-sm text-muted-foreground mb-6">
-          Pré-visualização automática do novo estilo de card — os produtos carregam sozinhos
-          e mais aparecem ao rolar a página. Só visível a partir deste link — não está em nenhum menu.
-        </p>
-
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-0">
           {products.map((p, i) => (
             <ProductCard key={p.id} p={p} index={i} />
