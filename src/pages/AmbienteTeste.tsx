@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FlaskConical } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -142,20 +142,16 @@ const ProductCard = ({ p, index }: { p: TestProduct; index: number }) => {
             {fmt(p.old_price)}
           </p>
         )}
+
+        {p.free_shipping && (
+          <div className="flex justify-center pt-1 pb-1.5">
+            <img src={freteGratisImg} alt="Frete grátis" className="h-5 w-auto" />
+          </div>
+        )}
       </div>
     </div>
   );
 };
-
-// Faixa partilhada de frete grátis — ocupa a linha toda da grelha (col-span-full),
-// aparece uma vez a cada 2 produtos em vez de repetir em cada card individual.
-// Recuada das bordas (não é full-bleed) e sem legenda de texto — só o ícone,
-// mas mantém o mesmo espaço em branco à volta para não colar aos cards vizinhos.
-const FreightBanner = () => (
-  <div className="col-span-full flex items-center justify-center py-3 px-6 bg-card">
-    <img src={freteGratisImg} alt="Frete grátis" className="h-6 w-auto" />
-  </div>
-);
 
 // ─────────────────────────────────────────────────────────────────────────
 // Página — carrega produtos automaticamente, mais entram ao chegar perto
@@ -249,18 +245,9 @@ const AmbienteTeste = () => {
         </p>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-0">
-          {products.map((p, i) => {
-            // A faixa aparece a cada 2 produtos (fim de cada linha no telemóvel),
-            // só se pelo menos um dos dois tiver frete grátis.
-            const rowJustClosed = i % 2 === 1;
-            const pairHasFreeShipping = p.free_shipping || products[i - 1]?.free_shipping;
-            return (
-              <Fragment key={p.id}>
-                <ProductCard p={p} index={i} />
-                {rowJustClosed && pairHasFreeShipping && <FreightBanner />}
-              </Fragment>
-            );
-          })}
+          {products.map((p, i) => (
+            <ProductCard key={p.id} p={p} index={i} />
+          ))}
         </div>
 
         {products.length === 0 && !loading && (
