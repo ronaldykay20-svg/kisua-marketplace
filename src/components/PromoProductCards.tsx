@@ -7,7 +7,6 @@ import { useFavorites } from "@/hooks/useFavorites";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFreight } from "@/hooks/useFreight";
 import { getFreeShippingLabel } from "@/lib/freeShipping";
-import frameFreteGratis from "@/assets/frame-frete-gratis.svg";
 
 const PromoProductCards = () => {
   const navigate = useNavigate();
@@ -69,22 +68,27 @@ const PromoProductCards = () => {
 
   return (
     <section className="container mx-auto px-3 pt-4">
-      <div className="relative rounded-2xl overflow-hidden pt-16 pb-24 px-4">
-        {/* Moldura decorativa — fica por cima do conteúdo, mas é transparente
-            no centro e não intercepta cliques (pointer-events-none). */}
-        <img
-          src={frameFreteGratis}
-          alt=""
-          aria-hidden="true"
-          className="absolute inset-0 w-full h-full object-fill pointer-events-none select-none z-20"
-        />
-
-        <div className="relative z-10">
-          <div className="max-w-[58%] mb-3">
-            <h2 className="text-[15px] font-bold text-foreground leading-tight">Frete grátis</h2>
-            <p className="text-[11px] text-muted-foreground">Produtos com envio grátis para si</p>
+      <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-[#8B5A2B] to-[#4a2a12] px-4 pt-4 pb-4">
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-white/15 shrink-0">
+                <Truck className="w-3.5 h-3.5 text-white" />
+              </span>
+              <h2 className="text-[15px] font-bold text-white leading-tight">Frete grátis</h2>
+            </div>
+            <p className="text-[11px] text-white/75 mt-0.5">Produtos com envio grátis para si</p>
           </div>
 
+          <button
+            onClick={() => navigate("/promocoes")}
+            className="flex items-center gap-0.5 shrink-0 text-[12px] font-semibold text-white bg-white/15 hover:bg-white/25 transition-colors px-2.5 py-1.5 rounded-full"
+          >
+            Ver mais <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="relative">
           <div ref={scrollRef} onScroll={handleScroll} className="flex gap-3 overflow-x-auto scrollbar-hide snap-x snap-mandatory">
             {products.map((p: any) => {
             const img = p.cover_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop";
@@ -174,52 +178,42 @@ const PromoProductCards = () => {
           })}
         </div>
 
-        {totalPages > 1 && (
-          <div className="flex items-center justify-center gap-3 mt-3">
-            <button
-              onClick={() => {
-                const el = scrollRef.current;
-                if (!el) return;
-                const firstCard = el.firstElementChild as HTMLElement;
-                el.scrollBy({ left: -(firstCard?.offsetWidth || el.offsetWidth), behavior: "smooth" });
-              }}
-              disabled={activePage === 0}
-              className="w-7 h-7 rounded-full bg-muted flex items-center justify-center disabled:opacity-30 transition hover:bg-border"
-            >
-              <ChevronLeft className="w-4 h-4 text-foreground" />
-            </button>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-3 mt-3">
+              <button
+                onClick={() => {
+                  const el = scrollRef.current;
+                  if (!el) return;
+                  const firstCard = el.firstElementChild as HTMLElement;
+                  el.scrollBy({ left: -(firstCard?.offsetWidth || el.offsetWidth), behavior: "smooth" });
+                }}
+                disabled={activePage === 0}
+                className="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center disabled:opacity-30 transition hover:bg-white/25"
+              >
+                <ChevronLeft className="w-4 h-4 text-white" />
+              </button>
 
-            <div className="flex gap-1.5">
-              {Array.from({ length: totalPages }).map((_, i) => (
-                <div key={i} className={`h-1.5 rounded-full transition-all duration-300 ${i === activePage ? "w-5 bg-primary" : "w-1.5 bg-muted-foreground/30"}`} />
-              ))}
+              <div className="flex gap-1.5">
+                {Array.from({ length: totalPages }).map((_, i) => (
+                  <div key={i} className={`h-1.5 rounded-full transition-all duration-300 ${i === activePage ? "w-5 bg-white" : "w-1.5 bg-white/30"}`} />
+                ))}
+              </div>
+
+              <button
+                onClick={() => {
+                  const el = scrollRef.current;
+                  if (!el) return;
+                  const firstCard = el.firstElementChild as HTMLElement;
+                  el.scrollBy({ left: firstCard?.offsetWidth || el.offsetWidth, behavior: "smooth" });
+                }}
+                disabled={activePage === totalPages - 1}
+                className="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center disabled:opacity-30 transition hover:bg-white/25"
+              >
+                <ChevronRight className="w-4 h-4 text-white" />
+              </button>
             </div>
-
-            <button
-              onClick={() => {
-                const el = scrollRef.current;
-                if (!el) return;
-                const firstCard = el.firstElementChild as HTMLElement;
-                el.scrollBy({ left: firstCard?.offsetWidth || el.offsetWidth, behavior: "smooth" });
-              }}
-              disabled={activePage === totalPages - 1}
-              className="w-7 h-7 rounded-full bg-muted flex items-center justify-center disabled:opacity-30 transition hover:bg-border"
-            >
-              <ChevronRight className="w-4 h-4 text-foreground" />
-            </button>
-          </div>
-        )}
+          )}
         </div>
-
-        {/* "Ver mais" — posicionado dentro da pílula da moldura, no canto
-            inferior direito, por cima do camião decorativo. */}
-        <button
-          onClick={() => navigate("/promocoes")}
-          className="absolute z-30 right-[6%] bottom-[6%] flex items-center gap-1 text-[13px] font-bold"
-          style={{ color: "#5a2f16" }}
-        >
-          Ver mais <ChevronRight className="w-4 h-4" />
-        </button>
       </div>
     </section>
   );
