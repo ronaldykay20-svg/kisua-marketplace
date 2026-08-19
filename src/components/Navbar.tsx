@@ -289,38 +289,38 @@ const Navbar = () => {
 
             {/* ── Centro: logo (sem título de categoria) ── */}
             <div className="flex-1" />
-            <a href="/" className="flex-shrink-0" style={{ display: "inline-flex", height: 44, position: "absolute", left: "50%", transform: "translateX(-50%)", zIndex: 1 }}>
-              <div style={{ position: "relative", display: "inline-flex", alignItems: "center", justifyContent: "center", height: 44 }}>
+            <a href="/" className="flex-shrink-0" style={{ display: "inline-flex", height: 36, position: "absolute", left: "50%", transform: "translateX(-50%)", zIndex: 1 }}>
+              <div style={{ position: "relative", display: "inline-flex", alignItems: "center", justifyContent: "center", height: 36 }}>
                 <svg
                   style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
-                  viewBox="0 0 170 44"
+                  viewBox="0 0 140 36"
                   preserveAspectRatio="none"
                   xmlns="http://www.w3.org/2000/svg"
                 >
                   <path
-                    d="M 22 0 Q 0 0 0 22 Q 0 44 22 44 L 148 44 Q 170 44 170 22 Q 170 0 148 0 Z"
+                    d="M 18 0 Q 0 0 0 18 Q 0 36 18 36 L 122 36 Q 140 36 140 18 Q 140 0 122 0 Z"
                     fill="rgba(255,255,255,0.93)"
                     stroke="#F9A825"
-                    strokeWidth="3.5"
+                    strokeWidth="3"
                   />
                   <path
-                    d="M 22 0 Q 0 0 0 22 Q 0 44 22 44 L 148 44 Q 170 44 170 22 Q 170 0 148 0 Z"
+                    d="M 18 0 Q 0 0 0 18 Q 0 36 18 36 L 122 36 Q 140 36 140 18 Q 140 0 122 0 Z"
                     fill="none"
                     stroke="rgba(249,168,37,0.20)"
-                    strokeWidth="8"
+                    strokeWidth="6"
                   />
                 </svg>
                 <div style={{
                   position: "relative", zIndex: 1,
-                  width: 170, height: 44,
+                  width: 140, height: 36,
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  padding: "0 16px",
+                  padding: "0 14px",
                 }}>
                   <img
                     src={logoUrl || zanguLogo}
                     alt="Logo"
                     fetchPriority="high"
-                    style={{ height: 34, maxWidth: 140, objectFit: "contain" }}
+                    style={{ width: 100, height: 24, objectFit: "contain", display: "block" }}
                   />
                 </div>
               </div>
