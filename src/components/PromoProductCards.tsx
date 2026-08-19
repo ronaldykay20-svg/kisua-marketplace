@@ -7,6 +7,7 @@ import { useFavorites } from "@/hooks/useFavorites";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFreight } from "@/hooks/useFreight";
 import { getFreeShippingLabel } from "@/lib/freeShipping";
+import frameFreteGratis from "@/assets/frame-frete-gratis.png";
 
 const PromoProductCards = () => {
   const navigate = useNavigate();
@@ -68,24 +69,24 @@ const PromoProductCards = () => {
 
   return (
     <section className="container mx-auto px-3 pt-4">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "var(--promo-gradient)" }}>
-            <Truck className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h2 className="text-[15px] font-bold text-foreground">Frete grátis</h2>
+      <div className="relative rounded-2xl overflow-hidden pt-16 pb-24 px-4">
+        {/* Moldura decorativa — fica por cima do conteúdo, mas é transparente
+            no centro e não intercepta cliques (pointer-events-none). */}
+        <img
+          src={frameFreteGratis}
+          alt=""
+          aria-hidden="true"
+          className="absolute inset-0 w-full h-full object-fill pointer-events-none select-none z-20"
+        />
+
+        <div className="relative z-10">
+          <div className="max-w-[58%] mb-3">
+            <h2 className="text-[15px] font-bold text-foreground leading-tight">Frete grátis</h2>
             <p className="text-[11px] text-muted-foreground">Produtos com envio grátis para si</p>
           </div>
-        </div>
-        <button onClick={() => navigate("/promocoes")} className="flex items-center gap-1 text-sm font-semibold text-primary">
-          Ver mais <ChevronRight className="w-4 h-4" />
-        </button>
-      </div>
 
-      <div className="border border-border rounded-2xl p-3 bg-background relative">
-        <div ref={scrollRef} onScroll={handleScroll} className="flex gap-3 overflow-x-auto scrollbar-hide snap-x snap-mandatory">
-          {products.map((p: any) => {
+          <div ref={scrollRef} onScroll={handleScroll} className="flex gap-3 overflow-x-auto scrollbar-hide snap-x snap-mandatory">
+            {products.map((p: any) => {
             const img = p.cover_url || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop";
             const fav = isFavorite(p.id);
             return (
@@ -208,6 +209,17 @@ const PromoProductCards = () => {
             </button>
           </div>
         )}
+        </div>
+
+        {/* "Ver mais" — posicionado dentro da pílula da moldura, no canto
+            inferior direito, por cima do camião decorativo. */}
+        <button
+          onClick={() => navigate("/promocoes")}
+          className="absolute z-30 right-[6%] bottom-[6%] flex items-center gap-1 text-[13px] font-bold"
+          style={{ color: "#5a2f16" }}
+        >
+          Ver mais <ChevronRight className="w-4 h-4" />
+        </button>
       </div>
     </section>
   );
