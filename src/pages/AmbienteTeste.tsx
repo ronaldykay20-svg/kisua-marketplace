@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { getRatingImage, freteGratisImg } from "@/lib/ratingImage";
+import CategoryIconBar from "@/components/CategoryIconBar";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Ambiente de teste — pré-visualização automática do card de produto.
@@ -229,7 +230,7 @@ const AmbienteTeste = () => {
   }, [hasMore, loading, loadNextPage]);
 
   return (
-    <div className="min-h-screen bg-white px-4 py-8">
+    <div className="min-h-screen bg-white">
       <style>{`
         @keyframes at-fadeInUp {
           from { opacity: 0; transform: translateY(10px); }
@@ -238,7 +239,9 @@ const AmbienteTeste = () => {
         .at-card-enter { animation: at-fadeInUp 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
       `}</style>
 
-      <div className="max-w-md sm:max-w-xl mx-auto">
+      <CategoryIconBar />
+
+      <div className="max-w-md sm:max-w-xl mx-auto px-4 pt-4 pb-8">
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-0">
           {products.map((p, i) => (
             <ProductCard key={p.id} p={p} index={i} />
