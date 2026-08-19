@@ -229,7 +229,7 @@ const AmbienteTeste = () => {
   }, [hasMore, loading, loadNextPage]);
 
   return (
-    <div className="min-h-screen bg-background px-4 py-8">
+    <div className="min-h-screen bg-white px-4 py-8">
       <style>{`
         @keyframes at-fadeInUp {
           from { opacity: 0; transform: translateY(10px); }
