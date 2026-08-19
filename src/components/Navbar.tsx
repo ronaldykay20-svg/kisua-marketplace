@@ -289,41 +289,25 @@ const Navbar = () => {
 
             {/* ── Centro: logo (sem título de categoria) ── */}
             <div className="flex-1" />
-            <a href="/" className="flex-shrink-0" style={{ display: "inline-flex", height: 36, position: "absolute", left: "50%", transform: "translateX(-50%)", zIndex: 1 }}>
-              <div style={{ position: "relative", display: "inline-flex", alignItems: "center", justifyContent: "center", height: 36 }}>
-                <svg
-                  style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
-                  viewBox="0 0 140 36"
-                  preserveAspectRatio="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M 18 0 Q 0 0 0 18 Q 0 36 18 36 L 122 36 Q 140 36 140 18 Q 140 0 122 0 Z"
-                    fill="rgba(255,255,255,0.93)"
-                    stroke="#F9A825"
-                    strokeWidth="3"
-                  />
-                  <path
-                    d="M 18 0 Q 0 0 0 18 Q 0 36 18 36 L 122 36 Q 140 36 140 18 Q 140 0 122 0 Z"
-                    fill="none"
-                    stroke="rgba(249,168,37,0.20)"
-                    strokeWidth="6"
-                  />
-                </svg>
-                <div style={{
-                  position: "relative", zIndex: 1,
-                  width: 140, height: 36,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  padding: "0 14px",
-                }}>
-                  <img
-                    src={logoUrl || zanguLogo}
-                    alt="Logo"
-                    fetchPriority="high"
-                    style={{ width: 100, height: 24, objectFit: "contain", display: "block" }}
-                  />
-                </div>
-              </div>
+            <a
+              href="/"
+              className="flex-shrink-0"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                height: 44,
+                position: "absolute",
+                left: "50%",
+                transform: "translateX(-50%)",
+                zIndex: 1,
+              }}
+            >
+              <img
+                src={logoUrl || zanguLogo}
+                alt="Logo"
+                fetchPriority="high"
+                style={{ height: 30, width: "auto", maxWidth: 150, objectFit: "contain", display: "block" }}
+              />
             </a>
             <div className="flex-1" />
 
@@ -359,8 +343,8 @@ const Navbar = () => {
                 <img src={iconBell} alt="Notificações" className="w-full h-full object-contain" />
                 {unread > 0 && (
                   <span
-                    className="absolute top-0 right-0 min-w-[16px] h-4 rounded-full text-white text-[8px] font-black flex items-center justify-center px-0.5"
-                    style={{ background: hasUrgentUnread ? "#8B0000" : "#E53935" }}
+                    className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full text-white text-[9px] font-black flex items-center justify-center px-1"
+                    style={{ background: hasUrgentUnread ? "#8B0000" : "#E53935", border: "2px solid #F7F0E6", zIndex: 2 }}
                   >
                     {unread > 9 ? "9+" : unread}
                   </span>
