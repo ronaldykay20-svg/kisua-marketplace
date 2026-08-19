@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { getRatingImage, freteGratisImg } from "@/lib/ratingImage";
 import CategoryIconBar from "@/components/CategoryIconBar";
+import FlashDealsStrip from "@/components/FlashDealsStrip";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Ambiente de teste — pré-visualização automática do card de produto.
@@ -240,6 +241,7 @@ const AmbienteTeste = () => {
       `}</style>
 
       <CategoryIconBar />
+      <FlashDealsStrip />
 
       <div className="max-w-md sm:max-w-xl mx-auto px-4 pt-4 pb-8">
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-0">
