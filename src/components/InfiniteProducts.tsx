@@ -23,7 +23,6 @@ interface TestProduct {
 
 const PAGE_SIZE = 12;
 const BROWN = "#5a2f16";
-const BROWN_DARK = "#3d1c08";
 const FALLBACK_IMG = "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop";
 
 const fmt = (n: number) =>
@@ -107,19 +106,25 @@ const ProductCard = ({ p, index }: { p: TestProduct; index: number }) => {
             )}
           </div>
 
-          <span
-            className="inline-flex items-center justify-center whitespace-nowrap flex-shrink-0"
-            style={{
-              padding: "5px 15px",
-              borderRadius: "999px",
-              background: `linear-gradient(180deg, #6b3510 0%, ${BROWN_DARK} 55%, #2a1305 100%)`,
-              boxShadow: "0 0 0 2.5px #d98f2e, inset 0 1px 1px rgba(255,255,255,0.25), inset 0 -1px 2px rgba(0,0,0,0.4)",
-              color: "#ffffff",
-              fontWeight: 900,
-              fontSize: "13.5px",
-            }}
-          >
-            {fmt(p.price)}
+          <span className="relative inline-block flex-shrink-0">
+            <span
+              className="absolute"
+              style={{
+                left: "-4px",
+                right: "-4px",
+                top: "22%",
+                bottom: "18%",
+                background: "#ffd166",
+                transform: "rotate(-1.5deg)",
+                borderRadius: "2px",
+              }}
+            />
+            <span
+              className="relative whitespace-nowrap"
+              style={{ color: "#1a1a1a", fontWeight: 800, fontSize: "14px" }}
+            >
+              {fmt(p.price)}
+            </span>
           </span>
         </div>
 
@@ -143,7 +148,7 @@ const ProductCard = ({ p, index }: { p: TestProduct; index: number }) => {
         )}
 
         {p.free_shipping && (
-          <div className="flex justify-center pt-1 pb-1.5">
+          <div className="flex justify-start pt-1 pb-1.5">
             <img src={freteGratisImg} alt="Frete grátis" className="h-5 w-auto" />
           </div>
         )}
