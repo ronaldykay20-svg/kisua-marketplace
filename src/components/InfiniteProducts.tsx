@@ -229,7 +229,7 @@ const AmbienteTeste = () => {
   }, [hasMore, loading, loadNextPage]);
 
   return (
-    <div className="min-h-screen bg-background px-4 py-8">
+    <div className="min-h-screen bg-white px-4 pt-5 pb-8">
       <style>{`
         @keyframes at-fadeInUp {
           from { opacity: 0; transform: translateY(10px); }
@@ -239,6 +239,13 @@ const AmbienteTeste = () => {
       `}</style>
 
       <div className="max-w-md sm:max-w-xl mx-auto">
+        <h2
+          className="text-center font-extrabold mb-4"
+          style={{ color: BROWN, fontSize: "20px", letterSpacing: "-0.2px" }}
+        >
+          Produtos Zangu
+        </h2>
+
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-0">
           {products.map((p, i) => (
             <ProductCard key={p.id} p={p} index={i} />
