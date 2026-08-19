@@ -148,7 +148,7 @@ const ProductCard = ({ p, index }: { p: TestProduct; index: number }) => {
         )}
 
         {p.free_shipping && (
-          <div className="flex justify-center pt-1 pb-1.5">
+          <div className="flex justify-start pt-1 pb-1.5">
             <img src={freteGratisImg} alt="Frete grátis" className="h-5 w-auto" />
           </div>
         )}
