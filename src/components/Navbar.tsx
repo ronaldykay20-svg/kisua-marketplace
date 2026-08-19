@@ -1,4 +1,4 @@
-import { Search, Menu, ShoppingCart, User, MapPin, X, ChevronRight, Gavel, Radio, Store, Users, Zap, LogOut, Bell, Camera, ArrowLeft } from "lucide-react";
+import { Search, ShoppingCart, User, MapPin, X, ChevronRight, Gavel, Radio, Store, Users, Zap, LogOut, Bell, Camera, ArrowLeft } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -9,6 +9,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCategories } from "@/hooks/useSupabaseData";
 import { classifyNotification } from "@/lib/notificationStyle";
 import { fileToImageSearchPayload } from "@/lib/photoSearch";
+import iconMenu from "@/assets/navbar/icon-menu.webp";
+import iconBell from "@/assets/navbar/icon-bell.webp";
+import zanguLogo from "@/assets/navbar/zangu-logo.webp";
 
 const staticCategories = [
   { name: "Electrónicos", image: "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=100&h=100&fit=crop" },
@@ -259,7 +262,7 @@ const Navbar = () => {
   return (
     <>
       <nav className={navPositionClass} style={navbarStyle}>
-        <div style={{ paddingLeft: 12, paddingRight: 12 }}>
+        <div style={{ paddingLeft: "max(12px, env(safe-area-inset-left))", paddingRight: "max(12px, env(safe-area-inset-right))" }}>
 
           {/* ══ LINHA 1: barra de ícones ══ */}
           <div
@@ -277,11 +280,10 @@ const Navbar = () => {
               </button>
             ) : (
               <button
-                className="flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center"
-                style={{ background: brown, boxShadow: "0 2px 6px rgba(74,46,10,0.25)" }}
+                className="flex-shrink-0 w-11 h-11 flex items-center justify-center"
                 onClick={() => { setMenuOpen(!menuOpen); setNotifOpen(false); }}
               >
-                <Menu className="w-5 h-5 text-white" />
+                <img src={iconMenu} alt="Menu" className="w-full h-full object-contain" />
               </button>
             )}
 
@@ -314,14 +316,12 @@ const Navbar = () => {
                   display: "flex", alignItems: "center", justifyContent: "center",
                   padding: "0 16px",
                 }}>
-                  {logoUrl && (
-                    <img
-                      src={logoUrl}
-                      alt="Logo"
-                      fetchPriority="high"
-                      style={{ height: 34, maxWidth: 140, objectFit: "contain" }}
-                    />
-                  )}
+                  <img
+                    src={logoUrl || zanguLogo}
+                    alt="Logo"
+                    fetchPriority="high"
+                    style={{ height: 34, maxWidth: 140, objectFit: "contain" }}
+                  />
                 </div>
               </div>
             </a>
@@ -350,18 +350,16 @@ const Navbar = () => {
 
             {user && (
               <button
-                className="relative flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center"
+                className="relative flex-shrink-0 w-11 h-11 flex items-center justify-center"
                 style={{
-                  background: hasUrgentUnread ? "#E53935" : brown,
-                  boxShadow: hasUrgentUnread ? "0 0 0 4px rgba(229,57,53,0.22)" : "0 2px 6px rgba(74,46,10,0.25)",
                   animation: hasUrgentUnread ? "pulse 1.4s ease-in-out infinite" : "none",
                 }}
                 onClick={() => { setNotifOpen(!notifOpen); setMenuOpen(false); }}
               >
-                <Bell className="w-5 h-5 text-white" />
+                <img src={iconBell} alt="Notificações" className="w-full h-full object-contain" />
                 {unread > 0 && (
                   <span
-                    className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 rounded-full text-white text-[8px] font-black flex items-center justify-center px-0.5"
+                    className="absolute top-0 right-0 min-w-[16px] h-4 rounded-full text-white text-[8px] font-black flex items-center justify-center px-0.5"
                     style={{ background: hasUrgentUnread ? "#8B0000" : "#E53935" }}
                   >
                     {unread > 9 ? "9+" : unread}
