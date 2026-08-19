@@ -7,7 +7,7 @@ import { useFavorites } from "@/hooks/useFavorites";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFreight } from "@/hooks/useFreight";
 import { getFreeShippingLabel } from "@/lib/freeShipping";
-import frameFreteGratis from "@/assets/frame-frete-gratis.png";
+import frameFreteGratis from "@/assets/frame-frete-gratis.svg";
 
 const PromoProductCards = () => {
   const navigate = useNavigate();
