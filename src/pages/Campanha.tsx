@@ -43,6 +43,8 @@ interface TopPick {
   price: number;
   old_price: number | null;
   discount_percent: number | null;
+  sales_count: number | null;
+  store_name: string | null;
   cover_url?: string;
   image_url: string | null;
 }
@@ -94,7 +96,7 @@ const Campanha = () => {
     (async () => {
       let q = supabase
         .from("products")
-        .select("id, title, price, old_price, discount_percent, image_url, category")
+        .select("id, title, price, old_price, discount_percent, sales_count, store_name, image_url, category")
         .eq("is_active", true);
       q = campaign.applyFilter(q);
 
@@ -239,20 +241,23 @@ const Campanha = () => {
         ))}
       </div>
 
-      {/* ── Mais vendidos ── */}
+      {/* ── Mais vendidos — painel com fundo em gradiente, estilo "Top picks" ── */}
       {topPicks.length > 0 && (
-        <div className="bg-white pt-3 pb-3 border-b" style={{ borderColor: "#F0EBDF" }}>
-          <p className="text-[13px] font-bold px-4 mb-2" style={{ color: "#4A2E0A" }}>Mais vendidos nesta campanha</p>
-          <div className="flex gap-2.5 overflow-x-auto scrollbar-hide px-4 snap-x">
+        <div
+          className="pt-4 pb-4"
+          style={{ background: `linear-gradient(180deg, ${campaign.accent}, ${campaign.accent}dd)` }}
+        >
+          <p className="text-[15px] font-black px-4 mb-3 text-white">Mais vendidos</p>
+          <div className="flex gap-3 overflow-x-auto scrollbar-hide px-4 snap-x">
             {topPicks.map((p) => {
               const img = p.cover_url || p.image_url || FALLBACK_IMG;
               return (
                 <button
                   key={p.id}
                   onClick={() => navigate(`/produto/${p.id}`)}
-                  className="flex flex-col shrink-0 w-[104px] snap-start text-left active:opacity-70 transition-opacity"
+                  className="flex flex-col shrink-0 w-[128px] snap-start text-left rounded-xl overflow-hidden bg-white active:opacity-80 transition-opacity"
                 >
-                  <div className="relative w-[104px] h-[104px] rounded-lg overflow-hidden bg-muted">
+                  <div className="relative w-full h-[128px] bg-muted">
                     <img src={img} alt={p.title} className="w-full h-full object-cover" loading="lazy" />
                     {!!p.discount_percent && (
                       <span
@@ -262,9 +267,19 @@ const Campanha = () => {
                         -{p.discount_percent}%
                       </span>
                     )}
+                    {p.store_name && (
+                      <span className="absolute bottom-0 inset-x-0 bg-black/55 backdrop-blur-sm px-2 py-1 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-white shrink-0" />
+                        <span className="text-[10px] font-semibold text-white truncate">{p.store_name}</span>
+                      </span>
+                    )}
                   </div>
-                  <span className="text-[12.5px] font-black mt-1">{fmt(p.price)}</span>
-                  {p.old_price && <span className="text-[10px] text-muted-foreground line-through">{fmt(p.old_price)}</span>}
+                  <div className="px-2 py-1.5">
+                    <span className="text-[13px] font-black block" style={{ color: "#1a1a1a" }}>{fmt(p.price)}</span>
+                    {!!p.sales_count && (
+                      <span className="text-[10px] text-muted-foreground">🔥 {p.sales_count}+ vendidos</span>
+                    )}
+                  </div>
                 </button>
               );
             })}
@@ -274,11 +289,11 @@ const Campanha = () => {
 
       {/* ── Abas de categoria ── */}
       {categoryTabs.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto scrollbar-hide px-4 py-2.5 bg-white border-b" style={{ borderColor: "#F0EBDF" }}>
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide px-4 py-2.5 bg-white border-b" style={{ borderColor: "#F0EBDF" }}>
           <button
             onClick={() => setActiveTab(null)}
-            className="shrink-0 text-[12px] font-semibold px-3 py-1.5 rounded-full transition-colors"
-            style={activeTab === null ? { background: campaign.accent, color: "#fff" } : { background: campaign.accentSoft, color: "#4A2E0A" }}
+            className="shrink-0 text-[12.5px] font-bold px-3.5 py-1.5 rounded-full transition-colors"
+            style={activeTab === null ? { background: campaign.accentSoft, color: campaign.accent } : { background: "#F3F3F3", color: "#666" }}
           >
             Recomendados
           </button>
@@ -286,8 +301,8 @@ const Campanha = () => {
             <button
               key={name}
               onClick={() => setActiveTab(name)}
-              className="shrink-0 text-[12px] font-semibold px-3 py-1.5 rounded-full transition-colors"
-              style={activeTab === name ? { background: campaign.accent, color: "#fff" } : { background: campaign.accentSoft, color: "#4A2E0A" }}
+              className="shrink-0 text-[12.5px] font-semibold px-3.5 py-1.5 rounded-full transition-colors"
+              style={activeTab === name ? { background: campaign.accentSoft, color: campaign.accent } : { background: "#F3F3F3", color: "#666" }}
             >
               {name}
             </button>
