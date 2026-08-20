@@ -105,7 +105,7 @@ const queryClient = new QueryClient({
 
 
 const HIDE_BOTTOM_NAV_PATHS = [/^\/produto\/.+/, /^\/checkout/, /^\/carrinho/, /^\/equipa\//];
-const HIDE_HEADER_PATHS = [/^\/produto\/.+/, /^\/checkout/, /^\/carrinho/, /^\/equipa\//];
+const HIDE_HEADER_PATHS = [/^\/produto\/.+/, /^\/checkout/, /^\/carrinho/, /^\/equipa\//, /^\/campanha\//];
 const HIDE_FOOTER_PATHS = [
   /^\/produto\/.+/,
   /^\/checkout/,
