@@ -15,7 +15,6 @@ import { getCampaign } from "@/config/campaigns";
 // ─────────────────────────────────────────────────────────────────────────
 
 const PAGE_SIZE = 12;
-const FALLBACK_IMG = "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("pt-AO", { style: "currency", currency: "AOA", maximumFractionDigits: 0 }).format(n);
@@ -110,7 +109,9 @@ const Campanha = () => {
         (media || []).forEach((m: any) => { coverMap[m.product_id] = m.url; });
         picks.forEach((p) => { (p as any).cover_url = coverMap[p.id]; });
       }
-      setTopPicks(picks);
+      // Só mostra produtos com foto própria — nada de imagem genérica
+      // a fingir ser o produto.
+      setTopPicks(picks.filter((p) => p.cover_url || p.image_url));
 
       let catQ = supabase.from("products").select("category").eq("is_active", true).limit(300);
       catQ = campaign.applyFilter(catQ);
@@ -138,7 +139,9 @@ const Campanha = () => {
     if (produtoId) q = q.neq("id", produtoId);
 
     const { data, error } = await q.order("created_at", { ascending: false }).range(from, to);
-    const list = (data as GridProduct[]) || [];
+    // Só mostra produtos com foto própria — nada de imagem genérica
+    // a fingir ser o produto.
+    const list = ((data as GridProduct[]) || []).filter((p) => p.image_url);
 
     if (!error) {
       setProducts((prev) => (pageRef.current === 0 ? list : [...prev, ...list]));
@@ -212,12 +215,17 @@ const Campanha = () => {
         </div>
       )}
 
-      {/* ── Produto em destaque — o que trouxe o utilizador até aqui ── */}
+      {/* ── Produto em destaque — o que trouxe o utilizador até aqui.
+          Sobe por cima do banner (margem negativa) para sobrepor
+          levemente a base do banner, como nos cards da AliExpress. ── */}
       {highlight && (
-        <div className="px-4 pt-4 pb-1 bg-white">
-          <div className="flex gap-3 p-2.5 rounded-xl border" style={{ borderColor: campaign.accentSoft, background: campaign.accentSoft }}>
+        <div className="relative z-10 -mt-6 px-4 pb-1">
+          <div
+            className="flex gap-3 p-2.5 rounded-xl border shadow-lg"
+            style={{ borderColor: campaign.accentSoft, background: "#ffffff" }}
+          >
             <div className="relative w-[92px] h-[92px] rounded-lg overflow-hidden bg-muted shrink-0">
-              <img src={highlight.cover_url || highlight.image_url || FALLBACK_IMG} alt={highlight.title} className="w-full h-full object-cover" />
+              <img src={highlight.cover_url || highlight.image_url || ""} alt={highlight.title} className="w-full h-full object-cover" />
               {!!highlight.discount_percent && (
                 <span className="absolute top-0 left-0 px-1.5 py-0.5 text-[10px] font-black text-white rounded-br-lg" style={{ background: campaign.accent }}>
                   -{highlight.discount_percent}%
@@ -261,7 +269,7 @@ const Campanha = () => {
           <p className="text-[15px] font-black px-4 mb-3 text-white">Mais vendidos</p>
           <div className="flex gap-3 overflow-x-auto scrollbar-hide px-4 snap-x">
             {topPicks.map((p) => {
-              const img = p.cover_url || p.image_url || FALLBACK_IMG;
+              const img = p.cover_url || p.image_url || "";
               return (
                 <button
                   key={p.id}
@@ -333,7 +341,7 @@ const Campanha = () => {
               className="bg-card overflow-hidden cursor-pointer transition-transform duration-150 ease-out active:scale-[0.97]"
             >
               <div className="relative aspect-square bg-muted overflow-hidden">
-                <img src={p.image_url || FALLBACK_IMG} alt={p.title} loading="lazy" className="w-full h-full object-cover" />
+                <img src={p.image_url || ""} alt={p.title} loading="lazy" className="w-full h-full object-cover" />
               </div>
               <div className="px-2 pt-2 pb-1">
                 <div className="flex items-center justify-between gap-1.5 mb-1.5">
