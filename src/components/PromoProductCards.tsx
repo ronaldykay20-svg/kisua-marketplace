@@ -81,7 +81,7 @@ const PromoProductCards = () => {
           </div>
 
           <button
-            onClick={() => navigate("/promocoes")}
+            onClick={() => navigate("/campanha/frete-gratis")}
             className="flex items-center gap-0.5 shrink-0 text-[12px] font-semibold text-white bg-white/15 hover:bg-white/25 transition-colors px-2.5 py-1.5 rounded-full"
           >
             Ver mais <ChevronRight className="w-3.5 h-3.5" />
