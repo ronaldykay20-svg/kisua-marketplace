@@ -168,7 +168,7 @@ const PromoProductCards = () => {
                     >
                       <Heart className={`w-4 h-4 transition-colors ${fav ? "fill-[#8B6343] text-[#8B6343]" : "text-muted-foreground"}`} />
                     </button>
-                    <button onClick={() => navigate(`/produto/${p.id}`)} className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-lg border border-primary text-primary text-[12px] font-semibold hover:bg-primary hover:text-white transition-colors">
+                    <button onClick={() => navigate(`/campanha/frete-gratis?produto=${p.id}`)} className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-lg border border-primary text-primary text-[12px] font-semibold hover:bg-primary hover:text-white transition-colors">
                       Explorar <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
