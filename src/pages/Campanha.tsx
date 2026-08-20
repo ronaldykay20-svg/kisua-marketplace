@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, CheckCircle2, Zap, Truck } from "lucide-react";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { ArrowLeft, CheckCircle2, Zap, Truck, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getRatingImage, freteGratisImg } from "@/lib/ratingImage";
 import { getCampaign } from "@/config/campaigns";
@@ -8,9 +8,10 @@ import { getCampaign } from "@/config/campaigns";
 // ─────────────────────────────────────────────────────────────────────────
 // Página de campanha — reutilizável para qualquer entrada em
 // src/config/campaigns.ts. Estrutura: banner (imagem própria da campanha
-// se existir, senão gradiente + ícone) → selos de confiança → tira
-// "Mais vendidos" → abas de categoria (só as que têm produto nesta
-// campanha) → grade infinita.
+// se existir, senão gradiente + ícone) → produto em destaque (se veio de
+// um toque num produto específico, via ?produto=<id>) → selos de
+// confiança → tira "Mais vendidos" → abas de categoria (só as que têm
+// produto nesta campanha) → grade infinita.
 // ─────────────────────────────────────────────────────────────────────────
 
 const PAGE_SIZE = 12;
@@ -18,6 +19,7 @@ const FALLBACK_IMG = "https://images.unsplash.com/photo-1505740420928-5e560c06d3
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("pt-AO", { style: "currency", currency: "AOA", maximumFractionDigits: 0 }).format(n);
+
 
 const iconFor = (slug: string) => (slug === "ofertas-relampago" ? Zap : Truck);
 
@@ -45,11 +47,20 @@ interface TopPick {
   image_url: string | null;
 }
 
+interface HighlightProduct extends TopPick {
+  description: string | null;
+  rating: number | null;
+  total_reviews: number | null;
+}
+
 const Campanha = () => {
   const { slug } = useParams();
+  const [searchParams] = useSearchParams();
+  const produtoId = searchParams.get("produto");
   const navigate = useNavigate();
   const campaign = getCampaign(slug);
 
+  const [highlight, setHighlight] = useState<HighlightProduct | null>(null);
   const [topPicks, setTopPicks] = useState<TopPick[]>([]);
   const [categoryTabs, setCategoryTabs] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<string | null>(null);
@@ -59,6 +70,23 @@ const Campanha = () => {
   const [hasMore, setHasMore] = useState(true);
   const pageRef = useRef(0);
   const sentinelRef = useRef<HTMLDivElement>(null);
+
+  // ── Produto em destaque — quando a página abriu a partir de um toque
+  // num produto específico (?produto=<id>), ele fica fixado no topo. ──
+  useEffect(() => {
+    if (!produtoId) { setHighlight(null); return; }
+    (async () => {
+      const { data: p } = await supabase
+        .from("products")
+        .select("id, title, description, price, old_price, discount_percent, image_url, rating, total_reviews")
+        .eq("id", produtoId)
+        .maybeSingle();
+      if (!p) { setHighlight(null); return; }
+      const { data: media } = await supabase
+        .from("product_media").select("url").eq("product_id", produtoId).eq("is_cover", true).maybeSingle();
+      setHighlight({ ...(p as any), cover_url: media?.url });
+    })();
+  }, [produtoId]);
 
   // ── Mais vendidos + abas de categoria (uma vez, ao entrar na campanha) ──
   useEffect(() => {
@@ -71,7 +99,7 @@ const Campanha = () => {
       q = campaign.applyFilter(q);
 
       const { data: picksData } = await q.order(campaign.topPicksOrderBy, { ascending: false }).limit(10);
-      const picks = (picksData as TopPick[]) || [];
+      const picks = ((picksData as TopPick[]) || []).filter((p) => p.id !== produtoId);
       const ids = picks.map((p) => p.id);
       if (ids.length) {
         const { data: media } = await supabase
@@ -90,7 +118,7 @@ const Campanha = () => {
       const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([name]) => name);
       setCategoryTabs(top);
     })();
-  }, [campaign?.slug]);
+  }, [campaign?.slug, produtoId]);
 
   // ── Grade infinita, filtrada pela campanha + aba de categoria ativa ──
   const loadNextPage = useCallback(async () => {
@@ -105,6 +133,7 @@ const Campanha = () => {
       .eq("is_active", true);
     q = campaign.applyFilter(q);
     if (activeTab) q = q.eq("category", activeTab);
+    if (produtoId) q = q.neq("id", produtoId);
 
     const { data, error } = await q.order("created_at", { ascending: false }).range(from, to);
     const list = (data as GridProduct[]) || [];
@@ -115,7 +144,7 @@ const Campanha = () => {
       pageRef.current += 1;
     }
     setLoading(false);
-  }, [campaign?.slug, activeTab]);
+  }, [campaign?.slug, activeTab, produtoId]);
 
   // Reinicia a grade sempre que a aba de categoria muda
   useEffect(() => {
@@ -124,7 +153,7 @@ const Campanha = () => {
     setHasMore(true);
     loadNextPage();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, campaign?.slug]);
+  }, [activeTab, campaign?.slug, produtoId]);
 
   useEffect(() => {
     const el = sentinelRef.current;
@@ -169,6 +198,36 @@ const Campanha = () => {
         </div>
         <p className="text-[12.5px] text-white/85">{campaign.subtitle}</p>
       </div>
+
+      {/* ── Produto em destaque — o que trouxe o utilizador até aqui ── */}
+      {highlight && (
+        <div className="px-4 pt-4 pb-1 bg-white">
+          <div className="flex gap-3 p-2.5 rounded-xl border" style={{ borderColor: campaign.accentSoft, background: campaign.accentSoft }}>
+            <div className="relative w-[92px] h-[92px] rounded-lg overflow-hidden bg-muted shrink-0">
+              <img src={highlight.cover_url || highlight.image_url || FALLBACK_IMG} alt={highlight.title} className="w-full h-full object-cover" />
+              {!!highlight.discount_percent && (
+                <span className="absolute top-0 left-0 px-1.5 py-0.5 text-[10px] font-black text-white rounded-br-lg" style={{ background: campaign.accent }}>
+                  -{highlight.discount_percent}%
+                </span>
+              )}
+            </div>
+            <div className="flex flex-col justify-center min-w-0 flex-1">
+              <h2 className="text-[13px] font-bold line-clamp-2 leading-snug mb-1" style={{ color: "#4A2E0A" }}>{highlight.title}</h2>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-[15px] font-black" style={{ color: "#1a1a1a" }}>{fmt(highlight.price)}</span>
+                {highlight.old_price && <span className="text-[11px] text-muted-foreground line-through">{fmt(highlight.old_price)}</span>}
+              </div>
+              <button
+                onClick={() => navigate(`/produto/${highlight.id}`)}
+                className="flex items-center gap-1 text-[11.5px] font-bold w-fit px-2.5 py-1 rounded-full text-white"
+                style={{ background: campaign.accent }}
+              >
+                Ver detalhes completos <ArrowRight className="w-3 h-3" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Selos de confiança ── */}
       <div className="flex flex-wrap gap-x-4 gap-y-1.5 px-4 py-3 bg-white border-b" style={{ borderColor: "#F0EBDF" }}>
