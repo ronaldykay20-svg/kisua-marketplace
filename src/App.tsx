@@ -39,6 +39,7 @@ const VendedorPerfil = lazy(() => import("./pages/VendedorPerfil.tsx"));
 const Categorias = lazy(() => import("./pages/Categorias.tsx"));
 const CategoriaDetalhe = lazy(() => import("./pages/CategoriaDetalhe.tsx"));
 const Promocoes = lazy(() => import("./pages/Promocoes.tsx"));
+const Campanha = lazy(() => import("./pages/Campanha.tsx"));
 const MinhaConta = lazy(() => import("./pages/MinhaConta.tsx"));
 const Pedidos = lazy(() => import("./pages/Pedidos.tsx"));
 const Favoritos = lazy(() => import("./pages/Favoritos.tsx"));
@@ -187,6 +188,7 @@ const App = () => (
               <Route path="/categorias" element={<Categorias />} />
               <Route path="/categoria/:nome" element={<CategoriaDetalhe />} />
               <Route path="/promocoes" element={<Promocoes />} />
+              <Route path="/campanha/:slug" element={<Campanha />} />
               <Route path="/conta" element={<ProtectedRoute><MinhaConta /></ProtectedRoute>} />
               <Route path="/pedidos" element={<ProtectedRoute><Pedidos /></ProtectedRoute>} />
               <Route path="/pedido/:id" element={<ProtectedRoute><PedidoDetalhe /></ProtectedRoute>} />
