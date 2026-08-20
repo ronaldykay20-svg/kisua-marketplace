@@ -92,7 +92,7 @@ const FlashDealsStrip = () => {
           return (
             <button
               key={p.id}
-              onClick={() => navigate(`/produto/${p.id}`)}
+              onClick={() => navigate(`/campanha/ofertas-relampago?produto=${p.id}`)}
               className="flex flex-col shrink-0 w-[108px] snap-start text-left active:opacity-70 transition-opacity"
             >
               <div className="relative w-[108px] h-[108px] rounded-lg overflow-hidden bg-muted">
