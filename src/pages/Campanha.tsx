@@ -181,25 +181,36 @@ const Campanha = () => {
   return (
     <div className="min-h-screen bg-white">
       {/* ── Banner ── */}
-      <div
-        className="relative px-4 pt-4 pb-6"
-        style={
-          campaign.heroImageUrl
-            ? { backgroundImage: `linear-gradient(180deg, rgba(0,0,0,0.15), rgba(0,0,0,0.55)), url(${campaign.heroImageUrl})`, backgroundSize: "cover", backgroundPosition: "center" }
-            : { background: `linear-gradient(135deg, ${campaign.accent}, #2a1608)` }
-        }
-      >
-        <button onClick={() => navigate(-1)} className="flex items-center justify-center w-8 h-8 rounded-full bg-white/15 mb-3">
-          <ArrowLeft className="w-4 h-4 text-white" />
-        </button>
-        <div className="flex items-center gap-2 mb-1">
-          <span className="flex items-center justify-center w-8 h-8 rounded-full bg-white/15 shrink-0">
-            <Icon className="w-4 h-4 text-white" />
-          </span>
-          <h1 className="text-[20px] font-black text-white leading-tight">{campaign.title}</h1>
+      {campaign.heroImageUrl ? (
+        // Arte customizada — a imagem já traz o nome da campanha desenhado
+        // nela (tipo "Brand Deals"), então aqui só flutua o botão de voltar.
+        <div className="relative">
+          <img src={campaign.heroImageUrl} alt={campaign.title} className="w-full h-auto block" />
+          <button
+            onClick={() => navigate(-1)}
+            className="absolute top-4 left-4 flex items-center justify-center w-8 h-8 rounded-full bg-black/25 backdrop-blur-sm"
+          >
+            <ArrowLeft className="w-4 h-4 text-white" />
+          </button>
         </div>
-        <p className="text-[12.5px] text-white/85">{campaign.subtitle}</p>
-      </div>
+      ) : (
+        // Sem arte própria ainda — banner dinâmico em gradiente + texto.
+        <div
+          className="relative px-4 pt-4 pb-6"
+          style={{ background: `linear-gradient(135deg, ${campaign.accent}, #2a1608)` }}
+        >
+          <button onClick={() => navigate(-1)} className="flex items-center justify-center w-8 h-8 rounded-full bg-white/15 mb-3">
+            <ArrowLeft className="w-4 h-4 text-white" />
+          </button>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="flex items-center justify-center w-8 h-8 rounded-full bg-white/15 shrink-0">
+              <Icon className="w-4 h-4 text-white" />
+            </span>
+            <h1 className="text-[20px] font-black text-white leading-tight">{campaign.title}</h1>
+          </div>
+          <p className="text-[12.5px] text-white/85">{campaign.subtitle}</p>
+        </div>
+      )}
 
       {/* ── Produto em destaque — o que trouxe o utilizador até aqui ── */}
       {highlight && (
