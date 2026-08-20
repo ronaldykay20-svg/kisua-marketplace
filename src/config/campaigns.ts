@@ -5,6 +5,8 @@
 // renderizar qualquer uma delas automaticamente.
 // ─────────────────────────────────────────────────────────────────────────
 
+import ofertasRelampagoHero from "@/assets/campaigns/ofertas-relampago-hero.webp";
+
 export interface CampaignConfig {
   slug: string;
   title: string;
@@ -41,6 +43,7 @@ export const CAMPAIGNS: Record<string, CampaignConfig> = {
     accent: "#e53935",
     accentSoft: "#FDEAEA",
     badges: ["Descontos reais", "Termina à meia-noite"],
+    heroImageUrl: ofertasRelampagoHero,
     applyFilter: (q) => q.gt("discount_percent", 0),
     topPicksOrderBy: "discount_percent",
   },
