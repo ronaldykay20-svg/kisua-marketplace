@@ -34,6 +34,7 @@ interface GridProduct {
   total_reviews: number | null;
   free_shipping: boolean | null;
   category: string | null;
+  cover_url?: string;
 }
 
 interface TopPick {
@@ -139,9 +140,22 @@ const Campanha = () => {
     if (produtoId) q = q.neq("id", produtoId);
 
     const { data, error } = await q.order("created_at", { ascending: false }).range(from, to);
+    let raw = (data as GridProduct[]) || [];
+
+    // Muitos produtos guardam a foto em product_media (capa), não na
+    // coluna image_url — busca a capa antes de decidir o que mostrar.
+    const ids = raw.map((p) => p.id);
+    if (ids.length) {
+      const { data: media } = await supabase
+        .from("product_media").select("product_id, url").in("product_id", ids).eq("is_cover", true);
+      const coverMap: Record<string, string> = {};
+      (media || []).forEach((m: any) => { coverMap[m.product_id] = m.url; });
+      raw = raw.map((p) => ({ ...p, cover_url: coverMap[p.id] }));
+    }
+
     // Só mostra produtos com foto própria — nada de imagem genérica
     // a fingir ser o produto.
-    const list = ((data as GridProduct[]) || []).filter((p) => p.image_url);
+    const list = raw.filter((p) => p.cover_url || p.image_url);
 
     if (!error) {
       setProducts((prev) => (pageRef.current === 0 ? list : [...prev, ...list]));
@@ -341,7 +355,7 @@ const Campanha = () => {
               className="bg-card overflow-hidden cursor-pointer transition-transform duration-150 ease-out active:scale-[0.97]"
             >
               <div className="relative aspect-square bg-muted overflow-hidden">
-                <img src={p.image_url || ""} alt={p.title} loading="lazy" className="w-full h-full object-cover" />
+                <img src={p.cover_url || p.image_url || ""} alt={p.title} loading="lazy" className="w-full h-full object-cover" />
               </div>
               <div className="px-2 pt-2 pb-1">
                 <div className="flex items-center justify-between gap-1.5 mb-1.5">
