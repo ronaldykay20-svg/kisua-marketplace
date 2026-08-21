@@ -21,6 +21,18 @@ const fmt = (n: number) =>
 
 const iconFor = (slug: string) => (slug === "ofertas-relampago" ? Zap : Truck);
 
+// O nome da loja não vive em products — vem de companies (ligada por
+// company_id). companies não existe/tem company_id nulo para vendedores
+// individuais, então isto sempre devolve null nesses casos, sem quebrar.
+const fetchStoreNames = async (companyIds: (string | null)[]): Promise<Record<string, string>> => {
+  const ids = [...new Set(companyIds.filter(Boolean))] as string[];
+  if (!ids.length) return {};
+  const { data } = await supabase.from("companies").select("id, name").in("id", ids);
+  const map: Record<string, string> = {};
+  (data || []).forEach((c: any) => { map[c.id] = c.name; });
+  return map;
+};
+
 interface GridProduct {
   id: string;
   title: string;
@@ -29,6 +41,7 @@ interface GridProduct {
   old_price: number | null;
   discount_percent: number | null;
   sales_count: number | null;
+  company_id: string | null;
   store_name: string | null;
   image_url: string | null;
   rating: number | null;
@@ -45,6 +58,7 @@ interface TopPick {
   old_price: number | null;
   discount_percent: number | null;
   sales_count: number | null;
+  company_id: string | null;
   store_name: string | null;
   cover_url?: string;
   image_url: string | null;
@@ -92,13 +106,14 @@ const Campanha = () => {
     (async () => {
       const { data: p } = await supabase
         .from("products")
-        .select("id, title, description, price, old_price, discount_percent, sales_count, store_name, image_url, rating, total_reviews")
+        .select("id, title, description, price, old_price, discount_percent, sales_count, company_id, image_url, rating, total_reviews")
         .eq("id", produtoId)
         .maybeSingle();
       if (!p) { setHighlight(null); return; }
       const { data: media } = await supabase
         .from("product_media").select("url").eq("product_id", produtoId).eq("is_cover", true).maybeSingle();
-      setHighlight({ ...(p as any), cover_url: media?.url });
+      const storeNames = await fetchStoreNames([(p as any).company_id]);
+      setHighlight({ ...(p as any), cover_url: media?.url, store_name: storeNames[(p as any).company_id] || null });
     })();
   }, [produtoId]);
 
@@ -108,7 +123,7 @@ const Campanha = () => {
     (async () => {
       let q = supabase
         .from("products")
-        .select("id, title, price, old_price, discount_percent, sales_count, store_name, image_url, category")
+        .select("id, title, price, old_price, discount_percent, sales_count, company_id, image_url, category")
         .eq("is_active", true);
       q = campaign.applyFilter(q);
 
@@ -117,18 +132,21 @@ const Campanha = () => {
       // foto cadastrada, a tira toda ficava vazia mesmo havendo produtos
       // com foto mais abaixo na lista.
       const { data: picksData } = await q.order(campaign.topPicksOrderBy, { ascending: false }).limit(40);
-      const candidates = ((picksData as TopPick[]) || []).filter((p) => p.id !== produtoId);
-      const ids = candidates.map((p) => p.id);
+      const candidates = ((picksData as Array<Omit<TopPick, "store_name" | "cover_url">>) || []).map((p) => ({ ...p, store_name: null as string | null })) as TopPick[];
+      const filtered = candidates.filter((p) => p.id !== produtoId);
+      const ids = filtered.map((p) => p.id);
       if (ids.length) {
         const { data: media } = await supabase
           .from("product_media").select("product_id, url").in("product_id", ids).eq("is_cover", true);
         const coverMap: Record<string, string> = {};
         (media || []).forEach((m: any) => { coverMap[m.product_id] = m.url; });
-        candidates.forEach((p) => { (p as any).cover_url = coverMap[p.id]; });
+        filtered.forEach((p) => { (p as any).cover_url = coverMap[p.id]; });
       }
+      const storeNames = await fetchStoreNames(filtered.map((p) => p.company_id));
+      filtered.forEach((p) => { p.store_name = p.company_id ? storeNames[p.company_id] || null : null; });
       // Só mostra produtos com foto própria — nada de imagem genérica
       // a fingir ser o produto.
-      setTopPicks(candidates.filter((p) => p.cover_url || p.image_url).slice(0, 10));
+      setTopPicks(filtered.filter((p) => p.cover_url || p.image_url).slice(0, 10));
 
       let catQ = supabase.from("products").select("category").eq("is_active", true).limit(300);
       catQ = campaign.applyFilter(catQ);
@@ -149,7 +167,7 @@ const Campanha = () => {
 
     let q = supabase
       .from("products")
-      .select("id, title, description, price, old_price, discount_percent, sales_count, store_name, image_url, rating, total_reviews, free_shipping, category")
+      .select("id, title, description, price, old_price, discount_percent, sales_count, company_id, image_url, rating, total_reviews, free_shipping, category")
       .eq("is_active", true);
     q = campaign.applyFilter(q);
     if (activeTab) q = q.eq("category", activeTab);
@@ -168,6 +186,8 @@ const Campanha = () => {
       (media || []).forEach((m: any) => { coverMap[m.product_id] = m.url; });
       raw = raw.map((p) => ({ ...p, cover_url: coverMap[p.id] }));
     }
+    const storeNames = await fetchStoreNames(raw.map((p) => p.company_id));
+    raw = raw.map((p) => ({ ...p, store_name: p.company_id ? storeNames[p.company_id] || null : null }));
 
     // Só mostra produtos com foto própria — nada de imagem genérica
     // a fingir ser o produto.
