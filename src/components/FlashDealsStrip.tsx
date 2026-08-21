@@ -1,17 +1,16 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Zap } from "lucide-react";
+import { Zap, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getRemainingToMidnight } from "@/lib/flashTime";
 
 // ─────────────────────────────────────────────────────────────────────────
-// Ofertas relâmpago — tira horizontal de mini-cards (imagem pequena +
-// selo de desconto + preço), no mesmo espírito do "Bundle deals" da
-// AliExpress / "SuperOfertas" da Shein. Compacto e denso de propósito:
-// o objetivo é caber muita oferta visível em pouco espaço vertical,
-// sem pesar a página (sem imagens extra, sem libs — só a query de
-// produtos que já têm desconto real cadastrado).
+// Ofertas relâmpago — exatamente 3 produtos, fixos e centralizados, sem
+// scroll (nada de um 4º card "espiando" na borda). Ao tocar num deles,
+// abre a página de campanha com esse produto em destaque no topo. Mesmo
+// formato de card usado em toda a página de campanha: foto + selo de
+// vendedor sobreposto + preço + vendidos.
 // ─────────────────────────────────────────────────────────────────────────
 
 const fmt = (n: number) =>
@@ -25,6 +24,8 @@ interface FlashProduct {
   price: number;
   old_price: number | null;
   discount_percent: number | null;
+  sales_count: number | null;
+  store_name: string | null;
   cover_url?: string;
   image_url: string | null;
 }
@@ -43,11 +44,11 @@ const FlashDealsStrip = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select("id, title, price, old_price, discount_percent, image_url")
+        .select("id, title, price, old_price, discount_percent, sales_count, store_name, image_url")
         .eq("is_active", true)
         .gt("discount_percent", 0)
         .order("discount_percent", { ascending: false })
-        .limit(10);
+        .limit(3);
       if (error) throw error;
 
       const list = (data as FlashProduct[]) || [];
@@ -86,16 +87,17 @@ const FlashDealsStrip = () => {
         </div>
       </div>
 
-      <div className="flex gap-2.5 overflow-x-auto scrollbar-hide px-3 snap-x">
+      <div className="grid grid-cols-3 gap-2.5 px-3">
         {products.map((p) => {
           const img = p.cover_url || p.image_url || FALLBACK_IMG;
           return (
             <button
               key={p.id}
               onClick={() => navigate(`/campanha/ofertas-relampago?produto=${p.id}`)}
-              className="flex flex-col shrink-0 w-[108px] snap-start text-left active:opacity-70 transition-opacity"
+              className="flex flex-col text-left rounded-xl overflow-hidden bg-white border active:opacity-80 transition-opacity"
+              style={{ borderColor: "#F0EBDF" }}
             >
-              <div className="relative w-[108px] h-[108px] rounded-lg overflow-hidden bg-muted">
+              <div className="relative w-full aspect-square bg-muted">
                 <img src={img} alt={p.title} className="w-full h-full object-cover" loading="lazy" />
                 {!!p.discount_percent && (
                   <span
@@ -105,15 +107,22 @@ const FlashDealsStrip = () => {
                     -{p.discount_percent}%
                   </span>
                 )}
+                {p.store_name && (
+                  <span className="absolute bottom-0 inset-x-0 bg-black/55 backdrop-blur-sm px-1.5 py-1 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-white shrink-0" />
+                    <span className="text-[9.5px] font-semibold text-white truncate">{p.store_name}</span>
+                  </span>
+                )}
               </div>
-              <span className="text-[13px] font-black mt-1" style={{ color: "#1a1a1a" }}>
-                {fmt(p.price)}
-              </span>
-              {p.old_price && (
-                <span className="text-[10px] text-muted-foreground line-through">
-                  {fmt(p.old_price)}
-                </span>
-              )}
+              <div className="px-1.5 py-1.5">
+                <span className="text-[13px] font-black block" style={{ color: "#1a1a1a" }}>{fmt(p.price)}</span>
+                {p.old_price && (
+                  <span className="text-[10px] text-muted-foreground line-through block">{fmt(p.old_price)}</span>
+                )}
+                {!!p.sales_count && (
+                  <span className="text-[9.5px] text-muted-foreground block">🔥 {p.sales_count}+ vendidos</span>
+                )}
+              </div>
             </button>
           );
         })}
