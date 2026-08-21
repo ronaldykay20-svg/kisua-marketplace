@@ -197,33 +197,31 @@ const Campanha = () => {
 
   return (
     <div className="min-h-screen bg-white">
+      {/* ── Barra branca de topo — seta + nome da página em texto simples,
+          igual à referência (antes da arte colorida, não por cima dela) ── */}
+      <div className="flex items-center gap-3 px-4 py-3 bg-white">
+        <button onClick={() => navigate(-1)} className="flex items-center justify-center w-7 h-7 shrink-0">
+          <ArrowLeft className="w-5 h-5" style={{ color: "#1a1a1a" }} />
+        </button>
+        <h1 className="text-[17px] font-bold" style={{ color: "#1a1a1a" }}>{campaign.title}</h1>
+      </div>
+
       {/* ── Banner ── */}
       {campaign.heroImageUrl ? (
         // Arte customizada — a imagem já traz o nome da campanha desenhado
-        // nela (tipo "Brand Deals"), então aqui só flutua o botão de voltar.
-        <div className="relative">
-          <img src={campaign.heroImageUrl} alt={campaign.title} className="w-full h-auto block" />
-          <button
-            onClick={() => navigate(-1)}
-            className="absolute top-4 left-4 flex items-center justify-center w-8 h-8 rounded-full bg-black/25 backdrop-blur-sm"
-          >
-            <ArrowLeft className="w-4 h-4 text-white" />
-          </button>
-        </div>
+        // nela (tipo "Brand Deals").
+        <img src={campaign.heroImageUrl} alt={campaign.title} className="w-full h-auto block" />
       ) : (
         // Sem arte própria ainda — banner dinâmico em gradiente + texto.
         <div
-          className="relative px-4 pt-4 pb-6"
+          className="relative px-4 pt-5 pb-6"
           style={{ background: `linear-gradient(135deg, ${campaign.accent}, #2a1608)` }}
         >
-          <button onClick={() => navigate(-1)} className="flex items-center justify-center w-8 h-8 rounded-full bg-white/15 mb-3">
-            <ArrowLeft className="w-4 h-4 text-white" />
-          </button>
           <div className="flex items-center gap-2 mb-1">
             <span className="flex items-center justify-center w-8 h-8 rounded-full bg-white/15 shrink-0">
               <Icon className="w-4 h-4 text-white" />
             </span>
-            <h1 className="text-[20px] font-black text-white leading-tight">{campaign.title}</h1>
+            <h2 className="text-[18px] font-black text-white leading-tight">{campaign.title}</h2>
           </div>
           <p className="text-[12.5px] text-white/85">{campaign.subtitle}</p>
         </div>
