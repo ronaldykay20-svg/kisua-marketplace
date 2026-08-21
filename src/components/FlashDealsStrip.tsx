@@ -25,6 +25,7 @@ interface FlashProduct {
   old_price: number | null;
   discount_percent: number | null;
   sales_count: number | null;
+  company_id: string | null;
   store_name: string | null;
   cover_url?: string;
   image_url: string | null;
@@ -44,7 +45,7 @@ const FlashDealsStrip = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select("id, title, price, old_price, discount_percent, sales_count, store_name, image_url")
+        .select("id, title, price, old_price, discount_percent, sales_count, company_id, image_url")
         .eq("is_active", true)
         .gt("discount_percent", 0)
         .order("discount_percent", { ascending: false })
@@ -69,7 +70,24 @@ const FlashDealsStrip = () => {
           .eq("is_cover", true);
         (media || []).forEach((m: any) => { coverMap[m.product_id] = m.url; });
       }
-      return list.map((p) => ({ ...p, cover_url: coverMap[p.id] }));
+
+      // O nome da loja não vive em products — vem de companies (ligada
+      // por company_id). Busca à parte, como já se faz em ProductDetail.
+      const companyIds = [...new Set(list.map((p) => p.company_id).filter(Boolean))] as string[];
+      let storeNameMap: Record<string, string> = {};
+      if (companyIds.length > 0) {
+        const { data: companies } = await supabase
+          .from("companies")
+          .select("id, name")
+          .in("id", companyIds);
+        (companies || []).forEach((c: any) => { storeNameMap[c.id] = c.name; });
+      }
+
+      return list.map((p) => ({
+        ...p,
+        cover_url: coverMap[p.id],
+        store_name: p.company_id ? storeNameMap[p.company_id] || null : null,
+      }));
     },
     staleTime: 60000,
   });
