@@ -92,7 +92,7 @@ const Campanha = () => {
     (async () => {
       const { data: p } = await supabase
         .from("products")
-        .select("id, title, description, price, old_price, discount_percent, image_url, rating, total_reviews")
+        .select("id, title, description, price, old_price, discount_percent, sales_count, store_name, image_url, rating, total_reviews")
         .eq("id", produtoId)
         .maybeSingle();
       if (!p) { setHighlight(null); return; }
@@ -244,34 +244,37 @@ const Campanha = () => {
       )}
 
       {/* ── Produto em destaque — o que trouxe o utilizador até aqui.
-          Sobe por cima do banner (margem negativa) para sobrepor
-          levemente a base do banner, como nos cards da AliExpress. ── */}
+          Mesmo formato de card usado em toda a página (foto + selo de
+          vendedor + preço + vendidos), só que maior por ser destaque. ── */}
       {highlight && (
         <div className="relative z-10 -mt-6 px-4 pb-1">
-          <div
-            className="flex gap-3 p-2.5 rounded-xl border shadow-lg"
-            style={{ borderColor: campaign.accentSoft, background: "#ffffff" }}
-          >
-            <div className="relative w-[92px] h-[92px] rounded-lg overflow-hidden bg-muted shrink-0">
+          <div className="w-[150px] rounded-xl border shadow-lg overflow-hidden bg-white" style={{ borderColor: campaign.accentSoft }}>
+            <div className="relative w-full aspect-square bg-muted">
               <img src={highlight.cover_url || highlight.image_url || ""} alt={highlight.title} className="w-full h-full object-cover" />
               {!!highlight.discount_percent && (
                 <span className="absolute top-0 left-0 px-1.5 py-0.5 text-[10px] font-black text-white rounded-br-lg" style={{ background: campaign.accent }}>
                   -{highlight.discount_percent}%
                 </span>
               )}
+              {highlight.store_name && (
+                <span className="absolute bottom-0 inset-x-0 bg-black/55 backdrop-blur-sm px-2 py-1 flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-white shrink-0" />
+                  <span className="text-[10px] font-semibold text-white truncate">{highlight.store_name}</span>
+                </span>
+              )}
             </div>
-            <div className="flex flex-col justify-center min-w-0 flex-1">
-              <h2 className="text-[13px] font-bold line-clamp-2 leading-snug mb-1" style={{ color: "#4A2E0A" }}>{highlight.title}</h2>
-              <div className="flex items-center gap-2 mb-1.5">
-                <span className="text-[15px] font-black" style={{ color: "#1a1a1a" }}>{fmt(highlight.price)}</span>
-                {highlight.old_price && <span className="text-[11px] text-muted-foreground line-through">{fmt(highlight.old_price)}</span>}
-              </div>
+            <div className="px-2 py-1.5">
+              <span className="text-[15px] font-black block" style={{ color: "#1a1a1a" }}>{fmt(highlight.price)}</span>
+              {highlight.old_price && <span className="text-[11px] text-muted-foreground line-through block">{fmt(highlight.old_price)}</span>}
+              {!!highlight.sales_count && (
+                <span className="text-[10px] text-muted-foreground block">🔥 {highlight.sales_count}+ vendidos</span>
+              )}
               <button
                 onClick={() => navigate(`/produto/${highlight.id}`)}
-                className="flex items-center gap-1 text-[11.5px] font-bold w-fit px-2.5 py-1 rounded-full text-white"
+                className="flex items-center justify-center gap-1 text-[10.5px] font-bold w-full mt-1.5 py-1 rounded-full text-white"
                 style={{ background: campaign.accent }}
               >
-                Ver detalhes completos <ArrowRight className="w-3 h-3" />
+                Ver detalhes <ArrowRight className="w-3 h-3" />
               </button>
             </div>
           </div>
