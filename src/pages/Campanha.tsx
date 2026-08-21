@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, CheckCircle2, Zap, Truck, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { getRatingImage, freteGratisImg } from "@/lib/ratingImage";
 import { getCampaign } from "@/config/campaigns";
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -29,6 +28,8 @@ interface GridProduct {
   price: number;
   old_price: number | null;
   discount_percent: number | null;
+  sales_count: number | null;
+  store_name: string | null;
   image_url: string | null;
   rating: number | null;
   total_reviews: number | null;
@@ -61,6 +62,17 @@ const Campanha = () => {
   const produtoId = searchParams.get("produto");
   const navigate = useNavigate();
   const campaign = getCampaign(slug);
+
+  // ── Barra de status do telemóvel (hora/sinal/bateria) — o site inteiro
+  // usa a cor creme da marca (theme-color no index.html); aqui trocamos
+  // pra branco enquanto o utilizador está nesta página, e devolvemos ao
+  // sair, pra não afetar as outras páginas do site.
+  useEffect(() => {
+    const meta = document.querySelector('meta[name="theme-color"]');
+    const original = meta?.getAttribute("content");
+    meta?.setAttribute("content", "#ffffff");
+    return () => { if (original) meta?.setAttribute("content", original); };
+  }, []);
 
   const [highlight, setHighlight] = useState<HighlightProduct | null>(null);
   const [topPicks, setTopPicks] = useState<TopPick[]>([]);
@@ -137,7 +149,7 @@ const Campanha = () => {
 
     let q = supabase
       .from("products")
-      .select("id, title, description, price, old_price, discount_percent, image_url, rating, total_reviews, free_shipping, category")
+      .select("id, title, description, price, old_price, discount_percent, sales_count, store_name, image_url, rating, total_reviews, free_shipping, category")
       .eq("is_active", true);
     q = campaign.applyFilter(q);
     if (activeTab) q = q.eq("category", activeTab);
@@ -345,41 +357,49 @@ const Campanha = () => {
         </div>
       )}
 
-      {/* ── Grade infinita ── */}
-      <div className="max-w-md sm:max-w-xl mx-auto px-4 pt-4 pb-8">
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-0">
-          {products.map((p) => (
-            <div
-              key={p.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => navigate(`/produto/${p.id}`)}
-              className="bg-card overflow-hidden cursor-pointer transition-transform duration-150 ease-out active:scale-[0.97]"
-            >
-              <div className="relative aspect-square bg-muted overflow-hidden">
-                <img src={p.cover_url || p.image_url || ""} alt={p.title} loading="lazy" className="w-full h-full object-cover" />
-              </div>
-              <div className="px-2 pt-2 pb-1">
-                <div className="flex items-center justify-between gap-1.5 mb-1.5">
-                  <div className="flex items-center gap-1 min-w-0">
-                    <img src={getRatingImage(p.rating)} alt={`${p.rating ?? 0} estrelas`} className="h-4 flex-shrink-0" />
-                    {!!p.total_reviews && <span className="text-[10px] text-muted-foreground truncate">({p.total_reviews})</span>}
-                  </div>
-                  <span className="relative inline-block flex-shrink-0">
-                    <span className="absolute" style={{ left: "-4px", right: "-4px", top: "22%", bottom: "18%", background: "#ffd166", transform: "rotate(-1.5deg)", borderRadius: "2px" }} />
-                    <span className="relative whitespace-nowrap" style={{ color: "#1a1a1a", fontWeight: 800, fontSize: "14px" }}>{fmt(p.price)}</span>
-                  </span>
+      {/* ── Grade infinita — mesmo formato de card da tira "Mais vendidos",
+          igual à referência AliExpress: foto + selo de vendedor sobreposto
+          + preço + vendidos. Sem estrelas, sem título centralizado. ── */}
+      <div className="max-w-md sm:max-w-xl mx-auto px-3 pt-4 pb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+          {products.map((p) => {
+            const img = p.cover_url || p.image_url || "";
+            return (
+              <button
+                key={p.id}
+                onClick={() => navigate(`/produto/${p.id}`)}
+                className="flex flex-col text-left rounded-xl overflow-hidden bg-white border active:opacity-80 transition-opacity"
+                style={{ borderColor: "#F0EBDF" }}
+              >
+                <div className="relative w-full aspect-square bg-muted">
+                  <img src={img} alt={p.title} loading="lazy" className="w-full h-full object-cover" />
+                  {!!p.discount_percent && (
+                    <span
+                      className="absolute top-0 left-0 px-1.5 py-0.5 text-[10px] font-black text-white rounded-br-lg"
+                      style={{ background: campaign.accent }}
+                    >
+                      -{p.discount_percent}%
+                    </span>
+                  )}
+                  {p.store_name && (
+                    <span className="absolute bottom-0 inset-x-0 bg-black/55 backdrop-blur-sm px-2 py-1 flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3 text-white shrink-0" />
+                      <span className="text-[10px] font-semibold text-white truncate">{p.store_name}</span>
+                    </span>
+                  )}
                 </div>
-                <h3 className="text-[14px] font-bold line-clamp-2 leading-snug mb-1 text-center" style={{ color: "#5a2f16" }}>{p.title}</h3>
-                {p.old_price && <p className="text-[11px] text-muted-foreground line-through text-center mb-1">{fmt(p.old_price)}</p>}
-                {p.free_shipping && (
-                  <div className="flex justify-start pt-1 pb-1.5">
-                    <img src={freteGratisImg} alt="Frete grátis" className="h-5 w-auto" />
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
+                <div className="px-2 py-1.5">
+                  <span className="text-[14px] font-black block" style={{ color: "#1a1a1a" }}>{fmt(p.price)}</span>
+                  {p.old_price && (
+                    <span className="text-[10.5px] text-muted-foreground line-through">{fmt(p.old_price)}</span>
+                  )}
+                  {!!p.sales_count && (
+                    <span className="text-[10.5px] text-muted-foreground block">🔥 {p.sales_count}+ vendidos</span>
+                  )}
+                </div>
+              </button>
+            );
+          })}
         </div>
 
         {products.length === 0 && !loading && (
