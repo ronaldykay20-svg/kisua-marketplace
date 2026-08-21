@@ -100,19 +100,23 @@ const Campanha = () => {
         .eq("is_active", true);
       q = campaign.applyFilter(q);
 
-      const { data: picksData } = await q.order(campaign.topPicksOrderBy, { ascending: false }).limit(10);
-      const picks = ((picksData as TopPick[]) || []).filter((p) => p.id !== produtoId);
-      const ids = picks.map((p) => p.id);
+      // Busca uma amostra maior (40) e só depois filtra por quem tem foto —
+      // se buscasse só os 10 primeiros por desconto, e nenhum deles tivesse
+      // foto cadastrada, a tira toda ficava vazia mesmo havendo produtos
+      // com foto mais abaixo na lista.
+      const { data: picksData } = await q.order(campaign.topPicksOrderBy, { ascending: false }).limit(40);
+      const candidates = ((picksData as TopPick[]) || []).filter((p) => p.id !== produtoId);
+      const ids = candidates.map((p) => p.id);
       if (ids.length) {
         const { data: media } = await supabase
           .from("product_media").select("product_id, url").in("product_id", ids).eq("is_cover", true);
         const coverMap: Record<string, string> = {};
         (media || []).forEach((m: any) => { coverMap[m.product_id] = m.url; });
-        picks.forEach((p) => { (p as any).cover_url = coverMap[p.id]; });
+        candidates.forEach((p) => { (p as any).cover_url = coverMap[p.id]; });
       }
       // Só mostra produtos com foto própria — nada de imagem genérica
       // a fingir ser o produto.
-      setTopPicks(picks.filter((p) => p.cover_url || p.image_url));
+      setTopPicks(candidates.filter((p) => p.cover_url || p.image_url).slice(0, 10));
 
       let catQ = supabase.from("products").select("category").eq("is_active", true).limit(300);
       catQ = campaign.applyFilter(catQ);
