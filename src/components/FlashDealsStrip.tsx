@@ -49,7 +49,14 @@ const FlashDealsStrip = () => {
         .gt("discount_percent", 0)
         .order("discount_percent", { ascending: false })
         .limit(3);
-      if (error) throw error;
+
+      if (error) {
+        // Antes, um erro aqui fazia a secção sumir sem deixar rasto nenhum.
+        // Agora fica registado na consola do navegador (F12 → Console),
+        // pra dar pra saber exatamente o que a Supabase respondeu.
+        console.error("[FlashDealsStrip] erro ao buscar produtos:", error);
+        return [];
+      }
 
       const list = (data as FlashProduct[]) || [];
       const ids = list.map((p) => p.id);
