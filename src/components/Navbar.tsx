@@ -125,6 +125,10 @@ const Navbar = () => {
   const isCategoriasPage       = location.pathname === "/categorias";
   const isPesquisaPage         = location.pathname === "/pesquisa";
   const isCategoriaDetalhePage = location.pathname.startsWith("/categoria/");
+  // Ambiente de Teste tem a sua própria barra de categorias em imagens
+  // (CategoryIconBar) logo abaixo — a fila de categorias em texto do
+  // cabeçalho ficaria duplicada, por isso escondemos aqui.
+  const isAmbienteTeste        = location.pathname === "/admin/ambiente-teste";
 
   const categoryNameFromUrl = isCategoriaDetalhePage
     ? decodeURIComponent(location.pathname.replace("/categoria/", ""))
@@ -251,7 +255,7 @@ const Navbar = () => {
   const safeAreaTop = "env(safe-area-inset-top)";
 
   const navbarStyle: React.CSSProperties = {
-    background: "#F7F0E6",
+    background: isAmbienteTeste ? "#FFFFFF" : "#F7F0E6",
     boxShadow: scrolled ? "0 2px 20px rgba(74,46,10,0.18)" : "0 1px 0 rgba(74,46,10,0.08)",
     transition: "box-shadow 0.3s ease",
     paddingTop: safeAreaTop,
@@ -490,7 +494,7 @@ const Navbar = () => {
           )}
 
           {/* ══ HANDLE + CATEGORIAS ══ */}
-          {!isCategoriasPage && !isPesquisaPage && !isCategoriaDetalhePage && (
+          {!isCategoriasPage && !isPesquisaPage && !isCategoriaDetalhePage && !isAmbienteTeste && (
             <>
               <button
                 className="w-full flex items-center justify-center"
