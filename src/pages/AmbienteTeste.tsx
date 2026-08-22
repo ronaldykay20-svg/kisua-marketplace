@@ -171,6 +171,16 @@ const AmbienteTeste = () => {
   const pageRef = useRef(0);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
+  // A barra de status do telemóvel (hora/sinal/bateria) segue a cor do
+  // meta theme-color, não a cor do cabeçalho em si — troca pra branco
+  // enquanto esta página está aberta, e devolve ao original ao sair.
+  useEffect(() => {
+    const meta = document.querySelector('meta[name="theme-color"]');
+    const original = meta?.getAttribute("content");
+    meta?.setAttribute("content", "#ffffff");
+    return () => { if (original) meta?.setAttribute("content", original); };
+  }, []);
+
   const loadNextPage = useCallback(async () => {
     setLoading(true);
     const from = pageRef.current * PAGE_SIZE;
@@ -243,14 +253,13 @@ const AmbienteTeste = () => {
 
       <CategoryIconBar />
 
-      {/* Faixa "Ofertas Relâmpago" — largura total do ecrã, altura que
-          acompanha a proporção real da imagem (object-contain), com um
-          teto (max-height) pra nunca ficar gigante em ecrãs largos. */}
-      <div className="w-full flex justify-center bg-white px-3 pt-2 pb-1">
+      {/* Faixa "Ofertas Relâmpago" — bem enxuta, quase a tocar nas margens,
+          altura acompanha a proporção real da imagem (object-contain). */}
+      <div className="w-full flex justify-center bg-white px-1.5 pt-1.5 pb-1">
         <img
           src={ofertasRelampagoStrip}
           alt="Ofertas Relâmpago — descontos por tempo limitado"
-          className="w-full h-auto max-h-24 sm:max-h-28 object-contain"
+          className="w-full h-auto max-h-14 sm:max-h-16 object-contain"
         />
       </div>
 
