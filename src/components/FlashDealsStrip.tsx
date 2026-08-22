@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Zap, CheckCircle2 } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getRemainingToMidnight } from "@/lib/flashTime";
 
@@ -96,11 +96,7 @@ const FlashDealsStrip = () => {
 
   return (
     <section className="bg-white pt-1 pb-3">
-      <div className="flex items-center justify-between px-3 mb-2">
-        <button onClick={() => navigate("/campanha/ofertas-relampago")} className="flex items-center gap-1.5 active:opacity-70 transition-opacity">
-          <Zap className="w-4 h-4" style={{ color: "#e53935" }} fill="#e53935" />
-          <h2 className="text-[14px] font-black" style={{ color: "#4A2E0A" }}>Ofertas relâmpago</h2>
-        </button>
+      <div className="flex items-center justify-end px-3 mb-2">
         <div className="flex items-center gap-1">
           <span className="text-[10px] text-muted-foreground font-semibold">termina em</span>
           <span
