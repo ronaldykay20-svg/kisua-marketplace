@@ -13,14 +13,16 @@ import { getRemainingToMidnight } from "@/lib/flashTime";
 // vendedor sobreposto + preço + vendidos.
 // ─────────────────────────────────────────────────────────────────────────
 
-const fmt = (n: number) =>
-  new Intl.NumberFormat("pt-AO", { style: "currency", currency: "AOA", maximumFractionDigits: 0 }).format(n);
+// Só o número, sem símbolo de moeda — o "AOA" agora é escrito à parte,
+// grande, como pedido.
+const fmtNum = (n: number) => new Intl.NumberFormat("pt-AO", { maximumFractionDigits: 0 }).format(n);
 
 const FALLBACK_IMG = "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300&h=300&fit=crop";
 
 interface FlashProduct {
   id: string;
   title: string;
+  description: string | null;
   price: number;
   old_price: number | null;
   discount_percent: number | null;
@@ -45,7 +47,7 @@ const FlashDealsStrip = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select("id, title, price, old_price, discount_percent, sales_count, company_id, image_url")
+        .select("id, title, description, price, old_price, discount_percent, sales_count, company_id, image_url")
         .eq("is_active", true)
         .gt("discount_percent", 0)
         .order("discount_percent", { ascending: false })
@@ -108,15 +110,17 @@ const FlashDealsStrip = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2.5 px-3">
+      {/* Sem gap entre os cards — a própria borda vermelha de cada um forma
+          a grelha e marca a divisão entre eles. */}
+      <div className="grid grid-cols-3 gap-0 px-3">
         {products.map((p) => {
           const img = p.cover_url || p.image_url || FALLBACK_IMG;
           return (
             <button
               key={p.id}
               onClick={() => navigate(`/campanha/ofertas-relampago?produto=${p.id}`)}
-              className="flex flex-col text-left rounded-xl overflow-hidden bg-white border active:opacity-80 transition-opacity"
-              style={{ borderColor: "#F0EBDF" }}
+              className="flex flex-col text-left overflow-hidden bg-white border active:opacity-80 transition-opacity"
+              style={{ borderColor: "#e53935" }}
             >
               <div className="relative w-full aspect-square bg-muted">
                 <img src={img} alt={p.title} className="w-full h-full object-cover" loading="lazy" />
@@ -129,19 +133,45 @@ const FlashDealsStrip = () => {
                   </span>
                 )}
                 {p.store_name && (
-                  <span className="absolute bottom-0 inset-x-0 bg-black/55 backdrop-blur-sm px-1.5 py-1 flex items-center gap-1">
+                  <span className="absolute bottom-0 inset-x-0 px-1.5 py-1 flex items-center gap-1" style={{ background: "rgba(229,57,53,0.82)" }}>
                     <CheckCircle2 className="w-3 h-3 text-white shrink-0" />
                     <span className="text-[9.5px] font-semibold text-white truncate">{p.store_name}</span>
                   </span>
                 )}
               </div>
-              <div className="px-1.5 py-1.5">
-                <span className="text-[13px] font-black block" style={{ color: "#1a1a1a" }}>{fmt(p.price)}</span>
-                {p.old_price && (
-                  <span className="text-[10px] text-muted-foreground line-through block">{fmt(p.old_price)}</span>
+
+              <div className="px-1.5 pt-1.5 pb-2 border-t" style={{ borderColor: "#e53935" }}>
+                {/* Preço em destaque no topo — "AOA" grande + valor grande,
+                    ocupando quase toda a largura do card. */}
+                <div className="flex items-baseline gap-1 flex-wrap leading-none mb-0.5">
+                  <span className="text-[11px] font-black" style={{ color: "#e53935" }}>AOA</span>
+                  <span className="text-[18px] font-black" style={{ color: "#1a1a1a" }}>{fmtNum(p.price)}</span>
+                </div>
+
+                {(p.old_price || !!p.discount_percent) && (
+                  <div className="flex items-center gap-1.5 mb-1">
+                    {p.old_price && (
+                      <span className="text-[10px] text-muted-foreground line-through">{fmtNum(p.old_price)}</span>
+                    )}
+                    {!!p.discount_percent && (
+                      <span className="text-[10px] font-black" style={{ color: "#e53935" }}>-{p.discount_percent}%</span>
+                    )}
+                  </div>
                 )}
+
+                <h3 className="text-[11.5px] font-bold line-clamp-1 mb-0.5" style={{ color: "#4A2E0A" }}>
+                  {p.title}
+                </h3>
+                {p.description && (
+                  <p className="text-[10px] text-muted-foreground leading-snug line-clamp-3 mb-1">
+                    {p.description}
+                  </p>
+                )}
+
                 {!!p.sales_count && (
-                  <span className="text-[9.5px] text-muted-foreground block">🔥 {p.sales_count}+ vendidos</span>
+                  <span className="text-[9.5px] font-bold block" style={{ color: "#e53935" }}>
+                    🔥 {p.sales_count}+ vendidos
+                  </span>
                 )}
               </div>
             </button>
