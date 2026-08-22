@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getRatingImage, freteGratisImg } from "@/lib/ratingImage";
 import CategoryIconBar from "@/components/CategoryIconBar";
 import FlashDealsStrip from "@/components/FlashDealsStrip";
+import ofertasRelampagoStrip from "@/assets/campaigns/ofertas-relampago-strip.webp";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Ambiente de teste — pré-visualização automática do card de produto.
@@ -241,6 +242,18 @@ const AmbienteTeste = () => {
       `}</style>
 
       <CategoryIconBar />
+
+      {/* Faixa "Ofertas Relâmpago" — largura total do ecrã, altura que
+          acompanha a proporção real da imagem (object-contain), com um
+          teto (max-height) pra nunca ficar gigante em ecrãs largos. */}
+      <div className="w-full flex justify-center bg-white px-3 pt-2 pb-1">
+        <img
+          src={ofertasRelampagoStrip}
+          alt="Ofertas Relâmpago — descontos por tempo limitado"
+          className="w-full h-auto max-h-24 sm:max-h-28 object-contain"
+        />
+      </div>
+
       <FlashDealsStrip />
 
       <div className="max-w-md sm:max-w-xl mx-auto px-4 pt-4 pb-8">
