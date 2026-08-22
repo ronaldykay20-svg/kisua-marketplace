@@ -13,6 +13,11 @@ import iconMenu from "@/assets/navbar/icon-menu.webp";
 import iconBell from "@/assets/navbar/icon-bell.webp";
 import zanguLogo from "@/assets/navbar/zangu-logo.webp";
 
+// Reserva pra quando uma categoria não tem foto própria nem uma estática
+// correspondente — sem isto, <img src=""> mostra um ícone de imagem
+// quebrada só num canto do círculo (parece algo "espreitando").
+const CATEGORY_FALLBACK_IMG = "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=100&h=100&fit=crop";
+
 const staticCategories = [
   { name: "Electrónicos", image: "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=100&h=100&fit=crop" },
   { name: "Veículos", image: "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=100&h=100&fit=crop" },
@@ -106,7 +111,7 @@ const Navbar = () => {
     ? dbCategories.map((c: any) => ({
         id: c.id,
         name: c.name,
-        image: c.display_image_url || staticCategories.find((s) => s.name === c.name)?.image || "",
+        image: c.display_image_url || staticCategories.find((s) => s.name === c.name)?.image || CATEGORY_FALLBACK_IMG,
       }))
     : staticCategories.map((c) => ({ id: c.name, name: c.name, image: c.image }));
 
@@ -714,7 +719,13 @@ const Navbar = () => {
                   <button key={cat.name}
                     onClick={() => { navigate(`/categoria/${encodeURIComponent(cat.name)}`); setMenuOpen(false); }}
                     className="w-full flex items-center gap-3 px-3 py-2 hover:bg-muted rounded-xl transition-colors">
-                    <img src={cat.image} alt={cat.name} className="w-10 h-10 rounded-full object-cover border-2" style={{ borderColor: sand }} />
+                    <img
+                      src={cat.image}
+                      alt={cat.name}
+                      className="w-10 h-10 rounded-full object-cover border-2"
+                      style={{ borderColor: sand }}
+                      onError={(e) => { (e.target as HTMLImageElement).src = CATEGORY_FALLBACK_IMG; }}
+                    />
                     <span className="text-sm font-medium text-foreground flex-1 text-left">{cat.name}</span>
                     <ChevronRight className="w-4 h-4 text-muted-foreground" />
                   </button>
